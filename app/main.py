@@ -1,8 +1,7 @@
 from fastapi import FastAPI
-from .envs import ENV_VARS
 
 app = FastAPI()
 
 @app.get("/")
-def read_root():
+def read_root() -> dict[str, str]:
     return {"message": "Hello, World!"}

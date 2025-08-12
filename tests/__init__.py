@@ -1,1 +1,1 @@
-"""Tests for verde_ai_core package.""" 
+"""Tests."""
