@@ -7,7 +7,7 @@ authors = [
     "Sofi <sofia.duclos@promtior.ai>"
 ]
 readme = "README.md"
-packages = [{include = "verde_ai_core", from = "src"}]
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -16,6 +16,9 @@ python = "^3.12"
 # langchain = "^0.1.0"
 # numpy = "^1.24.0"
 # pandas = "^2.0.0"
+fastapi = "^0.116.1"
+uvicorn = "^0.35.0"
+langgraph = "^0.6.4"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.11.12"
