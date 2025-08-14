@@ -12,14 +12,17 @@ from app.models import BlockedTopic, SemanticMemory, UserContext
 class OnboardingStep(str, Enum):
     """Steps in the onboarding conversation flow (Epic 01 stories)."""
 
-    GREETING = "greeting"                    # Story 1: Greeting & Name/Pronouns
-    LANGUAGE_TONE = "language_tone"          # Story 2: Language, Tone & Blocked Topics
-    MOOD_CHECK = "mood_check"                # Story 3: Mood Check (Initial)
-    PERSONAL_INFO = "personal_info"          # Story 4: Manual Personal Info (Minimal)
+    GREETING = "greeting"  # Story 1: Greeting & Name/Pronouns
+    LANGUAGE_TONE = "language_tone"  # Story 2: Language, Tone & Blocked Topics
+    MOOD_CHECK = "mood_check"  # Story 3: Mood Check (Initial)
+    PERSONAL_INFO = "personal_info"  # Story 4: Manual Personal Info (Minimal)
     FINANCIAL_SNAPSHOT = "financial_snapshot"  # Story 5: Manual Financial Snapshot
-    SOCIALS_OPTIN = "socials_optin"          # Story 6: Socials Opt-In (Optional)
-    KB_EDUCATION = "kb_education"            # Story 7: KB Education Small Talk
-    COMPLETION = "completion"                # Story 8: Handoff Summary & Completion
+    SOCIALS_OPTIN = "socials_optin"  # Story 6: Socials Opt-In (Optional)
+    KB_EDUCATION = "kb_education"  # Story 7: KB Education Small Talk
+    STYLE_FINALIZE = (
+        "style_finalize"  # New: infer style & accessibility from conversation
+    )
+    COMPLETION = "completion"  # Story 8: Handoff Summary & Completion
 
 
 class OnboardingState(BaseModel):
@@ -29,6 +32,13 @@ class OnboardingState(BaseModel):
     user_id: UUID
     current_step: OnboardingStep = OnboardingStep.GREETING
     turn_number: int = 0
+
+    awaiting_input: bool = False
+    awaiting_choice: bool = False
+
+    pending_options: list[dict[str, Any]] = Field(default_factory=list)
+    options_for_step: str | None = None
+    options_version: int = 0
 
     user_context: UserContext = Field(default_factory=lambda: UserContext())
 
@@ -57,7 +67,10 @@ class OnboardingState(BaseModel):
             self.skipped_steps.append(step)
 
     def add_semantic_memory(
-        self, content: str, category: str, metadata: dict[str, Any] | None = None,
+        self,
+        content: str,
+        category: str,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """Add a semantic memory entry."""
         memory = SemanticMemory(
@@ -81,13 +94,15 @@ class OnboardingState(BaseModel):
     def add_conversation_turn(self, user_message: str, agent_response: str) -> None:
         """Add a conversation turn to history."""
         self.turn_number += 1
-        self.conversation_history.append({
-            "turn": self.turn_number,
-            "user_message": user_message,
-            "agent_response": agent_response,
-            "step": self.current_step.value,
-            "timestamp": "utcnow",
-        })
+        self.conversation_history.append(
+            {
+                "turn": self.turn_number,
+                "user_message": user_message,
+                "agent_response": agent_response,
+                "step": self.current_step.value,
+                "timestamp": "utcnow",
+            }
+        )
         self.last_user_message = user_message
         self.last_agent_response = agent_response
 
@@ -101,6 +116,7 @@ class OnboardingState(BaseModel):
             OnboardingStep.FINANCIAL_SNAPSHOT,
             OnboardingStep.SOCIALS_OPTIN,
             OnboardingStep.KB_EDUCATION,
+            OnboardingStep.STYLE_FINALIZE,
             OnboardingStep.COMPLETION,
         ]
 

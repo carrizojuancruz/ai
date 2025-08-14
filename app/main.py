@@ -1,5 +1,3 @@
-from uuid import UUID, uuid4
-
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -28,5 +26,4 @@ def read_root() -> dict[str, str]:
     return {"message": "Verde AI - Vera Agent System", "status": "online"}
 
 
-# Mount API
 app.include_router(api_router)

@@ -24,7 +24,7 @@ class Identity(BaseModel):
 
 class Safety(BaseModel):
     blocked_categories: list[str] = Field(default_factory=list)
-    allow_sensitive: bool = False
+    allow_sensitive: Optional[bool] = None
 
 
 class Style(BaseModel):
@@ -37,8 +37,8 @@ class Style(BaseModel):
 class Location(BaseModel):
     city: Optional[str] = None
     region: Optional[str] = None
-    cost_of_living: Optional[str] = None  # low|medium|high
-    travel: Optional[str] = None  # none|domestic|international|frequent_flyer
+    cost_of_living: Optional[str] = None
+    travel: Optional[str] = None
     local_rules: list[str] = Field(default_factory=list)
 
 

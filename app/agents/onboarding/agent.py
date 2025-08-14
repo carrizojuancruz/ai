@@ -1,6 +1,14 @@
-"""LangGraph-based onboarding agent implementation."""
+"""LangGraph-based onboarding agent (node-per-step, prompts-driven).
+
+Each node is responsible for collecting its target fields using
+LLM prompts and structured extraction, and decides whether to
+advance or keep asking within the same node.
+"""
+
+from __future__ import annotations
 
 from uuid import UUID
+from typing import Any
 
 from langgraph.graph import END, StateGraph
 
@@ -11,7 +19,7 @@ from .state import OnboardingState, OnboardingStep
 
 
 class OnboardingAgent:
-    """Onboarding Agent for the Verde AI application."""
+    """Onboarding Agent implementing node-per-step logic with LLM prompts."""
 
     def __init__(self) -> None:
         self.graph = self._create_graph()
@@ -28,6 +36,7 @@ class OnboardingAgent:
             "financial_snapshot",
             "socials_optin",
             "kb_education",
+            "style_finalize",
             "completion",
         ]:
             workflow.add_node(name, getattr(self, f"_handle_{name}"))
@@ -57,8 +66,11 @@ class OnboardingAgent:
         fn, mp = route_for(OnboardingStep.SOCIALS_OPTIN, "kb_education")
         workflow.add_conditional_edges("socials_optin", fn, mp)
 
-        fn, mp = route_for(OnboardingStep.KB_EDUCATION, "completion")
+        fn, mp = route_for(OnboardingStep.KB_EDUCATION, "style_finalize")
         workflow.add_conditional_edges("kb_education", fn, mp)
+
+        fn, mp = route_for(OnboardingStep.STYLE_FINALIZE, "completion")
+        workflow.add_conditional_edges("style_finalize", fn, mp)
 
         def route_completion(state: OnboardingState) -> str:
             return (
@@ -102,28 +114,39 @@ class OnboardingAgent:
             missing.append("identity.preferred_name")
 
         if state.last_user_message and not state.user_context.identity.preferred_name:
-            name = self.llm.extract(
+            data = self.llm.extract(
                 schema={
                     "type": "object",
                     "properties": {"preferred_name": {"type": "string"}},
-                    "required": ["preferred_name"],
+                    "required": [],
                 },
                 text=state.last_user_message,
-                instructions="Extract the user's preferred_name only.",
-            ).get("preferred_name")
+                instructions="If the user provided a name, extract it as preferred_name; otherwise return nothing.",
+            )
+            name = (data.get("preferred_name") or "").strip()
             if name and not self._is_probable_greeting(name):
                 state.user_context.identity.preferred_name = name
                 state.user_context.sync_nested_to_flat()
+                state.mark_step_completed(OnboardingStep.GREETING)
+                response = self._gen(
+                    OnboardingStep.LANGUAGE_TONE,
+                    state,
+                    ["safety.blocked_categories", "safety.allow_sensitive"],
+                )
             else:
                 response = self._gen(
                     OnboardingStep.GREETING, state, ["identity.preferred_name"]
                 )
-                state.add_conversation_turn(state.last_user_message or "", response)
-                return state
+            state.add_conversation_turn(state.last_user_message or "", response)
+            return state
 
         if state.user_context.identity.preferred_name:
             state.mark_step_completed(OnboardingStep.GREETING)
-            response = self._gen(OnboardingStep.LANGUAGE_TONE, state, ["style.tone"])
+            response = self._gen(
+                OnboardingStep.LANGUAGE_TONE,
+                state,
+                ["safety.blocked_categories", "safety.allow_sensitive"],
+            )
         else:
             response = self._gen(OnboardingStep.GREETING, state, missing)
         state.add_conversation_turn(state.last_user_message or "", response)
@@ -131,60 +154,46 @@ class OnboardingAgent:
 
     async def _handle_language_tone(self, state: OnboardingState) -> OnboardingState:
         state.current_step = OnboardingStep.LANGUAGE_TONE
-        missing = []
-        if not state.user_context.style.tone:
-            missing.append("style.tone")
+        missing: list[str] = []
+        # Only safety here; tone inference is done in STYLE_FINALIZE
+        if state.user_context.safety.blocked_categories is None:
+            state.user_context.safety.blocked_categories = []
         if not state.user_context.safety.blocked_categories:
             missing.append("safety.blocked_categories")
         if state.user_context.safety.allow_sensitive is None:
             missing.append("safety.allow_sensitive")
 
-        if state.last_user_message and not state.user_context.style.tone:
+        if state.last_user_message:
             data = self.llm.extract(
                 schema={
                     "type": "object",
                     "properties": {
-                        "tone": {"type": "string"},
-                        "verbosity": {"type": "string"},
-                        "formality": {"type": "string"},
-                        "emojis": {"type": "string"},
                         "blocked_categories": {
                             "type": "array",
                             "items": {"type": "string"},
                         },
                         "allow_sensitive": {"type": "boolean"},
                     },
-                    "required": ["tone"],
+                    "required": [],
                 },
                 text=state.last_user_message,
-                instructions="Extract style.{tone,verbosity,formality,emojis} and safety.{blocked_categories,allow_sensitive}.",
+                instructions=(
+                    "Normalize safety preferences from the message. If the user indicates none/no blocked topics, "
+                    "return an empty array for blocked_categories. Infer allow_sensitive from yes/no phrasing."
+                ),
             )
-            state.user_context.style.tone = (
-                data.get("tone") or state.user_context.style.tone
-            )
-            state.user_context.style.verbosity = (
-                data.get("verbosity") or state.user_context.style.verbosity
-            )
-            state.user_context.style.formality = (
-                data.get("formality") or state.user_context.style.formality
-            )
-            state.user_context.style.emojis = (
-                data.get("emojis") or state.user_context.style.emojis
-            )
-            if data.get("blocked_categories"):
+            if data.get("blocked_categories") is not None:
                 state.user_context.safety.blocked_categories = list(
-                    data["blocked_categories"]
+                    data.get("blocked_categories") or []
                 )
             if data.get("allow_sensitive") is not None:
                 state.user_context.safety.allow_sensitive = bool(
                     data["allow_sensitive"]
                 )
-            state.user_context.sync_nested_to_flat()
+        state.user_context.sync_nested_to_flat()
 
-        if (
-            state.user_context.style.tone
-            and state.user_context.safety.blocked_categories
-            and isinstance(state.user_context.safety.allow_sensitive, bool)
+        if state.user_context.safety.blocked_categories is not None and isinstance(
+            state.user_context.safety.allow_sensitive, bool
         ):
             state.mark_step_completed(OnboardingStep.LANGUAGE_TONE)
             response = self._gen(OnboardingStep.MOOD_CHECK, state, ["mood"])
@@ -196,11 +205,12 @@ class OnboardingAgent:
     async def _handle_mood_check(self, state: OnboardingState) -> OnboardingState:
         state.current_step = OnboardingStep.MOOD_CHECK
         if state.last_user_message:
-            mood = self.llm.extract(
+            data = self.llm.extract(
                 schema={"type": "object", "properties": {"mood": {"type": "string"}}},
                 text=state.last_user_message,
                 instructions="Extract a short mood phrase.",
-            ).get("mood")
+            )
+            mood = data.get("mood")
             if mood:
                 state.add_semantic_memory(
                     content=f"User's current mood about money: {mood}",
@@ -208,7 +218,8 @@ class OnboardingAgent:
                     metadata={"type": "mood", "value": mood, "context": "money"},
                 )
         if any(
-            m.get("metadata", {}).get("type") == "mood" for m in state.semantic_memories
+            getattr(m, "metadata", {}).get("type") == "mood"
+            for m in state.semantic_memories
         ):
             state.mark_step_completed(OnboardingStep.MOOD_CHECK)
             response = self._gen(OnboardingStep.PERSONAL_INFO, state, ["location.city"])
@@ -219,7 +230,7 @@ class OnboardingAgent:
 
     async def _handle_personal_info(self, state: OnboardingState) -> OnboardingState:
         state.current_step = OnboardingStep.PERSONAL_INFO
-        missing = []
+        missing: list[str] = []
         if not state.user_context.location.city:
             missing.append("location.city")
         if not state.user_context.location.region:
@@ -254,7 +265,7 @@ class OnboardingAgent:
         self, state: OnboardingState
     ) -> OnboardingState:
         state.current_step = OnboardingStep.FINANCIAL_SNAPSHOT
-        missing = []
+        missing: list[str] = []
         if not state.user_context.goals:
             missing.append("goals")
         if not state.user_context.income:
@@ -273,7 +284,9 @@ class OnboardingAgent:
                 instructions="Extract goals (array of short strings), income band, and primary_financial_goal if present.",
             )
             if data.get("goals"):
-                state.user_context.goals = list(data["goals"])
+                state.user_context.goals = (
+                    list(data["goals"]) or state.user_context.goals
+                )
             if data.get("income"):
                 state.user_context.income = data["income"]
             if data.get("primary_financial_goal"):
@@ -284,9 +297,7 @@ class OnboardingAgent:
 
         if state.user_context.goals and state.user_context.income:
             state.mark_step_completed(OnboardingStep.FINANCIAL_SNAPSHOT)
-            response = self._gen(
-                OnboardingStep.SOCIALS_OPTIN, state, ["proactivity.opt_in"]
-            )
+            response = self._gen(OnboardingStep.SOCIALS_OPTIN, state, [])
         else:
             response = self._gen(OnboardingStep.FINANCIAL_SNAPSHOT, state, missing)
         state.add_conversation_turn(state.last_user_message or "", response)
@@ -295,24 +306,23 @@ class OnboardingAgent:
     async def _handle_socials_optin(self, state: OnboardingState) -> OnboardingState:
         state.current_step = OnboardingStep.SOCIALS_OPTIN
         if state.last_user_message:
-            consent = self.llm.extract(
+            data = self.llm.extract(
                 schema={
                     "type": "object",
                     "properties": {"opt_in": {"type": "boolean"}},
                 },
                 text=state.last_user_message,
                 instructions="Return opt_in as boolean when answer implies yes/no.",
-            ).get("opt_in")
-            state.user_context.social_signals_consent = (
-                bool(consent) if consent is not None else False
             )
+            opt_in = data.get("opt_in")
+            if opt_in is not None:
+                state.user_context.social_signals_consent = bool(opt_in)
+
         if isinstance(state.user_context.social_signals_consent, bool):
             state.mark_step_completed(OnboardingStep.SOCIALS_OPTIN)
             response = self._gen(OnboardingStep.KB_EDUCATION, state, [])
         else:
-            response = self._gen(
-                OnboardingStep.SOCIALS_OPTIN, state, ["proactivity.opt_in"]
-            )
+            response = self._gen(OnboardingStep.SOCIALS_OPTIN, state, [])
         state.add_conversation_turn(state.last_user_message or "", response)
         return state
 
@@ -324,6 +334,71 @@ class OnboardingAgent:
         else:
             response = self._gen(OnboardingStep.KB_EDUCATION, state, [])
         state.add_conversation_turn(state.last_user_message or "", response)
+        return state
+
+    async def _handle_style_finalize(self, state: OnboardingState) -> OnboardingState:
+        state.current_step = OnboardingStep.STYLE_FINALIZE
+        missing: list[str] = []
+        if not state.user_context.style.tone:
+            missing.append("style.tone")
+        if not state.user_context.style.verbosity:
+            missing.append("style.verbosity")
+        if not state.user_context.style.formality:
+            missing.append("style.formality")
+        if not state.user_context.style.emojis:
+            missing.append("style.emojis")
+        if not state.user_context.accessibility.reading_level_hint:
+            missing.append("accessibility.reading_level_hint")
+        if not state.user_context.accessibility.glossary_level_hint:
+            missing.append("accessibility.glossary_level_hint")
+
+        last_turns_text = "\n".join(
+            f"U:{t.get('user_message', '')}\nA:{t.get('agent_response', '')}"
+            for t in state.conversation_history[-6:]
+        )
+        data = self.llm.extract(
+            schema={
+                "type": "object",
+                "properties": {
+                    "tone": {"type": "string"},
+                    "verbosity": {"type": "string"},
+                    "formality": {"type": "string"},
+                    "emojis": {"type": "string"},
+                    "reading_level_hint": {"type": "string"},
+                    "glossary_level_hint": {"type": "string"},
+                },
+            },
+            text=last_turns_text,
+            instructions=(
+                "Infer concise style.{tone,verbosity,formality,emojis} and accessibility.{reading_level_hint,glossary_level_hint} "
+                "from the user's language and the assistant tone so far."
+            ),
+        )
+        ctx = state.user_context
+        if data.get("tone") and not ctx.style.tone:
+            ctx.style.tone = data["tone"]
+        if data.get("verbosity") and not ctx.style.verbosity:
+            ctx.style.verbosity = data["verbosity"]
+        if data.get("formality") and not ctx.style.formality:
+            ctx.style.formality = data["formality"]
+        if data.get("emojis") and not ctx.style.emojis:
+            ctx.style.emojis = data["emojis"]
+        if data.get("reading_level_hint") and not ctx.accessibility.reading_level_hint:
+            ctx.accessibility.reading_level_hint = data["reading_level_hint"]
+        if (
+            data.get("glossary_level_hint")
+            and not ctx.accessibility.glossary_level_hint
+        ):
+            ctx.accessibility.glossary_level_hint = data["glossary_level_hint"]
+        ctx.sync_nested_to_flat()
+
+        response = (
+            "Before we wrap, I'll keep replies "
+            f"{ctx.style.tone or 'clear'} and {ctx.style.formality or 'friendly'}. "
+            "Sound good?"
+        )
+        state.add_conversation_turn(state.last_user_message or "", response)
+        state.mark_step_completed(OnboardingStep.STYLE_FINALIZE)
         return state
 
     async def _handle_completion(self, state: OnboardingState) -> OnboardingState:
@@ -349,9 +424,9 @@ class OnboardingAgent:
         return (new_state.last_agent_response or "", new_state)
 
     def display_graph(self) -> None:
-        """Display the onboarding LangGraph as a PNG (for notebooks)."""
         try:
             from IPython.display import Image, display
+
             display(Image(self.graph.get_graph().draw_mermaid_png()))
         except Exception:
             pass
