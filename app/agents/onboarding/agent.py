@@ -7,19 +7,73 @@ advance or keep asking within the same node.
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 from typing import Any
 from uuid import UUID
 
-from langfuse import Langfuse
+from langchain_core.callbacks.base import BaseCallbackHandler
+from langchain_core.messages import HumanMessage, SystemMessage
 from langfuse.callback import CallbackHandler
 from langgraph.graph import END, StateGraph
 
 from app.models import MemoryCategory
-from app.services.llm import get_llm_client
 
 from .prompts import build_generation_prompt
 from .state import OnboardingState, OnboardingStep
+
+langfuse_handler = CallbackHandler(
+    public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
+    secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
+    host=os.getenv("LANGFUSE_HOST"),
+)
+
+logger = logging.getLogger(__name__)
+
+# Warn if Langfuse env is missing so callbacks would be disabled silently
+if not (
+    os.getenv("LANGFUSE_PUBLIC_KEY")
+    and os.getenv("LANGFUSE_SECRET_KEY")
+    and os.getenv("LANGFUSE_HOST")
+):
+    logger.warning(
+        "Langfuse env vars missing or incomplete; callback tracing will be disabled"
+    )
+
+
+class LCLogHandler(BaseCallbackHandler):
+    def on_chain_start(self, serialized: dict, inputs: dict, **kwargs: Any) -> None:
+        logger.info(
+            "LC on_chain_start: %s tags=%s metadata=%s",
+            serialized,
+            kwargs.get("tags"),
+            kwargs.get("metadata"),
+        )
+
+    def on_chain_end(self, outputs: dict, **kwargs: Any) -> None:
+        logger.info(
+            "LC on_chain_end: %s",
+            list(outputs.keys())
+            if isinstance(outputs, dict)
+            else type(outputs).__name__,
+        )
+
+    def on_llm_start(self, serialized: dict, prompts: list[str], **kwargs: Any) -> None:
+        logger.info(
+            "LC on_llm_start: prompts=%d tags=%s metadata=%s",
+            len(prompts or []),
+            kwargs.get("tags"),
+            kwargs.get("metadata"),
+        )
+
+    def on_llm_end(self, response: Any, **kwargs: Any) -> None:
+        logger.info("LC on_llm_end")
+
+
+_DEBUG_CALLBACKS: list[Any] = (
+    [LCLogHandler()] if os.getenv("VERDE_LC_DEBUG", "false").lower() == "true" else []
+)
 
 
 class OnboardingAgent:
@@ -27,26 +81,37 @@ class OnboardingAgent:
 
     def __init__(self) -> None:
         self.graph = self._create_graph()
-        self.llm = get_llm_client()
-        self._lf_handler: CallbackHandler | None = None
-        try:
-            public_key = os.getenv("LANGFUSE_PUBLIC_KEY")
-            secret_key = os.getenv("LANGFUSE_SECRET_KEY")
-            host = os.getenv("LANGFUSE_HOST")
-            if public_key and secret_key and host:
-                self._lf = Langfuse(
-                    public_key=public_key, secret_key=secret_key, host=host
-                )
-                self._lf_handler = CallbackHandler()
-        except Exception:
-            self._lf_handler = None
+        self._chat_bedrock = None
 
-    def _model_name(self) -> str:
-        return getattr(
-            self.llm,
-            "model_id",
-            getattr(self.llm, "__class__", type("x", (), {})).__name__,
-        )
+    def _ensure_bedrock_chat(self):
+        if self._chat_bedrock is not None:
+            return
+        try:
+            provider = os.getenv("LLM_PROVIDER", "").strip().lower()
+            if provider != "bedrock":
+                raise RuntimeError(
+                    "LLM_PROVIDER must be 'bedrock' to enable LangChain Bedrock callbacks"
+                )
+            region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
+            model_id = os.getenv(
+                "BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0"
+            )
+            if not region:
+                raise RuntimeError(
+                    "AWS_REGION or AWS_DEFAULT_REGION must be set for Bedrock"
+                )
+            from langchain_aws import ChatBedrock
+
+            self._chat_bedrock = ChatBedrock(
+                model_id=model_id,
+                region_name=region,
+            )
+            logger.info(
+                "ChatBedrock initialized (model_id=%s, region=%s)", model_id, region
+            )
+        except Exception as e:
+            logger.error("Failed to initialize ChatBedrock: %s", e)
+            raise
 
     def _create_graph(self) -> StateGraph:
         workflow = StateGraph(OnboardingState)
@@ -115,8 +180,34 @@ class OnboardingAgent:
         system, prompt, ctx = build_generation_prompt(
             step=step, user_context=state.user_context, missing_fields=missing
         )
-        response = self.llm.generate(prompt=prompt, system=system, context=ctx)
-        return response
+        self._ensure_bedrock_chat()
+        messages = []
+        if system:
+            messages.append(SystemMessage(content=system))
+        messages.append(HumanMessage(content=prompt))
+        try:
+            resp = self._chat_bedrock.invoke(
+                messages,
+                config={
+                    "callbacks": [langfuse_handler, *_DEBUG_CALLBACKS],
+                    "thread_id": str(state.conversation_id),
+                    "tags": ["onboarding", "verde-ai", f"step:{step.name}"],
+                    "metadata": {
+                        "user_id": str(state.user_id),
+                        "conversation_id": str(state.conversation_id),
+                        "step": step.name,
+                        "missing": missing,
+                    },
+                    "configurable": {
+                        "session_id": str(state.conversation_id),
+                        "original_query": state.last_user_message or "",
+                    },
+                },
+            )
+            return getattr(resp, "content", str(resp))
+        except Exception as e:
+            logger.error("Bedrock generate failed: %s", e)
+            raise
 
     def _extract(
         self,
@@ -127,10 +218,51 @@ class OnboardingAgent:
         instructions: str | None = None,
         context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        data = self.llm.extract(
-            schema=schema, text=text, instructions=instructions, context=context
+        """Structured extraction using LangChain Bedrock Chat with Langfuse callbacks."""
+        self._ensure_bedrock_chat()
+        schema_str = json.dumps(schema, ensure_ascii=False)
+        sys = (
+            "You extract structured data from user text. Only output a JSON object that "
+            "matches the provided JSON Schema. Do not include any prose."
         )
-        return data
+        usr = (
+            f"JSON Schema: {schema_str}\n"
+            f"User text: {text}\n"
+            f"Instructions: {instructions or ''}\n"
+            "Rules: Return ONLY JSON. Omit unknown fields. Use null for unknowns."
+        )
+        messages = [SystemMessage(content=sys), HumanMessage(content=usr)]
+        try:
+            resp = self._chat_bedrock.invoke(
+                messages,
+                config={
+                    "callbacks": [langfuse_handler, *_DEBUG_CALLBACKS],
+                    "thread_id": str(state.conversation_id),
+                    "tags": ["onboarding", "verde-ai", f"step:{step.name}", "extract"],
+                    "metadata": {
+                        "user_id": str(state.user_id),
+                        "conversation_id": str(state.conversation_id),
+                        "step": step.name,
+                        "operation": "extract",
+                    },
+                    "configurable": {
+                        "session_id": str(state.conversation_id),
+                        "original_query": state.last_user_message or "",
+                    },
+                },
+            )
+            raw = getattr(resp, "content", str(resp))
+            try:
+                return json.loads(raw)
+            except Exception:
+                start = raw.find("{")
+                end = raw.rfind("}")
+                if start != -1 and end != -1 and end > start:
+                    return json.loads(raw[start : end + 1])
+                return {}
+        except Exception as e:
+            logger.error("Bedrock extract failed: %s", e)
+            raise
 
     def _is_probable_greeting(self, text: str) -> bool:
         term = (text or "").strip().lower()
@@ -470,12 +602,23 @@ class OnboardingAgent:
         state.last_user_message = message
 
         state_dict = state.model_dump()
-        if self._lf_handler is not None:
-            result = await self.graph.ainvoke(
-                state_dict, config={"callbacks": [self._lf_handler]}
-            )
-        else:
-            result = await self.graph.ainvoke(state_dict)
+        result = await self.graph.ainvoke(
+            state_dict,
+            config={
+                "callbacks": [langfuse_handler, *_DEBUG_CALLBACKS],
+                "thread_id": str(state.conversation_id),
+                "tags": ["onboarding", "verde-ai"],
+                "metadata": {
+                    "user_id": str(user_id),
+                    "conversation_id": str(state.conversation_id),
+                    "event": "process_message",
+                },
+                "configurable": {
+                    "session_id": str(state.conversation_id),
+                    "original_query": message,
+                },
+            },
+        )
         new_state = OnboardingState(**result) if isinstance(result, dict) else result
 
         return (new_state.last_agent_response or "", new_state)
