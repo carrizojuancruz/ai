@@ -3,9 +3,11 @@ name: Build and Push to ECR
 on:
   push:
     branches:
-      - main  # Change if needed
+      - prod  # Change if needed
       - dev  # Change if needed
       - uat  # Change if needed
+    paths-ignore:
+      - '.github/workflows/**'  # Ignore changes in workflow folder
 
 env:
   ECR_REPOSITORY: "${{ github.event.repository.name }}-${{ github.ref_name }}"
