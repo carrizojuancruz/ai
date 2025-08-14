@@ -39,6 +39,7 @@ jobs:
           ECR_REGISTRY=$(aws ecr describe-repositories --repository-names $ECR_REPOSITORY --query "repositories[0].repositoryUri" --output text)
 
           docker buildx build --platform linux/arm64 -t $ECR_REGISTRY:$IMAGE_TAG --push .
+          
 
           # Optional: push "latest"
           docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY:latest
