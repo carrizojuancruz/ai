@@ -1,22 +1,22 @@
 from __future__ import annotations
 
-from uuid import uuid4
 import asyncio
 import json
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.agents.onboarding import OnboardingState
 from app.core.app_state import (
     get_onboarding_agent,
+    get_sse_queue,
     get_thread_state,
+    get_user_sessions,
     register_thread,
     set_thread_state,
-    get_sse_queue,
 )
-from app.agents.onboarding import OnboardingState
-from app.core.app_state import get_user_sessions
 
 router = APIRouter(prefix="/onboarding", tags=["Onboarding"])
 
@@ -97,9 +97,7 @@ async def onboarding_message(payload: MessagePayload) -> dict:
     elif payload.type == "choice" and payload.choice_ids:
         user_text = ", ".join(payload.choice_ids)
     elif payload.type == "control" and payload.action in {"back", "skip"}:
-        if payload.action == "back":
-            pass
-        elif payload.action == "skip":
+        if payload.action == "back" or payload.action == "skip":
             pass
         set_thread_state(payload.thread_id, state)
         await get_sse_queue(payload.thread_id).put(
@@ -173,7 +171,7 @@ async def onboarding_sse(thread_id: str, request: Request) -> StreamingResponse:
                     break
                 try:
                     item = await asyncio.wait_for(queue.get(), timeout=10.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     continue
 
                 if isinstance(item, dict) and "event" in item:

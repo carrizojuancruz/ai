@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Optional
+from typing import Any
 
 import boto3
 
@@ -28,11 +28,15 @@ class BedrockLLM(LLM):
         self.client = boto3.client("bedrock-runtime", region_name=region)
         self.temperature = float(os.getenv("LLM_TEMPERATURE", "0.3"))
         self.anthropic_version = "bedrock-2023-05-31"
+        self._callbacks: list[Any] | None = None
+
+    def set_callbacks(self, callbacks: list[Any] | None) -> None:
+        self._callbacks = callbacks
 
     def _invoke_claude(
         self,
         messages: list[dict[str, Any]],
-        system: Optional[str],
+        system: str | None,
         max_tokens: int = 400,
     ) -> str:
         body: dict[str, Any] = {
@@ -52,6 +56,7 @@ class BedrockLLM(LLM):
             kwargs["inferenceProfileArn"] = self.inference_profile_arn
         else:
             kwargs["modelId"] = self.model_id
+        # Callbacks are currently unused here; kept for compatibility with LangChain handler expectation
         response = self.client.invoke_model(**kwargs)
         payload = json.loads(response["body"].read())
         parts = payload.get("content") or []
@@ -63,8 +68,8 @@ class BedrockLLM(LLM):
     def generate(
         self,
         prompt: str,
-        system: Optional[str] = None,
-        context: Optional[dict[str, Any]] = None,
+        system: str | None = None,
+        context: dict[str, Any] | None = None,
     ) -> str:
         messages = [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
         return self._invoke_claude(messages, system)
@@ -73,8 +78,8 @@ class BedrockLLM(LLM):
         self,
         schema: dict[str, Any],
         text: str,
-        instructions: Optional[str] = None,
-        context: Optional[dict[str, Any]] = None,
+        instructions: str | None = None,
+        context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         schema_str = json.dumps(schema, ensure_ascii=False)
         instr = instructions or ""

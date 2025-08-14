@@ -1,9 +1,8 @@
-from fastapi import FastAPI, Request
-from pydantic import BaseModel
 from dotenv import load_dotenv
+from fastapi import FastAPI, Request
 
-from .observability.logging_config import configure_logging, get_logger
 from .api.routes import router as api_router
+from .observability.logging_config import configure_logging, get_logger
 
 load_dotenv(".env", override=False)
 load_dotenv(".env.local", override=True)

@@ -6,7 +6,7 @@ This provider returns deterministic responses and performs naive extraction.
 from __future__ import annotations
 
 import re
-from typing import Any, Optional
+from typing import Any
 
 from .base import LLM
 
@@ -17,8 +17,8 @@ class StubLLM(LLM):
     def generate(
         self,
         prompt: str,
-        system: Optional[str] = None,
-        context: Optional[dict[str, Any]] = None,
+        system: str | None = None,
+        context: dict[str, Any] | None = None,
     ) -> str:
         return prompt
 
@@ -26,8 +26,8 @@ class StubLLM(LLM):
         self,
         schema: dict[str, Any],
         text: str,
-        instructions: Optional[str] = None,
-        context: Optional[dict[str, Any]] = None,
+        instructions: str | None = None,
+        context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         message = text.strip()
         out: dict[str, Any] = {}

@@ -7,13 +7,17 @@ advance or keep asking within the same node.
 
 from __future__ import annotations
 
-from uuid import UUID
+import os
 from typing import Any
+from uuid import UUID
 
+from langfuse import Langfuse
+from langfuse.callback import CallbackHandler
 from langgraph.graph import END, StateGraph
 
 from app.models import MemoryCategory
 from app.services.llm import get_llm_client
+
 from .prompts import build_generation_prompt
 from .state import OnboardingState, OnboardingStep
 
@@ -24,6 +28,25 @@ class OnboardingAgent:
     def __init__(self) -> None:
         self.graph = self._create_graph()
         self.llm = get_llm_client()
+        self._lf_handler: CallbackHandler | None = None
+        try:
+            public_key = os.getenv("LANGFUSE_PUBLIC_KEY")
+            secret_key = os.getenv("LANGFUSE_SECRET_KEY")
+            host = os.getenv("LANGFUSE_HOST")
+            if public_key and secret_key and host:
+                self._lf = Langfuse(
+                    public_key=public_key, secret_key=secret_key, host=host
+                )
+                self._lf_handler = CallbackHandler()
+        except Exception:
+            self._lf_handler = None
+
+    def _model_name(self) -> str:
+        return getattr(
+            self.llm,
+            "model_id",
+            getattr(self.llm, "__class__", type("x", (), {})).__name__,
+        )
 
     def _create_graph(self) -> StateGraph:
         workflow = StateGraph(OnboardingState)
@@ -92,7 +115,22 @@ class OnboardingAgent:
         system, prompt, ctx = build_generation_prompt(
             step=step, user_context=state.user_context, missing_fields=missing
         )
-        return self.llm.generate(prompt=prompt, system=system, context=ctx)
+        response = self.llm.generate(prompt=prompt, system=system, context=ctx)
+        return response
+
+    def _extract(
+        self,
+        state: OnboardingState,
+        step: OnboardingStep,
+        schema: dict[str, Any],
+        text: str,
+        instructions: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        data = self.llm.extract(
+            schema=schema, text=text, instructions=instructions, context=context
+        )
+        return data
 
     def _is_probable_greeting(self, text: str) -> bool:
         term = (text or "").strip().lower()
@@ -114,8 +152,10 @@ class OnboardingAgent:
             missing.append("identity.preferred_name")
 
         if state.last_user_message and not state.user_context.identity.preferred_name:
-            data = self.llm.extract(
-                schema={
+            data = self._extract(
+                state,
+                OnboardingStep.GREETING,
+                {
                     "type": "object",
                     "properties": {"preferred_name": {"type": "string"}},
                     "required": [],
@@ -164,8 +204,10 @@ class OnboardingAgent:
             missing.append("safety.allow_sensitive")
 
         if state.last_user_message:
-            data = self.llm.extract(
-                schema={
+            data = self._extract(
+                state,
+                OnboardingStep.LANGUAGE_TONE,
+                {
                     "type": "object",
                     "properties": {
                         "blocked_categories": {
@@ -205,8 +247,10 @@ class OnboardingAgent:
     async def _handle_mood_check(self, state: OnboardingState) -> OnboardingState:
         state.current_step = OnboardingStep.MOOD_CHECK
         if state.last_user_message:
-            data = self.llm.extract(
-                schema={"type": "object", "properties": {"mood": {"type": "string"}}},
+            data = self._extract(
+                state,
+                OnboardingStep.MOOD_CHECK,
+                {"type": "object", "properties": {"mood": {"type": "string"}}},
                 text=state.last_user_message,
                 instructions="Extract a short mood phrase.",
             )
@@ -236,8 +280,10 @@ class OnboardingAgent:
         if not state.user_context.location.region:
             missing.append("location.region")
         if state.last_user_message:
-            data = self.llm.extract(
-                schema={
+            data = self._extract(
+                state,
+                OnboardingStep.PERSONAL_INFO,
+                {
                     "type": "object",
                     "properties": {
                         "city": {"type": "string"},
@@ -271,8 +317,10 @@ class OnboardingAgent:
         if not state.user_context.income:
             missing.append("income")
         if state.last_user_message:
-            data = self.llm.extract(
-                schema={
+            data = self._extract(
+                state,
+                OnboardingStep.FINANCIAL_SNAPSHOT,
+                {
                     "type": "object",
                     "properties": {
                         "goals": {"type": "array", "items": {"type": "string"}},
@@ -306,8 +354,10 @@ class OnboardingAgent:
     async def _handle_socials_optin(self, state: OnboardingState) -> OnboardingState:
         state.current_step = OnboardingStep.SOCIALS_OPTIN
         if state.last_user_message:
-            data = self.llm.extract(
-                schema={
+            data = self._extract(
+                state,
+                OnboardingStep.SOCIALS_OPTIN,
+                {
                     "type": "object",
                     "properties": {"opt_in": {"type": "boolean"}},
                 },
@@ -356,8 +406,10 @@ class OnboardingAgent:
             f"U:{t.get('user_message', '')}\nA:{t.get('agent_response', '')}"
             for t in state.conversation_history[-6:]
         )
-        data = self.llm.extract(
-            schema={
+        data = self._extract(
+            state,
+            OnboardingStep.STYLE_FINALIZE,
+            {
                 "type": "object",
                 "properties": {
                     "tone": {"type": "string"},
@@ -418,7 +470,12 @@ class OnboardingAgent:
         state.last_user_message = message
 
         state_dict = state.model_dump()
-        result = await self.graph.ainvoke(state_dict)
+        if self._lf_handler is not None:
+            result = await self.graph.ainvoke(
+                state_dict, config={"callbacks": [self._lf_handler]}
+            )
+        else:
+            result = await self.graph.ainvoke(state_dict)
         new_state = OnboardingState(**result) if isinstance(result, dict) else result
 
         return (new_state.last_agent_response or "", new_state)

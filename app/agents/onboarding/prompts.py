@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
+
+from app.models.user import UserContext
 
 from .state import OnboardingStep
-from app.models.user import UserContext
 
 BASE_BEHAVIOR = (
     "You are Vera, a warm, supportive financial coach. Keep replies concise, kind, "

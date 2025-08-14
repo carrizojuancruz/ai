@@ -7,9 +7,8 @@ import os
 from typing import Final
 
 from .base import LLM
-from .stub import StubLLM
 from .bedrock import BedrockLLM
-
+from .stub import StubLLM
 
 DEFAULT_PROVIDER: Final[str] = "stub"
 logger = logging.getLogger(__name__)

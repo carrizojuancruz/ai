@@ -2,13 +2,11 @@
 
 import logging
 import os
-from typing import Optional
-
 
 DEFAULT_LOG_LEVEL = "INFO"
 
 
-def configure_logging(level: Optional[str] = None) -> None:
+def configure_logging(level: str | None = None) -> None:
     """Configure root logger with a consistent format.
 
     Respects LOG_LEVEL env var; defaults to INFO.

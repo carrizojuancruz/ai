@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-from typing import Dict, Optional
-from uuid import UUID
 import asyncio
+from uuid import UUID
 
 from app.agents.onboarding import OnboardingAgent, OnboardingState
 
-
 _onboarding_agent: OnboardingAgent | None = None
-_user_sessions: Dict[UUID, OnboardingState] = {}
+_user_sessions: dict[UUID, OnboardingState] = {}
 
-_onboarding_threads: Dict[str, OnboardingState] = {}
-_sse_queues: Dict[str, asyncio.Queue] = {}
+_onboarding_threads: dict[str, OnboardingState] = {}
+_sse_queues: dict[str, asyncio.Queue] = {}
 
 
 def get_onboarding_agent() -> OnboardingAgent:
@@ -21,7 +19,7 @@ def get_onboarding_agent() -> OnboardingAgent:
     return _onboarding_agent
 
 
-def get_user_sessions() -> Dict[UUID, OnboardingState]:
+def get_user_sessions() -> dict[UUID, OnboardingState]:
     return _user_sessions
 
 
@@ -29,7 +27,7 @@ def register_thread(thread_id: str, state: OnboardingState) -> None:
     _onboarding_threads[thread_id] = state
 
 
-def get_thread_state(thread_id: str) -> Optional[OnboardingState]:
+def get_thread_state(thread_id: str) -> OnboardingState | None:
     return _onboarding_threads.get(thread_id)
 
 
