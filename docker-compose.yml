@@ -2,27 +2,22 @@ version: "3.9"
 
 services:
   app:
-    image: python:3.12-slim
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: verde-ai-app
-    working_dir: /app
     env_file:
       - .env
-    environment:
-      - PIP_NO_CACHE_DIR=0
-      - PYTHONDONTWRITEBYTECODE=1
-      - POETRY_VIRTUALENVS_CREATE=true
-      - POETRY_VIRTUALENVS_IN_PROJECT=true
+    ports:
+      - "8000:8000"
     volumes:
       - ./:/app
       - venv_cache:/app/.venv
-      - pip_cache:/root/.cache/pip
-      - poetry_cache:/root/.cache/pypoetry
-    command: >-
-      sh -c "pip install --upgrade pip && pip install poetry && poetry config virtualenvs.create true && poetry config virtualenvs.in-project true && poetry install --no-interaction --no-ansi && poetry run pip install watchfiles && poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
-    ports:
-      - "8000:8000"
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+      - POETRY_VIRTUALENVS_CREATE=true
+      - POETRY_VIRTUALENVS_IN_PROJECT=true
 
 volumes:
   venv_cache:
-  pip_cache:
-  poetry_cache:
+
