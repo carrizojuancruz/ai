@@ -1,8 +1,12 @@
-"""LangGraph-based onboarding agent (node-per-step, prompts-driven).
+"""Onboarding agent powered by a LangGraph StateGraph (one node per step).
 
-Each node is responsible for collecting its target fields using
-LLM prompts and structured extraction, and decides whether to
-advance or keep asking within the same node.
+Each node delegates to a single LLM "reasoner" call that:
+- Crafts the next assistant message (assistant_text)
+- Returns a context patch (canonical dot-paths) for the step’s fields
+- Signals completion/decline/off-topic flags
+
+Handlers apply the patch safely into `user_context`, advance when complete,
+record the turn, and then the compiled graph is invoked per message.
 """
 
 from __future__ import annotations
@@ -13,14 +17,12 @@ import os
 from typing import Any
 from uuid import UUID
 
-from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.messages import HumanMessage, SystemMessage
 from langfuse.callback import CallbackHandler
 from langgraph.graph import END, StateGraph
 
 from app.models import MemoryCategory
 
-from .prompts import build_generation_prompt
 from .state import OnboardingState, OnboardingStep
 
 langfuse_handler = CallbackHandler(
@@ -31,7 +33,63 @@ langfuse_handler = CallbackHandler(
 
 logger = logging.getLogger(__name__)
 
-# Warn if Langfuse env is missing so callbacks would be disabled silently
+STEP_GUIDANCE: dict[OnboardingStep, str] = {
+    OnboardingStep.GREETING: (
+        "Goal: learn the user's preferred name. Ask ONE short, friendly question. "
+        "If they provide a name, confirm lightly. If they decline, acknowledge and move on."
+    ),
+    OnboardingStep.LANGUAGE_TONE: (
+        "Goal: capture safety preferences only. Target fields: safety.blocked_categories, safety.allow_sensitive. "
+        "Ask if any topics to avoid (accept 'none'), and whether discussing sensitive finance is okay (yes/no)."
+    ),
+    OnboardingStep.MOOD_CHECK: (
+        "Goal: get a short mood about money today. Ask for a few words only; be empathetic."
+    ),
+    OnboardingStep.PERSONAL_INFO: (
+        "Goal: capture location.city and location.region. If one is known, ask only for the other. "
+        "Keep it to ONE question at a time."
+    ),
+    OnboardingStep.FINANCIAL_SNAPSHOT: (
+        "Goal: capture goals (short list) and income band (rough). Ask for ONE at a time; "
+        "summarize goals in short phrases."
+    ),
+    OnboardingStep.SOCIALS_OPTIN: (
+        "Goal: ask a single yes/no about opting in to social signals. Map response to a boolean."
+    ),
+    OnboardingStep.KB_EDUCATION: (
+        "Goal: offer quick help from the knowledge base before wrapping; keep it brief and optional."
+    ),
+    OnboardingStep.STYLE_FINALIZE: (
+        "Goal: infer and/or confirm style.{tone,verbosity,formality,emojis} and "
+        "accessibility.{reading_level_hint,glossary_level_hint} from the conversation so far."
+    ),
+    OnboardingStep.COMPLETION: (
+        "Goal: confirm onboarding is complete and set readiness to proceed to main chat."
+    ),
+}
+
+ALLOWED_FIELDS_BY_STEP: dict[OnboardingStep, list[str]] = {
+    OnboardingStep.GREETING: ["identity.preferred_name"],
+    OnboardingStep.LANGUAGE_TONE: [
+        "safety.blocked_categories",
+        "safety.allow_sensitive",
+    ],
+    OnboardingStep.MOOD_CHECK: ["mood"],
+    OnboardingStep.PERSONAL_INFO: ["location.city", "location.region"],
+    OnboardingStep.FINANCIAL_SNAPSHOT: ["goals", "income", "primary_financial_goal"],
+    OnboardingStep.SOCIALS_OPTIN: ["social_signals_consent", "opt_in"],
+    OnboardingStep.KB_EDUCATION: [],
+    OnboardingStep.STYLE_FINALIZE: [
+        "style.tone",
+        "style.verbosity",
+        "style.formality",
+        "style.emojis",
+        "accessibility.reading_level_hint",
+        "accessibility.glossary_level_hint",
+    ],
+    OnboardingStep.COMPLETION: [],
+}
+
 if not (
     os.getenv("LANGFUSE_PUBLIC_KEY")
     and os.getenv("LANGFUSE_SECRET_KEY")
@@ -42,40 +100,6 @@ if not (
     )
 
 
-class LCLogHandler(BaseCallbackHandler):
-    def on_chain_start(self, serialized: dict, inputs: dict, **kwargs: Any) -> None:
-        logger.info(
-            "LC on_chain_start: %s tags=%s metadata=%s",
-            serialized,
-            kwargs.get("tags"),
-            kwargs.get("metadata"),
-        )
-
-    def on_chain_end(self, outputs: dict, **kwargs: Any) -> None:
-        logger.info(
-            "LC on_chain_end: %s",
-            list(outputs.keys())
-            if isinstance(outputs, dict)
-            else type(outputs).__name__,
-        )
-
-    def on_llm_start(self, serialized: dict, prompts: list[str], **kwargs: Any) -> None:
-        logger.info(
-            "LC on_llm_start: prompts=%d tags=%s metadata=%s",
-            len(prompts or []),
-            kwargs.get("tags"),
-            kwargs.get("metadata"),
-        )
-
-    def on_llm_end(self, response: Any, **kwargs: Any) -> None:
-        logger.info("LC on_llm_end")
-
-
-_DEBUG_CALLBACKS: list[Any] = (
-    [LCLogHandler()] if os.getenv("VERDE_LC_DEBUG", "false").lower() == "true" else []
-)
-
-
 class OnboardingAgent:
     """Onboarding Agent implementing node-per-step logic with LLM prompts."""
 
@@ -83,7 +107,7 @@ class OnboardingAgent:
         self.graph = self._create_graph()
         self._chat_bedrock = None
 
-    def _ensure_bedrock_chat(self):
+    def _ensure_bedrock_chat(self) -> None:
         if self._chat_bedrock is not None:
             return
         try:
@@ -129,278 +153,373 @@ class OnboardingAgent:
         ]:
             workflow.add_node(name, getattr(self, f"_handle_{name}"))
 
-        def route_for(step: OnboardingStep, next_node: str):
-            def _route(state: OnboardingState) -> str:
-                return "next" if step in state.completed_steps else "stay"
+        def _router_identity(state: OnboardingState) -> OnboardingState:
+            return state
 
-            mapping = {"stay": END, "next": next_node}
-            return _route, mapping
+        def route_by_current_step(state: OnboardingState) -> str:
+            return state.current_step.value
 
-        fn, mp = route_for(OnboardingStep.GREETING, "language_tone")
-        workflow.add_conditional_edges("greeting", fn, mp)
-
-        fn, mp = route_for(OnboardingStep.LANGUAGE_TONE, "mood_check")
-        workflow.add_conditional_edges("language_tone", fn, mp)
-
-        fn, mp = route_for(OnboardingStep.MOOD_CHECK, "personal_info")
-        workflow.add_conditional_edges("mood_check", fn, mp)
-
-        fn, mp = route_for(OnboardingStep.PERSONAL_INFO, "financial_snapshot")
-        workflow.add_conditional_edges("personal_info", fn, mp)
-
-        fn, mp = route_for(OnboardingStep.FINANCIAL_SNAPSHOT, "socials_optin")
-        workflow.add_conditional_edges("financial_snapshot", fn, mp)
-
-        fn, mp = route_for(OnboardingStep.SOCIALS_OPTIN, "kb_education")
-        workflow.add_conditional_edges("socials_optin", fn, mp)
-
-        fn, mp = route_for(OnboardingStep.KB_EDUCATION, "style_finalize")
-        workflow.add_conditional_edges("kb_education", fn, mp)
-
-        fn, mp = route_for(OnboardingStep.STYLE_FINALIZE, "completion")
-        workflow.add_conditional_edges("style_finalize", fn, mp)
-
-        def route_completion(state: OnboardingState) -> str:
-            return (
-                "next" if OnboardingStep.COMPLETION in state.completed_steps else "stay"
-            )
-
+        workflow.add_node("route", _router_identity)
         workflow.add_conditional_edges(
-            "completion",
-            route_completion,
-            {"stay": END, "next": END},
+            "route",
+            route_by_current_step,
+            {
+                "greeting": "greeting",
+                "language_tone": "language_tone",
+                "mood_check": "mood_check",
+                "personal_info": "personal_info",
+                "financial_snapshot": "financial_snapshot",
+                "socials_optin": "socials_optin",
+                "kb_education": "kb_education",
+                "style_finalize": "style_finalize",
+                "completion": "completion",
+            },
         )
 
-        workflow.set_entry_point("greeting")
+        for name in [
+            "greeting",
+            "language_tone",
+            "mood_check",
+            "personal_info",
+            "financial_snapshot",
+            "socials_optin",
+            "kb_education",
+            "style_finalize",
+            "completion",
+        ]:
+            workflow.add_edge(name, END)
+
+        workflow.set_entry_point("route")
         return workflow.compile()
 
-    def _gen(
-        self, step: OnboardingStep, state: OnboardingState, missing: list[str]
-    ) -> str:
-        system, prompt, ctx = build_generation_prompt(
-            step=step, user_context=state.user_context, missing_fields=missing
-        )
-        self._ensure_bedrock_chat()
-        messages = []
-        if system:
-            messages.append(SystemMessage(content=system))
-        messages.append(HumanMessage(content=prompt))
-        try:
-            resp = self._chat_bedrock.invoke(
-                messages,
-                config={
-                    "callbacks": [langfuse_handler, *_DEBUG_CALLBACKS],
-                    "thread_id": str(state.conversation_id),
-                    "tags": ["onboarding", "verde-ai", f"step:{step.name}"],
-                    "metadata": {
-                        "user_id": str(state.user_id),
-                        "conversation_id": str(state.conversation_id),
-                        "step": step.name,
-                        "missing": missing,
-                    },
-                    "configurable": {
-                        "session_id": str(state.conversation_id),
-                        "original_query": state.last_user_message or "",
-                    },
-                },
-            )
-            return getattr(resp, "content", str(resp))
-        except Exception as e:
-            logger.error("Bedrock generate failed: %s", e)
-            raise
+    def _to_text(self, content: Any) -> str:
+        if content is None:
+            return ""
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts: list[str] = []
+            for block in content:
+                if isinstance(block, dict) and "text" in block:
+                    parts.append(str(block.get("text") or ""))
+                else:
+                    parts.append(str(block))
+            return "".join(parts)
+        if isinstance(content, dict):
+            if "text" in content:
+                return str(content.get("text") or "")
+            if "content" in content:
+                return self._to_text(content.get("content"))
+        return str(content)
 
-    def _extract(
-        self,
-        state: OnboardingState,
-        step: OnboardingStep,
-        schema: dict[str, Any],
-        text: str,
-        instructions: str | None = None,
-        context: dict[str, Any] | None = None,
+    # --- LLM-driven step reasoner and patcher ---
+    def _normalize_patch_for_step(
+        self, step: OnboardingStep, patch: dict[str, Any]
     ) -> dict[str, Any]:
-        """Structured extraction using LangChain Bedrock Chat with Langfuse callbacks."""
+        if not isinstance(patch, dict):
+            return {}
+        normalized: dict[str, Any] = {}
+        for k, v in patch.items():
+            key = k
+            if step == OnboardingStep.GREETING:
+                if k == "preferred_name":
+                    key = "identity.preferred_name"
+            elif step == OnboardingStep.LANGUAGE_TONE:
+                if k == "blocked_categories":
+                    key = "safety.blocked_categories"
+                if k == "allow_sensitive":
+                    key = "safety.allow_sensitive"
+            elif step == OnboardingStep.PERSONAL_INFO:
+                if k == "city":
+                    key = "location.city"
+                if k == "region":
+                    key = "location.region"
+            elif step == OnboardingStep.SOCIALS_OPTIN:
+                if k == "opt_in":
+                    key = "social_signals_consent"
+            elif step == OnboardingStep.STYLE_FINALIZE:
+                if k in {"tone", "verbosity", "formality", "emojis"}:
+                    key = f"style.{k}"
+                if k in {"reading_level_hint", "glossary_level_hint"}:
+                    key = f"accessibility.{k}"
+            normalized[key] = v
+        return normalized
+
+    def _apply_context_patch(
+        self, state: OnboardingState, step: OnboardingStep, patch: dict[str, Any]
+    ) -> None:
+        if not patch:
+            return
+
+        def set_by_path(obj: Any, path: str, value: Any) -> None:
+            parts = [p for p in path.split(".") if p]
+            if not parts:
+                return
+            target = obj
+            for idx, part in enumerate(parts):
+                is_last = idx == len(parts) - 1
+                if is_last:
+                    try:
+                        current_val = getattr(target, part, None)
+                        if isinstance(current_val, list) and not isinstance(
+                            value, list
+                        ):
+                            value_to_set = [value]
+                        else:
+                            value_to_set = value
+                        setattr(target, part, value_to_set)
+                    except Exception:
+                        return
+                    return
+                try:
+                    next_obj = getattr(target, part)
+                except Exception:
+                    return
+                if next_obj is None:
+                    return
+                target = next_obj
+
+        normalized_patch = self._normalize_patch_for_step(step, patch)
+        for key, value in normalized_patch.items():
+            if "." in key:
+                set_by_path(state.user_context, key, value)
+            else:
+                try:
+                    if hasattr(state.user_context, key):
+                        current_attr = getattr(state.user_context, key)
+                        if isinstance(current_attr, list) and not isinstance(
+                            value, list
+                        ):
+                            setattr(state.user_context, key, [value])
+                        elif isinstance(value, dict):
+                            for inner_key, inner_val in value.items():
+                                set_by_path(
+                                    state.user_context, f"{key}.{inner_key}", inner_val
+                                )
+                        else:
+                            setattr(state.user_context, key, value)
+                    else:
+                        if key == "opt_in":
+                            set_by_path(
+                                state.user_context,
+                                "social_signals_consent",
+                                bool(value),
+                            )
+                except Exception:
+                    pass
+
+        try:
+            state.user_context.sync_nested_to_flat()
+        except Exception:
+            pass
+
+    def _reason_step(
+        self, state: OnboardingState, step: OnboardingStep, missing: list[str]
+    ) -> dict[str, Any]:
         self._ensure_bedrock_chat()
-        schema_str = json.dumps(schema, ensure_ascii=False)
-        sys = (
-            "You extract structured data from user text. Only output a JSON object that "
-            "matches the provided JSON Schema. Do not include any prose."
+        allowed_fields = ALLOWED_FIELDS_BY_STEP.get(step, [])
+
+        system = (
+            "You are Vera's Onboarding Step Manager. Decide if the current step is complete, "
+            "handle off-topic or declines gracefully, and produce the assistant's next short reply. "
+            "Ask only ONE question at a time. Keep messages to 1-2 short sentences."
         )
-        usr = (
-            f"JSON Schema: {schema_str}\n"
-            f"User text: {text}\n"
-            f"Instructions: {instructions or ''}\n"
-            "Rules: Return ONLY JSON. Omit unknown fields. Use null for unknowns."
+
+        state_dict = state.user_context.model_dump(mode="json")
+        convo_tail = "\n".join(
+            f"U:{t.get('user_message', '')}\nA:{t.get('agent_response', '')}"
+            for t in state.conversation_history[-6:]
         )
-        messages = [SystemMessage(content=sys), HumanMessage(content=usr)]
+
+        json_schema = {
+            "type": "object",
+            "properties": {
+                "assistant_text": {"type": "string"},
+                "patch": {"type": "object"},
+                "complete": {"type": "boolean"},
+                "declined": {"type": "boolean"},
+                "off_topic": {"type": "boolean"},
+                "memory_candidates": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": [
+                "assistant_text",
+                "patch",
+                "complete",
+                "declined",
+                "off_topic",
+            ],
+            "additionalProperties": False,
+        }
+
+        step_guidance = STEP_GUIDANCE.get(step, "")
+
+        user_instructions = ((step_guidance + "\n") if step_guidance else "") + (
+            "Follow these rules strictly:\n"
+            "- Use Allowed patch fields exactly (map synonyms like 'preferred_name'/'city' to canonical dot-paths).\n"
+            "- If the user explicitly declines this field, set declined=true and keep assistant_text concise.\n"
+            "- If off-topic, set off_topic=true and assistant_text should briefly acknowledge then pivot back.\n"
+            "- Output ONLY JSON for the schema.\n"
+            f"Step: {step.value}\n"
+            f"Missing fields: {missing}\n"
+            f"Allowed patch fields: {allowed_fields}\n"
+            f"Last user message: {state.last_user_message or ''}\n"
+            f"Recent conversation (most recent last):\n{convo_tail}\n"
+            f"Context: {json.dumps(state_dict, ensure_ascii=False)}\n"
+            f"JSON Schema: {json.dumps(json_schema, ensure_ascii=False)}\n"
+        )
+
+        messages = [
+            SystemMessage(content=system),
+            HumanMessage(content=user_instructions),
+        ]
+
         try:
             resp = self._chat_bedrock.invoke(
                 messages,
                 config={
-                    "callbacks": [langfuse_handler, *_DEBUG_CALLBACKS],
+                    "callbacks": [langfuse_handler],
                     "thread_id": str(state.conversation_id),
-                    "tags": ["onboarding", "verde-ai", f"step:{step.name}", "extract"],
-                    "metadata": {
-                        "user_id": str(state.user_id),
-                        "conversation_id": str(state.conversation_id),
-                        "step": step.name,
-                        "operation": "extract",
-                    },
+                    "tags": ["onboarding", "verde-ai", f"step:{step.name}", "reason"],
                     "configurable": {
                         "session_id": str(state.conversation_id),
                         "original_query": state.last_user_message or "",
                     },
                 },
             )
-            raw = getattr(resp, "content", str(resp))
+            raw = self._to_text(getattr(resp, "content", resp))
             try:
-                return json.loads(raw)
+                result = json.loads(raw)
             except Exception:
                 start = raw.find("{")
                 end = raw.rfind("}")
-                if start != -1 and end != -1 and end > start:
-                    return json.loads(raw[start : end + 1])
-                return {}
+                result = (
+                    json.loads(raw[start : end + 1])
+                    if start != -1 and end != -1 and end > start
+                    else {}
+                )
+
+            if not isinstance(result, dict):
+                result = {}
+            result.setdefault("assistant_text", "")
+            result.setdefault("patch", {})
+            result.setdefault("complete", False)
+            result.setdefault("declined", False)
+            result.setdefault("off_topic", False)
+            result.setdefault("memory_candidates", [])
+            result["patch"] = self._normalize_patch_for_step(
+                step, result.get("patch") or {}
+            )
+            return result
         except Exception as e:
-            logger.error("Bedrock extract failed: %s", e)
-            raise
+            logger.error("Bedrock reason failed: %s", e)
+            return {
+                "assistant_text": "",
+                "patch": {},
+                "complete": False,
+                "declined": False,
+                "off_topic": False,
+                "memory_candidates": [],
+            }
 
-    def _is_probable_greeting(self, text: str) -> bool:
-        term = (text or "").strip().lower()
-        return term in {
-            "hi",
-            "hello",
-            "hey",
-            "hola",
-            "buenas",
-            "good morning",
-            "good afternoon",
-            "good evening",
-        }
+    # --- Step completion checks (fallback if model didn't set 'complete') ---
+    def _is_step_complete(self, state: OnboardingState, step: OnboardingStep) -> bool:
+        try:
+            if step == OnboardingStep.GREETING:
+                return bool(state.user_context.identity.preferred_name)
+            if step == OnboardingStep.LANGUAGE_TONE:
+                return (
+                    state.user_context.safety.blocked_categories is not None
+                    and isinstance(state.user_context.safety.allow_sensitive, bool)
+                )
+            if step == OnboardingStep.MOOD_CHECK:
+                return any(
+                    getattr(m, "metadata", {}).get("type") == "mood"
+                    for m in state.semantic_memories
+                )
+            if step == OnboardingStep.PERSONAL_INFO:
+                return bool(
+                    state.user_context.location.city
+                    and state.user_context.location.region
+                )
+            if step == OnboardingStep.FINANCIAL_SNAPSHOT:
+                return bool(state.user_context.goals and state.user_context.income)
+            if step == OnboardingStep.SOCIALS_OPTIN:
+                return isinstance(state.user_context.social_signals_consent, bool)
+            if step == OnboardingStep.KB_EDUCATION:
+                return True
+            if step == OnboardingStep.STYLE_FINALIZE:
+                return True
+            if step == OnboardingStep.COMPLETION:
+                return True
+        except Exception:
+            return False
+        return False
 
+    # --- Step handlers (LLM-driven, minimal logic) ---
     async def _handle_greeting(self, state: OnboardingState) -> OnboardingState:
         state.current_step = OnboardingStep.GREETING
         missing: list[str] = []
         if not state.user_context.identity.preferred_name:
             missing.append("identity.preferred_name")
-
-        if state.last_user_message and not state.user_context.identity.preferred_name:
-            data = self._extract(
-                state,
-                OnboardingStep.GREETING,
-                {
-                    "type": "object",
-                    "properties": {"preferred_name": {"type": "string"}},
-                    "required": [],
-                },
-                text=state.last_user_message,
-                instructions="If the user provided a name, extract it as preferred_name; otherwise return nothing.",
-            )
-            name = (data.get("preferred_name") or "").strip()
-            if name and not self._is_probable_greeting(name):
-                state.user_context.identity.preferred_name = name
-                state.user_context.sync_nested_to_flat()
-                state.mark_step_completed(OnboardingStep.GREETING)
-                response = self._gen(
-                    OnboardingStep.LANGUAGE_TONE,
-                    state,
-                    ["safety.blocked_categories", "safety.allow_sensitive"],
-                )
-            else:
-                response = self._gen(
-                    OnboardingStep.GREETING, state, ["identity.preferred_name"]
-                )
-            state.add_conversation_turn(state.last_user_message or "", response)
-            return state
-
-        if state.user_context.identity.preferred_name:
-            state.mark_step_completed(OnboardingStep.GREETING)
-            response = self._gen(
-                OnboardingStep.LANGUAGE_TONE,
-                state,
-                ["safety.blocked_categories", "safety.allow_sensitive"],
-            )
+        decision = self._reason_step(state, OnboardingStep.GREETING, missing)
+        self._apply_context_patch(
+            state, OnboardingStep.GREETING, decision.get("patch") or {}
+        )
+        if decision.get("assistant_text"):
+            response = decision["assistant_text"]
         else:
-            response = self._gen(OnboardingStep.GREETING, state, missing)
+            response = "Nice to meet you! What should I call you?"
+        if decision.get("complete") or self._is_step_complete(
+            state, OnboardingStep.GREETING
+        ):
+            state.mark_step_completed(OnboardingStep.GREETING)
+            state.current_step = state.get_next_step() or OnboardingStep.LANGUAGE_TONE
         state.add_conversation_turn(state.last_user_message or "", response)
         return state
 
     async def _handle_language_tone(self, state: OnboardingState) -> OnboardingState:
         state.current_step = OnboardingStep.LANGUAGE_TONE
-        missing: list[str] = []
-        # Only safety here; tone inference is done in STYLE_FINALIZE
         if state.user_context.safety.blocked_categories is None:
             state.user_context.safety.blocked_categories = []
+        missing: list[str] = []
         if not state.user_context.safety.blocked_categories:
             missing.append("safety.blocked_categories")
         if state.user_context.safety.allow_sensitive is None:
             missing.append("safety.allow_sensitive")
-
-        if state.last_user_message:
-            data = self._extract(
-                state,
-                OnboardingStep.LANGUAGE_TONE,
-                {
-                    "type": "object",
-                    "properties": {
-                        "blocked_categories": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                        },
-                        "allow_sensitive": {"type": "boolean"},
-                    },
-                    "required": [],
-                },
-                text=state.last_user_message,
-                instructions=(
-                    "Normalize safety preferences from the message. If the user indicates none/no blocked topics, "
-                    "return an empty array for blocked_categories. Infer allow_sensitive from yes/no phrasing."
-                ),
-            )
-            if data.get("blocked_categories") is not None:
-                state.user_context.safety.blocked_categories = list(
-                    data.get("blocked_categories") or []
-                )
-            if data.get("allow_sensitive") is not None:
-                state.user_context.safety.allow_sensitive = bool(
-                    data["allow_sensitive"]
-                )
-        state.user_context.sync_nested_to_flat()
-
-        if state.user_context.safety.blocked_categories is not None and isinstance(
-            state.user_context.safety.allow_sensitive, bool
+        decision = self._reason_step(state, OnboardingStep.LANGUAGE_TONE, missing)
+        self._apply_context_patch(
+            state, OnboardingStep.LANGUAGE_TONE, decision.get("patch") or {}
+        )
+        response = (
+            decision.get("assistant_text")
+            or "Any topics you’d prefer I avoid? And is it ok if I cover sensitive financial topics when helpful?"
+        )
+        if decision.get("complete") or self._is_step_complete(
+            state, OnboardingStep.LANGUAGE_TONE
         ):
             state.mark_step_completed(OnboardingStep.LANGUAGE_TONE)
-            response = self._gen(OnboardingStep.MOOD_CHECK, state, ["mood"])
-        else:
-            response = self._gen(OnboardingStep.LANGUAGE_TONE, state, missing)
+            state.current_step = state.get_next_step() or OnboardingStep.MOOD_CHECK
         state.add_conversation_turn(state.last_user_message or "", response)
         return state
 
     async def _handle_mood_check(self, state: OnboardingState) -> OnboardingState:
         state.current_step = OnboardingStep.MOOD_CHECK
-        if state.last_user_message:
-            data = self._extract(
-                state,
-                OnboardingStep.MOOD_CHECK,
-                {"type": "object", "properties": {"mood": {"type": "string"}}},
-                text=state.last_user_message,
-                instructions="Extract a short mood phrase.",
+        decision = self._reason_step(state, OnboardingStep.MOOD_CHECK, ["mood"])
+        mood_val = (decision.get("patch") or {}).get("mood")
+        if mood_val:
+            state.add_semantic_memory(
+                content=f"User's current mood about money: {mood_val}",
+                category=MemoryCategory.PERSONAL,
+                metadata={"type": "mood", "value": mood_val, "context": "money"},
             )
-            mood = data.get("mood")
-            if mood:
-                state.add_semantic_memory(
-                    content=f"User's current mood about money: {mood}",
-                    category=MemoryCategory.PERSONAL,
-                    metadata={"type": "mood", "value": mood, "context": "money"},
-                )
-        if any(
-            getattr(m, "metadata", {}).get("type") == "mood"
-            for m in state.semantic_memories
+        response = (
+            decision.get("assistant_text") or "How are you feeling about money today?"
+        )
+        if decision.get("complete") or self._is_step_complete(
+            state, OnboardingStep.MOOD_CHECK
         ):
             state.mark_step_completed(OnboardingStep.MOOD_CHECK)
-            response = self._gen(OnboardingStep.PERSONAL_INFO, state, ["location.city"])
-        else:
-            response = self._gen(OnboardingStep.MOOD_CHECK, state, ["mood"])
+            state.current_step = state.get_next_step() or OnboardingStep.PERSONAL_INFO
         state.add_conversation_turn(state.last_user_message or "", response)
         return state
 
@@ -411,31 +530,18 @@ class OnboardingAgent:
             missing.append("location.city")
         if not state.user_context.location.region:
             missing.append("location.region")
-        if state.last_user_message:
-            data = self._extract(
-                state,
-                OnboardingStep.PERSONAL_INFO,
-                {
-                    "type": "object",
-                    "properties": {
-                        "city": {"type": "string"},
-                        "region": {"type": "string"},
-                    },
-                },
-                text=state.last_user_message,
-                instructions="Extract location.city and location.region when present.",
-            )
-            if data.get("city"):
-                state.user_context.location.city = data["city"]
-            if data.get("region"):
-                state.user_context.location.region = data["region"]
-            state.user_context.sync_nested_to_flat()
-
-        if state.user_context.location.city and state.user_context.location.region:
+        decision = self._reason_step(state, OnboardingStep.PERSONAL_INFO, missing)
+        self._apply_context_patch(
+            state, OnboardingStep.PERSONAL_INFO, decision.get("patch") or {}
+        )
+        response = decision.get("assistant_text") or "What city and region are you in?"
+        if decision.get("complete") or self._is_step_complete(
+            state, OnboardingStep.PERSONAL_INFO
+        ):
             state.mark_step_completed(OnboardingStep.PERSONAL_INFO)
-            response = self._gen(OnboardingStep.FINANCIAL_SNAPSHOT, state, ["goals"])
-        else:
-            response = self._gen(OnboardingStep.PERSONAL_INFO, state, missing)
+            state.current_step = (
+                state.get_next_step() or OnboardingStep.FINANCIAL_SNAPSHOT
+            )
         state.add_conversation_turn(state.last_user_message or "", response)
         return state
 
@@ -448,146 +554,73 @@ class OnboardingAgent:
             missing.append("goals")
         if not state.user_context.income:
             missing.append("income")
-        if state.last_user_message:
-            data = self._extract(
-                state,
-                OnboardingStep.FINANCIAL_SNAPSHOT,
-                {
-                    "type": "object",
-                    "properties": {
-                        "goals": {"type": "array", "items": {"type": "string"}},
-                        "income": {"type": "string"},
-                        "primary_financial_goal": {"type": "string"},
-                    },
-                },
-                text=state.last_user_message,
-                instructions="Extract goals (array of short strings), income band, and primary_financial_goal if present.",
-            )
-            if data.get("goals"):
-                state.user_context.goals = (
-                    list(data["goals"]) or state.user_context.goals
-                )
-            if data.get("income"):
-                state.user_context.income = data["income"]
-            if data.get("primary_financial_goal"):
-                state.user_context.primary_financial_goal = data[
-                    "primary_financial_goal"
-                ]
-            state.user_context.sync_nested_to_flat()
-
-        if state.user_context.goals and state.user_context.income:
+        decision = self._reason_step(state, OnboardingStep.FINANCIAL_SNAPSHOT, missing)
+        self._apply_context_patch(
+            state, OnboardingStep.FINANCIAL_SNAPSHOT, decision.get("patch") or {}
+        )
+        response = (
+            decision.get("assistant_text")
+            or "What money goals are on your mind, and roughly what’s your income band?"
+        )
+        if decision.get("complete") or self._is_step_complete(
+            state, OnboardingStep.FINANCIAL_SNAPSHOT
+        ):
             state.mark_step_completed(OnboardingStep.FINANCIAL_SNAPSHOT)
-            response = self._gen(OnboardingStep.SOCIALS_OPTIN, state, [])
-        else:
-            response = self._gen(OnboardingStep.FINANCIAL_SNAPSHOT, state, missing)
+            state.current_step = state.get_next_step() or OnboardingStep.SOCIALS_OPTIN
         state.add_conversation_turn(state.last_user_message or "", response)
         return state
 
     async def _handle_socials_optin(self, state: OnboardingState) -> OnboardingState:
         state.current_step = OnboardingStep.SOCIALS_OPTIN
-        if state.last_user_message:
-            data = self._extract(
-                state,
-                OnboardingStep.SOCIALS_OPTIN,
-                {
-                    "type": "object",
-                    "properties": {"opt_in": {"type": "boolean"}},
-                },
-                text=state.last_user_message,
-                instructions="Return opt_in as boolean when answer implies yes/no.",
-            )
-            opt_in = data.get("opt_in")
-            if opt_in is not None:
-                state.user_context.social_signals_consent = bool(opt_in)
-
-        if isinstance(state.user_context.social_signals_consent, bool):
+        decision = self._reason_step(state, OnboardingStep.SOCIALS_OPTIN, [])
+        self._apply_context_patch(
+            state, OnboardingStep.SOCIALS_OPTIN, decision.get("patch") or {}
+        )
+        response = (
+            decision.get("assistant_text")
+            or "Would you like me to use social signals to personalize your experience?"
+        )
+        if decision.get("complete") or self._is_step_complete(
+            state, OnboardingStep.SOCIALS_OPTIN
+        ):
             state.mark_step_completed(OnboardingStep.SOCIALS_OPTIN)
-            response = self._gen(OnboardingStep.KB_EDUCATION, state, [])
-        else:
-            response = self._gen(OnboardingStep.SOCIALS_OPTIN, state, [])
+            state.current_step = state.get_next_step() or OnboardingStep.KB_EDUCATION
         state.add_conversation_turn(state.last_user_message or "", response)
         return state
 
     async def _handle_kb_education(self, state: OnboardingState) -> OnboardingState:
         state.current_step = OnboardingStep.KB_EDUCATION
-        if state.last_user_message:
-            state.mark_step_completed(OnboardingStep.KB_EDUCATION)
-            response = self._gen(OnboardingStep.COMPLETION, state, [])
-        else:
-            response = self._gen(OnboardingStep.KB_EDUCATION, state, [])
+        decision = self._reason_step(state, OnboardingStep.KB_EDUCATION, [])
+        response = (
+            decision.get("assistant_text")
+            or "Anything you’d like quick help with from our knowledge base before we wrap?"
+        )
+        state.mark_step_completed(OnboardingStep.KB_EDUCATION)
+        state.current_step = state.get_next_step() or OnboardingStep.STYLE_FINALIZE
         state.add_conversation_turn(state.last_user_message or "", response)
         return state
 
     async def _handle_style_finalize(self, state: OnboardingState) -> OnboardingState:
         state.current_step = OnboardingStep.STYLE_FINALIZE
-        missing: list[str] = []
-        if not state.user_context.style.tone:
-            missing.append("style.tone")
-        if not state.user_context.style.verbosity:
-            missing.append("style.verbosity")
-        if not state.user_context.style.formality:
-            missing.append("style.formality")
-        if not state.user_context.style.emojis:
-            missing.append("style.emojis")
-        if not state.user_context.accessibility.reading_level_hint:
-            missing.append("accessibility.reading_level_hint")
-        if not state.user_context.accessibility.glossary_level_hint:
-            missing.append("accessibility.glossary_level_hint")
-
-        last_turns_text = "\n".join(
-            f"U:{t.get('user_message', '')}\nA:{t.get('agent_response', '')}"
-            for t in state.conversation_history[-6:]
+        decision = self._reason_step(state, OnboardingStep.STYLE_FINALIZE, [])
+        self._apply_context_patch(
+            state, OnboardingStep.STYLE_FINALIZE, decision.get("patch") or {}
         )
-        data = self._extract(
-            state,
-            OnboardingStep.STYLE_FINALIZE,
-            {
-                "type": "object",
-                "properties": {
-                    "tone": {"type": "string"},
-                    "verbosity": {"type": "string"},
-                    "formality": {"type": "string"},
-                    "emojis": {"type": "string"},
-                    "reading_level_hint": {"type": "string"},
-                    "glossary_level_hint": {"type": "string"},
-                },
-            },
-            text=last_turns_text,
-            instructions=(
-                "Infer concise style.{tone,verbosity,formality,emojis} and accessibility.{reading_level_hint,glossary_level_hint} "
-                "from the user's language and the assistant tone so far."
-            ),
-        )
-        ctx = state.user_context
-        if data.get("tone") and not ctx.style.tone:
-            ctx.style.tone = data["tone"]
-        if data.get("verbosity") and not ctx.style.verbosity:
-            ctx.style.verbosity = data["verbosity"]
-        if data.get("formality") and not ctx.style.formality:
-            ctx.style.formality = data["formality"]
-        if data.get("emojis") and not ctx.style.emojis:
-            ctx.style.emojis = data["emojis"]
-        if data.get("reading_level_hint") and not ctx.accessibility.reading_level_hint:
-            ctx.accessibility.reading_level_hint = data["reading_level_hint"]
-        if (
-            data.get("glossary_level_hint")
-            and not ctx.accessibility.glossary_level_hint
-        ):
-            ctx.accessibility.glossary_level_hint = data["glossary_level_hint"]
-        ctx.sync_nested_to_flat()
-
         response = (
-            "Before we wrap, I'll keep replies "
-            f"{ctx.style.tone or 'clear'} and {ctx.style.formality or 'friendly'}. "
-            "Sound good?"
+            decision.get("assistant_text")
+            or "I’ll keep replies clear and friendly. Sound good?"
         )
         state.add_conversation_turn(state.last_user_message or "", response)
         state.mark_step_completed(OnboardingStep.STYLE_FINALIZE)
+        state.current_step = state.get_next_step() or OnboardingStep.COMPLETION
         return state
 
     async def _handle_completion(self, state: OnboardingState) -> OnboardingState:
         state.current_step = OnboardingStep.COMPLETION
-        response = self._gen(OnboardingStep.COMPLETION, state, [])
+        decision = self._reason_step(state, OnboardingStep.COMPLETION, [])
+        response = (
+            decision.get("assistant_text") or "All set! You’re ready to start chatting."
+        )
         state.user_context.ready_for_orchestrator = True
         state.ready_for_completion = True
         state.mark_step_completed(OnboardingStep.COMPLETION)
@@ -605,14 +638,9 @@ class OnboardingAgent:
         result = await self.graph.ainvoke(
             state_dict,
             config={
-                "callbacks": [langfuse_handler, *_DEBUG_CALLBACKS],
+                "callbacks": [langfuse_handler],
                 "thread_id": str(state.conversation_id),
                 "tags": ["onboarding", "verde-ai"],
-                "metadata": {
-                    "user_id": str(user_id),
-                    "conversation_id": str(state.conversation_id),
-                    "event": "process_message",
-                },
                 "configurable": {
                     "session_id": str(state.conversation_id),
                     "original_query": message,
@@ -623,10 +651,70 @@ class OnboardingAgent:
 
         return (new_state.last_agent_response or "", new_state)
 
-    def display_graph(self) -> None:
-        try:
-            from IPython.display import Image, display
+    async def process_message_with_events(
+        self,
+        user_id: UUID,
+        message: str,
+        state: OnboardingState | None,
+        on_sse_event,
+    ) -> OnboardingState:
+        """Process a message and emit minimal SSE updates using ainvoke (no event streaming)."""
+        if state is None:
+            state = OnboardingState(user_id=user_id)
+        state.last_user_message = message
 
-            display(Image(self.graph.get_graph().draw_mermaid_png()))
-        except Exception:
-            pass
+        prev_completed = set(s.value for s in state.completed_steps)
+
+        await on_sse_event(
+            {
+                "event": "step.update",
+                "data": {"status": "validating", "step_id": state.current_step.value},
+            }
+        )
+
+        result = await self.graph.ainvoke(
+            state.model_dump(),
+            config={
+                "callbacks": [langfuse_handler],
+                "thread_id": str(state.conversation_id),
+                "tags": ["onboarding", "verde-ai"],
+                "configurable": {
+                    "session_id": str(state.conversation_id),
+                    "original_query": message,
+                },
+            },
+        )
+        new_state = OnboardingState(**result) if isinstance(result, dict) else result
+
+        new_completed = set(s.value for s in new_state.completed_steps)
+        for step_value in sorted(new_completed - prev_completed):
+            await on_sse_event(
+                {
+                    "event": "step.update",
+                    "data": {"status": "completed", "step_id": step_value},
+                }
+            )
+
+        final_text = new_state.last_agent_response or ""
+        if final_text:
+            await on_sse_event({"event": "token.delta", "data": {"text": final_text}})
+
+        await on_sse_event(
+            {
+                "event": "step.update",
+                "data": {
+                    "status": "presented",
+                    "step_id": new_state.current_step.value,
+                },
+            }
+        )
+
+        if (
+            new_state.ready_for_completion
+            and new_state.user_context.ready_for_orchestrator
+        ):
+            await on_sse_event(
+                {"event": "onboarding.status", "data": {"status": "done"}}
+            )
+
+        return new_state

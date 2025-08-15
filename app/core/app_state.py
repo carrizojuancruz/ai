@@ -11,6 +11,8 @@ _user_sessions: dict[UUID, OnboardingState] = {}
 _onboarding_threads: dict[str, OnboardingState] = {}
 _sse_queues: dict[str, asyncio.Queue] = {}
 
+_last_emitted_text: dict[str, str] = {}
+
 
 def get_onboarding_agent() -> OnboardingAgent:
     global _onboarding_agent
@@ -43,3 +45,13 @@ def get_sse_queue(thread_id: str) -> asyncio.Queue[str]:
 
 def drop_sse_queue(thread_id: str) -> None:
     _sse_queues.pop(thread_id, None)
+
+
+def get_last_emitted_text(thread_id: str) -> str:
+    return _last_emitted_text.get(thread_id, "")
+
+
+def set_last_emitted_text(thread_id: str, text: str) -> None:
+    if text is None:
+        text = ""
+    _last_emitted_text[thread_id] = text

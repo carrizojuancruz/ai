@@ -10,11 +10,13 @@ from pydantic import BaseModel
 
 from app.agents.onboarding import OnboardingState
 from app.core.app_state import (
+    get_last_emitted_text,
     get_onboarding_agent,
     get_sse_queue,
     get_thread_state,
     get_user_sessions,
     register_thread,
+    set_last_emitted_text,
     set_thread_state,
 )
 
@@ -58,20 +60,35 @@ async def initialize_onboarding() -> InitializeResponse:
     await queue.put({"event": "conversation.started", "data": {"thread_id": thread_id}})
 
     agent = get_onboarding_agent()
-    response_text, new_state = await agent.process_message(user_id, "", state)
-    set_thread_state(thread_id, new_state)
 
-    await queue.put({"event": "token.delta", "data": {"text": response_text}})
-    await queue.put(
-        {
-            "event": "step.update",
-            "data": {"status": "presented", "step_id": new_state.current_step.value},
-        }
-    )
+    prev_text = get_last_emitted_text(thread_id)
+
+    async def emit(evt: dict) -> None:
+        if isinstance(evt, dict) and evt.get("event") == "token.delta":
+            set_last_emitted_text(thread_id, evt.get("data", {}).get("text", ""))
+        await queue.put(evt)
+
+    final_state = await agent.process_message_with_events(user_id, "", state, emit)
+
+    if not (final_state.last_agent_response or ""):
+        text, ensured_state = await agent.process_message(user_id, "", final_state)
+        final_state = ensured_state
+        if text and text != prev_text:
+            await queue.put({"event": "token.delta", "data": {"text": text}})
+            set_last_emitted_text(thread_id, text)
+
+    set_thread_state(thread_id, final_state)
+
+    current_text = get_last_emitted_text(thread_id)
+    if current_text == prev_text:
+        final_text = final_state.last_agent_response or ""
+        if final_text and final_text != prev_text:
+            await queue.put({"event": "token.delta", "data": {"text": final_text}})
+            set_last_emitted_text(thread_id, final_text)
 
     return InitializeResponse(
         thread_id=thread_id,
-        welcome=response_text,
+        welcome=final_state.last_agent_response or "",
         sse_url=f"/onboarding/sse/{thread_id}",
     )
 
@@ -97,8 +114,7 @@ async def onboarding_message(payload: MessagePayload) -> dict:
     elif payload.type == "choice" and payload.choice_ids:
         user_text = ", ".join(payload.choice_ids)
     elif payload.type == "control" and payload.action in {"back", "skip"}:
-        if payload.action == "back" or payload.action == "skip":
-            pass
+        # TODO: implement back/skip behavior if required
         set_thread_state(payload.thread_id, state)
         await get_sse_queue(payload.thread_id).put(
             {
@@ -109,41 +125,38 @@ async def onboarding_message(payload: MessagePayload) -> dict:
         return {"status": "accepted"}
 
     agent = get_onboarding_agent()
-
-    await get_sse_queue(payload.thread_id).put(
-        {
-            "event": "step.update",
-            "data": {"status": "validating", "step_id": state.current_step.value},
-        }
-    )
-
-    prev_completed = set(s.value for s in state.completed_steps)
-    response_text, new_state = await agent.process_message(
-        state.user_id, user_text, state
-    )
-    set_thread_state(payload.thread_id, new_state)
-
     q = get_sse_queue(payload.thread_id)
-    await q.put({"event": "token.delta", "data": {"text": response_text}})
 
-    new_completed = set(s.value for s in new_state.completed_steps)
-    for step_value in sorted(new_completed - prev_completed):
-        await q.put(
-            {
-                "event": "step.update",
-                "data": {"status": "completed", "step_id": step_value},
-            }
-        )
+    prev_text = get_last_emitted_text(payload.thread_id)
 
-    await q.put(
-        {
-            "event": "step.update",
-            "data": {"status": "presented", "step_id": new_state.current_step.value},
-        }
+    async def emit(evt: dict) -> None:
+        if isinstance(evt, dict) and evt.get("event") == "token.delta":
+            set_last_emitted_text(
+                payload.thread_id, evt.get("data", {}).get("text", "")
+            )
+        await q.put(evt)
+
+    final_state = await agent.process_message_with_events(
+        state.user_id, user_text, state, emit
     )
 
-    if new_state.ready_for_completion and new_state.user_context.ready_for_orchestrator:
-        await q.put({"event": "onboarding.status", "data": {"status": "done"}})
+    if not (final_state.last_agent_response or ""):
+        text, ensured_state = await agent.process_message(
+            state.user_id, user_text, final_state
+        )
+        final_state = ensured_state
+        if text and text != prev_text:
+            await q.put({"event": "token.delta", "data": {"text": text}})
+            set_last_emitted_text(payload.thread_id, text)
+
+    set_thread_state(payload.thread_id, final_state)
+
+    current_text = get_last_emitted_text(payload.thread_id)
+    if current_text == prev_text:
+        final_text = final_state.last_agent_response or ""
+        if final_text and final_text != prev_text:
+            await q.put({"event": "token.delta", "data": {"text": final_text}})
+            set_last_emitted_text(payload.thread_id, final_text)
 
     return {"status": "accepted"}
 

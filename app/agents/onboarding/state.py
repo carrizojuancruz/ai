@@ -1,5 +1,6 @@
 """Onboarding agent state management."""
 
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
@@ -92,7 +93,17 @@ class OnboardingState(BaseModel):
         self.blocked_topics.append(blocked_topic)
 
     def add_conversation_turn(self, user_message: str, agent_response: str) -> None:
-        """Add a conversation turn to history."""
+        """Add a conversation turn to history, avoiding duplicate consecutive entries."""
+        last = self.conversation_history[-1] if self.conversation_history else None
+        if last and (
+            last.get("user_message") == user_message
+            and last.get("agent_response") == agent_response
+            and last.get("step") == self.current_step.value
+        ):
+            self.last_user_message = user_message
+            self.last_agent_response = agent_response
+            return
+
         self.turn_number += 1
         self.conversation_history.append(
             {
@@ -100,7 +111,7 @@ class OnboardingState(BaseModel):
                 "user_message": user_message,
                 "agent_response": agent_response,
                 "step": self.current_step.value,
-                "timestamp": "utcnow",
+                "timestamp": datetime.now(UTC).isoformat(),
             }
         )
         self.last_user_message = user_message
