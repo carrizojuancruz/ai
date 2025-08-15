@@ -4,8 +4,10 @@ import asyncio
 from uuid import UUID
 
 from app.agents.onboarding import OnboardingAgent, OnboardingState
+from app.agents.supervisor import compile_supervisor_graph
 
 _onboarding_agent: OnboardingAgent | None = None
+_supervisor_graph = None
 _user_sessions: dict[UUID, OnboardingState] = {}
 
 _onboarding_threads: dict[str, OnboardingState] = {}
@@ -19,6 +21,13 @@ def get_onboarding_agent() -> OnboardingAgent:
     if _onboarding_agent is None:
         _onboarding_agent = OnboardingAgent()
     return _onboarding_agent
+
+
+def get_supervisor_graph():
+    global _supervisor_graph
+    if _supervisor_graph is None:
+        _supervisor_graph = compile_supervisor_graph()
+    return _supervisor_graph
 
 
 def get_user_sessions() -> dict[UUID, OnboardingState]:

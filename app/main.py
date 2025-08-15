@@ -11,6 +11,7 @@ app = FastAPI(title="Verde AI - Vera Agent System", version="0.1.0")
 logger = get_logger(__name__)
 
 from .api.routes import router as api_router
+from .api.routes_supervisor import router as supervisor_router
 
 
 @app.middleware("http")
@@ -28,3 +29,4 @@ def read_root() -> dict[str, str]:
 
 
 app.include_router(api_router)
+app.include_router(supervisor_router)

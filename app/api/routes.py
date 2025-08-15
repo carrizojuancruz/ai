@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.agents.onboarding import OnboardingState
+from app.core.app_state import get_supervisor_graph
 from app.core.app_state import (
     get_last_emitted_text,
     get_onboarding_agent,
@@ -21,6 +22,8 @@ from app.core.app_state import (
 )
 
 router = APIRouter(prefix="/onboarding", tags=["Onboarding"])
+
+
 
 
 @router.get("/status/{user_id}")
