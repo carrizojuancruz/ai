@@ -3,15 +3,23 @@ name: Build and Push to ECR
 on:
   push:
     branches:
-      - main  # Change if needed
+      - prod  # Change if needed
+      - dev  # Change if needed
+      - uat  # Change if needed
+    paths-ignore:
+      - '.github/workflows/**'  # Ignore changes in workflow folder
 
 env:
-  ECR_REPOSITORY: my-service
+  ECR_REPOSITORY: "${{ github.event.repository.name }}-${{ github.ref_name }}"
   AWS_REGION: us-east-1
-
+  AWS_ACCOUNT_ID: 905418355862
+  ROLE_NAME: "GitHubActions-Vera-Dev-Role"
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
       - name: Checkout source
@@ -20,10 +28,9 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: "arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.ROLE_NAME }}"
           aws-region: ${{ env.AWS_REGION }}
-
+          
       - name: Log in to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -32,11 +39,10 @@ jobs:
         run: |
           IMAGE_TAG=${GITHUB_SHA::7}
           ECR_REGISTRY=$(aws ecr describe-repositories --repository-names $ECR_REPOSITORY --query "repositories[0].repositoryUri" --output text)
-          
-          docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY:$IMAGE_TAG
-          docker push $ECR_REGISTRY:$IMAGE_TAG
+
+          # Mandatory: push "$IMAGE_TAG"
+
+          docker buildx build --platform linux/arm64 -t $ECR_REGISTRY:$IMAGE_TAG --push --load .
           
           # Optional: push "latest"
-          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY:latest
-          docker push $ECR_REGISTRY:latest
+          docker buildx build --platform linux/arm64 -t $ECR_REGISTRY:latest --push  --load .
