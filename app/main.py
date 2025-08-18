@@ -1,3 +1,8 @@
+from dotenv import load_dotenv
+
+load_dotenv(".env", override=False)
+load_dotenv(".env.local", override=True)
+
 from collections.abc import Callable
 
 from fastapi import FastAPI, Request, Response

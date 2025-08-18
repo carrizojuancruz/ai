@@ -26,6 +26,6 @@ COPY . .
 # Expose port
 EXPOSE 8000
 
-# Default command to run the app via run:app to ensure envs load early
-CMD ["poetry", "run", "uvicorn", "run:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Default command to run the app
+CMD ["poetry", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
