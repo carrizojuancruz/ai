@@ -45,11 +45,11 @@ jobs:
           docker tag $ECR_REGISTRY:$IMAGE_TAG $ECR_REGISTRY:latest
           
           # Optional: push "VERSION_TAG"
-          #docker tag $ECR_REGISTRY:$IMAGE_TAG $ECR_REGISTRY:v$VERSION_TAG
+          #docker tag $ECR_REGISTRY:$IMAGE_TAG $ECR_REGISTRY:$VERSION_TAG
           docker push $ECR_REGISTRY:$IMAGE_TAG
           
           # Optional: push "latest"
           docker push $ECR_REGISTRY:latest
-          docker push $ECR_REGISTRY:v$VERSION_TAG
+          docker push $ECR_REGISTRY:$VERSION_TAG
           
           
