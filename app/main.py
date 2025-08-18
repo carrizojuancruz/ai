@@ -1,14 +1,15 @@
+from dotenv import load_dotenv
+
+load_dotenv(".env", override=False)
+load_dotenv(".env.local", override=True)
+
 from collections.abc import Callable
 
-from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response
 
 from .api.routes import router as api_router
 from .api.routes_supervisor import router as supervisor_router
 from .observability.logging_config import configure_logging, get_logger
-
-load_dotenv(".env", override=False)
-load_dotenv(".env.local", override=True)
 
 configure_logging()
 app = FastAPI(title="Verde AI - Vera Agent System", version="0.1.0")
