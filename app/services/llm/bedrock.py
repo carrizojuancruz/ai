@@ -1,15 +1,12 @@
-"""Amazon Bedrock LLM provider.
-
-AWS credentials are resolved via the default chain (env vars, profile, role).
-"""
-
 from __future__ import annotations
 
 import json
 import os
+from collections.abc import AsyncIterator
 from typing import Any
 
-import boto3
+from langchain_aws import ChatBedrock
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from .base import LLM
 
@@ -18,52 +15,23 @@ class BedrockLLM(LLM):
     def __init__(self) -> None:
         region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
         if not region:
-            raise RuntimeError(
-                "AWS_REGION (or AWS_DEFAULT_REGION) is required for Bedrock provider"
-            )
-        self.model_id = os.getenv(
-            "BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0"
-        )
-        self.inference_profile_arn = os.getenv("BEDROCK_INFERENCE_PROFILE_ARN")
-        self.client = boto3.client("bedrock-runtime", region_name=region)
+            raise RuntimeError("AWS_REGION (or AWS_DEFAULT_REGION) is required for Bedrock provider")
+        self.model_id = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
         self.temperature = float(os.getenv("LLM_TEMPERATURE", "0.3"))
-        self.anthropic_version = "bedrock-2023-05-31"
+        self.chat_model = ChatBedrock(
+            model_id=self.model_id,
+            region_name=region,
+            model_kwargs={
+                "temperature": self.temperature,
+                "max_tokens": 400,
+            },
+        )
         self._callbacks: list[Any] | None = None
 
     def set_callbacks(self, callbacks: list[Any] | None) -> None:
         self._callbacks = callbacks
-
-    def _invoke_claude(
-        self,
-        messages: list[dict[str, Any]],
-        system: str | None,
-        max_tokens: int = 400,
-    ) -> str:
-        body: dict[str, Any] = {
-            "anthropic_version": self.anthropic_version,
-            "messages": messages,
-            "max_tokens": max_tokens,
-            "temperature": self.temperature,
-        }
-        if system:
-            body["system"] = system
-        kwargs: dict[str, Any] = {
-            "body": json.dumps(body).encode("utf-8"),
-            "contentType": "application/json",
-            "accept": "application/json",
-        }
-        if self.inference_profile_arn:
-            kwargs["inferenceProfileArn"] = self.inference_profile_arn
-        else:
-            kwargs["modelId"] = self.model_id
-        # Callbacks are currently unused here; kept for compatibility with LangChain handler expectation
-        response = self.client.invoke_model(**kwargs)
-        payload = json.loads(response["body"].read())
-        parts = payload.get("content") or []
-        for part in parts:
-            if isinstance(part, dict) and part.get("type") == "text":
-                return str(part.get("text", ""))
-        return ""
+        if self.chat_model and callbacks:
+            self.chat_model.callbacks = callbacks
 
     def generate(
         self,
@@ -71,8 +39,28 @@ class BedrockLLM(LLM):
         system: str | None = None,
         context: dict[str, Any] | None = None,
     ) -> str:
-        messages = [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
-        return self._invoke_claude(messages, system)
+        messages = []
+        if system:
+            messages.append(SystemMessage(content=system))
+        messages.append(HumanMessage(content=prompt))
+        response = self.chat_model.invoke(messages, config={"callbacks": self._callbacks} if self._callbacks else None)
+        return response.content
+
+    async def generate_stream(
+        self,
+        prompt: str,
+        system: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> AsyncIterator[str]:
+        messages = []
+        if system:
+            messages.append(SystemMessage(content=system))
+        messages.append(HumanMessage(content=prompt))
+        async for chunk in self.chat_model.astream(
+            messages, config={"callbacks": self._callbacks} if self._callbacks else None
+        ):
+            if hasattr(chunk, "content") and chunk.content:
+                yield chunk.content
 
     def extract(
         self,
@@ -83,19 +71,18 @@ class BedrockLLM(LLM):
     ) -> dict[str, Any]:
         schema_str = json.dumps(schema, ensure_ascii=False)
         instr = instructions or ""
-        sys = (
+        system = (
             "You extract structured data from user text. Only output a JSON object that "
             "matches the provided JSON Schema. Do not include any prose."
         )
-        usr = (
+        prompt = (
             f"JSON Schema: {schema_str}\n"
             f"User text: {text}\n"
             f"Instructions: {instr}\n"
             "Rules: Return ONLY JSON. Omit unknown fields. Use null for unknowns."
         )
-        messages = [{"role": "user", "content": [{"type": "text", "text": usr}]}]
-        raw = self._invoke_claude(messages, sys, max_tokens=500)
-        return _safe_parse_json(raw)
+        response = self.generate(prompt, system)
+        return _safe_parse_json(response)
 
 
 def _safe_parse_json(raw: str) -> dict[str, Any]:

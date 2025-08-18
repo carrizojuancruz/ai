@@ -20,9 +20,7 @@ class OnboardingStep(str, Enum):
     FINANCIAL_SNAPSHOT = "financial_snapshot"  # Story 5: Manual Financial Snapshot
     SOCIALS_OPTIN = "socials_optin"  # Story 6: Socials Opt-In (Optional)
     KB_EDUCATION = "kb_education"  # Story 7: KB Education Small Talk
-    STYLE_FINALIZE = (
-        "style_finalize"  # New: infer style & accessibility from conversation
-    )
+    STYLE_FINALIZE = "style_finalize"  # New: infer style & accessibility from conversation
     COMPLETION = "completion"  # Story 8: Handoff Summary & Completion
 
 
@@ -33,13 +31,6 @@ class OnboardingState(BaseModel):
     user_id: UUID
     current_step: OnboardingStep = OnboardingStep.GREETING
     turn_number: int = 0
-
-    awaiting_input: bool = False
-    awaiting_choice: bool = False
-
-    pending_options: list[dict[str, Any]] = Field(default_factory=list)
-    options_for_step: str | None = None
-    options_version: int = 0
 
     user_context: UserContext = Field(default_factory=lambda: UserContext())
 
@@ -55,7 +46,6 @@ class OnboardingState(BaseModel):
     last_agent_response: str | None = None
 
     ready_for_completion: bool = False
-    completion_summary: str | None = None
 
     def mark_step_completed(self, step: OnboardingStep) -> None:
         """Mark a step as completed."""

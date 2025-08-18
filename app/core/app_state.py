@@ -1,24 +1,29 @@
 from __future__ import annotations
 
 import asyncio
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from langgraph.graph.state import CompiledStateGraph
 
-from app.agents.onboarding import OnboardingAgent, OnboardingState
+if TYPE_CHECKING:
+    from app.agents.onboarding import OnboardingAgent, OnboardingState
+
 from app.agents.supervisor import compile_supervisor_graph
 
-_onboarding_agent: OnboardingAgent | None = None
+_onboarding_agent: "OnboardingAgent | None" = None
 _supervisor_graph = None
-_user_sessions: dict[UUID, OnboardingState] = {}
+_user_sessions: "dict[UUID, OnboardingState]" = {}
 
-_onboarding_threads: dict[str, OnboardingState] = {}
+_onboarding_threads: "dict[str, OnboardingState]" = {}
 _sse_queues: dict[str, asyncio.Queue] = {}
 
 _last_emitted_text: dict[str, str] = {}
 
 
 def get_onboarding_agent() -> OnboardingAgent:
+    from app.agents.onboarding import OnboardingAgent
+
     global _onboarding_agent
     if _onboarding_agent is None:
         _onboarding_agent = OnboardingAgent()

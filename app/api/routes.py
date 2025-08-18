@@ -3,27 +3,19 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncGenerator
-from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.agents.onboarding import OnboardingState
 from app.core.app_state import (
-    get_last_emitted_text,
-    get_onboarding_agent,
     get_sse_queue,
     get_thread_state,
     get_user_sessions,
-    register_thread,
-    set_last_emitted_text,
-    set_thread_state,
 )
+from app.services.onboarding.service import onboarding_service
 
 router = APIRouter(prefix="/onboarding", tags=["Onboarding"])
-
-
 
 
 @router.get("/status/{user_id}")
@@ -53,47 +45,8 @@ class InitializeResponse(BaseModel):
 
 @router.post("/initialize", response_model=InitializeResponse)
 async def initialize_onboarding() -> InitializeResponse:
-    thread_id = str(uuid4())
-    user_id = uuid4()
-    state = OnboardingState(user_id=user_id)
-
-    register_thread(thread_id, state)
-    queue = get_sse_queue(thread_id)
-
-    await queue.put({"event": "conversation.started", "data": {"thread_id": thread_id}})
-
-    agent = get_onboarding_agent()
-
-    prev_text = get_last_emitted_text(thread_id)
-
-    async def emit(evt: dict) -> None:
-        if isinstance(evt, dict) and evt.get("event") == "token.delta":
-            set_last_emitted_text(thread_id, evt.get("data", {}).get("text", ""))
-        await queue.put(evt)
-
-    final_state = await agent.process_message_with_events(user_id, "", state, emit)
-
-    if not (final_state.last_agent_response or ""):
-        text, ensured_state = await agent.process_message(user_id, "", final_state)
-        final_state = ensured_state
-        if text and text != prev_text:
-            await queue.put({"event": "token.delta", "data": {"text": text}})
-            set_last_emitted_text(thread_id, text)
-
-    set_thread_state(thread_id, final_state)
-
-    current_text = get_last_emitted_text(thread_id)
-    if current_text == prev_text:
-        final_text = final_state.last_agent_response or ""
-        if final_text and final_text != prev_text:
-            await queue.put({"event": "token.delta", "data": {"text": final_text}})
-            set_last_emitted_text(thread_id, final_text)
-
-    return InitializeResponse(
-        thread_id=thread_id,
-        welcome=final_state.last_agent_response or "",
-        sse_url=f"/onboarding/sse/{thread_id}",
-    )
+    result = await onboarding_service.initialize()
+    return InitializeResponse(**result)
 
 
 class MessagePayload(BaseModel):
@@ -107,61 +60,13 @@ class MessagePayload(BaseModel):
 
 @router.post("/message")
 async def onboarding_message(payload: MessagePayload) -> dict:
-    state = get_thread_state(payload.thread_id)
-    if state is None:
-        raise HTTPException(status_code=404, detail="Thread not found")
-
-    user_text = ""
-    if payload.type == "text" and payload.text is not None:
-        user_text = payload.text
-    elif payload.type == "choice" and payload.choice_ids:
-        user_text = ", ".join(payload.choice_ids)
-    elif payload.type == "control" and payload.action in {"back", "skip"}:
-        # TODO: implement back/skip behavior if required
-        set_thread_state(payload.thread_id, state)
-        await get_sse_queue(payload.thread_id).put(
-            {
-                "event": "step.update",
-                "data": {"status": "completed", "step_id": state.current_step.value},
-            }
-        )
-        return {"status": "accepted"}
-
-    agent = get_onboarding_agent()
-    q = get_sse_queue(payload.thread_id)
-
-    prev_text = get_last_emitted_text(payload.thread_id)
-
-    async def emit(evt: dict) -> None:
-        if isinstance(evt, dict) and evt.get("event") == "token.delta":
-            set_last_emitted_text(
-                payload.thread_id, evt.get("data", {}).get("text", "")
-            )
-        await q.put(evt)
-
-    final_state = await agent.process_message_with_events(
-        state.user_id, user_text, state, emit
+    return await onboarding_service.process_message(
+        thread_id=payload.thread_id,
+        type=payload.type,
+        text=payload.text,
+        choice_ids=payload.choice_ids,
+        action=payload.action,
     )
-
-    if not (final_state.last_agent_response or ""):
-        text, ensured_state = await agent.process_message(
-            state.user_id, user_text, final_state
-        )
-        final_state = ensured_state
-        if text and text != prev_text:
-            await q.put({"event": "token.delta", "data": {"text": text}})
-            set_last_emitted_text(payload.thread_id, text)
-
-    set_thread_state(payload.thread_id, final_state)
-
-    current_text = get_last_emitted_text(payload.thread_id)
-    if current_text == prev_text:
-        final_text = final_state.last_agent_response or ""
-        if final_text and final_text != prev_text:
-            await q.put({"event": "token.delta", "data": {"text": final_text}})
-            set_last_emitted_text(payload.thread_id, final_text)
-
-    return {"status": "accepted"}
 
 
 @router.post("/done/{thread_id}")

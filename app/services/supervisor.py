@@ -5,14 +5,13 @@ import os
 from typing import Any
 from uuid import uuid4
 
-from langchain_core.messages import AIMessageChunk
 from langfuse.callback import CallbackHandler
 from langgraph.graph.state import CompiledStateGraph
 
 from app.core.app_state import (
+    get_last_emitted_text,
     get_sse_queue,
     get_supervisor_graph,
-    get_last_emitted_text,
     set_last_emitted_text,
 )
 from app.repositories.session_store import InMemorySessionStore, get_session_store
@@ -76,7 +75,7 @@ class SupervisorService:
                     if isinstance(text, str):
                         parts.append(text)
                 elif hasattr(item, "content"):
-                    part_text = self._content_to_text(getattr(item, "content"))
+                    part_text = self._content_to_text(item.content)
                     if part_text:
                         parts.append(part_text)
             return "".join(parts)
