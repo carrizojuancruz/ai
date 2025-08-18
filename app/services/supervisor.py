@@ -2,17 +2,16 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 from uuid import uuid4
 
-from langchain_core.messages import AIMessageChunk
 from langfuse.callback import CallbackHandler
 from langgraph.graph.state import CompiledStateGraph
 
 from app.core.app_state import (
+    get_last_emitted_text,
     get_sse_queue,
     get_supervisor_graph,
-    get_last_emitted_text,
     set_last_emitted_text,
 )
 from app.repositories.session_store import InMemorySessionStore, get_session_store
@@ -43,6 +42,12 @@ if not (
     )
 
 class SupervisorService:
+    @runtime_checkable
+    class HasContent(Protocol):
+        content: object
+
+    MessageContent = str | list[object] | dict[str, object] | HasContent | None
+
     def _is_guardrail_intervention(self, text: str) -> bool:
         if not isinstance(text, str):
             return False
@@ -60,13 +65,13 @@ class SupervisorService:
         if start != -1:
             return text[:start].rstrip()
         return text
-    def _content_to_text(self, value: Any) -> str:
+    def _content_to_text(self, value: MessageContent) -> str:
         if value is None:
             return ""
         if isinstance(value, str):
             return value
         maybe_content = getattr(value, "content", None)
-        if isinstance(maybe_content, (str, list)):
+        if isinstance(maybe_content, str | list):
             return self._content_to_text(maybe_content)
         if isinstance(value, list):
             parts: list[str] = []
@@ -76,7 +81,7 @@ class SupervisorService:
                     if isinstance(text, str):
                         parts.append(text)
                 elif hasattr(item, "content"):
-                    part_text = self._content_to_text(getattr(item, "content"))
+                    part_text = self._content_to_text(item.content)
                     if part_text:
                         parts.append(part_text)
             return "".join(parts)
