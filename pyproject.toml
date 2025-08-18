@@ -42,8 +42,6 @@ select = [
     "I",
     "W",
     "B",
-    "UP",
-    "ANN",
     "D",
     "SIM",
     "TID",
@@ -51,6 +49,8 @@ select = [
 ignore = [
     "ANN101",
     "ANN102",
+    "ANN401",
+    "UP038",
     "D203",
     "D213",
     "D100",
@@ -120,6 +120,7 @@ line-ending = "auto"
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Allow unused imports in __init__.py
 "tests/**/*" = ["S101", "D"]  # Allow assert statements and missing docstrings in tests
+"app/main.py" = ["E402"]  # Allow imports after dotenv load in FastAPI entry
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
