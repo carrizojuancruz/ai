@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict
+from typing import Any
 
 from langchain_aws import ChatBedrock
 from langchain_core.messages import HumanMessage, SystemMessage
 
 
-def _format_user_context_for_prompt(user_context: Dict[str, Any]) -> str:
+def _format_user_context_for_prompt(user_context: dict[str, Any]) -> str:
     name = (
         user_context.get("identity", {}).get("preferred_name")
         or user_context.get("preferred_name")
@@ -20,7 +20,7 @@ def _format_user_context_for_prompt(user_context: Dict[str, Any]) -> str:
     return f"name={name}; tone={tone}; locale={locale}; goals={goals_str}"
 
 
-async def generate_personalized_welcome(user_context: Dict[str, Any]) -> str:
+async def generate_personalized_welcome(user_context: dict[str, Any]) -> str:
     region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
     model_id = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
     if not region:

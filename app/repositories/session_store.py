@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class InMemorySessionStore:
     def __init__(self, ttl_hours: int = 24, cleanup_interval_minutes: int = 30) -> None:
-        self.sessions: Dict[str, Dict[str, Any]] = {}
-        self.locks: Dict[str, asyncio.Lock] = {}
+        self.sessions: dict[str, dict[str, Any]] = {}
+        self.locks: dict[str, asyncio.Lock] = {}
         self.ttl = timedelta(hours=ttl_hours)
         self.cleanup_interval = timedelta(minutes=cleanup_interval_minutes)
-        self.cleanup_task: Optional[asyncio.Task] = None
+        self.cleanup_task: asyncio.Task | None = None
         self._store_lock = asyncio.Lock()
 
     async def start(self) -> None:
@@ -21,10 +22,8 @@ class InMemorySessionStore:
     async def stop(self) -> None:
         if self.cleanup_task:
             self.cleanup_task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await self.cleanup_task
-            except asyncio.CancelledError:
-                pass
             self.cleanup_task = None
 
     async def _periodic_cleanup(self) -> None:
@@ -50,7 +49,7 @@ class InMemorySessionStore:
                 self.sessions.pop(sid, None)
                 self.locks.pop(sid, None)
 
-    async def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+    async def get_session(self, session_id: str) -> dict[str, Any] | None:
         ctx = self.sessions.get(session_id)
         if ctx:
             if datetime.now() - ctx.get("last_accessed", datetime.now()) > self.ttl:
@@ -60,7 +59,7 @@ class InMemorySessionStore:
             return ctx
         return None
 
-    async def set_session(self, session_id: str, context: Dict[str, Any]) -> None:
+    async def set_session(self, session_id: str, context: dict[str, Any]) -> None:
         context["last_accessed"] = datetime.now()
         async with self._store_lock:
             self.sessions[session_id] = context

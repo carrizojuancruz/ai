@@ -7,7 +7,8 @@ from langgraph.graph import MessagesState
 
 from app.utils.welcome import call_llm
 
-def _extract_text_from_content(content: Any) -> str:
+
+def _extract_text_from_content(content: str | list[dict[str, Any]] | dict[str, Any] | None) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -21,7 +22,7 @@ def _extract_text_from_content(content: Any) -> str:
     return ""
 
 
-def _get_last_user_message_text(messages: list[Any]) -> str:
+def _get_last_user_message_text(messages: list[HumanMessage | dict[str, Any]]) -> str:
     for m in reversed(messages):
         if isinstance(m, HumanMessage):
             return _extract_text_from_content(getattr(m, "content", ""))

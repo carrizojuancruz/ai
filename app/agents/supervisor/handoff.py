@@ -8,7 +8,7 @@ from langgraph.prebuilt import InjectedState
 from langgraph.types import Command, Send
 
 
-def create_task_description_handoff_tool(*, agent_name: str, description: str | None = None):
+def create_task_description_handoff_tool(*, agent_name: str, description: str | None = None) -> tool:
 
     name = f"transfer_to_{agent_name}"
     tool_description = description or f"Ask {agent_name} for help."

@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from uuid import UUID
 
+from langgraph.graph.state import CompiledStateGraph
+
 from app.agents.onboarding import OnboardingAgent, OnboardingState
 from app.agents.supervisor import compile_supervisor_graph
 
@@ -23,7 +25,7 @@ def get_onboarding_agent() -> OnboardingAgent:
     return _onboarding_agent
 
 
-def get_supervisor_graph():
+def get_supervisor_graph() -> CompiledStateGraph:
     global _supervisor_graph
     if _supervisor_graph is None:
         _supervisor_graph = compile_supervisor_graph()

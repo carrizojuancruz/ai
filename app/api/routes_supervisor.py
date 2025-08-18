@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -9,7 +10,6 @@ from pydantic import BaseModel
 
 from app.core.app_state import get_sse_queue
 from app.services.supervisor_service import supervisor_service
-
 
 router = APIRouter(prefix="/supervisor", tags=["Supervisor"])
 
@@ -47,7 +47,7 @@ async def supervisor_message(payload: SupervisorMessagePayload) -> dict:
 async def supervisor_sse(thread_id: str, request: Request) -> StreamingResponse:
     queue = get_sse_queue(thread_id)
 
-    async def event_generator():
+    async def event_generator() -> AsyncGenerator[str, None]:
         try:
             while True:
                 if await request.is_disconnected():

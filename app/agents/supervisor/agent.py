@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import os
-from typing import Any
 
-from langgraph.graph import END, START, MessagesState, StateGraph
-from langgraph.prebuilt import create_react_agent
 from langchain_aws import ChatBedrock
+from langgraph.graph import END, START, MessagesState, StateGraph
+from langgraph.graph.state import CompiledStateGraph
+from langgraph.prebuilt import create_react_agent
 
 from .handoff import create_task_description_handoff_tool
-from .workers import math_agent, research_agent
 from .prompts import SUPERVISOR_PROMPT
+from .workers import math_agent, research_agent
 
 
-def compile_supervisor_graph() -> Any:
+def compile_supervisor_graph() -> CompiledStateGraph:
     assign_to_research_agent_with_description = create_task_description_handoff_tool(
         agent_name="research_agent", description="Assign task to a researcher agent."
     )

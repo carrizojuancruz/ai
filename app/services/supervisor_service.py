@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-from typing import Any
-from uuid import uuid4
 import logging
 import os
+from typing import Any
+from uuid import uuid4
+
 from langchain_core.messages import AIMessageChunk
+from langfuse.callback import CallbackHandler
+from langgraph.graph.state import CompiledStateGraph
 
 from app.core.app_state import get_sse_queue, get_supervisor_graph
-from app.repositories.session_store import get_session_store
+from app.repositories.session_store import InMemorySessionStore, get_session_store
 from app.utils.welcome import generate_personalized_welcome
-from langfuse.callback import CallbackHandler
 
 langfuse_handler = CallbackHandler(
     public_key=os.getenv("LANGFUSE_PUBLIC_SUPERVISOR_KEY"),
@@ -19,7 +21,10 @@ langfuse_handler = CallbackHandler(
 
 logger = logging.getLogger(__name__)
 
-logger.info(f"Langfuse env vars: {os.getenv('LANGFUSE_PUBLIC_SUPERVISOR_KEY')}, {os.getenv('LANGFUSE_SECRET_SUPERVISOR_KEY')}, {os.getenv('LANGFUSE_HOST_SUPERVISOR')}")
+logger.info(
+    f"Langfuse env vars: {os.getenv('LANGFUSE_PUBLIC_SUPERVISOR_KEY')}, "
+    f"{os.getenv('LANGFUSE_SECRET_SUPERVISOR_KEY')}, {os.getenv('LANGFUSE_HOST_SUPERVISOR')}"
+)
 
 
 # Warn if Langfuse env is missing so callbacks would be disabled silently
@@ -67,8 +72,8 @@ class SupervisorService:
         q = get_sse_queue(thread_id)
         await q.put({"event": "step.update", "data": {"status": "processing"}})
 
-        graph = get_supervisor_graph()
-        session_store = get_session_store()
+        graph: CompiledStateGraph = get_supervisor_graph()
+        session_store: InMemorySessionStore = get_session_store()
         session_ctx = await session_store.get_session(thread_id) or {}
         configurable = {
             "thread_id": thread_id,
