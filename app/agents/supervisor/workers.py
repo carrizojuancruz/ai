@@ -2,30 +2,50 @@ from __future__ import annotations
 
 from typing import Any
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage
 from langgraph.graph import MessagesState
 
+from app.utils.welcome import call_llm
 
-def research_agent(state: MessagesState) -> dict[str, Any]:
-    prompt_messages = [
-        SystemMessage(content="You are a helpful research agent. Return a short factual summary."),
-    ] + state["messages"]
-    # Stubbed behavior: echo the last human message with a canned response
-    last = next((m for m in reversed(prompt_messages) if isinstance(m, HumanMessage)), None)
-    content = (
-        f"[research] acknowledging: {getattr(last, 'content', '')}" if last else "[research] ready"
+def _extract_text_from_content(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict):
+                value = item.get("text") or item.get("content") or ""
+                if isinstance(value, str):
+                    parts.append(value)
+        return "\n".join(parts).strip()
+    return ""
+
+
+def _get_last_user_message_text(messages: list[Any]) -> str:
+    for m in reversed(messages):
+        if isinstance(m, HumanMessage):
+            return _extract_text_from_content(getattr(m, "content", ""))
+        if isinstance(m, dict) and m.get("role") == "user":
+            return _extract_text_from_content(m.get("content"))
+    return ""
+
+async def research_agent(state: MessagesState) -> dict[str, Any]:
+    system: str = (
+        "You are a helpful research agent. Return a short, factual, neutral summary in <= 60 words."
     )
+    prompt: str = _get_last_user_message_text(state["messages"]) or "Provide a short factual summary."
+    content: str = await call_llm(system, prompt)
+    content = content or "I could not retrieve information at this time."
     return {"messages": [{"role": "assistant", "content": content, "name": "research_agent"}]}
 
 
-def math_agent(state: MessagesState) -> dict[str, Any]:
-    prompt_messages = [
-        SystemMessage(content="You are a math agent. Compute or summarize briefly; no steps."),
-    ] + state["messages"]
-    last = next((m for m in reversed(prompt_messages) if isinstance(m, HumanMessage)), None)
-    content = (
-        f"[math] acknowledging: {getattr(last, 'content', '')}" if last else "[math] ready"
+async def math_agent(state: MessagesState) -> dict[str, Any]:
+    system: str = (
+        "You are a math assistant. Compute the result. Return 'The result is <result>'."
     )
+    prompt: str = _get_last_user_message_text(state["messages"]) or "Answer the math question briefly."
+    content: str = await call_llm(system, prompt)
+    content = content or "I could not compute that right now."
     return {"messages": [{"role": "assistant", "content": content, "name": "math_agent"}]}
 
 

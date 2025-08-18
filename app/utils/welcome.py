@@ -52,3 +52,23 @@ async def generate_personalized_welcome(user_context: Dict[str, Any]) -> str:
     return f"Hi {name}! I’m Vera. How can I help you today?"
 
 
+
+async def call_llm(system: str | None, prompt: str) -> str:
+    region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
+    model_id = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
+    if not region:
+        content = prompt.strip()
+        return content if content else ""
+
+    chat = ChatBedrock(model_id=model_id, region_name=region)
+    messages: list[object] = []
+    if system:
+        messages.append(SystemMessage(content=system))
+    messages.append(HumanMessage(content=prompt))
+
+    try:
+        msg = await chat.ainvoke(messages)
+        content: str | None = getattr(msg, "content", None)
+        return content.strip() if isinstance(content, str) else ""
+    except Exception:
+        return ""
