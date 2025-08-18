@@ -8,7 +8,7 @@ on:
       - uat  # Change if needed
     paths-ignore:
       - '.github/workflows/**'  # Ignore changes in workflow folder
-
+  workflow_dispatch:
 env:
   ECR_REPOSITORY: "${{ github.event.repository.name }}-${{ github.ref_name }}"
   AWS_REGION: us-east-1
