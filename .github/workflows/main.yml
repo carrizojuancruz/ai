@@ -39,10 +39,18 @@ jobs:
         run: |
           IMAGE_TAG=${GITHUB_SHA::7}
           ECR_REGISTRY=$(aws ecr describe-repositories --repository-names $ECR_REPOSITORY --query "repositories[0].repositoryUri" --output text)
-
+          ECR_URL="$ECR_REGISTRY/$ECR_REPOSITORY"
+          
           # Mandatory: push "$IMAGE_TAG"
-
-          docker buildx build --platform linux/arm64 -t $ECR_REGISTRY:$IMAGE_TAG --push --load .
+          docker build -t $ECR_URL:$IMAGE_TAG .
+          docker tag $ECR_URL:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          
+          # Optional: push "VERSION_TAG"
+          #docker tag $ECR_URL:$IMAGE_TAG $ECR_URL:v$VERSION_TAG
+          docker push $ECR_URL:$IMAGE_TAG
           
           # Optional: push "latest"
-          docker buildx build --platform linux/arm64 -t $ECR_REGISTRY:latest --push  --load .
+          docker push $ECR_URL:latest
+          docker push $ECR_URL:v$VERSION_TAG
+          
+          
