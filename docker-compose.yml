@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: verde-ai-app
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+      - venv_cache:/app/.venv
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+      - POETRY_VIRTUALENVS_CREATE=true
+      - POETRY_VIRTUALENVS_IN_PROJECT=true
+
+volumes:
+  venv_cache:
+
