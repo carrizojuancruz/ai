@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import AsyncGenerator
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
@@ -23,8 +24,10 @@ from app.core.app_state import (
 router = APIRouter(prefix="/onboarding", tags=["Onboarding"])
 
 
+
+
 @router.get("/status/{user_id}")
-async def get_onboarding_status(user_id) -> dict:
+async def get_onboarding_status(user_id: str) -> dict:
     sessions = get_user_sessions()
     state = sessions.get(user_id)
     if state is None:
@@ -177,7 +180,7 @@ async def onboarding_done(thread_id: str) -> dict:
 async def onboarding_sse(thread_id: str, request: Request) -> StreamingResponse:
     queue = get_sse_queue(thread_id)
 
-    async def event_generator():
+    async def event_generator() -> AsyncGenerator[str, None]:
         try:
             while True:
                 if await request.is_disconnected():

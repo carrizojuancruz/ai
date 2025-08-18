@@ -14,6 +14,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from typing import Any
 from uuid import UUID
 
@@ -308,10 +310,8 @@ class OnboardingAgent:
                 except Exception:
                     pass
 
-        try:
+        with suppress(Exception):
             state.user_context.sync_nested_to_flat()
-        except Exception:
-            pass
 
     def _reason_step(
         self, state: OnboardingState, step: OnboardingStep, missing: list[str]
@@ -656,7 +656,7 @@ class OnboardingAgent:
         user_id: UUID,
         message: str,
         state: OnboardingState | None,
-        on_sse_event,
+        on_sse_event: Callable[[dict[str, Any]], Awaitable[None]],
     ) -> OnboardingState:
         """Process a message and emit minimal SSE updates using ainvoke (no event streaming)."""
         if state is None:
