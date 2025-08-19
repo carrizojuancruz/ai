@@ -31,15 +31,16 @@ class OnboardingAgent:
         workflow = StateGraph(OnboardingState)
 
         steps = [
-            "greeting",
-            "language_tone",
-            "mood_check",
-            "personal_info",
-            "financial_snapshot",
-            "socials_optin",
-            "kb_education",
-            "style_finalize",
-            "completion",
+            "warmup",
+            "identity",
+            "income_money",
+            "assets_expenses",
+            "home",
+            "family_unit",
+            "health_coverage",
+            "learning_path",
+            "plaid_integration",
+            "checkout_exit",
         ]
 
         for step_name in steps:

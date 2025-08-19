@@ -5,7 +5,6 @@ from typing import Callable
 
 from app.agents.onboarding.prompts import DEFAULT_RESPONSE_BY_STEP
 from app.agents.onboarding.state import OnboardingState, OnboardingStep
-from app.models import MemoryCategory
 
 from .context_patching import context_patching_service
 from .onboarding_reasoning import onboarding_reasoning_service
@@ -14,65 +13,78 @@ from .onboarding_reasoning import onboarding_reasoning_service
 class StepHandlerService:
     def __init__(self) -> None:
         self._missing_fields_by_step: dict[OnboardingStep, list[str] | Callable] = {
-            OnboardingStep.GREETING: lambda state: ["identity.preferred_name"]
-            if not state.user_context.identity.preferred_name
-            else [],
-            OnboardingStep.LANGUAGE_TONE: self._get_language_tone_missing_fields,
-            OnboardingStep.MOOD_CHECK: lambda state: ["mood"],
-            OnboardingStep.PERSONAL_INFO: self._get_personal_info_missing_fields,
-            OnboardingStep.FINANCIAL_SNAPSHOT: self._get_financial_snapshot_missing_fields,
-            OnboardingStep.SOCIALS_OPTIN: lambda state: [],
-            OnboardingStep.KB_EDUCATION: lambda state: [],
-            OnboardingStep.STYLE_FINALIZE: lambda state: [],
-            OnboardingStep.COMPLETION: lambda state: [],
+            OnboardingStep.WARMUP: lambda state: [],
+            OnboardingStep.IDENTITY: self._get_identity_missing_fields,
+            OnboardingStep.INCOME_MONEY: self._get_income_money_missing_fields,
+            OnboardingStep.ASSETS_EXPENSES: lambda state: ["assets_types", "fixed_expenses"],
+            OnboardingStep.HOME: lambda state: ["housing_type", "housing_satisfaction"],
+            OnboardingStep.FAMILY_UNIT: lambda state: ["dependents_under_18"],
+            OnboardingStep.HEALTH_COVERAGE: lambda state: ["health_insurance_status"],
+            OnboardingStep.LEARNING_PATH: lambda state: ["learning_interests"],
+            OnboardingStep.PLAID_INTEGRATION: lambda state: [],
+            OnboardingStep.CHECKOUT_EXIT: lambda state: ["final_choice"],
         }
 
         self._completion_checks: dict[OnboardingStep, Callable[[OnboardingState], bool]] = {
-            OnboardingStep.GREETING: lambda state: bool(state.user_context.identity.preferred_name),
-            OnboardingStep.LANGUAGE_TONE: self._is_language_tone_complete,
-            OnboardingStep.MOOD_CHECK: lambda state: any(
-                getattr(m, "metadata", {}).get("type") == "mood" for m in state.semantic_memories
-            ),
-            OnboardingStep.PERSONAL_INFO: lambda state: bool(
-                state.user_context.location.city and state.user_context.location.region
-            ),
-            OnboardingStep.FINANCIAL_SNAPSHOT: lambda state: bool(
-                state.user_context.goals and state.user_context.income
-            ),
-            OnboardingStep.SOCIALS_OPTIN: lambda state: isinstance(state.user_context.social_signals_consent, bool),
-            OnboardingStep.KB_EDUCATION: lambda state: True,
-            OnboardingStep.STYLE_FINALIZE: lambda state: True,
-            OnboardingStep.COMPLETION: lambda state: True,
+            OnboardingStep.WARMUP: lambda state: True,
+            OnboardingStep.IDENTITY: self._is_identity_complete,
+            OnboardingStep.INCOME_MONEY: self._is_income_money_complete,
+            OnboardingStep.ASSETS_EXPENSES: lambda state: True,
+            OnboardingStep.HOME: lambda state: True,
+            OnboardingStep.FAMILY_UNIT: lambda state: True,
+            OnboardingStep.HEALTH_COVERAGE: lambda state: True,
+            OnboardingStep.LEARNING_PATH: lambda state: True,
+            OnboardingStep.PLAID_INTEGRATION: lambda state: True,
+            OnboardingStep.CHECKOUT_EXIT: lambda state: True,
         }
 
     async def handle_step(self, state: OnboardingState, step: OnboardingStep) -> OnboardingState:
         state.current_step = step
 
+        if step in [OnboardingStep.HOME, OnboardingStep.FAMILY_UNIT, OnboardingStep.HEALTH_COVERAGE]:
+            if not state.should_show_conditional_node(step):
+                state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
+                return state
+
         missing_fields = self._get_missing_fields(state, step)
 
-        if step == OnboardingStep.LANGUAGE_TONE and state.user_context.safety.blocked_categories is None:
-            state.user_context.safety.blocked_categories = []
+        if step == OnboardingStep.IDENTITY:
+            age = state.user_context.age
+            age_range = state.user_context.age_range
+            if (age and int(age) < 18) or age_range == "under_18":
+                state.ready_for_completion = True
+                response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
+                state.add_conversation_turn(state.last_user_message or "", response)
+                return state
 
         decision = onboarding_reasoning_service.reason_step(state, step, missing_fields)
 
         context_patching_service.apply_context_patch(state, step, decision.get("patch") or {})
 
-        if step == OnboardingStep.MOOD_CHECK:
-            mood_val = (decision.get("patch") or {}).get("mood")
-            if mood_val:
-                state.add_semantic_memory(
-                    content=f"User's current mood about money: {mood_val}",
-                    category=MemoryCategory.PERSONAL,
-                    metadata={"type": "mood", "value": mood_val, "context": "money"},
-                )
-
         response = decision.get("assistant_text") or DEFAULT_RESPONSE_BY_STEP.get(step, "")
 
         if decision.get("complete") or self.is_step_complete(state, step):
             state.mark_step_completed(step)
-            state.current_step = state.get_next_step() or self._get_default_next_step(step)
+            state.current_step = state.get_next_step() or OnboardingStep.CHECKOUT_EXIT
 
-        if step == OnboardingStep.COMPLETION:
+        if decision.get("declined") or (
+            state.last_user_message
+            and any(
+                skip_word in state.last_user_message.lower()
+                for skip_word in ["skip", "pass", "next", "not now", "maybe later"]
+            )
+        ):
+            state = self._handle_skip(state, step)
+
+        if step == OnboardingStep.WARMUP:
+            if state.last_user_message and any(
+                skip_word in state.last_user_message.lower()
+                for skip_word in ["skip to account", "just setup", "skip onboarding"]
+            ):
+                state.current_step = OnboardingStep.CHECKOUT_EXIT
+                response = "No problem! Let's get your account set up."
+
+        elif step == OnboardingStep.CHECKOUT_EXIT:
             state.user_context.ready_for_orchestrator = True
             state.ready_for_completion = True
 
@@ -85,10 +97,23 @@ class StepHandlerService:
     ) -> AsyncGenerator[tuple[str, OnboardingState], None]:
         state.current_step = step
 
+        if step in [OnboardingStep.HOME, OnboardingStep.FAMILY_UNIT, OnboardingStep.HEALTH_COVERAGE]:
+            if not state.should_show_conditional_node(step):
+                state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
+                yield ("", state)
+                return
+
         missing_fields = self._get_missing_fields(state, step)
 
-        if step == OnboardingStep.LANGUAGE_TONE and state.user_context.safety.blocked_categories is None:
-            state.user_context.safety.blocked_categories = []
+        if step == OnboardingStep.IDENTITY:
+            age = state.user_context.age
+            age_range = state.user_context.age_range
+            if (age and int(age) < 18) or age_range == "under_18":
+                state.ready_for_completion = True
+                response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
+                state.add_conversation_turn(state.last_user_message or "", response)
+                yield (response, state)
+                return
 
         accumulated_response = ""
         final_decision = None
@@ -106,29 +131,37 @@ class StepHandlerService:
         if final_decision:
             context_patching_service.apply_context_patch(state, step, final_decision.get("patch") or {})
 
-            if step == OnboardingStep.MOOD_CHECK:
-                mood_val = (final_decision.get("patch") or {}).get("mood")
-                if mood_val:
-                    state.add_semantic_memory(
-                        content=f"User's current mood about money: {mood_val}",
-                        category=MemoryCategory.PERSONAL,
-                        metadata={"type": "mood", "value": mood_val, "context": "money"},
-                    )
-
             if final_decision.get("complete") or self.is_step_complete(state, step):
                 state.mark_step_completed(step)
-                state.current_step = state.get_next_step() or self._get_default_next_step(step)
+                state.current_step = state.get_next_step() or OnboardingStep.CHECKOUT_EXIT
 
-        if not accumulated_response:
-            accumulated_response = (
-                final_decision.get("assistant_text") if final_decision else DEFAULT_RESPONSE_BY_STEP.get(step, "")
-            )
+            if final_decision.get("declined") or (
+                state.last_user_message
+                and any(
+                    skip_word in state.last_user_message.lower()
+                    for skip_word in ["skip", "pass", "next", "not now", "maybe later"]
+                )
+            ):
+                state = self._handle_skip(state, step)
 
-        if step == OnboardingStep.COMPLETION:
-            state.user_context.ready_for_orchestrator = True
-            state.ready_for_completion = True
+            if step == OnboardingStep.WARMUP:
+                if state.last_user_message and any(
+                    skip_word in state.last_user_message.lower()
+                    for skip_word in ["skip to account", "just setup", "skip onboarding"]
+                ):
+                    state.current_step = OnboardingStep.CHECKOUT_EXIT
+                    accumulated_response = "No problem! Let's get your account set up."
 
-        state.add_conversation_turn(state.last_user_message or "", accumulated_response)
+            elif step == OnboardingStep.CHECKOUT_EXIT:
+                state.user_context.ready_for_orchestrator = True
+                state.ready_for_completion = True
+
+            if not accumulated_response:
+                accumulated_response = (
+                    final_decision.get("assistant_text") if final_decision else ""
+                ) or DEFAULT_RESPONSE_BY_STEP.get(step, "")
+
+            state.add_conversation_turn(state.last_user_message or "", accumulated_response)
 
         yield ("", state)
 
@@ -147,48 +180,42 @@ class StepHandlerService:
             return fields_spec(state)
         return fields_spec or []
 
-    def _get_language_tone_missing_fields(self, state: OnboardingState) -> list[str]:
+    def _get_identity_missing_fields(self, state: OnboardingState) -> list[str]:
         missing: list[str] = []
-        if not state.user_context.safety.blocked_categories:
-            missing.append("safety.blocked_categories")
-        if state.user_context.safety.allow_sensitive is None:
-            missing.append("safety.allow_sensitive")
-        return missing
-
-    def _get_personal_info_missing_fields(self, state: OnboardingState) -> list[str]:
-        missing: list[str] = []
+        if not state.user_context.age and not state.user_context.age_range:
+            missing.append("age")
         if not state.user_context.location.city:
-            missing.append("location.city")
-        if not state.user_context.location.region:
-            missing.append("location.region")
-        return missing
-
-    def _get_financial_snapshot_missing_fields(self, state: OnboardingState) -> list[str]:
-        missing: list[str] = []
+            missing.append("location")
         if not state.user_context.goals:
-            missing.append("goals")
-        if not state.user_context.income:
-            missing.append("income")
+            missing.append("personal_goals")
         return missing
 
-    def _is_language_tone_complete(self, state: OnboardingState) -> bool:
-        return state.user_context.safety.blocked_categories is not None and isinstance(
-            state.user_context.safety.allow_sensitive, bool
-        )
+    def _get_income_money_missing_fields(self, state: OnboardingState) -> list[str]:
+        missing: list[str] = []
+        if not hasattr(state.user_context, "money_feelings"):
+            missing.append("money_feelings")
+        if not state.user_context.income:
+            missing.append("annual_income")
+        return missing
+
+    def _is_identity_complete(self, state: OnboardingState) -> bool:
+        return bool((state.user_context.age or state.user_context.age_range) and state.user_context.location.city)
+
+    def _is_income_money_complete(self, state: OnboardingState) -> bool:
+        return hasattr(state.user_context, "money_feelings") or state.user_context.income is not None
 
     def _get_default_next_step(self, current_step: OnboardingStep) -> OnboardingStep:
-        step_transitions = {
-            OnboardingStep.GREETING: OnboardingStep.LANGUAGE_TONE,
-            OnboardingStep.LANGUAGE_TONE: OnboardingStep.MOOD_CHECK,
-            OnboardingStep.MOOD_CHECK: OnboardingStep.PERSONAL_INFO,
-            OnboardingStep.PERSONAL_INFO: OnboardingStep.FINANCIAL_SNAPSHOT,
-            OnboardingStep.FINANCIAL_SNAPSHOT: OnboardingStep.SOCIALS_OPTIN,
-            OnboardingStep.SOCIALS_OPTIN: OnboardingStep.KB_EDUCATION,
-            OnboardingStep.KB_EDUCATION: OnboardingStep.STYLE_FINALIZE,
-            OnboardingStep.STYLE_FINALIZE: OnboardingStep.COMPLETION,
-            OnboardingStep.COMPLETION: OnboardingStep.COMPLETION,
-        }
-        return step_transitions.get(current_step, OnboardingStep.COMPLETION)
+        return OnboardingStep.CHECKOUT_EXIT
+
+    def _handle_skip(self, state: OnboardingState, step: OnboardingStep) -> OnboardingState:
+        if step not in [OnboardingStep.WARMUP, OnboardingStep.IDENTITY, OnboardingStep.PLAID_INTEGRATION]:
+            state.skip_count += 1
+            state.skipped_nodes.append(step.value)
+            state.mark_step_skipped(step)
+            if state.skip_count >= 3:
+                state.current_step = OnboardingStep.PLAID_INTEGRATION
+
+        return state
 
 
 step_handler_service = StepHandlerService()

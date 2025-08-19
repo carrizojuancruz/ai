@@ -9,27 +9,47 @@ from app.agents.onboarding.state import OnboardingState, OnboardingStep
 class ContextPatchingService:
     def __init__(self) -> None:
         self._field_mappings = {
-            OnboardingStep.GREETING: {
+            OnboardingStep.WARMUP: {
                 "preferred_name": "identity.preferred_name",
             },
-            OnboardingStep.LANGUAGE_TONE: {
-                "blocked_categories": "safety.blocked_categories",
-                "allow_sensitive": "safety.allow_sensitive",
-            },
-            OnboardingStep.PERSONAL_INFO: {
+            OnboardingStep.IDENTITY: {
+                "preferred_name": "identity.preferred_name",
+                "age": "age",
+                "age_range": "age_range",
+                "location": "location.city",
                 "city": "location.city",
                 "region": "location.region",
+                "personal_goals": "goals",
             },
-            OnboardingStep.SOCIALS_OPTIN: {
-                "opt_in": "social_signals_consent",
+            OnboardingStep.INCOME_MONEY: {
+                "money_feelings": "money_feelings",
+                "annual_income": "income",
+                "annual_income_range": "income",
+                "income": "income",
+                "income_range": "income",
             },
-            OnboardingStep.STYLE_FINALIZE: {
-                "tone": "style.tone",
-                "verbosity": "style.verbosity",
-                "formality": "style.formality",
-                "emojis": "style.emojis",
-                "reading_level_hint": "accessibility.reading_level_hint",
-                "glossary_level_hint": "accessibility.glossary_level_hint",
+            OnboardingStep.ASSETS_EXPENSES: {
+                "assets_types": "assets_high_level",
+                "fixed_expenses": "expenses",
+            },
+            OnboardingStep.HOME: {
+                "housing_type": "housing",
+                "housing_satisfaction": "housing_satisfaction",
+                "monthly_housing_cost": "rent_mortgage",
+            },
+            OnboardingStep.FAMILY_UNIT: {
+                "dependents_under_18": "household.dependents_count",
+                "pets": "household.pets",
+            },
+            OnboardingStep.HEALTH_COVERAGE: {
+                "health_insurance_status": "health_insurance",
+                "monthly_health_cost": "health_cost",
+            },
+            OnboardingStep.LEARNING_PATH: {
+                "learning_interests": "learning_interests",
+            },
+            OnboardingStep.CHECKOUT_EXIT: {
+                "final_choice": "onboarding_choice",
             },
         }
 
@@ -43,13 +63,6 @@ class ContextPatchingService:
         for key, value in patch.items():
             if key in mappings:
                 normalized[mappings[key]] = value
-            elif step == OnboardingStep.STYLE_FINALIZE:
-                if key in {"tone", "verbosity", "formality", "emojis"}:
-                    normalized[f"style.{key}"] = value
-                elif key in {"reading_level_hint", "glossary_level_hint"}:
-                    normalized[f"accessibility.{key}"] = value
-                else:
-                    normalized[key] = value
             else:
                 normalized[key] = value
 
@@ -99,10 +112,7 @@ class ContextPatchingService:
             if is_last:
                 try:
                     current_val = getattr(target, part, None)
-                    if isinstance(current_val, list) and not isinstance(value, list):
-                        value_to_set = [value]
-                    else:
-                        value_to_set = value
+                    value_to_set = [value] if isinstance(current_val, list) and not isinstance(value, list) else value
                     setattr(target, part, value_to_set)
                 except Exception:
                     return
