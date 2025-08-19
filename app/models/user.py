@@ -1,5 +1,3 @@
-"""User context and preferences data models."""
-
 from datetime import datetime
 from enum import Enum
 from uuid import UUID, uuid4
@@ -8,8 +6,6 @@ from pydantic import BaseModel, Field
 
 
 class SubscriptionTier(str, Enum):
-    """User subscription tiers as defined in the architecture."""
-
     GUEST = "guest"
     FREE = "free"
     PAID = "paid"
@@ -61,14 +57,10 @@ class BudgetPosture(BaseModel):
 class Household(BaseModel):
     dependents_count: int | None = Field(default=None, ge=0)
     household_size: int | None = Field(default=None, ge=1)
-    pets: str | None = (
-        None  # none|dog|cat|dog_and_cat|other_small_animals|multiple_varied
-    )
+    pets: str | None = None
 
 
 class UserContext(BaseModel):
-    """Structured user context stored in PostgreSQL (later) and injected in prompts."""
-
     user_id: UUID = Field(default_factory=uuid4)
     email: str | None = None
     preferred_name: str | None = None
@@ -85,18 +77,23 @@ class UserContext(BaseModel):
     ready_for_orchestrator: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-
+    age: int | None = None
+    age_range: str | None = None
+    money_feelings: list[str] = Field(default_factory=list)
+    housing_satisfaction: str | None = None
+    health_insurance: str | None = None
+    health_cost: str | None = None
+    learning_interests: list[str] = Field(default_factory=list)
+    expenses: list[str] = Field(default_factory=list)
     identity: Identity = Field(default_factory=Identity)
     safety: Safety = Field(default_factory=Safety)
     style: Style = Field(default_factory=Style)
     location: Location = Field(default_factory=Location)
     locale_info: LocaleInfo = Field(default_factory=LocaleInfo)
     goals: list[str] = Field(default_factory=list)
-    income: str | None = None  # low|lower_middle|middle|upper_middle|high|very_high
-    housing: str | None = (
-        None  # own_home|rent|mortgage|living_with_family|temporary|homeless
-    )
-    tier: str | None = None  # free|basic|premium|enterprise
+    income: str | None = None
+    housing: str | None = None
+    tier: str | None = None
     accessibility: Accessibility = Field(default_factory=Accessibility)
     budget_posture: BudgetPosture = Field(default_factory=BudgetPosture)
     household: Household = Field(default_factory=Household)
@@ -121,7 +118,6 @@ class UserContext(BaseModel):
         ):
             self.goals.append(self.primary_financial_goal)
         if self.social_signals_consent:
-            # Map to proactivity: represented via budget_posture or separate flag in future
             pass
 
     def sync_nested_to_flat(self) -> None:
@@ -142,8 +138,6 @@ class UserContext(BaseModel):
 
 
 class UserPreferences(BaseModel):
-    """User preferences and settings."""
-
     user_id: UUID
     notification_enabled: bool = True
     quiet_hours_start: str | None = None

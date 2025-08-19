@@ -9,9 +9,9 @@ from typing import Any
 
 from langfuse.callback import CallbackHandler
 
-from app.agents.onboarding.prompts import ONBOARDING_SYSTEM_PROMPT, STEP_GUIDANCE
+from app.agents.onboarding.prompts import DEFAULT_RESPONSE_BY_STEP, ONBOARDING_SYSTEM_PROMPT, STEP_GUIDANCE
 from app.agents.onboarding.state import OnboardingState, OnboardingStep
-from app.services.llm.client import get_llm_client
+from app.services.llm import get_llm_client
 
 from .context_patching import context_patching_service
 
@@ -24,25 +24,16 @@ langfuse_handler = CallbackHandler(
 )
 
 ALLOWED_FIELDS_BY_STEP: dict[OnboardingStep, list[str]] = {
-    OnboardingStep.GREETING: ["identity.preferred_name"],
-    OnboardingStep.LANGUAGE_TONE: [
-        "safety.blocked_categories",
-        "safety.allow_sensitive",
-    ],
-    OnboardingStep.MOOD_CHECK: ["mood"],
-    OnboardingStep.PERSONAL_INFO: ["location.city", "location.region"],
-    OnboardingStep.FINANCIAL_SNAPSHOT: ["goals", "income", "primary_financial_goal"],
-    OnboardingStep.SOCIALS_OPTIN: ["social_signals_consent", "opt_in"],
-    OnboardingStep.KB_EDUCATION: [],
-    OnboardingStep.STYLE_FINALIZE: [
-        "style.tone",
-        "style.verbosity",
-        "style.formality",
-        "style.emojis",
-        "accessibility.reading_level_hint",
-        "accessibility.glossary_level_hint",
-    ],
-    OnboardingStep.COMPLETION: [],
+    OnboardingStep.WARMUP: [],
+    OnboardingStep.IDENTITY: ["age", "age_range", "location", "city", "region", "personal_goals"],
+    OnboardingStep.INCOME_MONEY: ["money_feelings", "annual_income", "annual_income_range", "income", "income_range"],
+    OnboardingStep.ASSETS_EXPENSES: ["assets_types", "fixed_expenses"],
+    OnboardingStep.HOME: ["housing_type", "housing_satisfaction", "monthly_housing_cost"],
+    OnboardingStep.FAMILY_UNIT: ["dependents_under_18", "pets"],
+    OnboardingStep.HEALTH_COVERAGE: ["health_insurance_status", "monthly_health_cost"],
+    OnboardingStep.LEARNING_PATH: ["learning_interests"],
+    OnboardingStep.PLAID_INTEGRATION: [],
+    OnboardingStep.CHECKOUT_EXIT: ["final_choice"],
 }
 
 
@@ -108,24 +99,26 @@ class OnboardingReasoningService:
         allowed_fields = ALLOWED_FIELDS_BY_STEP.get(step, [])
         state_dict = state.user_context.model_dump(mode="json")
         convo_tail = self._build_conversation_context(state.conversation_history)
-        user_instructions = self._build_user_instructions(
+
+        text_prompt = self._build_text_prompt(
             step=step,
             missing_fields=missing_fields,
-            allowed_fields=allowed_fields,
             last_user_message=state.last_user_message,
             convo_tail=convo_tail,
             state_dict=state_dict,
         )
+
         accumulated_text = ""
         try:
             async for chunk in self._llm.generate_stream(
-                prompt=user_instructions,
-                system=ONBOARDING_SYSTEM_PROMPT,
+                prompt=text_prompt,
+                system=ONBOARDING_SYSTEM_PROMPT
+                + "\n\nGenerate only the conversational response text, no JSON or metadata.",
                 context={
                     "conversation_id": str(state.conversation_id),
                     "thread_id": str(state.conversation_id),
                     "step": step.value,
-                    "tags": ["onboarding", "verde-ai", f"step:{step.name}", "reason"],
+                    "tags": ["onboarding", "verde-ai", f"step:{step.name}", "text"],
                     "original_query": state.last_user_message or "",
                 },
             ):
@@ -140,10 +133,46 @@ class OnboardingReasoningService:
                     "streaming": True,
                     "chunk": chunk,
                 }
-            result = self._parse_llm_response(accumulated_text)
+
+            if accumulated_text:
+                yield {
+                    "assistant_text": accumulated_text,
+                    "patch": {},
+                    "complete": False,
+                    "declined": False,
+                    "off_topic": False,
+                    "memory_candidates": [],
+                    "streaming": True,
+                    "chunk": accumulated_text,
+                }
+
+            metadata_prompt = self._build_metadata_prompt(
+                step=step,
+                missing_fields=missing_fields,
+                allowed_fields=allowed_fields,
+                last_user_message=state.last_user_message,
+                assistant_response=accumulated_text,
+                state_dict=state_dict,
+            )
+
+            metadata_response = self._llm.generate(
+                prompt=metadata_prompt,
+                system="Extract structured data from the conversation. Output only valid JSON matching the schema.",
+                context={
+                    "conversation_id": str(state.conversation_id),
+                    "thread_id": str(state.conversation_id),
+                    "step": step.value,
+                    "tags": ["onboarding", "verde-ai", f"step:{step.name}", "metadata"],
+                },
+            )
+
+            result = self._parse_llm_response(metadata_response)
+            result["assistant_text"] = accumulated_text
             result["patch"] = context_patching_service.normalize_patch_for_step(step, result.get("patch") or {})
             result["streaming"] = False
+
             yield result
+
         except Exception as e:
             logger.error("LLM reason stream failed: %s", e)
             yield self._default_response()
@@ -186,10 +215,7 @@ class OnboardingReasoningService:
         except Exception:
             start = raw_response.find("{")
             end = raw_response.rfind("}")
-            if start != -1 and end != -1 and end > start:
-                result = json.loads(raw_response[start : end + 1])
-            else:
-                result = {}
+            result = json.loads(raw_response[start : end + 1]) if start != -1 and end != -1 and end > start else {}
         if not isinstance(result, dict):
             result = {}
         result.setdefault("assistant_text", "")
@@ -209,6 +235,60 @@ class OnboardingReasoningService:
             "off_topic": False,
             "memory_candidates": [],
         }
+
+    def _build_text_prompt(
+        self,
+        step: OnboardingStep,
+        missing_fields: list[str],
+        last_user_message: str | None,
+        convo_tail: str,
+        state_dict: dict[str, Any],
+    ) -> str:
+        step_guidance = STEP_GUIDANCE.get(step, "")
+        default_prompt = DEFAULT_RESPONSE_BY_STEP.get(step, "")
+
+        prompt = f"""Current step: {step.value}
+
+{step_guidance}
+
+Missing information: {", ".join(missing_fields) if missing_fields else "None"}
+User's last message: {last_user_message or "(Starting conversation)"}
+
+Recent conversation:
+{convo_tail}
+
+Respond naturally and conversationally. Default prompt if needed: "{default_prompt}"
+"""
+        return prompt
+
+    def _build_metadata_prompt(
+        self,
+        step: OnboardingStep,
+        missing_fields: list[str],
+        allowed_fields: list[str],
+        last_user_message: str | None,
+        assistant_response: str,
+        state_dict: dict[str, Any],
+    ) -> str:
+        return f"""Extract structured data from this conversation:
+
+Step: {step.value}
+User message: {last_user_message or ""}
+Assistant response: {assistant_response}
+Missing fields: {missing_fields}
+Allowed patch fields: {allowed_fields}
+
+Current user context: {json.dumps(state_dict, ensure_ascii=False)}
+
+Output JSON matching this schema: {json.dumps(self._json_schema, ensure_ascii=False)}
+
+Rules:
+- Extract any new information the user provided
+- Map to allowed fields using dot notation
+- Set complete=true if step requirements are met
+- Set declined=true if user explicitly declines
+- Leave patch empty if no new information provided
+"""
 
 
 onboarding_reasoning_service = OnboardingReasoningService()
