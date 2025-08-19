@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.core.app_state import get_sse_queue
-from app.services.supervisor_service import supervisor_service
+from app.services.supervisor import supervisor_service
 
 router = APIRouter(prefix="/supervisor", tags=["Supervisor"])
 

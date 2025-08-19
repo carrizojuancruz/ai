@@ -56,11 +56,22 @@ async def generate_personalized_welcome(user_context: dict[str, Any]) -> str:
 async def call_llm(system: str | None, prompt: str) -> str:
     region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
     model_id = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
+    guardrail_id = os.getenv("BEDROCK_GUARDRAIL_ID")
+    guardrail_version = os.getenv("BEDROCK_GUARDRAIL_VERSION")
+    guardrails = (
+        {
+            "guardrailIdentifier": guardrail_id,
+            "guardrailVersion": guardrail_version,
+            "trace": True,
+        }
+        if (guardrail_id and guardrail_version)
+        else None
+    )
     if not region:
         content = prompt.strip()
         return content if content else ""
 
-    chat = ChatBedrock(model_id=model_id, region_name=region)
+    chat = ChatBedrock(model_id=model_id, region_name=region, guardrails=guardrails)
     messages: list[object] = []
     if system:
         messages.append(SystemMessage(content=system))
@@ -69,6 +80,21 @@ async def call_llm(system: str | None, prompt: str) -> str:
     try:
         msg = await chat.ainvoke(messages)
         content: str | None = getattr(msg, "content", None)
-        return content.strip() if isinstance(content, str) else ""
+        text = content.strip() if isinstance(content, str) else ""
+        return _to_guardrail_placeholder(text) if _is_guardrail_text(text) else text
     except Exception:
         return ""
+
+
+def _is_guardrail_text(text: str) -> bool:
+    low = text.lower() if isinstance(text, str) else ""
+    return (
+        "guardrail_intervened" in low
+        or "gr_input_blocked" in low
+        or ("guardrail" in low and ("blocked" in low or "intervened" in low))
+    )
+
+
+def _to_guardrail_placeholder(text: str) -> str:
+    code = "GR_INPUT_BLOCKED" if "GR_INPUT_BLOCKED" in text else "UNKNOWN"
+    return f"[GUARDRAIL_INTERVENED] {{\"code\":\"{code}\"}}"

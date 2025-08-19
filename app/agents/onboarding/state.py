@@ -1,5 +1,3 @@
-"""Onboarding agent state management."""
-
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
@@ -11,35 +9,23 @@ from app.models import BlockedTopic, SemanticMemory, UserContext
 
 
 class OnboardingStep(str, Enum):
-    """Steps in the onboarding conversation flow (Epic 01 stories)."""
-
-    GREETING = "greeting"  # Story 1: Greeting & Name/Pronouns
-    LANGUAGE_TONE = "language_tone"  # Story 2: Language, Tone & Blocked Topics
-    MOOD_CHECK = "mood_check"  # Story 3: Mood Check (Initial)
-    PERSONAL_INFO = "personal_info"  # Story 4: Manual Personal Info (Minimal)
-    FINANCIAL_SNAPSHOT = "financial_snapshot"  # Story 5: Manual Financial Snapshot
-    SOCIALS_OPTIN = "socials_optin"  # Story 6: Socials Opt-In (Optional)
-    KB_EDUCATION = "kb_education"  # Story 7: KB Education Small Talk
-    STYLE_FINALIZE = (
-        "style_finalize"  # New: infer style & accessibility from conversation
-    )
-    COMPLETION = "completion"  # Story 8: Handoff Summary & Completion
+    WARMUP = "warmup"
+    IDENTITY = "identity"
+    INCOME_MONEY = "income_money"
+    ASSETS_EXPENSES = "assets_expenses"
+    HOME = "home"
+    FAMILY_UNIT = "family_unit"
+    HEALTH_COVERAGE = "health_coverage"
+    LEARNING_PATH = "learning_path"
+    PLAID_INTEGRATION = "plaid_integration"
+    CHECKOUT_EXIT = "checkout_exit"
 
 
 class OnboardingState(BaseModel):
-    """State for the onboarding agent conversation."""
-
     conversation_id: UUID = Field(default_factory=uuid4)
     user_id: UUID
-    current_step: OnboardingStep = OnboardingStep.GREETING
+    current_step: OnboardingStep = OnboardingStep.WARMUP
     turn_number: int = 0
-
-    awaiting_input: bool = False
-    awaiting_choice: bool = False
-
-    pending_options: list[dict[str, Any]] = Field(default_factory=list)
-    options_for_step: str | None = None
-    options_version: int = 0
 
     user_context: UserContext = Field(default_factory=lambda: UserContext())
 
@@ -55,15 +41,15 @@ class OnboardingState(BaseModel):
     last_agent_response: str | None = None
 
     ready_for_completion: bool = False
-    completion_summary: str | None = None
+
+    skip_count: int = 0
+    skipped_nodes: list[str] = Field(default_factory=list)
 
     def mark_step_completed(self, step: OnboardingStep) -> None:
-        """Mark a step as completed."""
         if step not in self.completed_steps:
             self.completed_steps.append(step)
 
     def mark_step_skipped(self, step: OnboardingStep) -> None:
-        """Mark a step as skipped."""
         if step not in self.skipped_steps:
             self.skipped_steps.append(step)
 
@@ -73,7 +59,6 @@ class OnboardingState(BaseModel):
         category: str,
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        """Add a semantic memory entry."""
         memory = SemanticMemory(
             user_id=self.user_id,
             content=content,
@@ -84,7 +69,6 @@ class OnboardingState(BaseModel):
         self.semantic_memories.append(memory)
 
     def add_blocked_topic(self, topic: str, reason: str | None = None) -> None:
-        """Add a blocked topic."""
         blocked_topic = BlockedTopic(
             user_id=self.user_id,
             topic=topic,
@@ -93,53 +77,152 @@ class OnboardingState(BaseModel):
         self.blocked_topics.append(blocked_topic)
 
     def add_conversation_turn(self, user_message: str, agent_response: str) -> None:
-        """Add a conversation turn to history, avoiding duplicate consecutive entries."""
-        last = self.conversation_history[-1] if self.conversation_history else None
-        if last and (
-            last.get("user_message") == user_message
-            and last.get("agent_response") == agent_response
-            and last.get("step") == self.current_step.value
-        ):
-            self.last_user_message = user_message
-            self.last_agent_response = agent_response
-            return
-
+        turn = {
+            "turn_number": self.turn_number,
+            "user_message": user_message,
+            "agent_response": agent_response,
+            "timestamp": datetime.now(UTC).isoformat(),
+        }
+        self.conversation_history.append(turn)
         self.turn_number += 1
-        self.conversation_history.append(
-            {
-                "turn": self.turn_number,
-                "user_message": user_message,
-                "agent_response": agent_response,
-                "step": self.current_step.value,
-                "timestamp": datetime.now(UTC).isoformat(),
-            }
-        )
         self.last_user_message = user_message
         self.last_agent_response = agent_response
 
+    def has_mentioned_topic(self, keywords: list[str]) -> bool:
+        all_text = ""
+        for turn in self.conversation_history:
+            all_text += f" {turn.get('user_message', '')} {turn.get('agent_response', '')}"
+        all_text = all_text.lower()
+
+        return any(keyword.lower() in all_text for keyword in keywords)
+
+    def should_show_conditional_node(self, node: OnboardingStep) -> bool:
+        if node == OnboardingStep.HOME:
+            keywords = [
+                "house",
+                "home",
+                "housing",
+                "rent",
+                "mortgage",
+                "apartment",
+                "buy a house",
+                "home buying",
+                "real estate",
+                "property",
+                "living",
+                "move",
+                "relocate",
+                "downsize",
+                "upgrade home",
+                "landlord",
+                "lease",
+                "down payment",
+                "homeowner",
+            ]
+            return self.has_mentioned_topic(keywords)
+
+        elif node == OnboardingStep.FAMILY_UNIT:
+            keywords = [
+                "family",
+                "children",
+                "kids",
+                "child",
+                "dependents",
+                "spouse",
+                "partner",
+                "husband",
+                "wife",
+                "married",
+                "parent",
+                "parenting",
+                "childcare",
+                "education fund",
+                "college savings",
+                "family planning",
+                "baby",
+                "pregnancy",
+                "school",
+                "daycare",
+                "family expenses",
+            ]
+            return self.has_mentioned_topic(keywords)
+
+        elif node == OnboardingStep.HEALTH_COVERAGE:
+            keywords = [
+                "health",
+                "medical",
+                "doctor",
+                "hospital",
+                "medication",
+                "insurance",
+                "sick",
+                "treatment",
+                "therapy",
+                "prescription",
+                "medical bills",
+                "healthcare",
+                "clinic",
+                "surgery",
+            ]
+            return self.has_mentioned_topic(keywords)
+
+        return False
+
     def get_next_step(self) -> OnboardingStep | None:
-        """Determine the next step in the onboarding flow."""
-        step_order = [
-            OnboardingStep.GREETING,
-            OnboardingStep.LANGUAGE_TONE,
-            OnboardingStep.MOOD_CHECK,
-            OnboardingStep.PERSONAL_INFO,
-            OnboardingStep.FINANCIAL_SNAPSHOT,
-            OnboardingStep.SOCIALS_OPTIN,
-            OnboardingStep.KB_EDUCATION,
-            OnboardingStep.STYLE_FINALIZE,
-            OnboardingStep.COMPLETION,
-        ]
+        if self.skip_count >= 3:
+            return OnboardingStep.PLAID_INTEGRATION
 
-        current_index = step_order.index(self.current_step)
+        if self.current_step == OnboardingStep.WARMUP:
+            return OnboardingStep.IDENTITY
 
-        if current_index >= len(step_order) - 1:
+        elif self.current_step == OnboardingStep.IDENTITY:
+            if self.last_user_message and "learn" in self.last_user_message.lower():
+                return OnboardingStep.LEARNING_PATH
+            return OnboardingStep.INCOME_MONEY
+
+        elif self.current_step == OnboardingStep.INCOME_MONEY:
+            income_range = self.user_context.income
+            if income_range in ["75k_100k", "over_100k"]:
+                return OnboardingStep.ASSETS_EXPENSES
+            return self._get_next_conditional_node()
+
+        elif self.current_step == OnboardingStep.ASSETS_EXPENSES:
+            return self._get_next_conditional_node()
+
+        elif self.current_step == OnboardingStep.HOME:
+            if self.should_show_conditional_node(OnboardingStep.FAMILY_UNIT):
+                return OnboardingStep.FAMILY_UNIT
+            elif self.should_show_conditional_node(OnboardingStep.HEALTH_COVERAGE):
+                return OnboardingStep.HEALTH_COVERAGE
+            return OnboardingStep.PLAID_INTEGRATION
+
+        elif self.current_step == OnboardingStep.FAMILY_UNIT:
+            if self.should_show_conditional_node(OnboardingStep.HEALTH_COVERAGE):
+                return OnboardingStep.HEALTH_COVERAGE
+            return OnboardingStep.PLAID_INTEGRATION
+
+        elif self.current_step == OnboardingStep.HEALTH_COVERAGE or self.current_step == OnboardingStep.LEARNING_PATH:
+            return OnboardingStep.PLAID_INTEGRATION
+
+        elif self.current_step == OnboardingStep.PLAID_INTEGRATION:
+            return OnboardingStep.CHECKOUT_EXIT
+
+        elif self.current_step == OnboardingStep.CHECKOUT_EXIT:
             return None
 
-        return step_order[current_index + 1]
+        return None
+
+    def _get_next_conditional_node(self) -> OnboardingStep:
+        if self.should_show_conditional_node(OnboardingStep.HOME):
+            return OnboardingStep.HOME
+        elif self.should_show_conditional_node(OnboardingStep.FAMILY_UNIT):
+            return OnboardingStep.FAMILY_UNIT
+        elif self.should_show_conditional_node(OnboardingStep.HEALTH_COVERAGE):
+            return OnboardingStep.HEALTH_COVERAGE
+
+        return OnboardingStep.PLAID_INTEGRATION
 
     def can_complete(self) -> bool:
-        """Check if we have minimum required info to complete onboarding."""
         has_name = bool(self.user_context.preferred_name)
         has_language = bool(self.user_context.language)
         return has_name and has_language

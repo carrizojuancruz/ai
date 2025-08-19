@@ -8,12 +8,14 @@ on:
       - uat  # Change if needed
     paths-ignore:
       - '.github/workflows/**'  # Ignore changes in workflow folder
-
+  workflow_dispatch:
 env:
   ECR_REPOSITORY: "${{ github.event.repository.name }}-${{ github.ref_name }}"
   AWS_REGION: us-east-1
   AWS_ACCOUNT_ID: 905418355862
   ROLE_NAME: "GitHubActions-Vera-Dev-Role"
+  ECS_CLUSTER: fos-cluster-dev
+  ECS_SERVICE: "fos-dev-fos-ai-service"
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -39,10 +41,32 @@ jobs:
         run: |
           IMAGE_TAG=${GITHUB_SHA::7}
           ECR_REGISTRY=$(aws ecr describe-repositories --repository-names $ECR_REPOSITORY --query "repositories[0].repositoryUri" --output text)
-
+          
           # Mandatory: push "$IMAGE_TAG"
-
-          docker buildx build --platform linux/arm64 -t $ECR_REGISTRY:$IMAGE_TAG --push --load .
+          docker build -t $ECR_REGISTRY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY:$IMAGE_TAG $ECR_REGISTRY:latest
+          
+          # Optional: push "VERSION_TAG"
+          #docker tag $ECR_REGISTRY:$IMAGE_TAG $ECR_REGISTRY:$VERSION_TAG
+          docker push $ECR_REGISTRY:$IMAGE_TAG
           
           # Optional: push "latest"
-          docker buildx build --platform linux/arm64 -t $ECR_REGISTRY:latest --push  --load .
+          docker push $ECR_REGISTRY:latest
+          #docker push $ECR_REGISTRY:$VERSION_TAG
+            
+      - name: Update ECS service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Wait for service stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }} \
+            --region ${{ env.AWS_REGION }} \
+            --cli-read-timeout 1200
+
