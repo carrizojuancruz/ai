@@ -186,3 +186,5 @@ coverage.xml
 .mypy_cache/
 
 # End of https://www.toptal.com/developers/gitignore/api/python
+.github/prompts/langgraph-docs.prompt.md
+.github/instructions/langgraph.instructions.md

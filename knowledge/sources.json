@@ -1,0 +1,24 @@
+[
+  {
+    "id": "7644f514-7f5d-4951-a451-8a2bf827f75d",
+    "name": "Documentación Verde Money",
+    "url": "https://motherfuckingwebsite.com/",
+    "enabled": true,
+    "type": "recursive",
+    "max_depth": 2,
+    "max_pages": 50,
+    "category": null,
+    "tags": []
+  },
+  {
+    "id": "7b9a1345-c112-41cf-9a4a-286cd0cc8803",
+    "name": "Documentación Verde Money",
+    "url": "https://motherfuckingwebsite.com/",
+    "enabled": true,
+    "type": "recursive",
+    "max_depth": 2,
+    "max_pages": 50,
+    "category": null,
+    "tags": []
+  }
+]
