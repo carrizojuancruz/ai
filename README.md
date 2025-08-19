@@ -17,3 +17,5 @@ docker compose exec app poetry run alembic revision -m "message" --autogenerate
 # Apply migration
 docker compose exec app poetry run alembic upgrade head
 ```
+
+docker compose exec app poetry run alembic revision -m "add_user_context" --autogenerate
