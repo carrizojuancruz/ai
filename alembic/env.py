@@ -3,12 +3,21 @@ from __future__ import annotations
 import asyncio
 import os
 from logging.config import fileConfig
+import logging
 
 from sqlalchemy import create_engine, pool
 from sqlalchemy.engine import Connection
 
 from alembic import context
+import sys
+from pathlib import Path
+
+# Ensure project root is on sys.path for 'from app...' imports
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 from app.db import models  # noqa: F401 - ensure models are imported for metadata
+from app.db.models.user import UserContextORM  # noqa: F401 - explicit import to populate metadata
 from app.db.base import Base
 
 config = context.config
@@ -17,6 +26,8 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
+logger = logging.getLogger("alembic.env")
+logger.info("Loaded metadata tables: %s", list(target_metadata.tables.keys()))
 
 
 def _run_sync_migrations(connection: Connection) -> None:

@@ -8,9 +8,12 @@ This repository will store AI Agents for Vera app
 
 ## Migrations (Alembic)
 
-From the `verde-ai` folder:
+Since the app runs in Docker, use these commands:
 
 ```bash
-poetry run alembic upgrade head
-poetry run alembic revision -m "message" --autogenerate
+# Generate migration
+docker compose exec app poetry run alembic revision -m "message" --autogenerate
+
+# Apply migration
+docker compose exec app poetry run alembic upgrade head
 ```
