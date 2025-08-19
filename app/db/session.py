@@ -5,7 +5,6 @@ from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://verde:verde@localhost:5432/verde")
 
 engine = create_async_engine(DATABASE_URL, echo=False, future=True)
