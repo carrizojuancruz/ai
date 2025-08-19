@@ -22,6 +22,9 @@ langfuse = "^2.55.0"
 langchain = "^0.3.7"
 langchain_core = "0.3.74"
 langchain-aws = "^0.2.0"
+SQLAlchemy = "2.0.43"
+asyncpg = "0.30.0"
+alembic = "1.16.4"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.11.12"
