@@ -2,6 +2,7 @@ import os
 import numpy as np
 import boto3
 from typing import List, Dict, Any
+import hashlib
 from langchain_core.documents import Document
 from dotenv import load_dotenv
 
@@ -20,8 +21,12 @@ class S3VectorStore:
     def add_documents(self, documents: List[Document], embeddings: List[List[float]]):
         vectors = []
         for i, (doc, embedding) in enumerate(zip(documents, embeddings)):
+            source_url = doc.metadata.get('source', '')
+            source_id = doc.metadata.get('source_id', '')
+            content_hash = hashlib.md5(f"{source_url}_{source_id}_{i}".encode()).hexdigest()[:12]
+            unique_key = f"doc_{content_hash}"
             vectors.append({
-                'key': f"doc_{hash(doc.page_content)}",
+                'key': unique_key,
                 'data': {'float32': np.array(embedding, dtype=np.float32).tolist()},
                 'metadata': {
                     'source': doc.metadata.get('source', ''),

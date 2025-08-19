@@ -46,10 +46,18 @@ class KnowledgeService:
             self.vector_store.delete_documents(source_id)
             
             chunks = self.document_service.split_documents(documents, source_id)
+            logger.info(f"Split {len(documents)} documents into {len(chunks)} chunks")
             
             if chunks:
                 chunk_texts = self.document_service.prepare_texts_for_embedding(chunks)
+                logger.info(f"Starting embedding generation for {len(chunk_texts)} chunks")
+                import time
+                start_time = time.time()
                 chunk_embeddings = self.embeddings.embed_documents(chunk_texts)
+                end_time = time.time()
+                logger.info(f"Embedding generation completed in {end_time - start_time:.2f} seconds")
+                
+                logger.info(f"Storing {len(chunks)} chunks in vector store")
                 self.vector_store.add_documents(chunks, chunk_embeddings)
                 logger.info(f"Documents stored successfully")
             

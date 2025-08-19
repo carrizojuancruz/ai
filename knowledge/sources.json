@@ -20,5 +20,49 @@
     "max_pages": 50,
     "category": null,
     "tags": []
+  },
+  {
+    "id": "3022848f-c5ef-4561-9532-017023819ef4",
+    "name": "Documentación Verde Money",
+    "url": "https://motherfuckingwebsite.com/",
+    "enabled": true,
+    "type": "recursive",
+    "max_depth": 2,
+    "max_pages": 50,
+    "category": null,
+    "tags": []
+  },
+  {
+    "id": "bf66b230-85af-4841-bd65-ed6a1f88744a",
+    "name": "Documentación Verde Money",
+    "url": "https://verdemoney.com/es/",
+    "enabled": true,
+    "type": "recursive",
+    "max_depth": 2,
+    "max_pages": 50,
+    "category": null,
+    "tags": []
+  },
+  {
+    "id": "a68811d5-c4f7-4264-aa22-93f075abf184",
+    "name": "Documentación Verde Money",
+    "url": "https://verdemoney.com/es/",
+    "enabled": true,
+    "type": "recursive",
+    "max_depth": 2,
+    "max_pages": 50,
+    "category": null,
+    "tags": []
+  },
+  {
+    "id": "7e5c97ab-fd75-454b-b782-c876e8904962",
+    "name": "Documentación Verde Money",
+    "url": "https://verdemoney.com/es/",
+    "enabled": true,
+    "type": "recursive",
+    "max_depth": 2,
+    "max_pages": 50,
+    "category": null,
+    "tags": []
   }
 ]

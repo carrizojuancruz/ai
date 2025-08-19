@@ -15,14 +15,14 @@ logger = logging.getLogger(__name__)
 class CrawlConfig(BaseModel):
     url: HttpUrl
     crawl_type: str = "recursive"
-    max_depth: int = 2
-    max_pages: Optional[int] = 50
+    max_depth: int = 1
+    max_pages: Optional[int] = 8
     category: Optional[str] = None
     tags: List[str] = []
 
 
 class WebLoader:
-    CRAWL_TIMEOUT = 30
+    CRAWL_TIMEOUT = 10
     
     async def load_single_page(self, url: str) -> List[Document]:
         try:

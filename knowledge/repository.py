@@ -32,8 +32,21 @@ class SourceRepository:
     
     def add(self, source: Source) -> None:
         sources = self.load_all()
-        sources.append(source)
-        self.save_all(sources)
+        existing = self.find_by_id(source.id)
+        if existing:
+            self.update(source)
+        else:
+            sources.append(source)
+            self.save_all(sources)
+    
+    def update(self, source: Source) -> bool:
+        sources = self.load_all()
+        for i, s in enumerate(sources):
+            if s.id == source.id:
+                sources[i] = source
+                self.save_all(sources)
+                return True
+        return False
     
     def delete_by_id(self, source_id: str) -> bool:
         sources = self.load_all()
