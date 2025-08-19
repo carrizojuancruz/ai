@@ -64,5 +64,16 @@
     "max_pages": 50,
     "category": null,
     "tags": []
+  },
+  {
+    "id": "16569540-3ed1-46e9-a4f6-17a0ab19bb8b",
+    "name": "Documentación Verde Money",
+    "url": "https://verdemoney.com/es/",
+    "enabled": true,
+    "type": "recursive",
+    "max_depth": 2,
+    "max_pages": 50,
+    "category": null,
+    "tags": []
   }
 ]

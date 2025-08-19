@@ -37,7 +37,7 @@ class KnowledgeService:
             region_name=os.getenv("AWS_REGION", self.DEFAULT_REGION)
         )
 
-    def update_documents_for_source(self, documents: List[Document], source_id: str) -> Dict[str, Any]:
+    async def update_documents_for_source(self, documents: List[Document], source_id: str) -> Dict[str, Any]:
         if not documents:
             return {"documents_added": 0, "message": "No documents to add"}
             
@@ -72,10 +72,10 @@ class KnowledgeService:
             logger.error(f"Failed processing source {source_id}: {str(e)}")
             raise Exception(f"Index update failed: {str(e)}")
 
-    def add_documents_to_index(self, documents: List[Document], source_id: str) -> Dict[str, Any]:
-        return self.update_documents_for_source(documents, source_id)
+    async def add_documents_to_index(self, documents: List[Document], source_id: str) -> Dict[str, Any]:
+        return await self.update_documents_for_source(documents, source_id)
 
-    def search(self, query: str, k: int = None) -> List[KBSearchResult]:
+    async def search(self, query: str, k: int = None) -> List[KBSearchResult]:
         k = k or self.DEFAULT_SEARCH_K
         try:
             query_embedding = self.embeddings.embed_query(query)
