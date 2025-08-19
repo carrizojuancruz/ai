@@ -5,11 +5,9 @@ from dotenv import load_dotenv
 load_dotenv(".env", override=False)
 load_dotenv(".env.local", override=True)
 
-from .core.aws_config import load_aws_secrets, load_config_from_env
+from .core.aws_config import load_aws_secrets
 
-load_config_from_env()
-
-if os.getenv("FOS_SECRETS_ARN"):
+if os.getenv("FOS_SECRETS_ID"):
     load_aws_secrets()
 
 from collections.abc import Callable
