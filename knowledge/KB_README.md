@@ -9,7 +9,7 @@ The Knowledge component takes websites, crawls them, extracts text content from 
 ## Core Components
 
 ### KnowledgeService
-Main orchestration service that coordinates the knowledge pipeline. Handles document processing, vector storage, and semantic search with configurable result limits (default: 3 results).
+Main orchestration service that coordinates the knowledge pipeline. Handles document processing, vector storage, and semantic search with configurable result limits.
 
 ### SourceService
 Manages source definitions and coordinates with the knowledge service to process web content. Acts as the entry point for creating and managing crawl sources.
@@ -17,7 +17,7 @@ Manages source definitions and coordinates with the knowledge service to process
 ### CrawlerService  
 Handles web crawling with multiple strategies:
 - **Single page**: Loads only one specific page
-- **Recursive**: Follows internal links within the domain (depth: 3, max pages: 50)
+- **Recursive**: Follows internal links within the domain
 - **Sitemap**: Uses XML sitemaps to discover pages
 
 ### WebLoader
@@ -25,12 +25,12 @@ Performs web content extraction with HTML cleaning:
 - Removes script, style, and noscript tags
 - Extracts only visible text content
 - Uses BeautifulSoup with html.parser for processing
-- Configurable timeouts (30s) and request delays
+- Configurable timeouts and request delays
 
 ### DocumentService
 Processes raw web content by splitting text into chunks using LangChain's text splitter.
 
-### VectorStoreService
+### S3VectorStoreService
 Manages document embeddings in AWS S3 Vector Store, handling vector storage and retrieval operations with configurable search results.
 
 ## How it works
@@ -45,7 +45,7 @@ Source URL → WebLoader (HTML Cleaning) → Documents → Text Splitting → Em
 4. **Document Processing**: Split content into chunks
 5. **Embedding Generation**: Create vector representations using AWS Bedrock Titan v2
 6. **Vector Storage**: Store embeddings in S3 for semantic search
-7. **Search & Retrieval**: Return top-k most relevant results (default: 3)
+7. **Search & Retrieval**: Return top-k most relevant results
 
 ## HTML Content Processing
 
@@ -63,7 +63,7 @@ The system includes HTML cleaning to ensure text extraction:
 Processes only the specified URL without following any links.
 
 ### Recursive  
-Follows internal links within the same domain up to 3 levels deep, processing up to 50 pages maximum. Includes request delays to be respectful to target servers.
+Follows internal links within the same domain up to configurable depth, processing up to a maximum number of pages. Includes request delays to be respectful to target servers.
 
 ### Sitemap
 Parses XML sitemaps to discover and crawl pages systematically, respecting the same page limits.
@@ -87,22 +87,33 @@ Documents are converted to embeddings using AWS Bedrock Titan model and stored i
 Once processed, documents support semantic search with configurable precision:
 - Find contextually relevant content using natural language queries
 - Filter by source or metadata for targeted searches
-- Ranked results by similarity score with top-k selection (default: 3 results)
+- Ranked results by similarity score with top-k selection
 - Text results without HTML artifacts
 
 ## Configuration
 
 ### Crawler Settings
-- **Max Depth**: 3 levels (recursive crawling)
-- **Max Pages**: 50 pages per source
-- **Timeout**: 30 seconds per request
-- **Request Delay**: 1 second between requests
-- **Max Concurrent**: 5 simultaneous requests
+- **Max Depth**: Configurable levels (recursive crawling)
+- **Max Pages**: Configurable pages per source
+- **Timeout**: Configurable seconds per request
+- **Request Delay**: Configurable delay between requests
+- **Max Concurrent**: Configurable simultaneous requests
 
 ### Search Settings  
-- **Default Results**: 3 most relevant documents
+- **Default Results**: Configurable most relevant documents
 - **Embedding Model**: AWS Bedrock Titan Text v2
 - **Vector Store**: AWS S3 Vector Store
+
+### Environment Variables
+All configuration is managed through environment variables:
+- `CRAWL_TYPE` - Crawling strategy (single/recursive/sitemap)
+- `CRAWL_MAX_DEPTH` - Maximum crawling depth
+- `CRAWL_MAX_PAGES` - Maximum pages per source
+- `CRAWL_TIMEOUT` - Request timeout in seconds
+- `TOP_K_SEARCH` - Number of search results to return
+- `CHUNK_SIZE` - Document chunk size for processing
+- `CHUNK_OVERLAP` - Overlap between document chunks
+- `SOURCES_FILE_PATH` - Path to sources configuration file
 
 ## File Structure
 
@@ -113,5 +124,6 @@ Once processed, documents support semantic search with configurable precision:
   - `loaders.py` - WebLoader with intelligent HTML processing
 - `document_service.py` - Text processing and chunking  
 - `vector_store/` - Vector storage management with configurable search
+  - `service.py` - S3VectorStoreService implementation
 - `models.py` - Data models including KBSearchResult
 - `repository.py` - Source persistence and management

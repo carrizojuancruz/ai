@@ -1,15 +1,15 @@
-import os
 import logging
+import os
 from typing import Any, Dict, List
-from langchain_core.documents import Document
-from langchain_aws.embeddings import BedrockEmbeddings
-from dotenv import load_dotenv
 
-from .models import KBSearchResult
-from .document_service import DocumentService
-from .vector_store.service import VectorStoreService
+from dotenv import load_dotenv
+from langchain_aws.embeddings import BedrockEmbeddings
+from langchain_core.documents import Document
+
 from .crawler.service import CrawlerService
+from .document_service import DocumentService
 from .repository import SourceRepository
+from .vector_store.service import S3VectorStoreService
 
 load_dotenv()
 
@@ -17,36 +17,32 @@ logger = logging.getLogger(__name__)
 
 
 class KnowledgeService:
-    DEFAULT_SEARCH_K = 3
-    MODEL = os.getenv("EMBEDDINGS_MODEL_ID", "amazon.titan-embed-text-v2:0")
-    REGION = os.getenv("AWS_REGION", "us-east-1")
-
-    def __init__(self, 
-                 vector_store_service: VectorStoreService = None,
-                 crawler_service: CrawlerService = None,
-                 source_repo: SourceRepository = None,
-                 document_service: DocumentService = None):
-        self.vector_store = vector_store_service or VectorStoreService()
-        self.crawler = crawler_service or CrawlerService()
-        self.source_repo = source_repo or SourceRepository()
-        self.document_service = document_service or DocumentService()
+    
+    def __init__(self):
+        self.model = os.getenv("EMBEDDINGS_MODEL_ID")
+        self.region = os.getenv("AWS_REGION")
         
+        self.vector_store_service = S3VectorStoreService()
+        self.crawler_service = CrawlerService()
+        self.source_repo = SourceRepository()
+        self.document_service = DocumentService()
+
         self.embeddings = BedrockEmbeddings(
-            model_id=self.MODEL,
-            region_name=self.REGION
+            model_id=self.model,
+            region_name=self.region
         )
 
     async def update_documents_for_source(self, documents: List[Document], source_id: str) -> Dict[str, Any]:
         if not documents:
             return {"documents_added": 0, "message": "No documents to add"}
-            
+
         try:
             logger.info(f"Starting document processing for source {source_id}")
-            self.vector_store.delete_documents(source_id)
-            
+            self.vector_store_service.delete_documents(source_id)
+
             chunks = self.document_service.split_documents(documents, source_id)
             logger.info(f"Split {len(documents)} documents into {len(chunks)} chunks")
-            
+
             if chunks:
                 chunk_texts = self.document_service.prepare_texts_for_embedding(chunks)
                 logger.info(f"Starting embedding generation for {len(chunk_texts)} chunks")
@@ -55,10 +51,10 @@ class KnowledgeService:
                 chunk_embeddings = self.embeddings.embed_documents(chunk_texts)
                 end_time = time.time()
                 logger.info(f"Embedding generation completed in {end_time - start_time:.2f} seconds")
-                
-                self.vector_store.add_documents(chunks, chunk_embeddings)
-                logger.info(f"Documents stored successfully")
-            
+
+                self.vector_store_service.add_documents(chunks, chunk_embeddings)
+                logger.info("Documents stored successfully")
+
             return {
                 "documents_added": len(chunks),
                 "original_documents": len(documents),
@@ -73,11 +69,10 @@ class KnowledgeService:
     async def add_documents_to_index(self, documents: List[Document], source_id: str) -> Dict[str, Any]:
         return await self.update_documents_for_source(documents, source_id)
 
-    async def search(self, query: str, k: int = None) -> List[Dict[str, Any]]:
-        k = k or self.DEFAULT_SEARCH_K
+    async def search(self, query: str) -> List[Dict[str, Any]]:
         try:
             query_embedding = self.embeddings.embed_query(query)
-            results = self.vector_store.search(query_embedding, k=k)
+            results = self.vector_store_service.search(query_embedding)
             out = []
             for r in results:
                 meta = r.get('metadata', {})
@@ -86,7 +81,7 @@ class KnowledgeService:
                     'source': meta.get('source', '')
                 })
             return out
-        except Exception as e:
+        except Exception:
             return []
 
 

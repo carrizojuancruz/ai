@@ -1,10 +1,10 @@
 from typing import List
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from knowledge.source_service import get_source_service, SourceService
-from knowledge.models import SourceRequest, BulkSourceRequest, Source
+from knowledge.models import BulkSourceRequest, Source, SourceRequest
+from knowledge.source_service import SourceService, get_source_service
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -31,7 +31,7 @@ async def get_source(source_id: str, source_service: SourceService = Depends(get
 @router.post("/sources")
 async def create_source(request: SourceRequest, source_service: SourceService = Depends(get_source_service)) -> SourceResponse:
     result = await source_service.create_source(request)
-    
+
     return SourceResponse(
         source=result["source"],
         documents_indexed=result["documents_indexed"],
@@ -49,5 +49,5 @@ async def create_sources_bulk(request: BulkSourceRequest, source_service: Source
 async def delete_source(source_id: str, source_service: SourceService = Depends(get_source_service)) -> dict:
     if not await source_service.delete_source(source_id):
         raise HTTPException(status_code=404, detail="Source not found")
-    
+
     return {"message": "Source deleted successfully"}

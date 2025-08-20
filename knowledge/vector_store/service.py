@@ -1,25 +1,24 @@
-import os
-import boto3
-from typing import List, Dict, Any
 import hashlib
-from langchain_core.documents import Document
+import os
+from typing import Any, Dict, List
+
+import boto3
 from dotenv import load_dotenv
+from langchain_core.documents import Document
 
 load_dotenv()
 
 
-class S3VectorStore:    
-    DEFAULT_INDEX_NAME = "web-sources"
-    DEFAULT_AWS_REGION = "us-east-1"
-    
+class S3VectorStoreService:
     def __init__(self):
         self.bucket_name = os.getenv("S3_VECTOR_NAME")
-        self.index_name = os.getenv("VECTOR_INDEX_NAME", self.DEFAULT_INDEX_NAME)
-        self.client = boto3.client('s3vectors', region_name=os.getenv("AWS_REGION", self.DEFAULT_AWS_REGION))
-    
+        self.index_name = os.getenv("VECTOR_INDEX_NAME")
+        self.top_k_search = int(os.getenv("TOP_K_SEARCH"))
+        self.client = boto3.client('s3vectors', region_name=os.getenv("AWS_REGION"))
+
     def add_documents(self, documents: List[Document], embeddings: List[List[float]]):
         vectors = []
-        for i, (doc, embedding) in enumerate(zip(documents, embeddings)):
+        for i, (doc, embedding) in enumerate(zip(documents, embeddings, strict=False)):
             source_url = doc.metadata.get('source', '')
             source_id = doc.metadata.get('source_id', '')
             content_hash = hashlib.md5(f"{source_url}_{source_id}_{i}".encode()).hexdigest()[:12]
@@ -30,7 +29,7 @@ class S3VectorStore:
                 'source_id': source_id,
                 'chunk_index': i,
             }
-            
+
             if isinstance(doc.page_content, str):
                 metadata['content'] = doc.page_content
             vectors.append({
@@ -38,13 +37,13 @@ class S3VectorStore:
                 'data': {'float32': [float(x) for x in embedding]},
                 'metadata': metadata
             })
-        
+
         self.client.put_vectors(
             vectorBucketName=self.bucket_name,
             indexName=self.index_name,
             vectors=vectors
         )
-    
+
     def delete_documents(self, source_id: str):
         try:
             self.client.delete_vectors(
@@ -54,8 +53,9 @@ class S3VectorStore:
             )
         except Exception:
             pass
-    
-    def similarity_search(self, query_embedding: List[float], k: int = 3) -> List[Dict[str, Any]]:
+
+    def similarity_search(self, query_embedding: List[float], k: int = None) -> List[Dict[str, Any]]:
+        k = k or self.top_k_search
         response = self.client.query_vectors(
             vectorBucketName=self.bucket_name,
             indexName=self.index_name,
@@ -64,7 +64,7 @@ class S3VectorStore:
             returnMetadata=True,
             returnDistance=True
         )
-        
+
         return [{
             'content': v['metadata'].get('content', ''),
             'metadata': {
@@ -76,18 +76,3 @@ class S3VectorStore:
             'score': 1 - v.get('distance', 0),
             'vector_key': v.get('key', '')
         } for v in response.get('vectors', [])]
-
-
-class VectorStoreService:
-    
-    def __init__(self, vector_store: S3VectorStore = None):
-        self.vector_store = vector_store or S3VectorStore()
-    
-    def add_documents(self, documents: List[Document], embeddings: List[List[float]]):
-        return self.vector_store.add_documents(documents, embeddings)
-    
-    def delete_documents(self, source_id: str):
-        return self.vector_store.delete_documents(source_id)
-    
-    def search(self, query_embedding: List[float], k: int = 3) -> List[Dict[str, Any]]:
-        return self.vector_store.similarity_search(query_embedding, k)

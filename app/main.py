@@ -15,9 +15,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 
+from .api.admin.sources import router as admin_router
 from .api.routes import router as api_router
 from .api.routes_supervisor import router as supervisor_router
-from .api.admin.sources import router as admin_router
 from .db.session import engine
 from .observability.logging_config import configure_logging, get_logger
 
@@ -52,7 +52,7 @@ async def log_requests(request: Request, call_next: Callable[[Request], Response
     return response
 
 
- 
+
 @app.get("/health")
 async def health_check() -> dict[str, str]:
     logger.info("Health check requested")
