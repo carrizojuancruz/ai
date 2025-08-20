@@ -1,7 +1,7 @@
 import logging
 import os
 from typing import Any, Dict, List
-
+import time
 from dotenv import load_dotenv
 from langchain_aws.embeddings import BedrockEmbeddings
 from langchain_core.documents import Document
@@ -46,7 +46,6 @@ class KnowledgeService:
             if chunks:
                 chunk_texts = self.document_service.prepare_texts_for_embedding(chunks)
                 logger.info(f"Starting embedding generation for {len(chunk_texts)} chunks")
-                import time
                 start_time = time.time()
                 chunk_embeddings = self.embeddings.embed_documents(chunk_texts)
                 end_time = time.time()
