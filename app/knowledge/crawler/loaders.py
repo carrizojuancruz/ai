@@ -52,15 +52,16 @@ class WebLoader:
 
     def _clean_html_content(self, html_content: str) -> str:
         soup = BeautifulSoup(html_content, "html.parser")
-        for tag in soup(["script", "style", "noscript"]):
+        
+        for tag in soup(["script", "style", "noscript", "meta", "link", "head", "nav", "header", "footer"]):
             tag.decompose()
+        
         text = soup.get_text(separator=" ", strip=True)
-        return text
+        return ' '.join(text.split())
 
     def _clean_documents(self, documents: List[Document]) -> List[Document]:
         for doc in documents:
-            if "<" in doc.page_content and ">" in doc.page_content:
-                doc.page_content = self._clean_html_content(doc.page_content)
+            doc.page_content = self._clean_html_content(doc.page_content)
         return documents
 
     def _add_metadata(self, documents: List[Document], source_url: str) -> List[Document]:

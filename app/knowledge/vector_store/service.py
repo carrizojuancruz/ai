@@ -18,17 +18,16 @@ class S3VectorStoreService:
         for i, (doc, embedding) in enumerate(zip(documents, embeddings, strict=False)):
             source_url = doc.metadata.get('source', '')
             source_id = doc.metadata.get('source_id', '')
-            content_hash = hashlib.md5(f"{source_url}_{source_id}_{i}".encode()).hexdigest()[:12]
+            content_hash = hashlib.md5(f"{source_url}_{source_id}_{i}_{doc.page_content[:100]}".encode()).hexdigest()[:12]
             unique_key = f"doc_{content_hash}"
 
             metadata: Dict[str, Any] = {
                 'source': source_url,
                 'source_id': source_id,
                 'chunk_index': i,
+                'chunk_content': doc.page_content  # Store the actual chunk content
             }
 
-            if isinstance(doc.page_content, str):
-                metadata['content'] = doc.page_content
             vectors.append({
                 'key': unique_key,
                 'data': {'float32': [float(x) for x in embedding]},
@@ -63,7 +62,7 @@ class S3VectorStoreService:
         )
 
         return [{
-            'content': v['metadata'].get('content', ''),
+            'content': v['metadata'].get('chunk_content', ''),
             'metadata': {
                 'source': v['metadata'].get('source', ''),
                 'source_id': v['metadata'].get('source_id', ''),
