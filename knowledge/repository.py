@@ -29,6 +29,10 @@ class SourceRepository:
     def find_by_id(self, source_id: str) -> Source | None:
         sources = self.load_all()
         return next((s for s in sources if s.id == source_id), None)
+
+    def find_by_url(self, url: str) -> Source | None:
+        sources = self.load_all()
+        return next((s for s in sources if s.url == url), None)
     
     def add(self, source: Source) -> None:
         sources = self.load_all()

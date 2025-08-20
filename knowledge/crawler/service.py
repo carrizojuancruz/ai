@@ -26,19 +26,12 @@ class CrawlerService:
         }
     
     def _create_config(self, source) -> CrawlConfig:
-        return CrawlConfig(
-            url=source.url,
-            crawl_type=source.type,
-            max_depth=source.max_depth,
-            max_pages=source.max_pages,
-            category=source.category,
-            tags=source.tags
-        )
+        return CrawlConfig(url=source.url)
     
     async def _load_documents(self, config: CrawlConfig):
         if config.crawl_type == "single":
             return await self.web_loader.load_single_page(str(config.url))
         elif config.crawl_type == "sitemap":
             return await self.web_loader.load_sitemap(config)
-        else:  # recursive
+        else:
             return await self.web_loader.load_recursive(config)

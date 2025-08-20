@@ -1,6 +1,7 @@
 import logging
 from typing import List, Dict, Any
 from uuid import uuid4
+from urllib.parse import urlparse
 
 from .models import Source, SourceRequest, BulkSourceRequest
 from .repository import SourceRepository
@@ -26,11 +27,19 @@ class SourceService:
         return self.source_repo.find_by_id(source_id)
     
     async def create_source(self, request: SourceRequest) -> Dict[str, Any]:
-        source = Source(
-            id=str(uuid4()),
-            name=request.name,
-            url=request.url
-        )
+        parsed = urlparse(request.url)
+        if not (parsed.scheme and parsed.netloc):
+            return {"success": False, "message": "Invalid URL"}
+
+        existing = self.source_repo.find_by_url(request.url)
+        if existing:
+            try:
+                self.knowledge_service.vector_store.delete_documents(existing.id)
+            except Exception:
+                pass
+            self.source_repo.delete_by_id(existing.id)
+
+        source = Source(id=str(uuid4()), name=request.name, url=request.url)
         
         self.source_repo.add(source)
         logger.info(f"Source created: {source.id}")
@@ -38,31 +47,29 @@ class SourceService:
         try:
             crawl_result = await self.crawler_service.crawl_source(source.id)
             documents = crawl_result.get("documents", [])
-            
+
             if documents:
                 index_result = await self.knowledge_service.update_documents_for_source(documents, source.id)
-                
                 return {
                     "source": source,
                     "documents_indexed": index_result.get("documents_added", 0),
                     "success": True,
-                    "message": f"Source created and {len(documents)} documents indexed"
+                    "message": f"Source created and {len(documents)} documents indexed",
                 }
             else:
                 return {
                     "source": source,
                     "documents_indexed": 0,
                     "success": True,
-                    "message": "Source created but no documents found"
+                    "message": "Source created but no documents found",
                 }
-        
         except Exception as e:
             logger.error(f"Failed to process source {source.id}: {str(e)}")
             return {
                 "source": source,
                 "documents_indexed": 0,
                 "success": False,
-                "message": f"Source created but crawl failed: {str(e)}"
+                "message": f"Source created but crawl failed: {str(e)}",
             }
     
     async def bulk_create_sources(self, request: BulkSourceRequest) -> Dict[str, Any]:

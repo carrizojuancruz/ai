@@ -4,8 +4,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
 class DocumentService:    
-    CHUNK_SIZE = 8000  
-    CHUNK_OVERLAP = 800 
+    CHUNK_SIZE = 1500  
+    CHUNK_OVERLAP = 200 
     
     def __init__(self):
         self.text_splitter = RecursiveCharacterTextSplitter(

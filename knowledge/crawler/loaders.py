@@ -12,13 +12,16 @@ from pydantic import BaseModel, HttpUrl
 logger = logging.getLogger(__name__)
 
 
+CRAWL_TYPE: str = "recursive"  # "single" | "sitemap" | "recursive"
+MAX_DEPTH: int = 1
+MAX_PAGES: int = 5
+
+
 class CrawlConfig(BaseModel):
     url: HttpUrl
-    crawl_type: str = "recursive"
-    max_depth: int = 1
-    max_pages: Optional[int] = 8
-    category: Optional[str] = None
-    tags: List[str] = []
+    crawl_type: str = CRAWL_TYPE
+    max_depth: int = MAX_DEPTH
+    max_pages: int = MAX_PAGES
 
 
 class WebLoader:
@@ -58,8 +61,8 @@ class WebLoader:
             logger.error(f"Recursive load error for {config.url}: {e}")
             return []
     
-    def _limit_documents(self, documents: List[Document], max_pages: Optional[int]) -> List[Document]:
-        if max_pages and len(documents) > max_pages:
+    def _limit_documents(self, documents: List[Document], max_pages: int) -> List[Document]:
+        if len(documents) > max_pages:
             return documents[:max_pages]
         return documents
     

@@ -19,11 +19,6 @@ class Source(BaseModel):
     name: str
     url: str
     enabled: bool = True
-    type: str = "recursive"  # single, recursive, sitemap
-    max_depth: int = 2
-    max_pages: int = 50
-    category: str | None = None
-    tags: List[str] = []
 
 
 class KBSearchResult(BaseModel):
