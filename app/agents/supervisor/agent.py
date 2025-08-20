@@ -11,6 +11,7 @@ from langgraph.prebuilt import create_react_agent
 from .handoff import create_task_description_handoff_tool
 from .prompts import SUPERVISOR_PROMPT
 from .workers import math_agent, research_agent
+from .tools import knowledge_search_tool
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
         tools=[
             assign_to_research_agent_with_description,
             assign_to_math_agent_with_description,
+            knowledge_search_tool,
         ],
         prompt=SUPERVISOR_PROMPT,
         name="supervisor",

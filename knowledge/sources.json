@@ -75,5 +75,38 @@
     "max_pages": 50,
     "category": null,
     "tags": []
+  },
+  {
+    "id": "e2406152-43f0-432a-8cfb-766173d6ad35",
+    "name": "Documentación Verde Money",
+    "url": "https://verdemoney.com/es/",
+    "enabled": true,
+    "type": "recursive",
+    "max_depth": 2,
+    "max_pages": 50,
+    "category": null,
+    "tags": []
+  },
+  {
+    "id": "9c31fb7d-e4ee-46c3-a4cb-b0b2b1e9b678",
+    "name": "Documentación Verde Money",
+    "url": "https://verdemoney.com/es/",
+    "enabled": true,
+    "type": "recursive",
+    "max_depth": 2,
+    "max_pages": 50,
+    "category": null,
+    "tags": []
+  },
+  {
+    "id": "d073d37c-390d-4d3e-9439-7c0d79ab7544",
+    "name": "Documentación Verde Money",
+    "url": "https://verdemoney.com/es/",
+    "enabled": true,
+    "type": "recursive",
+    "max_depth": 2,
+    "max_pages": 50,
+    "category": null,
+    "tags": []
   }
 ]

@@ -75,20 +75,12 @@ class KnowledgeService:
     async def add_documents_to_index(self, documents: List[Document], source_id: str) -> Dict[str, Any]:
         return await self.update_documents_for_source(documents, source_id)
 
-    async def search(self, query: str, k: int = None) -> List[KBSearchResult]:
+    async def search(self, query: str, k: int = None) -> List[str]:
         k = k or self.DEFAULT_SEARCH_K
         try:
             query_embedding = self.embeddings.embed_query(query)
             results = self.vector_store.search(query_embedding, k=k)
-            
-            return [
-                KBSearchResult(
-                    text=result['content'],
-                    source=result['metadata'].get('source', ''),
-                    score=result.get('score'),
-                    metadata=result['metadata']
-                ) for result in results
-            ]
+            return [result['content'] for result in results]
         except Exception as e:
             return []
 
