@@ -113,7 +113,7 @@ All configuration is managed through environment variables:
 - `TOP_K_SEARCH` - Number of search results to return
 - `CHUNK_SIZE` - Document chunk size for processing
 - `CHUNK_OVERLAP` - Overlap between document chunks
-- `SOURCES_FILE_PATH` - Path to sources configuration file
+- `SOURCES_FILE_PATH` - Path to persist sources
 
 ## File Structure
 
