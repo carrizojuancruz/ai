@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 DATABASE_URL = os.getenv("DATABASE_ASYNC_URL", "postgresql+asyncpg://verde:verde@localhost:5432/verde")
 
-engine = create_async_engine(DATABASE_ASYNC_URL, echo=False, future=True)
+engine = create_async_engine(DATABASE_URL, echo=False, future=True)
 
 async_session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
