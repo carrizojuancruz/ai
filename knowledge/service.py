@@ -17,11 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 class KnowledgeService:
-    
-    DEFAULT_SEARCH_K = 4
-    DEFAULT_MODEL = "amazon.titan-embed-text-v2:0"
-    DEFAULT_REGION = "us-east-1"
-    
+    DEFAULT_SEARCH_K = 3
+    MODEL = os.getenv("EMBEDDINGS_MODEL_ID", "amazon.titan-embed-text-v2:0")
+    REGION = os.getenv("AWS_REGION", "us-east-1")
+
     def __init__(self, 
                  vector_store_service: VectorStoreService = None,
                  crawler_service: CrawlerService = None,
@@ -33,8 +32,8 @@ class KnowledgeService:
         self.document_service = document_service or DocumentService()
         
         self.embeddings = BedrockEmbeddings(
-            model_id=os.getenv("EMBEDDINGS_MODEL_ID", self.DEFAULT_MODEL),
-            region_name=os.getenv("AWS_REGION", self.DEFAULT_REGION)
+            model_id=self.MODEL,
+            region_name=self.REGION
         )
 
     async def update_documents_for_source(self, documents: List[Document], source_id: str) -> Dict[str, Any]:
@@ -57,7 +56,6 @@ class KnowledgeService:
                 end_time = time.time()
                 logger.info(f"Embedding generation completed in {end_time - start_time:.2f} seconds")
                 
-                logger.info(f"Storing {len(chunks)} chunks in vector store")
                 self.vector_store.add_documents(chunks, chunk_embeddings)
                 logger.info(f"Documents stored successfully")
             
@@ -75,12 +73,19 @@ class KnowledgeService:
     async def add_documents_to_index(self, documents: List[Document], source_id: str) -> Dict[str, Any]:
         return await self.update_documents_for_source(documents, source_id)
 
-    async def search(self, query: str, k: int = None) -> List[str]:
+    async def search(self, query: str, k: int = None) -> List[Dict[str, Any]]:
         k = k or self.DEFAULT_SEARCH_K
         try:
             query_embedding = self.embeddings.embed_query(query)
             results = self.vector_store.search(query_embedding, k=k)
-            return [result['content'] for result in results]
+            out = []
+            for r in results:
+                meta = r.get('metadata', {})
+                out.append({
+                    'content': r.get('content', ''),
+                    'source': meta.get('source', '')
+                })
+            return out
         except Exception as e:
             return []
 
