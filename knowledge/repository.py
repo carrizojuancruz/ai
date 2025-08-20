@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 from typing import List
 
 from .models import Source
@@ -7,18 +8,24 @@ from .models import Source
 
 class SourceRepository:
 
-    def __init__(self, file_path: str = None):
-        self.file_path = file_path or os.getenv("SOURCES_FILE_PATH")
+    def __init__(self):
+        env_path = os.getenv("SOURCES_FILE_PATH")
+        self.file_path = str(Path(env_path).resolve())
+        self._ensure_file_exists()
 
     def load_all(self) -> List[Source]:
-        if not os.path.exists(self.file_path):
-            return []
         try:
             with open(self.file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 return [Source(**source) for source in data]
         except Exception:
             return []
+
+    def _ensure_file_exists(self) -> None:
+        if not os.path.exists(self.file_path):
+            os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
+            with open(self.file_path, "w", encoding="utf-8") as f:
+                json.dump([], f, indent=2, ensure_ascii=False)
 
     def save_all(self, sources: List[Source]) -> None:
         os.makedirs(os.path.dirname(self.file_path), exist_ok=True)

@@ -50,11 +50,12 @@ class SourceService:
 
             if documents:
                 index_result = await self.knowledge_service.update_documents_for_source(documents, source.id)
+                documents_indexed = index_result.get("documents_added", 0)
                 return {
                     "source": source,
-                    "documents_indexed": index_result.get("documents_added", 0),
+                    "documents_indexed": documents_indexed,
                     "success": True,
-                    "message": f"Source created and {len(documents)} documents indexed",
+                    "message": f"Source created and {documents_indexed} documents indexed",
                 }
             else:
                 return {
