@@ -1,7 +1,14 @@
+import os
+
 from dotenv import load_dotenv
 
 load_dotenv(".env", override=False)
 load_dotenv(".env.local", override=True)
+
+from .core.aws_config import load_aws_secrets
+
+if os.getenv("FOS_SECRETS_ID"):
+    load_aws_secrets()
 
 from collections.abc import Callable
 from contextlib import asynccontextmanager
@@ -45,7 +52,7 @@ async def log_requests(request: Request, call_next: Callable[[Request], Response
     return response
 
 
-@app.get("/")
+@app.get("/health")
 def read_root() -> dict[str, str]:
     logger.info("Health check requested")
     return {"message": "Verde AI - Vera Agent System", "status": "online"}
