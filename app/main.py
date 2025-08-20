@@ -52,10 +52,19 @@ async def log_requests(request: Request, call_next: Callable[[Request], Response
     return response
 
 
+ 
 @app.get("/health")
-def read_root() -> dict[str, str]:
+async def health_check() -> dict[str, str]:
     logger.info("Health check requested")
-    return {"message": "Verde AI - Vera Agent System", "status": "online"}
+    try:
+        # Test database connectivity
+        from sqlalchemy import text
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return {"message": "Verde AI - Verde Agent System", "status": "healthy", "database": "connected"}
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return {"message": "Verde AI - Verde Agent System", "status": "unhealthy", "error": str(e)}
 
 
 app.include_router(api_router)
