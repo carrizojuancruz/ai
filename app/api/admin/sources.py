@@ -3,8 +3,8 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from knowledge.models import BulkSourceRequest, Source, SourceRequest
-from knowledge.source_service import SourceService, get_source_service
+from app.knowledge.models import BulkSourceRequest, Source, SourceRequest
+from app.knowledge.source_service import SourceService, get_source_service
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 

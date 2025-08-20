@@ -1,20 +1,17 @@
 import hashlib
-import os
 from typing import Any, Dict, List
 
 import boto3
-from dotenv import load_dotenv
 from langchain_core.documents import Document
-
-load_dotenv()
+from app.knowledge import config
 
 
 class S3VectorStoreService:
     def __init__(self):
-        self.bucket_name = os.getenv("S3_VECTOR_NAME")
-        self.index_name = os.getenv("VECTOR_INDEX_NAME")
-        self.top_k_search = int(os.getenv("TOP_K_SEARCH"))
-        self.client = boto3.client('s3vectors', region_name=os.getenv("AWS_REGION"))
+        self.bucket_name = config.S3_VECTOR_NAME
+        self.index_name = config.VECTOR_INDEX_NAME
+        self.top_k_search = config.TOP_K_SEARCH
+        self.client = boto3.client('s3vectors', region_name=config.AWS_REGION)
 
     def add_documents(self, documents: List[Document], embeddings: List[List[float]]):
         vectors = []

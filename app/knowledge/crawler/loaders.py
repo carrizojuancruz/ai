@@ -1,20 +1,20 @@
 import logging
 from typing import List
-import os
 import requests
 from bs4 import BeautifulSoup
 from langchain_community.document_loaders import RecursiveUrlLoader, SitemapLoader
 from langchain_core.documents import Document
-from pydantic import BaseModel, HttpUrl
+from app.knowledge import config
 
 logger = logging.getLogger(__name__)
 
-class CrawlConfig(BaseModel):
-    url: HttpUrl
-    crawl_type: str = os.getenv("CRAWL_TYPE")
-    max_depth: int = int(os.getenv("CRAWL_MAX_DEPTH"))
-    max_pages: int = int(os.getenv("CRAWL_MAX_PAGES"))
-    timeout: int = int(os.getenv("CRAWL_TIMEOUT"))
+class CrawlConfig:
+    def __init__(self, url: str, crawl_type: str = None, max_depth: int = None, max_pages: int = None, timeout: int = None):
+        self.url = url
+        self.crawl_type = crawl_type or config.CRAWL_TYPE
+        self.max_depth = max_depth or config.CRAWL_MAX_DEPTH
+        self.max_pages = max_pages or config.CRAWL_MAX_PAGES
+        self.timeout = timeout or config.CRAWL_TIMEOUT
 
 class WebLoader:
 

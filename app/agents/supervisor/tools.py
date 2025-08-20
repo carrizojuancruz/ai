@@ -4,7 +4,7 @@ from typing import Dict, List
 
 from langchain_core.tools import StructuredTool
 
-from knowledge.service import get_knowledge_service
+from app.knowledge.service import get_knowledge_service
 
 logger = logging.getLogger(__name__)
 

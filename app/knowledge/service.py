@@ -1,17 +1,14 @@
 import logging
-import os
 from typing import Any, Dict, List
 import time
-from dotenv import load_dotenv
 from langchain_aws.embeddings import BedrockEmbeddings
 from langchain_core.documents import Document
 
+from app.knowledge import config
 from .crawler.service import CrawlerService
 from .document_service import DocumentService
 from .repository import SourceRepository
 from .vector_store.service import S3VectorStoreService
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +16,8 @@ logger = logging.getLogger(__name__)
 class KnowledgeService:
     
     def __init__(self):
-        self.model = os.getenv("EMBEDDINGS_MODEL_ID")
-        self.region = os.getenv("AWS_REGION")
+        self.model = config.EMBEDDINGS_MODEL_ID
+        self.region = config.AWS_REGION
         
         self.vector_store_service = S3VectorStoreService()
         self.crawler_service = CrawlerService()
@@ -71,7 +68,7 @@ class KnowledgeService:
     async def search(self, query: str) -> List[Dict[str, Any]]:
         try:
             query_embedding = self.embeddings.embed_query(query)
-            results = self.vector_store_service.search(query_embedding)
+            results = self.vector_store_service.similarity_search(query_embedding)
             out = []
             for r in results:
                 meta = r.get('metadata', {})

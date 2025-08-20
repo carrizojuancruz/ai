@@ -3,14 +3,14 @@ import os
 from pathlib import Path
 from typing import List
 
+from app.knowledge import config
 from .models import Source
 
 
 class SourceRepository:
 
     def __init__(self):
-        env_path = os.getenv("SOURCES_FILE_PATH")
-        self.file_path = str(Path(env_path).resolve())
+        self.file_path = str(Path(config.SOURCES_FILE_PATH).resolve())
         self._ensure_file_exists()
 
     def load_all(self) -> List[Source]:

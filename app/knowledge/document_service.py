@@ -1,15 +1,15 @@
-import os
 from typing import List
 
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from app.knowledge import config
 
 
 class DocumentService:
 
     def __init__(self):
-        self.chunk_size = int(os.getenv("CHUNK_SIZE"))
-        self.chunk_overlap = int(os.getenv("CHUNK_OVERLAP"))
+        self.chunk_size = config.CHUNK_SIZE
+        self.chunk_overlap = config.CHUNK_OVERLAP
         
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.chunk_size,
