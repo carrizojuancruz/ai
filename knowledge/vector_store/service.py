@@ -55,7 +55,7 @@ class S3VectorStore:
         except Exception:
             pass
     
-    def similarity_search(self, query_embedding: List[float], k: int = 4) -> List[Dict[str, Any]]:
+    def similarity_search(self, query_embedding: List[float], k: int = 3) -> List[Dict[str, Any]]:
         response = self.client.query_vectors(
             vectorBucketName=self.bucket_name,
             indexName=self.index_name,
@@ -89,5 +89,5 @@ class VectorStoreService:
     def delete_documents(self, source_id: str):
         return self.vector_store.delete_documents(source_id)
     
-    def search(self, query_embedding: List[float], k: int = 4) -> List[Dict[str, Any]]:
+    def search(self, query_embedding: List[float], k: int = 3) -> List[Dict[str, Any]]:
         return self.vector_store.similarity_search(query_embedding, k)
