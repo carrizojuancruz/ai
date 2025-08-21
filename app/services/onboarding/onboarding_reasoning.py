@@ -120,6 +120,7 @@ class OnboardingReasoningService:
                 context={
                     "conversation_id": str(state.conversation_id),
                     "thread_id": str(state.conversation_id),
+                    "user_id": str(state.user_id),
                     "step": step.value,
                     "tags": ["onboarding", "verde-ai", f"step:{step.name}", "reason"],
                     "original_query": state.last_user_message or "",
@@ -164,6 +165,8 @@ class OnboardingReasoningService:
 
         accumulated_text = ""
         try:
+            with suppress(Exception):
+                self._llm.set_callbacks([langfuse_handler])
             async for chunk in self._llm.generate_stream(
                 prompt=text_prompt,
                 system=ONBOARDING_SYSTEM_PROMPT
@@ -171,6 +174,7 @@ class OnboardingReasoningService:
                 context={
                     "conversation_id": str(state.conversation_id),
                     "thread_id": str(state.conversation_id),
+                    "user_id": str(state.user_id),
                     "step": step.value,
                     "tags": ["onboarding", "verde-ai", f"step:{step.name}", "text"],
                     "original_query": state.last_user_message or "",
@@ -215,6 +219,7 @@ class OnboardingReasoningService:
                 context={
                     "conversation_id": str(state.conversation_id),
                     "thread_id": str(state.conversation_id),
+                    "user_id": str(state.user_id),
                     "step": step.value,
                     "tags": ["onboarding", "verde-ai", f"step:{step.name}", "metadata"],
                 },
@@ -343,6 +348,56 @@ class OnboardingReasoningService:
             "interaction_type": "free_text",
         }
 
+    def _build_context_summary(self, state_dict: dict[str, Any]) -> str:
+        lines: list[str] = []
+        max_lines = 12
+        max_depth = 2
+        max_list_items = 3
+
+        def add_line(key: str, value: Any) -> None:
+            nonlocal lines
+            if len(lines) >= max_lines:
+                return
+            if isinstance(value, str):
+                val = value.strip()
+                if not val:
+                    return
+                if len(val) > 80:
+                    val = val[:77] + "..."
+                lines.append(f"{key}: {val}")
+            elif isinstance(value, (int, float, bool)):
+                lines.append(f"{key}: {value}")
+            elif isinstance(value, list):
+                if not value:
+                    return
+                items: list[str] = []
+                for item in value[:max_list_items]:
+                    if isinstance(item, (str, int, float, bool)):
+                        item_str = str(item)
+                        if len(item_str) > 40:
+                            item_str = item_str[:37] + "..."
+                        items.append(item_str)
+                if items:
+                    suffix = f" (+{len(value) - len(items)} more)" if len(value) > len(items) else ""
+                    lines.append(f"{key}: {', '.join(items)}{suffix}")
+
+        def walk(d: dict[str, Any], prefix: str = "", depth: int = 0) -> None:
+            if depth > max_depth or len(lines) >= max_lines:
+                return
+            if not isinstance(d, dict):
+                return
+            for k, v in d.items():
+                path = f"{prefix}{k}" if not prefix else f"{prefix}.{k}"
+                if v in (None, "", [], {}):
+                    continue
+                if isinstance(v, (str, int, float, bool, list)):
+                    add_line(path, v)
+                elif isinstance(v, dict):
+                    walk(v, path, depth + 1)
+
+        walk(state_dict, "", 0)
+        return "\n".join(lines) if lines else "(none)"
+
     def _build_text_prompt(
         self,
         step: OnboardingStep,
@@ -354,12 +409,17 @@ class OnboardingReasoningService:
         step_guidance = STEP_GUIDANCE.get(step, "")
         default_prompt = DEFAULT_RESPONSE_BY_STEP.get(step, "")
 
+        ctx_block = self._build_context_summary(state_dict)
+
         prompt = f"""Current step: {step.value}
 
 {step_guidance}
 
 Missing information: {", ".join(missing_fields) if missing_fields else "None"}
 User's last message: {last_user_message or "(Starting conversation)"}
+
+Known user context (short):
+{ctx_block}
 
 Recent conversation:
 {convo_tail}

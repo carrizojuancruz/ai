@@ -71,6 +71,9 @@ async def onboarding_done(thread_id: str) -> dict:
 
     q = get_sse_queue(thread_id)
     await q.put({"event": "onboarding.status", "data": {"status": "processing"}})
+
+    await onboarding_service.finalize(thread_id=thread_id)
+
     await q.put({"event": "onboarding.status", "data": {"status": "done"}})
     return {"status": "done"}
 

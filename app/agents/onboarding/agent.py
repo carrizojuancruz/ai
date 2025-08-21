@@ -82,6 +82,7 @@ class OnboardingAgent:
                 "configurable": {
                     "session_id": str(state.conversation_id),
                     "original_query": message,
+                    "user_id": str(state.user_id),
                 },
             },
         )

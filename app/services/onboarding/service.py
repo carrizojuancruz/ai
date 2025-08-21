@@ -31,6 +31,30 @@ langfuse_handler = CallbackHandler(
 
 
 class OnboardingService:
+    async def _export_user_context(self, state: OnboardingState, thread_id: str) -> None:
+        try:
+            session_store = get_session_store()
+            session_ctx = await session_store.get_session(thread_id) or {}
+            if session_ctx.get("fos_exported"):
+                return
+
+            from app.services.external_context.client import AIContextClient
+            from app.services.external_context.mapping import map_user_context_to_ai_context
+
+            client = AIContextClient()
+            body = map_user_context_to_ai_context(state.user_context)
+            logger.info("[USER CONTEXT EXPORT] Prepared external payload: %s", json.dumps(body, ensure_ascii=False))
+            resp = await client.put_user_context(state.user_id, body)
+            if resp is not None:
+                logger.info("[USER CONTEXT EXPORT] External API acknowledged update for user %s", state.user_id)
+            else:
+                logger.warning("[USER CONTEXT EXPORT] External API returned no body or 404 for user %s", state.user_id)
+
+            session_ctx["fos_exported"] = True
+            await session_store.set_session(thread_id, session_ctx)
+        except Exception as e:
+            logger.error("[USER CONTEXT EXPORT] Failed to export user context: %s", e)
+
     async def initialize(self, *, user_id: str | None = None) -> dict[str, Any]:
         thread_id = str(uuid4())
 
@@ -44,6 +68,19 @@ class OnboardingService:
             user_uuid = uuid4()
 
         state = OnboardingState(user_id=user_uuid)
+
+        try:
+            from app.services.external_context.client import AIContextClient
+            from app.services.external_context.mapping import map_ai_context_to_user_context
+
+            client = AIContextClient()
+            external_ctx = await client.get_user_context(user_uuid)
+            if external_ctx:
+                logger.info(f"[USER CONTEXT UPDATE] External AI Context found for user: {user_uuid}")
+                map_ai_context_to_user_context(external_ctx, state.user_context)
+                state.user_context.sync_flat_to_nested()
+        except Exception as e:
+            logger.warning(f"Context prefill skipped due to error: {e}")
 
         logger.info(f"[USER CONTEXT UPDATE] Starting onboarding for user: {user_uuid}")
         logger.info(
@@ -70,6 +107,8 @@ class OnboardingService:
             if event:
                 if event.get("event") == "token.delta":
                     set_last_emitted_text(thread_id, event.get("data", {}).get("text", ""))
+                if event.get("event") == "onboarding.status" and (event.get("data", {}) or {}).get("status") == "done":
+                    await self._export_user_context(state, thread_id)
                 await queue.put(event)
             final_state = state
 
@@ -135,6 +174,8 @@ class OnboardingService:
             if event:
                 if event.get("event") == "token.delta":
                     set_last_emitted_text(thread_id, event.get("data", {}).get("text", ""))
+                if event.get("event") == "onboarding.status" and (event.get("data", {}) or {}).get("status") == "done":
+                    await self._export_user_context(current_state, thread_id)
                 await q.put(event)
             final_state = current_state
 
@@ -155,6 +196,12 @@ class OnboardingService:
                 set_last_emitted_text(thread_id, final_text)
 
         return {"status": "accepted"}
+
+    async def finalize(self, *, thread_id: str) -> None:
+        state = get_thread_state(thread_id)
+        if state is None:
+            raise HTTPException(status_code=404, detail="Thread not found")
+        await self._export_user_context(state, thread_id)
 
 
 onboarding_service = OnboardingService()
