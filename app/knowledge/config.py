@@ -3,46 +3,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+CHUNK_SIZE = int(os.environ.get("CHUNK_SIZE", "1500"))
+CHUNK_OVERLAP = int(os.environ.get("CHUNK_OVERLAP", "200"))
+TOP_K_SEARCH = int(os.environ.get("TOP_K_SEARCH", "3"))
 
-def _get_env(key: str) -> str:
-    """Get required environment variable."""
-    value = os.getenv(key)
-    if value is None:
-        raise ValueError(f"Environment variable {key} is required")
-    return value
+CRAWL_TYPE = os.environ.get("CRAWL_TYPE", "recursive")
+CRAWL_MAX_DEPTH = int(os.environ.get("CRAWL_MAX_DEPTH", "3"))
+CRAWL_MAX_PAGES = int(os.environ.get("CRAWL_MAX_PAGES", "50"))
+CRAWL_TIMEOUT = int(os.environ.get("CRAWL_TIMEOUT", "30"))
 
+S3_VECTOR_NAME = os.environ["S3_VECTOR_NAME"]
+VECTOR_INDEX_NAME = os.environ["VECTOR_INDEX_NAME"]
+EMBEDDINGS_MODEL_ID = os.environ["EMBEDDINGS_MODEL_ID"]
+AWS_REGION = os.environ["AWS_REGION"]
 
-def _get_int_env(key: str) -> int:
-    """Get required environment variable as integer."""
-    value = os.getenv(key)
-    if value is None:
-        raise ValueError(f"Environment variable {key} is required")
-    try:
-        return int(value)
-    except ValueError:
-        raise ValueError(f"Environment variable {key} must be a valid integer, got: {value}")
-
-
-# Document processing
-CHUNK_SIZE = _get_int_env("CHUNK_SIZE")
-CHUNK_OVERLAP = _get_int_env("CHUNK_OVERLAP")
-
-# Crawler settings
-CRAWL_TYPE = _get_env("CRAWL_TYPE")
-CRAWL_MAX_DEPTH = _get_int_env("CRAWL_MAX_DEPTH")
-CRAWL_MAX_PAGES = _get_int_env("CRAWL_MAX_PAGES")
-CRAWL_TIMEOUT = _get_int_env("CRAWL_TIMEOUT")
-
-# Vector store
-S3_VECTOR_NAME = _get_env("S3_VECTOR_NAME")
-VECTOR_INDEX_NAME = _get_env("VECTOR_INDEX_NAME")
-TOP_K_SEARCH = _get_int_env("TOP_K_SEARCH")
-
-# Embeddings
-EMBEDDINGS_MODEL_ID = _get_env("EMBEDDINGS_MODEL_ID")
-
-# AWS
-AWS_REGION = _get_env("AWS_REGION")
-
-# Sources
-SOURCES_FILE_PATH = _get_env("SOURCES_FILE_PATH")
+SOURCES_FILE_PATH = os.environ.get("SOURCES_FILE_PATH", "./app/knowledge/sources.json")
