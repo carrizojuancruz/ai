@@ -57,10 +57,22 @@ This folder contains the memory pipeline for the supervisor graph, split into fo
 - Top‑N dedup (`memory_hotpath`):
   - Env knob `MEMORY_MERGE_TOPK` controls the number of neighbors to check.
   - `MEMORY_MERGE_CHECK_LOW` controls the similarity threshold to LLM‑check.
+  - Guarded fallback second pass (optional): if no match above `MEMORY_MERGE_CHECK_LOW`, the system can run a narrow
+    second pass over neighbors in a lower similarity band. This improves recall for paraphrases without over‑merging.
+    Controlled by:
+    - `MEMORY_MERGE_FALLBACK_ENABLED` (default true)
+    - `MEMORY_MERGE_FALLBACK_LOW` (e.g., 0.30): lower bound for the fallback band
+    - `MEMORY_MERGE_FALLBACK_TOPK` (e.g., 3): maximum neighbors to LLM‑check in fallback
+    - `MEMORY_MERGE_FALLBACK_RECENCY_DAYS` (e.g., 90): only consider neighbors updated within this window
+    - `MEMORY_MERGE_FALLBACK_CATEGORIES` (CSV, default "Personal,Goals"): categories eligible for fallback
+    - Extra guards: same category is required, plus minimal lexical overlap or numeric overlap; the tiny LLM must
+      still return `same_fact=true` to merge. The same‑fact classifier explicitly treats plausible numeric updates
+      (e.g., age 3→4 for the same named entity) as the same fact.
 
 - Merge behavior:
   - `recreate` mode composes to a new record and deletes the old one.
   - In‑place update mode simply refreshes summary/last_accessed.
+  - Summaries are normalized (Unicode NFC, smart quotes → ASCII) before storage to avoid mojibake in mixed clients.
 
 - Episodic control (`episodic_capture`):
   - `EPISODIC_COOLDOWN_TURNS`, `EPISODIC_COOLDOWN_MINUTES`, `EPISODIC_MAX_PER_DAY`.
