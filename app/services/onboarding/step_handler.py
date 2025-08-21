@@ -63,6 +63,18 @@ class StepHandlerService:
 
         response = decision.get("assistant_text") or DEFAULT_RESPONSE_BY_STEP.get(step, "")
 
+        state.current_interaction_type = decision.get("interaction_type", "free_text")
+        state.current_choices = decision.get("choices", [])
+        if decision.get("interaction_type") == "binary_choice":
+            state.current_binary_choices = {
+                "primary_choice": decision.get("primary_choice"),
+                "secondary_choice": decision.get("secondary_choice"),
+            }
+        else:
+            state.current_binary_choices = None
+        state.multi_min = decision.get("multi_min")
+        state.multi_max = decision.get("multi_max")
+
         if decision.get("complete") or self.is_step_complete(state, step):
             state.mark_step_completed(step)
             state.current_step = state.get_next_step() or OnboardingStep.CHECKOUT_EXIT
@@ -130,6 +142,18 @@ class StepHandlerService:
 
         if final_decision:
             context_patching_service.apply_context_patch(state, step, final_decision.get("patch") or {})
+
+            state.current_interaction_type = final_decision.get("interaction_type", "free_text")
+            state.current_choices = final_decision.get("choices", [])
+            if final_decision.get("interaction_type") == "binary_choice":
+                state.current_binary_choices = {
+                    "primary_choice": final_decision.get("primary_choice"),
+                    "secondary_choice": final_decision.get("secondary_choice"),
+                }
+            else:
+                state.current_binary_choices = None
+            state.multi_min = final_decision.get("multi_min")
+            state.multi_max = final_decision.get("multi_max")
 
             if final_decision.get("complete") or self.is_step_complete(state, step):
                 state.mark_step_completed(step)

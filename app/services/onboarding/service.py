@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
+import logging
 import os
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException
 from langfuse.callback import CallbackHandler
@@ -17,6 +19,9 @@ from app.core.app_state import (
     set_last_emitted_text,
     set_thread_state,
 )
+from app.repositories.session_store import get_session_store
+
+logger = logging.getLogger(__name__)
 
 langfuse_handler = CallbackHandler(
     public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
@@ -26,20 +31,42 @@ langfuse_handler = CallbackHandler(
 
 
 class OnboardingService:
-    async def initialize(self) -> dict[str, Any]:
+    async def initialize(self, *, user_id: str | None = None) -> dict[str, Any]:
         thread_id = str(uuid4())
-        user_id = uuid4()
-        state = OnboardingState(user_id=user_id)
+
+        if user_id and user_id.strip():
+            try:
+                user_uuid = UUID(user_id)
+            except ValueError:
+                logger.warning(f"Invalid UUID provided: {user_id}, generating new one")
+                user_uuid = uuid4()
+        else:
+            user_uuid = uuid4()
+
+        state = OnboardingState(user_id=user_uuid)
+
+        logger.info(f"[USER CONTEXT UPDATE] Starting onboarding for user: {user_uuid}")
+        logger.info(
+            f"[USER CONTEXT UPDATE] Initial context: {json.dumps(state.user_context.model_dump(mode='json'), indent=2)}"
+        )
 
         register_thread(thread_id, state)
         queue = get_sse_queue(thread_id)
+
+        session_store = get_session_store()
+        await session_store.set_session(
+            thread_id,
+            {
+                "user_id": str(user_uuid),
+            },
+        )
 
         await queue.put({"event": "conversation.started", "data": {"thread_id": thread_id}})
 
         agent = get_onboarding_agent()
 
         final_state = None
-        async for event, state in agent.process_message_with_events(user_id, "", state):
+        async for event, state in agent.process_message_with_events(user_uuid, "", state):
             if event:
                 if event.get("event") == "token.delta":
                     set_last_emitted_text(thread_id, event.get("data", {}).get("text", ""))
@@ -71,7 +98,21 @@ class OnboardingService:
         if type == "text" and text is not None:
             user_text = text
         elif type == "choice" and choice_ids:
-            user_text = ", ".join(choice_ids)
+            if state.current_interaction_type == "binary_choice":
+                if state.current_binary_choices:
+                    for choice_id in choice_ids:
+                        if choice_id == state.current_binary_choices.get("primary_choice", {}).get("id"):
+                            user_text = state.current_binary_choices["primary_choice"]["value"]
+                        elif choice_id == state.current_binary_choices.get("secondary_choice", {}).get("id"):
+                            user_text = state.current_binary_choices["secondary_choice"]["value"]
+            else:
+                choice_values = []
+                for choice_id in choice_ids:
+                    for choice in state.current_choices:
+                        if choice.get("id") == choice_id:
+                            choice_values.append(choice.get("value", choice_id))
+                            break
+                user_text = ", ".join(choice_values) if choice_values else ", ".join(choice_ids)
         elif type == "control" and action in {"back", "skip"}:
             set_thread_state(thread_id, state)
             await get_sse_queue(thread_id).put(
@@ -86,6 +127,8 @@ class OnboardingService:
         q = get_sse_queue(thread_id)
 
         prev_text = get_last_emitted_text(thread_id)
+
+        state.last_user_message = user_text
 
         final_state = None
         async for event, current_state in agent.process_message_with_events(state.user_id, user_text, state):
