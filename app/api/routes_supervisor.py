@@ -7,6 +7,7 @@ from collections.abc import AsyncGenerator
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from uuid import UUID
 
 from app.core.app_state import get_sse_queue
 from app.services.supervisor import supervisor_service
@@ -21,7 +22,7 @@ class SupervisorInitializeResponse(BaseModel):
 
 
 class SupervisorInitializePayload(BaseModel):
-    user_id: str
+    user_id: UUID
 
 
 @router.post("/initialize", response_model=SupervisorInitializeResponse)
