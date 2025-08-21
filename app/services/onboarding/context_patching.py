@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import json
+import logging
 from contextlib import suppress
 from typing import Any
 
 from app.agents.onboarding.state import OnboardingState, OnboardingStep
+
+logger = logging.getLogger(__name__)
 
 
 class ContextPatchingService:
@@ -74,20 +78,29 @@ class ContextPatchingService:
 
         normalized_patch = self.normalize_patch_for_step(step, patch)
 
+        logger.info(f"[USER CONTEXT UPDATE] Step: {step.value}")
+        logger.info(f"[USER CONTEXT UPDATE] Applying patch: {json.dumps(normalized_patch, indent=2)}")
+
+        changes = []
+
         for key, value in normalized_patch.items():
             if "." in key:
                 self._set_by_path(state.user_context, key, value)
+                changes.append(f"{key} = {value}")
             else:
                 try:
                     if hasattr(state.user_context, key):
                         current_attr = getattr(state.user_context, key)
                         if isinstance(current_attr, list) and not isinstance(value, list):
                             setattr(state.user_context, key, [value])
+                            changes.append(f"{key} = [{value}]")
                         elif isinstance(value, dict):
                             for inner_key, inner_val in value.items():
                                 self._set_by_path(state.user_context, f"{key}.{inner_key}", inner_val)
+                                changes.append(f"{key}.{inner_key} = {inner_val}")
                         else:
                             setattr(state.user_context, key, value)
+                            changes.append(f"{key} = {value}")
                     else:
                         if key == "opt_in":
                             self._set_by_path(
@@ -95,11 +108,19 @@ class ContextPatchingService:
                                 "social_signals_consent",
                                 bool(value),
                             )
+                            changes.append(f"social_signals_consent = {bool(value)}")
                 except Exception:
                     pass
 
         with suppress(Exception):
             state.user_context.sync_nested_to_flat()
+
+        if changes:
+            logger.info("[USER CONTEXT UPDATE] Summary of changes:")
+            for change in changes:
+                logger.info(f"[USER CONTEXT UPDATE]   - {change}")
+
+        logger.info(f"[USER CONTEXT UPDATE] Updated context: {json.dumps(state.user_context.model_dump(mode='json'), indent=2)}")
 
     def _set_by_path(self, obj: Any, path: str, value: Any) -> None:
         parts = [p for p in path.split(".") if p]
