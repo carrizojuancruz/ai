@@ -20,10 +20,6 @@ from app.repositories.session_store import get_session_store
 logger = logging.getLogger(__name__)
 
 
-class GuestState(dict):
-    pass
-
-
 def _wrap(content: str, count: int, max_messages: int) -> dict[str, Any]:
     content = (content or "").strip()
     count = max(1, count)
@@ -112,7 +108,10 @@ class GuestService:
         except Exception:
             pass
 
-        content = accumulated.strip() or "Hi! Quick heads up: this guest chat won't be remembered. What money question can I help with now?"
+        content = (
+            accumulated.strip()
+            or "Hi! Quick heads up: this guest chat won't be remembered. What money question can I help with now?"
+        )
         state["message_count"] = 1
         state["messages"].append({"role": "assistant", "content": content})
 
@@ -121,7 +120,9 @@ class GuestService:
 
         if state["message_count"] >= self.max_messages:
             state["ended"] = True
-            await queue.put({"event": "conversation.ended", "data": {"thread_id": thread_id, "limit": self.max_messages}})
+            await queue.put(
+                {"event": "conversation.ended", "data": {"thread_id": thread_id, "limit": self.max_messages}}
+            )
 
         set_thread_state(thread_id, state)
 
@@ -194,7 +195,9 @@ class GuestService:
 
         if state["message_count"] >= self.max_messages:
             state["ended"] = True
-            await queue.put({"event": "conversation.ended", "data": {"thread_id": thread_id, "limit": self.max_messages}})
+            await queue.put(
+                {"event": "conversation.ended", "data": {"thread_id": thread_id, "limit": self.max_messages}}
+            )
 
         set_thread_state(thread_id, state)
         return {"status": "accepted"}
