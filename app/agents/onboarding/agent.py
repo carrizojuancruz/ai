@@ -123,6 +123,14 @@ class OnboardingAgent:
                 accumulated_text += chunk
                 yield ({"event": "token.delta", "data": {"text": chunk}}, current_state)
 
+        yield (
+            {
+                "event": "message.completed",
+                "data": {"text": accumulated_text},
+            },
+            current_state,
+        )
+
         new_completed = set(s.value for s in current_state.completed_steps)
         for step_value in sorted(new_completed - prev_completed):
             yield (
