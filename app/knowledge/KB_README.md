@@ -1,129 +1,124 @@
 # Knowledge Component
 
-A web crawler and document processing system that converts web content into searchable knowledge vectors.
+Web crawler and document processing system that converts web content into searchable knowledge vectors using AWS Bedrock embeddings and S3 Vector Store.
 
-## What it does
+## Overview
 
-The Knowledge component takes websites, crawls them, extracts text content from HTML, splits it into chunks, and creates embeddings for semantic search.
+The Knowledge component ingests website URLs, extracts content through configurable crawling, processes HTML into clean text, splits documents into semantic chunks, generates embeddings via AWS Bedrock, and stores vectors in S3 Vector Store for similarity-based retrieval.
 
 ## Core Components
 
 ### KnowledgeService
-Main orchestration service that coordinates the knowledge pipeline. Handles document processing, vector storage, and semantic search with configurable result limits.
+Orchestrates the document processing pipeline:
+- Coordinates crawler, embedding generation, and vector storage operations
+- Manages document chunking using RecursiveCharacterTextSplitter
+- Handles embedding generation through AWS Bedrock integration
+- Provides similarity search interface with configurable result limits
+- Manages source document lifecycle including deletion
 
-### SourceService
-Manages source definitions and coordinates with the knowledge service to process web content. Acts as the entry point for creating and managing crawl sources.
+### SourceService  
+Entry point for source management and bulk operations:
+- Validates URLs and creates source definitions
+- Orchestrates crawler and knowledge service integration
+- Handles source creation, updates, and deletion
+- Manages bulk source processing workflows
+- Provides source lookup and listing capabilities
 
 ### CrawlerService  
-Handles web crawling with multiple strategies:
-- **Single page**: Loads only one specific page
-- **Recursive**: Follows internal links within the domain
-- **Sitemap**: Uses XML sitemaps to discover pages
-
-### WebLoader
-Performs web content extraction with HTML cleaning:
-- Removes script, style, and noscript tags
-- Extracts only visible text content
-- Uses BeautifulSoup with html.parser for processing
-- Configurable timeouts and request delays
-
-### DocumentService
-Processes raw web content by splitting text into chunks using LangChain's text splitter.
+Executes web content extraction strategies:
+- **Recursive**: Follows internal links within domain boundaries up to specified depth
+- **Single**: Processes only the target URL without link traversal
+- **Sitemap**: Parses XML sitemaps for systematic page discovery
+- Implements HTML cleaning to remove scripts, styles, and non-content elements
+- Enforces page limits, depth constraints, and timeout controls
 
 ### S3VectorStoreService
-Manages document embeddings in AWS S3 Vector Store, handling vector storage and retrieval operations with configurable search results.
+Manages vector operations in AWS S3 Vector Store:
+- Stores document embeddings with metadata preservation
+- Executes similarity search queries with cosine distance ranking
+- Handles vector addition and deletion operations by source
+- Maintains document metadata including source URLs and chunk indices
+- Generates unique vector keys for document identification
 
-## How it works
+## Processing Pipeline
 
 ```
-Source URL → WebLoader (HTML Cleaning) → Documents → Text Splitting → Embeddings → Vector Storage → Semantic Search
+URL Input → Content Crawling → HTML Cleaning → Document Chunking → Embedding Generation → Vector Storage → Search Interface
 ```
 
-1. **Source Creation**: Define a website to crawl with configurable parameters
-2. **Web Crawling**: Extract content from web pages with HTML cleaning  
-3. **Content Cleaning**: Remove HTML tags, scripts, and styling - keep only text
-4. **Document Processing**: Split content into chunks
-5. **Embedding Generation**: Create vector representations using AWS Bedrock Titan v2
-6. **Vector Storage**: Store embeddings in S3 for semantic search
-7. **Search & Retrieval**: Return top-k most relevant results
+### Workflow Steps:
 
-## HTML Content Processing
+1. **Source Registration**: URL validation and source creation with duplicate handling
+2. **Content Extraction**: Web crawling using selected strategy with domain boundary enforcement
+3. **HTML Processing**: Tag removal, script elimination, and text extraction using BeautifulSoup
+4. **Document Segmentation**: Text splitting with configurable chunk sizes and overlap preservation
+5. **Vector Generation**: Embedding creation using AWS Bedrock Titan Text model
+6. **Index Storage**: Vector persistence in S3 with comprehensive metadata
+7. **Search Operations**: Similarity queries with ranked result retrieval
 
-The system includes HTML cleaning to ensure text extraction:
+## Content Processing
 
-- **Tag Removal**: Strips HTML tags, attributes, and formatting
-- **Script Cleaning**: Removes JavaScript, CSS, and other non-content elements  
-- **Text Extraction**: Uses BeautifulSoup to extract text content
-- **Parser**: Uses built-in html.parser for cross-platform compatibility
-- **Content Quality**: Search results contain text instead of raw HTML
+HTML processing pipeline ensures text quality:
 
-## Crawling Strategies & Configuration
+- **Tag Filtering**: Removes `script`, `style`, `noscript`, `meta`, `link`, `head`, `nav`, `header`, `footer` elements
+- **Parser Integration**: Uses BeautifulSoup with lxml parser for HTML/XML processing
+- **Text Extraction**: Extracts visible text content while preserving semantic structure
+- **Whitespace Normalization**: Consolidates spacing and removes formatting artifacts
 
-### Single Page
-Processes only the specified URL without following any links.
+## Crawling Strategies
 
-### Recursive  
-Follows internal links within the same domain up to configurable depth, processing up to a maximum number of pages. Includes request delays to be respectful to target servers.
+### Recursive Crawling
+- Traverses internal links within same domain
+- Respects maximum depth and page count limitations
+- Maintains crawl boundary enforcement
+- Implements timeout controls for request management
 
-### Sitemap
-Parses XML sitemaps to discover and crawl pages systematically, respecting the same page limits.
+### Single Page Processing
+- Extracts content from specified URL only
+- No link following or additional page discovery
+- Suitable for targeted content extraction
 
-## Document Processing
+### Sitemap Processing
+- Parses XML sitemap files for page enumeration
+- Processes discovered URLs within configured limits
+- Provides systematic coverage for structured websites
 
-Text content is split into chunks for embedding and retrieval:
-- Uses recursive character splitting to maintain context
-- Preserves semantic boundaries (paragraphs, sentences)
-- Includes overlap between chunks to maintain continuity
+## Document Chunking
 
-## Vector Storage
+Text segmentation maintains semantic coherence:
 
-Documents are converted to embeddings using AWS Bedrock Titan model and stored in S3 Vector Store:
-- Generates vector representations
-- Enables semantic similarity search
-- Maintains metadata for source tracking
+- **RecursiveCharacterTextSplitter**: Preserves document structure during splitting
+- **Overlap Configuration**: Maintains context continuity between adjacent chunks
+- **Boundary Respect**: Attempts to split at natural text boundaries
+- **Metadata Preservation**: Maintains source attribution for each chunk
 
-## Search Capabilities
+## Configuration Management
 
-Once processed, documents support semantic search with configurable precision:
-- Find contextually relevant content using natural language queries
-- Filter by source or metadata for targeted searches
-- Ranked results by similarity score with top-k selection
-- Text results without HTML artifacts
+### Crawler Parameters
+- Crawling strategy selection (recursive/single/sitemap)
+- Maximum crawl depth for recursive operations
+- Page count limits per source
+- Request timeout configuration
 
-## Configuration
+### Processing Settings
+- Document chunk size and overlap configuration
+- Search result count limits
+- Embedding model selection
+- Vector index configuration
 
-### Crawler Settings
-- **Max Depth**: Configurable levels (recursive crawling)
-- **Max Pages**: Configurable pages per source
-- **Timeout**: Configurable seconds per request
-- **Request Delay**: Configurable delay between requests
-- **Max Concurrent**: Configurable simultaneous requests
+### AWS Integration
+- S3 Vector Store bucket and index specification
+- AWS region configuration
+- Bedrock model selection
+- Service authentication setup
 
-### Search Settings  
-- **Default Results**: Configurable most relevant documents
-- **Embedding Model**: AWS Bedrock Titan Text v2
-- **Vector Store**: AWS S3 Vector Store
+### Storage Configuration
+- Source persistence file location
+- Vector metadata storage settings
 
-### Environment Variables
-All configuration is managed through environment variables:
-- `CRAWL_TYPE` - Crawling strategy (single/recursive/sitemap)
-- `CRAWL_MAX_DEPTH` - Maximum crawling depth
-- `CRAWL_MAX_PAGES` - Maximum pages per source
-- `CRAWL_TIMEOUT` - Request timeout in seconds
-- `TOP_K_SEARCH` - Number of search results to return
-- `CHUNK_SIZE` - Document chunk size for processing
-- `CHUNK_OVERLAP` - Overlap between document chunks
-- `SOURCES_FILE_PATH` - Path to persist sources
+## Integration Points
 
-## File Structure
-
-- `source_service.py` - Source management and coordination
-- `service.py` - Main knowledge processing orchestration (KnowledgeService)
-- `crawler/` - Web crawling components with HTML cleaning
-  - `service.py` - Crawling orchestration
-  - `loaders.py` - WebLoader with intelligent HTML processing
-- `document_service.py` - Text processing and chunking  
-- `vector_store/` - Vector storage management with configurable search
-  - `service.py` - S3VectorStoreService implementation
-- `models.py` - Data models including KBSearchResult
-- `repository.py` - Source persistence and management
+- **AWS Bedrock**: Embedding model integration for vector generation
+- **S3 Vector Store**: Vector persistence and similarity search operations
+- **LangChain**: Document processing and text splitting utilities
+- **BeautifulSoup**: HTML parsing and content extraction
