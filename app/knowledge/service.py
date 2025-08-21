@@ -6,8 +6,6 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.knowledge import config
-from .crawler.service import CrawlerService
-from .sources.repository import SourceRepository
 from .vector_store.service import S3VectorStoreService
 
 logger = logging.getLogger(__name__)
@@ -17,8 +15,6 @@ class KnowledgeService:
     
     def __init__(self):     
         self.vector_store_service = S3VectorStoreService()
-        self.crawler_service = CrawlerService()
-        self.source_repo = SourceRepository()
         
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=config.CHUNK_SIZE,
