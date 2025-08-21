@@ -12,7 +12,7 @@ from .handoff import create_task_description_handoff_tool
 from .prompts import SUPERVISOR_PROMPT
 from .workers import math_agent, research_agent
 from app.services.memory.store_factory import create_s3_vectors_store_from_env
-from app.agents.supervisor.memory_nodes import memory_hotpath, memory_context
+from app.agents.supervisor.memory_nodes import memory_hotpath, memory_context, episodic_capture
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +52,9 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     builder.add_node("memory_hotpath", memory_hotpath)
     builder.add_node("memory_context", memory_context)
     builder.add_node(
-        supervisor_agent_with_description, destinations=("research_agent", "math_agent", END)
+        supervisor_agent_with_description, destinations=("research_agent", "math_agent", "episodic_capture")
     )
+    builder.add_node("episodic_capture", episodic_capture)
     builder.add_node("research_agent", research_agent)
     builder.add_node("math_agent", math_agent)
     builder.add_edge(START, "memory_hotpath")
@@ -61,6 +62,8 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     builder.add_edge("memory_context", "supervisor")
     builder.add_edge("research_agent", "supervisor")
     builder.add_edge("math_agent", "supervisor")
+    builder.add_edge("supervisor", "episodic_capture")
+    builder.add_edge("episodic_capture", END)
     # Provide S3 Vectors store to graph so get_store() works inside nodes/tools
     store = create_s3_vectors_store_from_env()
     return builder.compile(store=store)

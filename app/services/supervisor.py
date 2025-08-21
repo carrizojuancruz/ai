@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from typing import Any
+from uuid import UUID
 from uuid import uuid4
 
 from langfuse.callback import CallbackHandler
@@ -15,6 +16,9 @@ from app.core.app_state import (
     set_last_emitted_text,
 )
 from app.repositories.session_store import InMemorySessionStore, get_session_store
+from app.db.session import get_async_session
+from app.repositories.postgres.user_repository import PostgresUserRepository
+from app.models.user import UserContext
 from app.utils.welcome import generate_personalized_welcome
 
 langfuse_handler = CallbackHandler(
@@ -59,6 +63,14 @@ class SupervisorService:
         if start != -1:
             return text[:start].rstrip()
         return text
+    def _is_injected_context(self, text: str) -> bool:
+        if not isinstance(text, str):
+            return False
+        t = text.strip()
+        return (
+            t.startswith("CONTEXT_PROFILE:")
+            or t.startswith("Relevant context for tailoring this turn:")
+        )
     def _content_to_text(self, value: Any) -> str:
         if value is None:
             return ""
@@ -80,29 +92,30 @@ class SupervisorService:
                         parts.append(part_text)
             return "".join(parts)
         return ""
-    async def initialize(self, *, user_id: str) -> dict[str, Any]:
+    async def initialize(self, *, user_id: UUID) -> dict[str, Any]:
         thread_id = str(uuid4())
         queue = get_sse_queue(thread_id)
 
         await queue.put({"event": "conversation.started", "data": {"thread_id": thread_id}})
 
-        # Seed a minimal user context for personalization (extend with real fetch later)
-        user_context = {
-            "identity": {"preferred_name": "Alex"},
-            "locale": "en-US",
-            "tone": "clear",
-            "goals": ["save more", "reduce debt"],
-        }
+        # Load or create UserContext from Postgres
         session_store = get_session_store()
-        await session_store.set_session(
-            thread_id,
-            {
-                "user_id": user_id,
-                "user_context": user_context,
-            },
-        )
+        uid: UUID = user_id
+        async for db in get_async_session():
+            repo = PostgresUserRepository(db)
+            ctx = await repo.get_by_id(uid)
+            if ctx is None:
+                ctx = UserContext(user_id=uid)
+                ctx = await repo.upsert(ctx)
+            await session_store.set_session(
+                thread_id,
+                {
+                    "user_id": str(uid),
+                    "user_context": ctx.model_dump(mode="json"),
+                },
+            )
 
-        welcome = await generate_personalized_welcome(user_context)
+        welcome = await generate_personalized_welcome((await session_store.get_session(thread_id) or {}).get("user_context", {}))
         await queue.put({"event": "token.delta", "data": {"text": welcome}})
 
         return {"thread_id": thread_id, "welcome": welcome, "sse_url": f"/supervisor/sse/{thread_id}"}
@@ -117,6 +130,21 @@ class SupervisorService:
         graph: CompiledStateGraph = get_supervisor_graph()
         session_store: InMemorySessionStore = get_session_store()
         session_ctx = await session_store.get_session(thread_id) or {}
+        # Refresh UserContext from Postgres each turn to avoid stale profile
+        user_id = session_ctx.get("user_id")
+        if user_id:
+            try:
+                uid = UUID(user_id)
+                async for db in get_async_session():
+                    repo = PostgresUserRepository(db)
+                    ctx = await repo.get_by_id(uid)
+                    if ctx is None:
+                        ctx = UserContext(user_id=uid)
+                        ctx = await repo.upsert(ctx)
+                    session_ctx["user_context"] = ctx.model_dump(mode="json")
+                    await session_store.set_session(thread_id, session_ctx)
+            except Exception:
+                pass
         configurable = {
             "thread_id": thread_id,
             "session_id": thread_id,
@@ -141,7 +169,7 @@ class SupervisorService:
                 out = self._content_to_text(chunk)
                 if out:
                     out = self._strip_guardrail_marker(out)
-                if out:
+                if out and not self._is_injected_context(out):
                     last = get_last_emitted_text(thread_id)
                     if out != last:
                         await q.put({"event": "token.delta", "data": {"text": out}})
@@ -165,7 +193,7 @@ class SupervisorService:
                             text = self._content_to_text(content_obj)
                             if text:
                                 text = self._strip_guardrail_marker(text)
-                            if text:
+                            if text and not self._is_injected_context(text):
                                 last = get_last_emitted_text(thread_id)
                                 if text != last:
                                     await q.put({"event": "token.delta", "data": {"text": text}})
