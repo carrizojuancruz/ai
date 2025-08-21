@@ -4,6 +4,8 @@ import asyncio
 import json
 import logging
 import os
+import re
+import unicodedata
 from typing import Any
 from uuid import uuid4
 
@@ -14,7 +16,7 @@ from langgraph.config import get_store
 from langgraph.graph import MessagesState
 
 from app.core.app_state import get_sse_queue
-from .utils import _utc_now_iso, _build_profile_line
+from .utils import _utc_now_iso, _build_profile_line, _parse_iso
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +26,31 @@ def _same_fact_classify(existing_summary: str, candidate_summary: str, category:
     region = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
     bedrock = boto3.client("bedrock-runtime", region_name=region)
     prompt = (
-        "Task: Decide if two short summaries express the SAME FACT.\n"
-        "Guidance: Consider meaning, not wording. If they describe the same stable fact/preference, it's the same.\n"
-        "Output: strict JSON: {\"same_fact\": true|false}. No other text.\n"
+        "Same-Fact Classifier (language-agnostic)\n"
+        "Your job: Return whether two short summaries express the SAME underlying fact about the user.\n"
+        "Decide by meaning, not wording. Ignore casing, punctuation, and minor phrasing differences.\n"
+        "\n"
+        "Core rules\n"
+        "1) Same subject: Treat these as the same subject: exact same name (e.g., Luna), or clear role synonyms\n"
+        "   (pet/cat/dog; spouse/partner/wife/husband; kid/child/son/daughter).\n"
+        "2) Same attribute: If both describe the same attribute (e.g., age in years, relationship/name, number of kids),\n"
+        "   then they are the SAME FACT even if phrased differently.\n"
+        "3) Numeric updates: If the attribute is numeric or count-like and changes plausibly (e.g., 3→4 years), treat as\n"
+        "   the SAME FACT (updated value).\n"
+        "4) Different entities: If the named entities differ (e.g., Luna vs Bruno) for the same attribute, NOT the same.\n"
+        "5) Preference contradictions: Opposite preferences (e.g., prefers email vs prefers phone) are NOT the same.\n"
+        "6) Episodic vs stable: One-off events vs stable facts are NOT the same.\n"
+        "7) Multilingual: Treat cross-language synonyms as equivalent (e.g., ‘español’ == ‘Spanish’).\n"
+        "\n"
+        "Examples\n"
+        "- 'Luna is 3 years old.' vs 'Luna is 4 years old.' -> same_fact=true (numeric update)\n"
+        "- 'User’s spouse is Natalia.' vs 'User’s partner is Natalia.' -> same_fact=true (synonyms, same person)\n"
+        "- 'Has two children.' vs 'Has 2 kids.' -> same_fact=true (synonyms, same count)\n"
+        "- 'User prefers email.' vs 'User prefers phone calls.' -> same_fact=false (contradictory preference)\n"
+        "- 'Lives in Austin.' vs 'Moved to Dallas.' -> same_fact=false (different locations, not a numeric update)\n"
+        "- 'Luna is a cat.' vs 'Luna is a dog.' -> same_fact=false (conflicting species)\n"
+        "\n"
+        "Output: Return STRICT JSON only: {\"same_fact\": true|false}. No extra text.\n"
         f"Category: {category[:64]}\n"
         f"Existing: {existing_summary[:500]}\n"
         f"Candidate: {candidate_summary[:500]}\n"
@@ -36,7 +60,7 @@ def _same_fact_classify(existing_summary: str, candidate_summary: str, category:
             "messages": [
                 {"role": "user", "content": [{"text": prompt}]}
             ],
-            "inferenceConfig": {"temperature": 0.0, "topP": 0.1, "maxTokens": 96, "stopSequences": []},
+            "inferenceConfig": {"temperature": 0.0, "topP": 0.1, "maxTokens": 128, "stopSequences": []},
         }
         res = bedrock.invoke_model(modelId=model_id, body=json.dumps(body_payload))
         body = res.get("body")
@@ -118,6 +142,54 @@ def _compose_summaries(existing_summary: str, candidate_summary: str, category: 
         if b.lower() in a.lower():
             return a[:280]
         return f"{a} {b}"[:280]
+
+
+def _normalize_summary_text(text: str) -> str:
+    if not isinstance(text, str):
+        return ""
+    # Normalize Unicode and replace smart quotes to prevent mojibake (e.g., \u2019)
+    t = unicodedata.normalize("NFC", text)
+    t = (
+        t.replace("\u2019", "'")
+         .replace("\u2018", "'")
+         .replace("\u201C", '"')
+         .replace("\u201D", '"')
+    )
+    return t
+
+
+def _has_min_token_overlap(a: str, b: str) -> bool:
+    # Very light lexical guard: share at least one non-stopword token (len>=3)
+    def toks(s: str) -> set[str]:
+        raw = re.findall(r"[\w\-\p{L}]+", s, flags=re.UNICODE)
+        # Fallback for engines without \p{L}
+        if not raw:
+            raw = re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ0-9_\-]+", s)
+        return {t.lower() for t in raw if len(t) >= 3}
+
+    try:
+        ta = toks(a)
+        tb = toks(b)
+        return bool(ta.intersection(tb))
+    except Exception:
+        return False
+
+
+def _numeric_overlap_or_step(a: str, b: str) -> bool:
+    try:
+        na = {int(x) for x in re.findall(r"\d+", a)}
+        nb = {int(x) for x in re.findall(r"\d+", b)}
+        if not na and not nb:
+            return False
+        if na.intersection(nb):
+            return True
+        for x in na:
+            for y in nb:
+                if abs(x - y) == 1:
+                    return True
+        return False
+    except Exception:
+        return False
 
 
 async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
@@ -238,7 +310,8 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
     category = str(trigger.get("category") or "Other").replace(" ", "_")
     if category not in {"Finance", "Budget", "Goals", "Personal", "Education", "Conversation_Summary", "Other"}:
         category = "Other"
-    summary = str(trigger.get("summary") or recent_user_texts[0] or combined_text).strip()[:280]
+    summary_raw = str(trigger.get("summary") or recent_user_texts[0] or combined_text).strip()[:280]
+    summary = _normalize_summary_text(summary_raw)
     min_importance = int(os.getenv("MEMORY_SEMANTIC_MIN_IMPORTANCE", "1"))
 
     if mem_type != "semantic":
@@ -375,6 +448,72 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
                                 except Exception:
                                     pass
                             break
+            # Fallback second pass: narrow band [fallback_low, check_low), extra guards
+            if not did_update:
+                fallback_enabled = (os.getenv("MEMORY_MERGE_FALLBACK_ENABLED", "true").lower() == "true")
+                if fallback_enabled:
+                    fallback_low = float(os.getenv("MEMORY_MERGE_FALLBACK_LOW", "0.30"))
+                    fallback_topk = int(os.getenv("MEMORY_MERGE_FALLBACK_TOPK", "3"))
+                    fallback_recency_days = int(os.getenv("MEMORY_MERGE_FALLBACK_RECENCY_DAYS", "90"))
+                    cats_raw = os.getenv("MEMORY_MERGE_FALLBACK_CATEGORIES", "Personal,Goals")
+                    fallback_cats = {c.strip() for c in cats_raw.split(",") if c.strip()}
+                    if not fallback_cats or category in fallback_cats:
+                        checked = 0
+                        for n in sorted_neigh:
+                            if checked >= max(1, fallback_topk):
+                                break
+                            s = float(getattr(n, "score", 0.0) or 0.0)
+                            if s < fallback_low or s >= check_low:
+                                continue
+                            # Recency guard
+                            ts = _parse_iso(getattr(n, "updated_at", "")) or _parse_iso(getattr(n, "created_at", ""))
+                            recent_ok = True
+                            try:
+                                if ts is not None:
+                                    from datetime import datetime, timezone
+                                    age_days = (datetime.now(tz=timezone.utc) - ts).days
+                                    recent_ok = age_days <= max(1, fallback_recency_days)
+                            except Exception:
+                                recent_ok = True
+                            # Lexical or numeric guard
+                            ex_sum = str((getattr(n, "value", {}) or {}).get("summary", ""))
+                            lex_ok = _has_min_token_overlap(ex_sum, summary)
+                            num_ok = _numeric_overlap_or_step(ex_sum, summary)
+                            if not recent_ok or (not lex_ok and not num_ok):
+                                continue
+                            same = _same_fact_classify(
+                                existing_summary=ex_sum,
+                                candidate_summary=summary,
+                                category=category,
+                            )
+                            logger.info(
+                                "memory.fallback.classify: id=%s cand_into=%s score=%.3f recent_ok=%s lex_ok=%s num_ok=%s result_same=%s",
+                                candidate_id,
+                                getattr(n, "key", ""),
+                                s,
+                                recent_ok,
+                                lex_ok,
+                                num_ok,
+                                same,
+                            )
+                            checked += 1
+                            if same:
+                                if merge_mode == "recreate":
+                                    do_recreate(getattr(n, "key", ""), n)
+                                    logger.info("memory.recreate: mode=fallback id=%s from=%s", candidate_id, getattr(n, "key", ""))
+                                else:
+                                    do_update(getattr(n, "key", ""))
+                                    logger.info("memory.update: mode=fallback id=%s into=%s", candidate_id, getattr(n, "key", ""))
+                                did_update = True
+                                if queue:
+                                    try:
+                                        await queue.put({
+                                            "event": "memory.updated",
+                                            "data": {"id": getattr(n, "key", ""), "type": mem_type, "category": (getattr(n, "value", {}) or {}).get("category")},
+                                        })
+                                    except Exception:
+                                        pass
+                                break
             if not did_update:
                 if int(candidate_value.get("importance") or 1) < min_importance:
                     logger.info("memory.skip: below_min_importance=%s", min_importance)
