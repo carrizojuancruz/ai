@@ -3,21 +3,19 @@ from typing import Any, Dict, List
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from .crawler.service import CrawlerService
-from .models import BulkSourceRequest, Source, SourceRequest
+from ..crawler.service import CrawlerService
+from ..models import BulkSourceRequest, Source, SourceRequest
 from .repository import SourceRepository
-from .service import get_knowledge_service
+from ..service import get_knowledge_service
 
 logger = logging.getLogger(__name__)
 
 
 class SourceService:
 
-    def __init__(self,
-                 source_repo: SourceRepository = None,
-                 crawler_service: CrawlerService = None):
-        self.source_repo = source_repo or SourceRepository()
-        self.crawler_service = crawler_service or CrawlerService(self.source_repo)
+    def __init__(self):
+        self.source_repo = SourceRepository()
+        self.crawler_service = CrawlerService()
         self.knowledge_service = get_knowledge_service()
 
     async def get_all_sources(self) -> List[Source]:
@@ -33,10 +31,7 @@ class SourceService:
 
         existing = self.source_repo.find_by_url(request.url)
         if existing:
-            try:
-                self.knowledge_service.vector_store.delete_documents(existing.id)
-            except Exception:
-                pass
+            self.knowledge_service.delete_source_documents(existing.id)
             self.source_repo.delete_by_id(existing.id)
 
         source = Source(id=str(uuid4()), name=request.name, url=request.url)
@@ -45,11 +40,11 @@ class SourceService:
         logger.info(f"Source created: {source.id}")
 
         try:
-            crawl_result = await self.crawler_service.crawl_source(source.id)
+            crawl_result = await self.crawler_service.crawl_source(source.url)
             documents = crawl_result.get("documents", [])
 
             if documents:
-                index_result = await self.knowledge_service.update_documents_for_source(documents, source.id)
+                index_result = await self.knowledge_service.add_documents(documents, source.id)
                 documents_indexed = index_result.get("documents_added", 0)
                 return {
                     "source": source,
@@ -96,11 +91,10 @@ class SourceService:
         if not self.source_repo.delete_by_id(source_id):
             return False
 
-        try:
-            self.knowledge_service.vector_store.delete_documents(source_id)
+        if self.knowledge_service.delete_source_documents(source_id):
             logger.info(f"Source deleted: {source_id}")
-        except Exception as e:
-            logger.warning(f"Failed to delete vector documents for {source_id}: {str(e)}")
+        else:
+            logger.warning(f"Source deleted but failed to delete vector documents for {source_id}")
 
         return True
 

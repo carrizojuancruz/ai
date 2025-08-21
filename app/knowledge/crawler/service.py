@@ -1,37 +1,89 @@
-from typing import Any, Dict
+import logging
+from typing import Any, Dict, List
+import requests
+from bs4 import BeautifulSoup
+from langchain_community.document_loaders import RecursiveUrlLoader, SitemapLoader
+from langchain_core.documents import Document
+from app.knowledge import config
 
-from ..repository import SourceRepository
-from .loaders import CrawlConfig, WebLoader
+logger = logging.getLogger(__name__)
 
 
 class CrawlerService:
-
-    def __init__(self, source_repo: SourceRepository = None, web_loader: WebLoader = None):
-        self.source_repo = source_repo or SourceRepository()
-        self.web_loader = web_loader or WebLoader()
-
-    async def crawl_source(self, source_id: str) -> Dict[str, Any]:
-        source = self.source_repo.find_by_id(source_id)
-        if not source:
-            raise ValueError("Source not found")
-
-        config = self._create_config(source)
-        documents = await self._load_documents(config)
+    
+    crawl_type = config.CRAWL_TYPE
+    max_pages = config.CRAWL_MAX_PAGES
+    max_depth = config.CRAWL_MAX_DEPTH
+    timeout = config.CRAWL_TIMEOUT
+    
+    async def crawl_source(self, source_url: str) -> Dict[str, Any]:
+        """Crawl a source URL and return documents"""
+        documents = await self._load_documents(source_url)
 
         return {
             "documents": documents,
             "documents_loaded": len(documents),
-            "source_id": source_id,
+            "source_url": source_url,
             "message": f"Successfully loaded {len(documents)} documents"
         }
 
-    def _create_config(self, source) -> CrawlConfig:
-        return CrawlConfig(url=source.url)
-
-    async def _load_documents(self, config: CrawlConfig):
-        if config.crawl_type == "single":
-            return await self.web_loader.load_single_page(config)
-        elif config.crawl_type == "sitemap":
-            return await self.web_loader.load_sitemap(config)
+    async def _load_documents(self, url: str) -> List[Document]:
+        """Load documents based on crawl type configuration"""
+        
+        if self.crawl_type == "single":
+            return await self._load_single_page(url)
+        elif self.crawl_type == "sitemap":
+            return await self._load_sitemap(url)
         else:
-            return await self.web_loader.load_recursive(config)
+            return await self._load_recursive(url)
+
+    async def _load_sitemap(self, url: str) -> List[Document]:
+        """Load documents from sitemap"""
+        try:
+            loader = SitemapLoader(web_path=url)
+            documents = loader.load()[:self.max_pages]
+            return self._process_documents(documents, url)
+        except Exception as e:
+            logger.error(f"Sitemap load error for {url}: {e}")
+            return []
+
+    async def _load_recursive(self, url: str) -> List[Document]:
+        """Load documents recursively following links"""
+        try:
+            loader = RecursiveUrlLoader(
+                url=url,
+                max_depth=self.max_depth,
+                prevent_outside=True,
+                timeout=self.timeout
+            )
+            documents = loader.load()
+            limited_documents = documents[:self.max_pages]
+            return self._process_documents(limited_documents, url)
+        except Exception as e:
+            logger.error(f"Recursive load error for {url}: {e}")
+            return []
+
+    async def _load_single_page(self, url: str) -> List[Document]:
+        """Load a single page"""
+        try:
+            response = requests.get(url, timeout=self.timeout)
+            response.raise_for_status()
+            text = self._clean_html(response.text)
+            doc = Document(page_content=text, metadata={"source": url})
+            return [doc]
+        except Exception as e:
+            logger.error(f"Single page load error for {url}: {e}")
+            return []
+
+    def _process_documents(self, documents: List[Document], source_url: str) -> List[Document]:
+        """Process and clean document content"""
+        for doc in documents:
+            doc.page_content = self._clean_html(doc.page_content)
+        return documents
+
+    def _clean_html(self, html_content: str) -> str:
+        """Clean HTML/XML content removing unnecessary tags"""
+        soup = BeautifulSoup(html_content, "lxml")
+        for tag in soup(["script", "style", "noscript", "meta", "link", "head", "nav", "header", "footer"]):
+            tag.decompose()
+        return ' '.join(soup.get_text(separator=" ", strip=True).split())

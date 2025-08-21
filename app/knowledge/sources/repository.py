@@ -1,13 +1,15 @@
 import json
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from app.knowledge import config
-from .models import Source
+from ..models import Source
+from .base_repository import SourceRepositoryInterface
 
 
-class SourceRepository:
+class SourceRepository(SourceRepositoryInterface):
+    """JSON file-based implementation of SourceRepositoryInterface"""
 
     def __init__(self):
         self.file_path = str(Path(config.SOURCES_FILE_PATH).resolve())
@@ -33,11 +35,11 @@ class SourceRepository:
         with open(self.file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
-    def find_by_id(self, source_id: str) -> Source | None:
+    def find_by_id(self, source_id: str) -> Optional[Source]:
         sources = self.load_all()
         return next((s for s in sources if s.id == source_id), None)
 
-    def find_by_url(self, url: str) -> Source | None:
+    def find_by_url(self, url: str) -> Optional[Source]:
         sources = self.load_all()
         return next((s for s in sources if s.url == url), None)
 

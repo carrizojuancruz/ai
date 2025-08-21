@@ -10,7 +10,6 @@ class S3VectorStoreService:
     def __init__(self):
         self.bucket_name = config.S3_VECTOR_NAME
         self.index_name = config.VECTOR_INDEX_NAME
-        self.top_k_search = config.TOP_K_SEARCH
         self.client = boto3.client('s3vectors', region_name=config.AWS_REGION)
 
     def add_documents(self, documents: List[Document], embeddings: List[List[float]]):
@@ -25,7 +24,7 @@ class S3VectorStoreService:
                 'source': source_url,
                 'source_id': source_id,
                 'chunk_index': i,
-                'chunk_content': doc.page_content  # Store the actual chunk content
+                'chunk_content': doc.page_content  
             }
 
             vectors.append({
@@ -50,8 +49,7 @@ class S3VectorStoreService:
         except Exception:
             pass
 
-    def similarity_search(self, query_embedding: List[float], k: int = None) -> List[Dict[str, Any]]:
-        k = k or self.top_k_search
+    def similarity_search(self, query_embedding: List[float], k: int) -> List[Dict[str, Any]]:
         response = self.client.query_vectors(
             vectorBucketName=self.bucket_name,
             indexName=self.index_name,

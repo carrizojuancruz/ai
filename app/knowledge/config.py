@@ -5,7 +5,7 @@ load_dotenv()
 
 CHUNK_SIZE = int(os.environ.get("CHUNK_SIZE", "1500"))
 CHUNK_OVERLAP = int(os.environ.get("CHUNK_OVERLAP", "200"))
-TOP_K_SEARCH = int(os.environ.get("TOP_K_SEARCH", "3"))
+TOP_K_SEARCH = int(os.environ.get("TOP_K_SEARCH", "10"))
 
 CRAWL_TYPE = os.environ.get("CRAWL_TYPE", "recursive")
 CRAWL_MAX_DEPTH = int(os.environ.get("CRAWL_MAX_DEPTH", "3"))
@@ -17,4 +17,4 @@ VECTOR_INDEX_NAME = os.environ["VECTOR_INDEX_NAME"]
 EMBEDDINGS_MODEL_ID = os.environ["EMBEDDINGS_MODEL_ID"]
 AWS_REGION = os.environ["AWS_REGION"]
 
-SOURCES_FILE_PATH = os.environ.get("SOURCES_FILE_PATH", "./app/knowledge/sources.json")
+SOURCES_FILE_PATH = "./app/knowledge/sources/sources.json"
