@@ -38,13 +38,13 @@ class OnboardingService:
             if session_ctx.get("fos_exported"):
                 return
 
-            from app.services.external_context.client import AIContextClient
+            from app.services.external_context.client import ExternalUserRepository
             from app.services.external_context.mapping import map_user_context_to_ai_context
 
-            client = AIContextClient()
+            repo = ExternalUserRepository()
             body = map_user_context_to_ai_context(state.user_context)
             logger.info("[USER CONTEXT EXPORT] Prepared external payload: %s", json.dumps(body, ensure_ascii=False))
-            resp = await client.put_user_context(state.user_id, body)
+            resp = await repo.upsert(state.user_id, body)
             if resp is not None:
                 logger.info("[USER CONTEXT EXPORT] External API acknowledged update for user %s", state.user_id)
             else:
@@ -70,11 +70,11 @@ class OnboardingService:
         state = OnboardingState(user_id=user_uuid)
 
         try:
-            from app.services.external_context.client import AIContextClient
+            from app.services.external_context.client import ExternalUserRepository
             from app.services.external_context.mapping import map_ai_context_to_user_context
 
-            client = AIContextClient()
-            external_ctx = await client.get_user_context(user_uuid)
+            repo = ExternalUserRepository()
+            external_ctx = await repo.get_by_id(user_uuid)
             if external_ctx:
                 logger.info(f"[USER CONTEXT UPDATE] External AI Context found for user: {user_uuid}")
                 map_ai_context_to_user_context(external_ctx, state.user_context)

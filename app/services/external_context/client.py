@@ -10,7 +10,7 @@ from uuid import UUID
 logger = logging.getLogger(__name__)
 
 
-class AIContextClient:
+class ExternalUserRepository:
     def __init__(self) -> None:
         self.base_url: str | None = os.getenv("FOS_SERVICE_URL")
         self.api_key: Optional[str] = os.getenv("FOS_API_KEY")
@@ -18,7 +18,7 @@ class AIContextClient:
         if not self.base_url:
             logger.info("FOS_SERVICE_URL not set; Context prefill will be skipped during initialization")
 
-    async def get_user_context(self, user_id: UUID) -> dict[str, Any] | None:
+    async def get_by_id(self, user_id: UUID) -> dict[str, Any] | None:
         if not self.base_url:
             return None
 
@@ -64,7 +64,7 @@ class AIContextClient:
             logger.warning("FOS API fetch failed: %s", e)
             return None
 
-    async def put_user_context(self, user_id: UUID, data: dict[str, Any]) -> dict[str, Any] | None:
+    async def upsert(self, user_id: UUID, data: dict[str, Any]) -> dict[str, Any] | None:
         if not self.base_url:
             return None
 
