@@ -103,13 +103,27 @@ class OnboardingService:
         agent = get_onboarding_agent()
 
         final_state = None
+        stream_acc = ""
         async for event, state in agent.process_message_with_events(user_uuid, "", state):
-            if event:
-                if event.get("event") == "token.delta":
-                    set_last_emitted_text(thread_id, event.get("data", {}).get("text", ""))
-                if event.get("event") == "onboarding.status" and (event.get("data", {}) or {}).get("status") == "done":
-                    await self._export_user_context(state, thread_id)
-                await queue.put(event)
+            if not event:
+                continue
+            ev_name = event.get("event")
+            if ev_name == "token.delta":
+                raw = event.get("data", {}).get("text", "")
+                if raw:
+                    if raw.startswith(stream_acc):
+                        delta = raw[len(stream_acc) :]
+                        stream_acc = raw
+                    else:
+                        delta = raw
+                        stream_acc = stream_acc + delta
+                    if delta:
+                        set_last_emitted_text(thread_id, delta)
+                        await queue.put({"event": "token.delta", "data": {"text": delta}})
+                continue
+            if ev_name == "onboarding.status" and (event.get("data", {}) or {}).get("status") == "done":
+                await self._export_user_context(state, thread_id)
+            await queue.put(event)
             final_state = state
 
         set_thread_state(thread_id, final_state)
@@ -170,13 +184,27 @@ class OnboardingService:
         state.last_user_message = user_text
 
         final_state = None
+        stream_acc = ""
         async for event, current_state in agent.process_message_with_events(state.user_id, user_text, state):
-            if event:
-                if event.get("event") == "token.delta":
-                    set_last_emitted_text(thread_id, event.get("data", {}).get("text", ""))
-                if event.get("event") == "onboarding.status" and (event.get("data", {}) or {}).get("status") == "done":
-                    await self._export_user_context(current_state, thread_id)
-                await q.put(event)
+            if not event:
+                continue
+            ev_name = event.get("event")
+            if ev_name == "token.delta":
+                raw = event.get("data", {}).get("text", "")
+                if raw:
+                    if raw.startswith(stream_acc):
+                        delta = raw[len(stream_acc) :]
+                        stream_acc = raw
+                    else:
+                        delta = raw
+                        stream_acc = stream_acc + delta
+                    if delta:
+                        set_last_emitted_text(thread_id, delta)
+                        await q.put({"event": "token.delta", "data": {"text": delta}})
+                continue
+            if ev_name == "onboarding.status" and (event.get("data", {}) or {}).get("status") == "done":
+                await self._export_user_context(current_state, thread_id)
+            await q.put(event)
             final_state = current_state
 
         if not (final_state.last_agent_response or ""):
@@ -187,13 +215,6 @@ class OnboardingService:
                 set_last_emitted_text(thread_id, text_out)
 
         set_thread_state(thread_id, final_state)
-
-        current_text = get_last_emitted_text(thread_id)
-        if current_text == prev_text:
-            final_text = final_state.last_agent_response or ""
-            if final_text and final_text != prev_text:
-                await q.put({"event": "token.delta", "data": {"text": final_text}})
-                set_last_emitted_text(thread_id, final_text)
 
         return {"status": "accepted"}
 
