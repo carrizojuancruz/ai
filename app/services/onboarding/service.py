@@ -183,7 +183,7 @@ class OnboardingService:
             text_out, ensured_state = await agent.process_message(state.user_id, user_text, final_state)
             final_state = ensured_state
             if text_out and text_out != prev_text:
-                await q.put({"event": "token.delta", "data": {"text": text_out}})
+                await q.put({"event": "message.completed", "data": {"text": text_out}})
                 set_last_emitted_text(thread_id, text_out)
 
         set_thread_state(thread_id, final_state)
