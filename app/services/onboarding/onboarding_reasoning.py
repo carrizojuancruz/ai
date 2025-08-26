@@ -129,6 +129,23 @@ class OnboardingReasoningService:
             result = self._parse_llm_response(raw_response)
             result["patch"] = context_patching_service.normalize_patch_for_step(step, result.get("patch") or {})
 
+            if (result.get("interaction_type") == "free_text") and missing_fields:
+                for field in missing_fields:
+                    if should_always_offer_choices(step, field):
+                        choice_info = get_choices_for_field(field, step)
+                        if choice_info:
+                            if choice_info["type"] == "binary_choice":
+                                result["interaction_type"] = "binary_choice"
+                                result["primary_choice"] = choice_info.get("primary_choice")
+                                result["secondary_choice"] = choice_info.get("secondary_choice")
+                            elif choice_info["type"] in ["single_choice", "multi_choice"]:
+                                result["interaction_type"] = choice_info["type"]
+                                result["choices"] = choice_info.get("choices", [])
+                                if choice_info["type"] == "multi_choice":
+                                    result["multi_min"] = choice_info.get("multi_min", 1)
+                                    result["multi_max"] = choice_info.get("multi_max", 3)
+                            break
+
             if result.get("interaction_type") != "free_text" and missing_fields:
                 for field in missing_fields:
                     choice_info = get_choices_for_field(field, step)
@@ -192,17 +209,6 @@ class OnboardingReasoningService:
                     "chunk": chunk,
                 }
 
-            if accumulated_text:
-                yield {
-                    "assistant_text": accumulated_text,
-                    "patch": {},
-                    "complete": False,
-                    "declined": False,
-                    "off_topic": False,
-                    "memory_candidates": [],
-                    "streaming": True,
-                    "chunk": accumulated_text,
-                }
 
             metadata_prompt = self._build_metadata_prompt(
                 step=step,
