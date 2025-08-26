@@ -90,8 +90,8 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
                 for it in merged_sem[:CONTEXT_TOPN]
             ]
             logger.info("memory_context.sem.top: %s", json.dumps(sem_preview))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to log semantic preview: %s", e)
 
         epi_sorted = sorted(epi, key=_score, reverse=True)[: max(1, max(1, CONTEXT_TOPN // 2))]
         for it in epi_sorted[:2]:
@@ -104,10 +104,7 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
             txt = it.value.get("summary")
             if txt:
                 bullets.append(f"[{cat}] {txt}")
-        try:
-            logger.info("memory_context.bullets.count: %d", len(bullets))
-        except Exception:
-            pass
+        logger.info("memory_context.bullets.count: %d", len(bullets))
     except Exception:
         pass
 
