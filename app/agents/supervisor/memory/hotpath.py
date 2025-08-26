@@ -291,7 +291,7 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
             if not isinstance(out, dict):
                 return {"should_create": False}
             return out
-        except Exception:
+        except (BotoCoreError, ClientError, JSONDecodeError, UnicodeDecodeError) as e:
             logger.exception("trigger.error")
             return {"should_create": False}
 
