@@ -11,7 +11,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_store
 from langgraph.graph import MessagesState
 
-from .utils import _parse_iso
+from .utils import _parse_iso, _parse_weights
 
 logger = logging.getLogger(__name__)
 
@@ -40,18 +40,6 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
         return {}
 
     bullets: list[str] = []
-
-    def _parse_weights(s: str) -> dict[str, float]:
-        out: dict[str, float] = {"sim": 0.55, "imp": 0.20, "recency": 0.15, "pinned": 0.10}
-        try:
-            for part in s.split(","):
-                if not part.strip():
-                    continue
-                k, v = part.split("=")
-                out[k.strip()] = float(v.strip())
-        except Exception:
-            pass
-        return out
 
     w = _parse_weights(RERANK_WEIGHTS_RAW)
     try:

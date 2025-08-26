@@ -17,6 +17,33 @@ def _parse_iso(ts: Optional[str]) -> Optional[datetime]:
         return None
 
 
+def _parse_weights(s: str) -> dict[str, float]:
+    """
+    Parses a comma-separated string of key=value pairs into a dictionary of weights.
+    
+    Args:
+        s (str): String in format "key1=value1,key2=value2" where values are floats.
+        
+    Returns:
+        dict[str, float]: Dictionary with parsed weights. Falls back to default weights
+                         if parsing fails.
+                         
+    Notes:
+        - Default weights: sim=0.55, imp=0.20, recency=0.15, pinned=0.10
+        - Handles malformed input gracefully by returning defaults
+    """
+    out: dict[str, float] = {"sim": 0.55, "imp": 0.20, "recency": 0.15, "pinned": 0.10}
+    try:
+        for part in s.split(","):
+            if not part.strip():
+                continue
+            k, v = part.split("=")
+            out[k.strip()] = float(v.strip())
+    except Exception:
+        pass
+    return out
+
+
 def _build_profile_line(ctx: dict[str, Any]) -> Optional[str]:
     if not isinstance(ctx, dict):
         return None
