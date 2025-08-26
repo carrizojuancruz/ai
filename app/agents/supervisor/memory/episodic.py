@@ -184,8 +184,7 @@ async def episodic_capture(state: MessagesState, config: RunnableConfig) -> dict
         sess["episodic_control"] = ctrl
         await session_store.set_session(thread_id, sess)
         return {}
-    except Exception:
-        logger.exception("episodic.error")
+        logger.exception("episodic_capture.error")
         return {}
 
 
