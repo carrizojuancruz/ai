@@ -17,6 +17,7 @@ from fastapi import FastAPI, Request, Response
 
 from .api.admin.sources import router as admin_router
 from .api.routes import router as api_router
+from .api.routes_guest import router as guest_router
 from .api.routes_supervisor import router as supervisor_router
 from .db.session import engine
 from .observability.logging_config import configure_logging, get_logger
@@ -52,13 +53,12 @@ async def log_requests(request: Request, call_next: Callable[[Request], Response
     return response
 
 
-
 @app.get("/health")
 async def health_check() -> dict[str, str]:
     logger.info("Health check requested")
     try:
-        # Test database connectivity
         from sqlalchemy import text
+
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         return {"message": "Verde AI - Verde Agent System", "status": "healthy", "database": "connected"}
@@ -70,3 +70,4 @@ async def health_check() -> dict[str, str]:
 app.include_router(api_router)
 app.include_router(supervisor_router)
 app.include_router(admin_router)
+app.include_router(guest_router)
