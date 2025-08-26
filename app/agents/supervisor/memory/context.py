@@ -15,6 +15,11 @@ from .utils import _parse_iso
 
 logger = logging.getLogger(__name__)
 
+# Environment variables
+CONTEXT_TOPK = int(os.getenv("MEMORY_CONTEXT_TOPK", "24"))
+CONTEXT_TOPN = int(os.getenv("MEMORY_CONTEXT_TOPN", "5"))
+RERANK_WEIGHTS_RAW = os.getenv("MEMORY_RERANK_WEIGHTS", "sim=0.55,imp=0.20,recency=0.15,pinned=0.10")
+
 
 async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
     messages = state["messages"]
@@ -35,9 +40,6 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
         return {}
 
     bullets: list[str] = []
-    topk = int(os.getenv("MEMORY_CONTEXT_TOPK", "24"))
-    topn = int(os.getenv("MEMORY_CONTEXT_TOPN", "5"))
-    weights_raw = os.getenv("MEMORY_RERANK_WEIGHTS", "sim=0.55,imp=0.20,recency=0.15,pinned=0.10")
 
     def _parse_weights(s: str) -> dict[str, float]:
         out: dict[str, float] = {"sim": 0.55, "imp": 0.20, "recency": 0.15, "pinned": 0.10}
@@ -51,13 +53,13 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
             pass
         return out
 
-    w = _parse_weights(weights_raw)
+    w = _parse_weights(RERANK_WEIGHTS_RAW)
     try:
         store = get_store()
         query_text = (user_text or "").strip() or "personal profile"
         logger.info("memory_context.query: user_id=%s query=%s", user_id, (query_text[:200]))
-        sem = store.search((user_id, "semantic"), query=query_text, filter=None, limit=topk)
-        epi = store.search((user_id, "episodic"), query=query_text, filter=None, limit=max(3, topk // 2))
+        sem = store.search((user_id, "semantic"), query=query_text, filter=None, limit=CONTEXT_TOPK)
+        epi = store.search((user_id, "episodic"), query=query_text, filter=None, limit=max(3, CONTEXT_TOPK // 2))
         logger.info("memory_context.results: sem=%d epi=%d", len(sem or []), len(epi or []))
 
         def _score(item: Any) -> float:
@@ -83,7 +85,7 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
                 merged_sem.append(it)
                 seen_keys.add(k)
         for it in reranked_full:
-            if len(merged_sem) >= max(1, topn):
+            if len(merged_sem) >= max(1, CONTEXT_TOPN):
                 break
             k = getattr(it, "key", None)
             if k not in seen_keys:
@@ -97,19 +99,19 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
                     "category": (getattr(it, "value", {}) or {}).get("category"),
                     "summary_preview": ((getattr(it, "value", {}) or {}).get("summary") or "")[:80],
                 }
-                for it in merged_sem[:topn]
+                for it in merged_sem[:CONTEXT_TOPN]
             ]
             logger.info("memory_context.sem.top: %s", json.dumps(sem_preview))
         except Exception:
             pass
 
-        epi_sorted = sorted(epi, key=_score, reverse=True)[: max(1, max(1, topn // 2))]
+        epi_sorted = sorted(epi, key=_score, reverse=True)[: max(1, max(1, CONTEXT_TOPN // 2))]
         for it in epi_sorted[:2]:
             cat = it.value.get("category")
             txt = it.value.get("summary")
             if txt:
                 bullets.append(f"[{cat}] {txt}")
-        for it in merged_sem[:topn]:
+        for it in merged_sem[:CONTEXT_TOPN]:
             cat = it.value.get("category")
             txt = it.value.get("summary")
             if txt:
