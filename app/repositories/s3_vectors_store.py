@@ -207,9 +207,7 @@ class S3VectorsStore(BaseStore):
                 ns1 = cast(str, md.get("ns_1") or (namespace[1] if len(namespace) > 1 else ""))
                 ns_list = [ns0] + ([ns1] if ns1 else [])
                 doc_key = cast(str, md.get("doc_key") or key)
-                return Item(value=value, key=doc_key, namespace=ns_list, created_at=created_at, updated_at=updated_at)
-        except Exception:
-            pass
+            logging.exception("Error in direct key fetch in get")
 
         # Build a JSON filter using equality shorthand per S3 Vectors docs
         flt = self._build_filter(namespace, {"doc_key": key}, include_is_indexed=False)
