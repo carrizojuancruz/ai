@@ -34,8 +34,11 @@ class SourceService:
 
         existing = self.source_repo.find_by_url(request.url)
         if existing:
-            self.knowledge_service.delete_source_documents(existing.id)
-            self.source_repo.delete_by_id(existing.id)
+            return {
+                "success": False, 
+                "message": f"Source already exists with URL: {request.url}",
+                "existing_source": existing
+            }
 
         source = Source(id=self._generate_source_id(request.url), name=request.name, url=request.url)
 

@@ -7,6 +7,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.knowledge import config
 from .vector_store.service import S3VectorStoreService
+from .utils.utils_hash import create_content_hash
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,10 @@ class KnowledgeService:
         for doc in documents:
             doc.metadata["source_id"] = source_id
             chunks = self.text_splitter.split_documents([doc])
+            
+            for chunk in chunks:
+                chunk.metadata["content_hash"] = create_content_hash(chunk.page_content)
+            
             all_chunks.extend(chunks)
 
         return all_chunks

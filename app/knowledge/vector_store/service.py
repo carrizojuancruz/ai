@@ -17,14 +17,15 @@ class S3VectorStoreService:
         for i, (doc, embedding) in enumerate(zip(documents, embeddings, strict=False)):
             source_url = doc.metadata.get('source', '')
             source_id = doc.metadata.get('source_id', '')
-            content_hash = hashlib.md5(f"{source_url}_{source_id}_{i}_{doc.page_content[:100]}".encode()).hexdigest()[:12]
-            unique_key = f"doc_{content_hash}"
+            content_hash = doc.metadata.get('content_hash', '')  
+            unique_key = f"doc_{content_hash}" if content_hash else f"doc_{source_id}_{i}"
 
             metadata: Dict[str, Any] = {
                 'source': source_url,
                 'source_id': source_id,
                 'chunk_index': i,
-                'chunk_content': doc.page_content  
+                'chunk_content': doc.page_content,
+                'content_hash': content_hash 
             }
 
             vectors.append({
@@ -49,6 +50,27 @@ class S3VectorStoreService:
         except Exception:
             pass
 
+    def get_source_chunk_hashes(self, source_id: str) -> set[str]:
+        """Get all content hashes for a specific source."""
+        try:
+            response = self.client.query_vectors(
+                vectorBucketName=self.bucket_name,
+                indexName=self.index_name,
+                filter={'source_id': source_id},
+                returnMetadata=True,
+                topK=10000
+            )
+            
+            hashes = set()
+            for vector in response.get('vectors', []):
+                content_hash = vector.get('metadata', {}).get('content_hash')
+                if content_hash:
+                    hashes.add(content_hash)
+            
+            return hashes
+        except Exception:
+            return set()
+
     def similarity_search(self, query_embedding: List[float], k: int) -> List[Dict[str, Any]]:
         response = self.client.query_vectors(
             vectorBucketName=self.bucket_name,
@@ -65,6 +87,7 @@ class S3VectorStoreService:
                 'source': v['metadata'].get('source', ''),
                 'source_id': v['metadata'].get('source_id', ''),
                 'chunk_index': v['metadata'].get('chunk_index', 0),
+                'content_hash': v['metadata'].get('content_hash', ''),
                 **v['metadata']
             },
             'score': 1 - v.get('distance', 0),
