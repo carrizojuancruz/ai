@@ -32,6 +32,8 @@ SUPERVISOR_PROMPT: str = (
     "- For recall, personalization, or formatting tasks, do not use tools.\n"
     "- When handing off, call a single tool with a crisp task_description that includes the user's ask and any\n"
     "  relevant context they will need.\n"
+    "- If you used the query_knowledge_base tool, return only the directly relevant fact(s) from the retrieved passages—concise and to the point. "
+    "Do not mention the knowledge base, tools, or sources. Do not add introductions or explanations.\n"
     "\n"
     "Interaction policy:\n"
     "- If information is missing, ask one targeted, optional follow-up instead of calling a tool by default.\n"
