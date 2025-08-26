@@ -186,3 +186,8 @@ coverage.xml
 .mypy_cache/
 
 # End of https://www.toptal.com/developers/gitignore/api/python
+.github/prompts/
+.github/instructions/
+
+# Knowledge base sources configuration
+knowledge/sources.json

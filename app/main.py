@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 
+from .api.admin.sources import router as admin_router
 from .api.routes import router as api_router
 from .api.routes_guest import router as guest_router
 from .api.routes_supervisor import router as supervisor_router
@@ -68,4 +69,5 @@ async def health_check() -> dict[str, str]:
 
 app.include_router(api_router)
 app.include_router(supervisor_router)
+app.include_router(admin_router)
 app.include_router(guest_router)
