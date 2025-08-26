@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, Literal, Optional, Sequence, Tuple, TypeAlias, cast
 from uuid import UUID, NAMESPACE_URL, uuid5
@@ -207,6 +208,7 @@ class S3VectorsStore(BaseStore):
                 ns1 = cast(str, md.get("ns_1") or (namespace[1] if len(namespace) > 1 else ""))
                 ns_list = [ns0] + ([ns1] if ns1 else [])
                 doc_key = cast(str, md.get("doc_key") or key)
+        except Exception:
             logging.exception("Error in direct key fetch in get")
 
         # Build a JSON filter using equality shorthand per S3 Vectors docs
