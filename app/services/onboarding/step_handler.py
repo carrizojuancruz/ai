@@ -206,20 +206,25 @@ class StepHandlerService:
 
     def _get_identity_missing_fields(self, state: OnboardingState) -> list[str]:
         missing: list[str] = []
-        if not state.user_context.age and not state.user_context.age_range:
-            missing.append("age")
-        if not state.user_context.location.city:
+        has_age = bool(getattr(state.user_context, "age", None))
+        has_age_range = bool(getattr(state.user_context, "age_range", None))
+        if not has_age and not has_age_range:
+            missing.append("age_range")
+        if not getattr(state.user_context.location, "city", None):
             missing.append("location")
-        if not state.user_context.goals:
+        if not getattr(state.user_context, "goals", None):
             missing.append("personal_goals")
         return missing
 
     def _get_income_money_missing_fields(self, state: OnboardingState) -> list[str]:
         missing: list[str] = []
-        if not hasattr(state.user_context, "money_feelings"):
+        if not getattr(state.user_context, "money_feelings", None):
             missing.append("money_feelings")
-        if not state.user_context.income:
-            missing.append("annual_income")
+        has_income = bool(getattr(state.user_context, "income", None))
+        has_income_range = bool(getattr(state.user_context, "income_range", None))
+        has_annual_income_range = bool(getattr(state.user_context, "annual_income_range", None))
+        if not (has_income or has_income_range or has_annual_income_range):
+            missing.append("annual_income_range")
         return missing
 
     def _is_identity_complete(self, state: OnboardingState) -> bool:
