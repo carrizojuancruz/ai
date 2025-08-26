@@ -122,3 +122,38 @@ Text segmentation maintains semantic coherence:
 - **S3 Vector Store**: Vector persistence and similarity search operations
 - **LangChain**: Document processing and text splitting utilities
 - **BeautifulSoup**: HTML parsing and content extraction
+
+## TODO: Content Synchronization
+
+### Hash-based Change Detection
+- Compute hash for each chunk after content extraction
+- Use Set data structures for O(1) lookup of existing chunk hashes
+- Compare new content hashes against stored hashes to identify changes
+- Skip embedding computation for unchanged content chunks
+
+### Parent-Child Chunking Model
+- Generate source identifiers based on source name/URL instead of random UUIDs
+- Source is parent, chunks are children
+- When any chunk changes, delete entire parent source and reindex all chunks
+- Chunk boundary changes affect neighboring chunks
+
+### Synchronization Workflow
+
+```
+Cron Job → Crawl Content → Compute Hashes → Compare with DB → Reindex Changed Sources
+```
+
+1. Implement cron-based synchronization
+2. Crawl content from source URLs
+3. Compute hashes for new content chunks
+4. Query database for existing chunk hashes using Set operations
+5. Identify changed chunks
+6. Delete all chunks for changed sources and reprocess
+
+### Implementation Requirements
+
+- Store chunk hashes alongside vector embeddings
+- Implement bulk hash lookup operations in vector store
+- Atomic deletion and reindexing operations
+- Cron job configuration
+- Synchronization logging
