@@ -20,11 +20,24 @@ from .utils import _utc_now_iso, _build_profile_line, _parse_iso
 
 logger = logging.getLogger(__name__)
 
+# Environment variables
+MODEL_ID = os.getenv("MEMORY_TINY_LLM_MODEL_ID", "amazon.nova-micro-v1:0")
+REGION = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
+MERGE_TOPK = int(os.getenv("MEMORY_MERGE_TOPK", "5"))
+AUTO_UPDATE = float(os.getenv("MEMORY_MERGE_AUTO_UPDATE", "0.85"))
+CHECK_LOW = float(os.getenv("MEMORY_MERGE_CHECK_LOW", "0.60"))
+MERGE_MODE = (os.getenv("MEMORY_MERGE_MODE", "recreate") or "recreate").lower()
+SEMANTIC_MIN_IMPORTANCE = int(os.getenv("MEMORY_SEMANTIC_MIN_IMPORTANCE", "1"))
+FALLBACK_ENABLED = (os.getenv("MEMORY_MERGE_FALLBACK_ENABLED", "true").lower() == "true")
+FALLBACK_LOW = float(os.getenv("MEMORY_MERGE_FALLBACK_LOW", "0.30"))
+FALLBACK_TOPK = int(os.getenv("MEMORY_MERGE_FALLBACK_TOPK", "3"))
+FALLBACK_RECENCY_DAYS = int(os.getenv("MEMORY_MERGE_FALLBACK_RECENCY_DAYS", "90"))
+FALLBACK_CATEGORIES_RAW = os.getenv("MEMORY_MERGE_FALLBACK_CATEGORIES", "Personal,Goals")
+FALLBACK_CATEGORIES = {c.strip() for c in FALLBACK_CATEGORIES_RAW.split(",") if c.strip()}
+
 
 def _same_fact_classify(existing_summary: str, candidate_summary: str, category: str) -> bool:
-    model_id = os.getenv("MEMORY_TINY_LLM_MODEL_ID", "amazon.nova-micro-v1:0")
-    region = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
-    bedrock = boto3.client("bedrock-runtime", region_name=region)
+    bedrock = boto3.client("bedrock-runtime", region_name=REGION)
     prompt = (
         "Same-Fact Classifier (language-agnostic)\n"
         "Your job: Return whether two short summaries express the SAME underlying fact about the user.\n"
@@ -40,11 +53,11 @@ def _same_fact_classify(existing_summary: str, candidate_summary: str, category:
         "4) Different entities: If the named entities differ (e.g., Luna vs Bruno) for the same attribute, NOT the same.\n"
         "5) Preference contradictions: Opposite preferences (e.g., prefers email vs prefers phone) are NOT the same.\n"
         "6) Episodic vs stable: One-off events vs stable facts are NOT the same.\n"
-        "7) Multilingual: Treat cross-language synonyms as equivalent (e.g., ‘español’ == ‘Spanish’).\n"
+        "7) Multilingual: Treat cross-language synonyms as equivalent (e.g., 'español' == 'Spanish').\n"
         "\n"
         "Examples\n"
         "- 'Luna is 3 years old.' vs 'Luna is 4 years old.' -> same_fact=true (numeric update)\n"
-        "- 'User’s spouse is Natalia.' vs 'User’s partner is Natalia.' -> same_fact=true (synonyms, same person)\n"
+        "- 'User's spouse is Natalia.' vs 'User's partner is Natalia.' -> same_fact=true (synonyms, same person)\n"
         "- 'Has two children.' vs 'Has 2 kids.' -> same_fact=true (synonyms, same count)\n"
         "- 'User prefers email.' vs 'User prefers phone calls.' -> same_fact=false (contradictory preference)\n"
         "- 'Lives in Austin.' vs 'Moved to Dallas.' -> same_fact=false (different locations, not a numeric update)\n"
@@ -62,7 +75,7 @@ def _same_fact_classify(existing_summary: str, candidate_summary: str, category:
             ],
             "inferenceConfig": {"temperature": 0.0, "topP": 0.1, "maxTokens": 128, "stopSequences": []},
         }
-        res = bedrock.invoke_model(modelId=model_id, body=json.dumps(body_payload))
+        res = bedrock.invoke_model(modelId=MODEL_ID, body=json.dumps(body_payload))
         body = res.get("body")
         txt = body.read().decode("utf-8") if hasattr(body, "read") else str(body)
         data = json.loads(txt)
@@ -93,9 +106,7 @@ def _same_fact_classify(existing_summary: str, candidate_summary: str, category:
 
 
 def _compose_summaries(existing_summary: str, candidate_summary: str, category: str) -> str:
-    model_id = os.getenv("MEMORY_TINY_LLM_MODEL_ID", "amazon.nova-micro-v1:0")
-    region = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
-    bedrock = boto3.client("bedrock-runtime", region_name=region)
+    bedrock = boto3.client("bedrock-runtime", region_name=REGION)
     prompt = (
         "Task: Combine two short summaries about the SAME user fact into one concise statement.\n"
         "- Keep it neutral, third person, and include both details without redundancy.\n"
@@ -112,7 +123,7 @@ def _compose_summaries(existing_summary: str, candidate_summary: str, category: 
             ],
             "inferenceConfig": {"temperature": 0.2, "topP": 0.5, "maxTokens": 160, "stopSequences": []},
         }
-        res = bedrock.invoke_model(modelId=model_id, body=json.dumps(body_payload))
+        res = bedrock.invoke_model(modelId=MODEL_ID, body=json.dumps(body_payload))
         body = res.get("body")
         txt = body.read().decode("utf-8") if hasattr(body, "read") else str(body)
         data = json.loads(txt)
@@ -208,9 +219,7 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
     combined_text = "\n".join(reversed(recent_user_texts))
 
     def _trigger_decide(text: str) -> dict[str, Any]:
-        model_id = os.getenv("MEMORY_TINY_LLM_MODEL_ID", "amazon.nova-micro-v1:0")
-        region = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
-        bedrock = boto3.client("bedrock-runtime", region_name=region)
+        bedrock = boto3.client("bedrock-runtime", region_name=REGION)
         allowed_categories = (
             "Finance, Budget, Goals, Personal, Education, Conversation_Summary, Other"
         )
@@ -237,10 +246,10 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
             "- Output ONLY strict JSON: {\"should_create\": bool, \"type\": \"semantic\", \"category\": string, \"summary\": string, \"importance\": 1..5}.\n"
             "\n"
             "Examples (create):\n"
-            "- Input: 'Please remember my name is Ana' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Personal\", \"summary\": \"User’s preferred name is Ana.\", \"importance\": 2}\n"
-            "- Input: 'My cat just turned 4' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Personal\", \"summary\": \"User’s cat is 4 years old.\", \"importance\": 3}\n"
+            "- Input: 'Please remember my name is Ana' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Personal\", \"summary\": \"User's preferred name is Ana.\", \"importance\": 2}\n"
+            "- Input: 'My cat just turned 4' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Personal\", \"summary\": \"User's cat is 4 years old.\", \"importance\": 3}\n"
             "- Input: 'I prefer email over phone calls' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Personal\", \"summary\": \"User prefers email communication over calls.\", \"importance\": 2}\n"
-            "- Input: 'We’re saving for a house down payment this year' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Finance\", \"summary\": \"User is saving for a house down payment this year.\", \"importance\": 3}\n"
+            "- Input: 'We're saving for a house down payment this year' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Finance\", \"summary\": \"User is saving for a house down payment this year.\", \"importance\": 3}\n"
             "\n"
             "Examples (do not create here):\n"
             "- Input: 'We celebrated at the park today' -> {\"should_create\": false}\n"
@@ -255,7 +264,7 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
                 "messages": [{"role": "user", "content": [{"text": prompt}]}],
                 "inferenceConfig": {"temperature": 0.0, "topP": 0.1, "maxTokens": 96, "stopSequences": []},
             }
-            res = bedrock.invoke_model(modelId=model_id, body=json.dumps(body_payload))
+            res = bedrock.invoke_model(modelId=MODEL_ID, body=json.dumps(body_payload))
             body = res.get("body")
             txt = body.read().decode("utf-8") if hasattr(body, "read") else str(body)
             data = json.loads(txt)
@@ -312,7 +321,6 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
         category = "Other"
     summary_raw = str(trigger.get("summary") or recent_user_texts[0] or combined_text).strip()[:280]
     summary = _normalize_summary_text(summary_raw)
-    min_importance = int(os.getenv("MEMORY_SEMANTIC_MIN_IMPORTANCE", "1"))
 
     if mem_type != "semantic":
         logger.info("memory.skip: entry node only writes semantic; type=%s", mem_type)
@@ -355,22 +363,18 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
             store = get_store()
             namespace = (user_id, "semantic")
             try:
-                merge_topk = int(os.getenv("MEMORY_MERGE_TOPK", "5"))
-                neighbors = store.search(namespace, query=summary, filter={"category": category}, limit=merge_topk)
+                neighbors = store.search(namespace, query=summary, filter={"category": category}, limit=MERGE_TOPK)
             except Exception:
                 neighbors = []
             logger.info("memory.search: id=%s ns=%s neighbors=%d", candidate_id, "/".join(namespace), len(neighbors))
 
-            auto_update = float(os.getenv("MEMORY_MERGE_AUTO_UPDATE", "0.85"))
-            check_low = float(os.getenv("MEMORY_MERGE_CHECK_LOW", "0.60"))
-            merge_mode = (os.getenv("MEMORY_MERGE_MODE", "recreate") or "recreate").lower()
             best = neighbors[0] if neighbors else None
             did_update = False
             queue = get_sse_queue(thread_id) if thread_id else None
             if best and isinstance(getattr(best, "score", None), (int, float)):
                 score_val = float(best.score or 0.0)
                 recency_ok = True
-                logger.info("memory.match: id=%s best_key=%s score=%.3f recency_ok=%s auto=%.2f low=%.2f", candidate_id, getattr(best, "key", ""), score_val, recency_ok, auto_update, check_low)
+                logger.info("memory.match: id=%s best_key=%s score=%.3f recency_ok=%s auto=%.2f low=%.2f", candidate_id, getattr(best, "key", ""), score_val, recency_ok, AUTO_UPDATE, CHECK_LOW)
 
                 def do_update(existing_key: str) -> None:
                     existing = store.get(namespace, existing_key)
@@ -408,8 +412,8 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
                     store.put(namespace, new_id, new_val, index=["summary"])  # embed
                     store.delete(namespace, existing_key)
 
-                if score_val >= auto_update and recency_ok:
-                    if merge_mode == "recreate":
+                if score_val >= AUTO_UPDATE and recency_ok:
+                    if MERGE_MODE == "recreate":
                         do_recreate(best.key, best)
                         did_update = True
                         logger.info("memory.recreate: mode=auto id=%s from=%s score=%.3f", candidate_id, best.key, score_val)
@@ -426,7 +430,7 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
                     sorted_neigh = sorted(neighbors, key=lambda it: float(getattr(it, "score", 0.0) or 0.0), reverse=True)
                     for n in sorted_neigh:
                         s = float(getattr(n, "score", 0.0) or 0.0)
-                        if s < check_low:
+                        if s < CHECK_LOW:
                             break
                         same = _same_fact_classify(
                             existing_summary=str((getattr(n, "value", {}) or {}).get("summary", "")),
@@ -435,7 +439,7 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
                         )
                         logger.info("memory.classify: id=%s cand_into=%s score=%.3f result_same=%s", candidate_id, getattr(n, "key", ""), s, same)
                         if same:
-                            if merge_mode == "recreate":
+                            if MERGE_MODE == "recreate":
                                 do_recreate(getattr(n, "key", ""), n)
                                 logger.info("memory.recreate: mode=classified id=%s from=%s", candidate_id, getattr(n, "key", ""))
                             else:
@@ -450,20 +454,14 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
                             break
             # Fallback second pass: narrow band [fallback_low, check_low), extra guards
             if not did_update:
-                fallback_enabled = (os.getenv("MEMORY_MERGE_FALLBACK_ENABLED", "true").lower() == "true")
-                if fallback_enabled:
-                    fallback_low = float(os.getenv("MEMORY_MERGE_FALLBACK_LOW", "0.30"))
-                    fallback_topk = int(os.getenv("MEMORY_MERGE_FALLBACK_TOPK", "3"))
-                    fallback_recency_days = int(os.getenv("MEMORY_MERGE_FALLBACK_RECENCY_DAYS", "90"))
-                    cats_raw = os.getenv("MEMORY_MERGE_FALLBACK_CATEGORIES", "Personal,Goals")
-                    fallback_cats = {c.strip() for c in cats_raw.split(",") if c.strip()}
-                    if not fallback_cats or category in fallback_cats:
+                if FALLBACK_ENABLED:
+                    if not FALLBACK_CATEGORIES or category in FALLBACK_CATEGORIES:
                         checked = 0
                         for n in sorted_neigh:
-                            if checked >= max(1, fallback_topk):
+                            if checked >= max(1, FALLBACK_TOPK):
                                 break
                             s = float(getattr(n, "score", 0.0) or 0.0)
-                            if s < fallback_low or s >= check_low:
+                            if s < FALLBACK_LOW or s >= CHECK_LOW:
                                 continue
                             # Recency guard
                             ts = _parse_iso(getattr(n, "updated_at", "")) or _parse_iso(getattr(n, "created_at", ""))
@@ -472,7 +470,7 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
                                 if ts is not None:
                                     from datetime import datetime, timezone
                                     age_days = (datetime.now(tz=timezone.utc) - ts).days
-                                    recent_ok = age_days <= max(1, fallback_recency_days)
+                                    recent_ok = age_days <= max(1, FALLBACK_RECENCY_DAYS)
                             except Exception:
                                 recent_ok = True
                             # Lexical or numeric guard
@@ -498,7 +496,7 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
                             )
                             checked += 1
                             if same:
-                                if merge_mode == "recreate":
+                                if MERGE_MODE == "recreate":
                                     do_recreate(getattr(n, "key", ""), n)
                                     logger.info("memory.recreate: mode=fallback id=%s from=%s", candidate_id, getattr(n, "key", ""))
                                 else:
@@ -515,8 +513,8 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
                                         pass
                                 break
             if not did_update:
-                if int(candidate_value.get("importance") or 1) < min_importance:
-                    logger.info("memory.skip: below_min_importance=%s", min_importance)
+                if int(candidate_value.get("importance") or 1) < SEMANTIC_MIN_IMPORTANCE:
+                    logger.info("memory.skip: below_min_importance=%s", SEMANTIC_MIN_IMPORTANCE)
                 else:
                     store.put(namespace, candidate_id, candidate_value, index=["summary"])  # async context
                     logger.info("memory.create: id=%s type=%s category=%s", candidate_id, "semantic", category)
