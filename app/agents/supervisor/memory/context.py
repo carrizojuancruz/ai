@@ -95,19 +95,20 @@ def _items_to_bullets(epi_items: list[Any], sem_items: list[Any], topn: int) -> 
     return bullets
 
 
-def _build_context_response(bullets: list[str], config: RunnableConfig) -> dict:
+def _resolve_user_tz_from_config(config: RunnableConfig) -> tzinfo:
+    ctx = config.get("configurable", {}).get("user_context") or {}
+    tzname = ((ctx.get("locale_info", {}) or {}).get("time_zone") or "UTC") if isinstance(ctx, dict) else "UTC"
     try:
-        ctx = config.get("configurable", {}).get("user_context") or {}
-        tzname = ((ctx.get("locale_info", {}) or {}).get("time_zone") or "UTC") if isinstance(ctx, dict) else "UTC"
-        try:
-            import zoneinfo
-            user_tz: tzinfo = zoneinfo.ZoneInfo(tzname)
-        except Exception:
-            user_tz = timezone.utc
-        now_local = datetime.now(tz=user_tz)
-        date_bullet = f"Now: {now_local.strftime('%Y-%m-%d %H:%M %Z')}"
+        import zoneinfo
+        return zoneinfo.ZoneInfo(tzname)
     except Exception:
-        date_bullet = None
+        return timezone.utc
+
+
+def _build_context_response(bullets: list[str], config: RunnableConfig) -> dict:
+    user_tz: tzinfo = _resolve_user_tz_from_config(config)
+    now_local = datetime.now(tz=user_tz)
+    date_bullet = f"Now: {now_local.strftime('%Y-%m-%d %H:%M %Z')}"
     all_bullets = ([date_bullet] if date_bullet else []) + bullets
     context_str = "Relevant context for tailoring this turn:\n- " + "\n- ".join(all_bullets)
     return {"messages": [HumanMessage(content=context_str)]}
