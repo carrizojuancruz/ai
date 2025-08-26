@@ -69,6 +69,7 @@ ignore = [
     "D106",
     "D107",
     "UP045",
+    "E501",
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
