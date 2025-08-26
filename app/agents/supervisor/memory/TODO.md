@@ -221,4 +221,24 @@
   - Keep fields minimal; add more later if needed. No token/latency metrics required now.
   - Acceptance: basic counts by op/node over time; enables answering “what changed and when” without logs.
 
+### 15) Supervisor Checkpointer Migration to PostgreSQL
+- Why: Move from in-memory checkpointer to persistent PostgreSQL storage for better reliability, scalability, and state persistence across restarts.
+- Source: Current in-memory implementation; need for production-grade state management.
+- How:
+  - Create checkpointer table:
+    ```sql
+    supervisor_checkpoints(
+      id uuid primary key,
+      user_id text not null,
+      thread_id text not null,
+      checkpoint_data jsonb not null,
+      created_at timestamptz default now(),
+      updated_at timestamptz default now()
+    );
+    create unique index on supervisor_checkpoints(user_id, thread_id);
+    create index on supervisor_checkpoints(updated_at desc);
+    ```
+  - Checkpoint data includes: current graph state, memory context, conversation history, agent states.
+  - Acceptance: checkpoints persist across service restarts; no data loss during migration; sub-100ms checkpoint save/load times.
+
 
