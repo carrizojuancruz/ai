@@ -123,39 +123,44 @@ Text segmentation maintains semantic coherence:
 - **LangChain**: Document processing and text splitting utilities
 - **BeautifulSoup**: HTML parsing and content extraction
 
-## TODO: Content Synchronization
+## Synchronization System
 
-### Hash-based Change Detection
-- Compute hash for each chunk after content extraction
-- Use Set data structures for O(1) lookup of existing chunk hashes
-- Compare new content hashes against stored hashes to identify changes
-- Skip embedding computation for unchanged content chunks
+The Knowledge component includes a robust content synchronization system that efficiently detects and updates changed web content without unnecessary re-processing.
 
-### Parent-Child Chunking Model
-- Generate source identifiers based on source name/URL instead of random UUIDs
-- Source is parent, chunks are children
-- When any chunk changes, delete entire parent source and reindex all chunks
-- Chunk boundary changes affect neighboring chunks
+### Key Features
 
-### Synchronization Workflow
+- **Hash-based Change Detection**: Uses SHA-256 content hashing to identify modified chunks
+- **Parent-Child Strategy**: Deletes entire source when any chunk changes to maintain consistency
+- **Deterministic Source IDs**: URL-based source identification ensures consistent sync cycles
+- **Scheduled Execution**: Configurable sync intervals (default: every 3 days)
+- **Pagination Support**: Handles sources with unlimited chunks using S3 Vector Store pagination
 
+### SyncService Architecture
+
+The `SyncService` orchestrates synchronization by:
+1. Crawling source URLs to get current content and generate new hashes
+2. Retrieving existing chunk hashes from S3 Vector Store using pagination
+3. Comparing hash sets to determine if content has changed
+4. Re-indexing entire source if any chunk differs (parent-child deletion)
+5. Tracking sync results with chunks reindexed count and change flags
+
+### Configuration
+
+```python
+# Environment variables
+SYNC_ENABLED=true  # Enable/disable synchronization 
+SYNC_SCHEDULE_DAYS=3  # Sync interval in days
 ```
-Cron Job → Crawl Content → Compute Hashes → Compare with DB → Reindex Changed Sources
+
+### Usage
+
+```python
+# Manual sync of specific source
+sync_service = SyncService()
+result = await sync_service.sync_source(source_id)
+
+# Bulk sync of all sources  
+results = await sync_service.sync_sources()
 ```
 
-1. Implement cron-based synchronization (runs every 3 days)
-2. Crawl content from source URLs
-3. Compute hashes for new content chunks
-4. Query database for existing chunk hashes using Set operations
-5. Identify changed chunks
-6. Delete all chunks for changed sources and reprocess
-
-### Implementation Requirements
-
-- Store chunk hashes alongside vector embeddings
-- Implement bulk hash lookup operations in vector store
-- Atomic deletion and reindexing operations
-- Cron job configuration (schedule: every 3 days)
-- Synchronization logging
-- Error handling and retry logic for failed sync operations
-- Monitoring and alerting for sync job status
+The synchronization system ensures your knowledge base stays current with minimal computational overhead by only re-processing sources that have actually changed.

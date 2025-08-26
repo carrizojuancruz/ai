@@ -51,21 +51,30 @@ class S3VectorStoreService:
             pass
 
     def get_source_chunk_hashes(self, source_id: str) -> set[str]:
-        """Get all content hashes for a specific source."""
+        """Get all content hashes for a specific source using pagination to avoid topK limits."""
         try:
-            response = self.client.query_vectors(
+            hashes = set()
+            paginator = self.client.get_paginator('list_vectors')
+            
+            # Use paginator to get all vectors with metadata only
+            page_iterator = paginator.paginate(
                 vectorBucketName=self.bucket_name,
                 indexName=self.index_name,
-                filter={'source_id': source_id},
                 returnMetadata=True,
-                topK=10000
+                returnData=False,  # We only need metadata, not vector data
+                PaginationConfig={
+                    'PageSize': 1000  # Process in batches of 1000
+                }
             )
             
-            hashes = set()
-            for vector in response.get('vectors', []):
-                content_hash = vector.get('metadata', {}).get('content_hash')
-                if content_hash:
-                    hashes.add(content_hash)
+            for page in page_iterator:
+                for vector in page.get('vectors', []):
+                    metadata = vector.get('metadata', {})
+                    # Filter by source_id and collect hashes
+                    if metadata.get('source_id') == source_id:
+                        content_hash = metadata.get('content_hash')
+                        if content_hash:
+                            hashes.add(content_hash)
             
             return hashes
         except Exception:
