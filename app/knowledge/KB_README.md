@@ -143,7 +143,7 @@ Text segmentation maintains semantic coherence:
 Cron Job → Crawl Content → Compute Hashes → Compare with DB → Reindex Changed Sources
 ```
 
-1. Implement cron-based synchronization
+1. Implement cron-based synchronization (runs every 3 days)
 2. Crawl content from source URLs
 3. Compute hashes for new content chunks
 4. Query database for existing chunk hashes using Set operations
@@ -155,5 +155,7 @@ Cron Job → Crawl Content → Compute Hashes → Compare with DB → Reindex Ch
 - Store chunk hashes alongside vector embeddings
 - Implement bulk hash lookup operations in vector store
 - Atomic deletion and reindexing operations
-- Cron job configuration
+- Cron job configuration (schedule: every 3 days)
 - Synchronization logging
+- Error handling and retry logic for failed sync operations
+- Monitoring and alerting for sync job status

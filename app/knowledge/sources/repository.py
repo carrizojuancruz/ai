@@ -45,12 +45,16 @@ class SourceRepository(SourceRepositoryInterface):
 
     def add(self, source: Source) -> None:
         sources = self.load_all()
-        existing = self.find_by_id(source.id)
+        existing = next((s for s in sources if s.id == source.id), None)
         if existing:
-            self.update(source)
+            for i, s in enumerate(sources):
+                if s.id == source.id:
+                    sources[i] = source
+                    break
         else:
             sources.append(source)
-            self.save_all(sources)
+            
+        self.save_all(sources)
 
     def update(self, source: Source) -> bool:
         sources = self.load_all()

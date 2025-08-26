@@ -1,4 +1,5 @@
 from typing import Any, Dict, List
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
@@ -42,3 +43,15 @@ class CrawlResult(BaseModel):
     success: bool
     message: str
     documents: List[Any] = []
+
+
+class SyncResult(BaseModel):
+    """Result of synchronization operation."""
+
+    source_id: str
+    success: bool
+    message: str
+    chunks_reindexed: int = 0
+    has_changes: bool = False
+    execution_time_seconds: float = 0.0
+    timestamp: datetime = Field(default_factory=datetime.now)

@@ -1,7 +1,7 @@
 import logging
+import hashlib
 from typing import Any, Dict, List
 from urllib.parse import urlparse
-from uuid import uuid4
 
 from ..crawler.service import CrawlerService
 from ..models import BulkSourceRequest, Source, SourceRequest
@@ -17,6 +17,9 @@ class SourceService:
         self.source_repo = SourceRepository()
         self.crawler_service = CrawlerService()
         self.knowledge_service = get_knowledge_service()
+
+    def _generate_source_id(self, url: str) -> str:
+        return hashlib.sha256(url.encode()).hexdigest()
 
     async def get_all_sources(self) -> List[Source]:
         return self.source_repo.load_all()
@@ -34,7 +37,7 @@ class SourceService:
             self.knowledge_service.delete_source_documents(existing.id)
             self.source_repo.delete_by_id(existing.id)
 
-        source = Source(id=str(uuid4()), name=request.name, url=request.url)
+        source = Source(id=self._generate_source_id(request.url), name=request.name, url=request.url)
 
         self.source_repo.add(source)
         logger.info(f"Source created: {source.id}")
