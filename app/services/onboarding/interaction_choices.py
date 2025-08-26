@@ -258,4 +258,10 @@ def should_always_offer_choices(step: OnboardingStep, field: str) -> bool:
     if step == OnboardingStep.LEARNING_PATH and field == "learning_interests":
         return True
 
-    return bool(step == OnboardingStep.INCOME_MONEY and field == "money_feelings")
+    if step == OnboardingStep.INCOME_MONEY and field == "money_feelings":
+        return True
+
+    if step == OnboardingStep.HOME and field == "housing_type":
+        return True
+
+    return bool(step == OnboardingStep.HEALTH_COVERAGE and field == "health_insurance_status")

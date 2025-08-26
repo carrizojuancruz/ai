@@ -13,6 +13,7 @@ from .prompts import SUPERVISOR_PROMPT
 from .workers import math_agent, research_agent
 from app.services.memory.store_factory import create_s3_vectors_store_from_env
 from app.agents.supervisor.memory import memory_hotpath, memory_context, episodic_capture
+from .tools import knowledge_search_tool
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
         tools=[
             assign_to_research_agent_with_description,
             assign_to_math_agent_with_description,
+            knowledge_search_tool,
         ],
         prompt=SUPERVISOR_PROMPT,
         name="supervisor",
