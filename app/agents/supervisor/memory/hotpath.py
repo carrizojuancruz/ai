@@ -76,15 +76,17 @@ def _trigger_decide(text: str) -> dict[str, Any]:
         "- DO NOT create here for time-bound events/experiences or one-off actions (episodic handled later).\n"
         "- DO NOT create for meta/capability questions such as 'what do you know about me', 'do you remember me',\n"
         "  'what's in my profile', 'what have you saved about me'.\n"
+        "- For the summary: NEVER include absolute dates or relative-time words (today, yesterday, this morning/afternoon/evening/tonight, last/next week/month/year, recently, soon).\n"
+        "- If the input mixes time-bound details with a durable fact, EXTRACT ONLY the durable fact and DROP time phrasing.\n"
         "- Choose category from: [" + allowed_categories + "].\n"
         "- summary must be 1–2 sentences, concise and neutral (third person).\n"
         "- Output ONLY strict JSON: {\"should_create\": bool, \"type\": \"semantic\", \"category\": string, \"summary\": string, \"importance\": 1..5}.\n"
         "\n"
         "Examples (create):\n"
         "- Input: 'Please remember my name is Ana' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Personal\", \"summary\": \"User's preferred name is Ana.\", \"importance\": 2}\n"
-        "- Input: 'My cat just turned 4' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Personal\", \"summary\": \"User's cat is 4 years old.\", \"importance\": 3}\n"
+        "- Input: 'My cat just turned 4 today' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Personal\", \"summary\": \"User's cat is 4 years old.\", \"importance\": 3}\n"
         "- Input: 'I prefer email over phone calls' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Personal\", \"summary\": \"User prefers email communication over calls.\", \"importance\": 2}\n"
-        "- Input: 'We're saving for a house down payment this year' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Finance\", \"summary\": \"User is saving for a house down payment this year.\", \"importance\": 3}\n"
+        "- Input: 'We're saving for a house down payment this year' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Finance\", \"summary\": \"User is saving for a house down payment.\", \"importance\": 3}\n"
         "\n"
         "Examples (do not create here):\n"
         "- Input: 'We celebrated at the park today' -> {\"should_create\": false}\n"
@@ -418,6 +420,8 @@ def _compose_summaries(existing_summary: str, candidate_summary: str, category: 
         "Task: Combine two short summaries about the SAME user fact into one concise statement.\n"
         "- Keep it neutral, third person, and include both details without redundancy.\n"
         "- 1–2 sentences, max 280 characters.\n"
+        "- Do NOT include absolute dates or relative-time words (today, yesterday, this morning/afternoon/evening/tonight, last/next week/month/year, recently, soon).\n"
+        "- Express the timeless fact only.\n"
         "Output ONLY the composed text.\n"
         f"Category: {category[:64]}\n"
         f"Existing: {existing_summary[:500]}\n"
@@ -475,6 +479,25 @@ def _normalize_summary_text(text: str) -> str:
     )
     return t
 
+
+def _sanitize_semantic_time_phrases(text: str) -> str:
+    if not isinstance(text, str):
+        return ""
+    rules: list[tuple[str, str]] = [
+        (r"\b(today|yesterday|tomorrow)\b", ""),
+        (r"\b(this\s+(morning|afternoon|evening|tonight))\b", ""),
+        (r"\b(last|next)\s+(week|month|year)\b", ""),
+        (r"\b(recently|soon|earlier|later|now)\b", ""),
+        (r"\bon\s+\d{4}-\d{2}-\d{2}\b", ""),
+        (r"\bthis\s+year\b", ""),
+    ]
+    sanitized: str = text
+    for pattern, repl in rules:
+        sanitized = re.sub(pattern, repl, sanitized, flags=re.IGNORECASE)
+    sanitized = re.sub(r"\s{2,}", " ", sanitized).strip()
+    sanitized = re.sub(r"\s+,", ",", sanitized)
+    sanitized = re.sub(r"\(\s*\)", "", sanitized)
+    return sanitized
 
 def _has_min_token_overlap(a: str, b: str) -> bool:
     # Very light lexical guard: share at least one non-stopword token (len>=3)
@@ -543,6 +566,7 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
         category = "Other"
     summary_raw = str(trigger.get("summary") or recent_user_texts[0] or combined_text).strip()[:280]
     summary = _normalize_summary_text(summary_raw)
+    summary = _sanitize_semantic_time_phrases(summary)
 
     if mem_type != "semantic":
         logger.info("memory.skip: entry node only writes semantic; type=%s", mem_type)

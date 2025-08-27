@@ -79,18 +79,41 @@ def _select_episodic_items(epi_results: list[Any], topn: int, score_fn) -> list[
     return sorted(epi_results, key=score_fn, reverse=True)[:limit]
 
 
-def _items_to_bullets(epi_items: list[Any], sem_items: list[Any], topn: int) -> list[str]:
+def _items_to_bullets(epi_items: list[Any], sem_items: list[Any], topn: int, user_tz: tzinfo) -> list[str]:
     bullets: list[str] = []
+
+    def _format_suffix(item: Any, val: dict[str, Any]) -> str:
+        ts_updated = getattr(item, "updated_at", None)
+        ts_created = getattr(item, "created_at", None)
+        ts_value = val.get("last_accessed") or val.get("created_at")
+        ts_str = ts_updated or ts_created or ts_value
+        if not isinstance(ts_str, str):
+            return ""
+        dt = _parse_iso(ts_str)
+        if dt is None:
+            return ""
+        try:
+            local = dt.astimezone(user_tz)
+        except Exception:
+            local = dt
+        label = "Updated on" if ts_updated else "Created on"
+        return f" — {label} {local.strftime('%Y-%m-%d')}"
+
+    # Episodic bullets: keep summary text; append created/updated date for clarity
     for it in epi_items[:2]:
         val = getattr(it, "value", {}) or {}
         txt = val.get("summary")
-        if txt:
-            bullets.append(f"[{val.get('category')}] {txt}")
+        if not txt:
+            continue
+        bullets.append(f"[{val.get('category')}] {txt}{_format_suffix(it, val)}")
+
+    # Semantic bullets: append created/updated date (recency signal)
     for it in sem_items[: max(1, topn)]:
         val = getattr(it, "value", {}) or {}
         txt = val.get("summary")
-        if txt:
-            bullets.append(f"[{val.get('category')}] {txt}")
+        if not txt:
+            continue
+        bullets.append(f"[{val.get('category')}] {txt}{_format_suffix(it, val)}")
     return bullets
 
 
@@ -145,7 +168,8 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
             logger.debug("Failed to log semantic preview: %s", e)
 
         epi_sorted = _select_episodic_items(epi, CONTEXT_TOPN, score)
-        bullets = _items_to_bullets(epi_sorted, merged_sem, CONTEXT_TOPN)
+        user_tz = _resolve_user_tz_from_config(config)
+        bullets = _items_to_bullets(epi_sorted, merged_sem, CONTEXT_TOPN, user_tz)
         logger.info("memory_context.bullets.count: %d", len(bullets))
     except Exception:
         pass
