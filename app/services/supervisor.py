@@ -18,6 +18,7 @@ from app.db.session import get_async_session
 from app.models.user import UserContext
 from app.repositories.postgres.user_repository import PostgresUserRepository
 from app.repositories.session_store import InMemorySessionStore, get_session_store
+from app.utils.mapping import get_source_name
 from app.utils.welcome import generate_personalized_welcome
 
 langfuse_handler = CallbackHandler(
@@ -149,6 +150,7 @@ class SupervisorService:
             "session_id": thread_id,
             **session_ctx,
         }
+        sources = []
 
         async for event in graph.astream_events(
             {"messages": [{"role": "user", "content": text}]},
@@ -171,10 +173,11 @@ class SupervisorService:
                 if out and not self._is_injected_context(out):
                     last = get_last_emitted_text(thread_id)
                     if out != last:
-                        await q.put({"event": "token.delta", "data": {"text": out}})
+                        await q.put({"event": "token.delta", "data": {"text": out, "sources": sources}})
                         set_last_emitted_text(thread_id, out)
             elif etype == "on_tool_start":
                 if name:
+                    sources.append({"name": get_source_name(name)})
                     await q.put({"event": "tool.start", "data": {"tool": name}})
             elif etype == "on_tool_end":
                 if name:
