@@ -141,8 +141,6 @@ class OnboardingAgent:
                 current_state,
             )
 
-
-
         yield (
             {
                 "event": "step.update",
@@ -154,8 +152,6 @@ class OnboardingAgent:
             current_state,
         )
 
-        # Only emit interaction.update if we haven't just transitioned to a new step during initialization
-        # (i.e., if the current step matches the step we just processed)
         if current_state.current_interaction_type != "free_text" and current_state.current_step == step:
             interaction_data = {
                 "type": current_state.current_interaction_type,
