@@ -53,7 +53,7 @@ class SourceRepository(SourceRepositoryInterface):
                     break
         else:
             sources.append(source)
-            
+
         self.save_all(sources)
 
     def update(self, source: Source) -> bool:

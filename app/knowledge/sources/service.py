@@ -1,12 +1,12 @@
-import logging
 import hashlib
+import logging
 from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 from app.knowledge.crawler.service import CrawlerService
 from app.knowledge.models import BulkSourceRequest, Source, SourceRequest
-from app.knowledge.sources.repository import SourceRepository
 from app.knowledge.service import get_knowledge_service
+from app.knowledge.sources.repository import SourceRepository
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class SourceService:
         existing = self.source_repo.find_by_url(request.url)
         if existing:
             return {
-                "success": False, 
+                "success": False,
                 "message": f"Source already exists with URL: {request.url}",
                 "existing_source": existing
             }

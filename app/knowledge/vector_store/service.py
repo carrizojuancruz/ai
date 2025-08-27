@@ -1,4 +1,3 @@
-import hashlib
 from typing import Any, Dict, List
 
 import boto3
@@ -18,7 +17,7 @@ class S3VectorStoreService:
         for i, (doc, embedding) in enumerate(zip(documents, embeddings, strict=False)):
             source_url = doc.metadata.get('source', '')
             source_id = doc.metadata.get('source_id', '')
-            content_hash = doc.metadata.get('content_hash', '')  
+            content_hash = doc.metadata.get('content_hash', '')
             unique_key = f"doc_{content_hash}" if content_hash else f"doc_{source_id}_{i}"
 
             metadata: Dict[str, Any] = {
@@ -26,7 +25,7 @@ class S3VectorStoreService:
                 'source_id': source_id,
                 'chunk_index': i,
                 'chunk_content': doc.page_content,
-                'content_hash': content_hash 
+                'content_hash': content_hash
             }
 
             vectors.append({
@@ -56,26 +55,26 @@ class S3VectorStoreService:
         try:
             hashes = set()
             paginator = self.client.get_paginator('list_vectors')
-            
+
             page_iterator = paginator.paginate(
                 vectorBucketName=self.bucket_name,
                 indexName=self.index_name,
                 returnMetadata=True,
-                returnData=False, 
+                returnData=False,
                 PaginationConfig={
-                    'PageSize': 1000 
+                    'PageSize': 1000
                 }
             )
-            
+
             for page in page_iterator:
                 for vector in page.get('vectors', []):
                     metadata = vector.get('metadata', {})
-       
+
                     if metadata.get('source_id') == source_id:
                         content_hash = metadata.get('content_hash')
                         if content_hash:
                             hashes.add(content_hash)
-            
+
             return hashes
         except Exception:
             return set()
