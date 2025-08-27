@@ -24,7 +24,7 @@ async def sync_source(source_id):
         logger.error(f"Source {source_id} not found")
         return
 
-    result = await sync_service.sync_source(source)
+    await sync_service.sync_source(source)
     logger.info(f"Synced {source_id}")
 
 if __name__ == "__main__":
