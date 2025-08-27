@@ -9,7 +9,6 @@ from langgraph.graph.state import CompiledStateGraph
 if TYPE_CHECKING:
     from app.agents.onboarding import OnboardingAgent, OnboardingState
 
-from app.agents.supervisor import compile_supervisor_graph
 
 _onboarding_agent: "OnboardingAgent | None" = None
 _supervisor_graph = None
@@ -33,6 +32,7 @@ def get_onboarding_agent() -> OnboardingAgent:
 def get_supervisor_graph() -> CompiledStateGraph:
     global _supervisor_graph
     if _supervisor_graph is None:
+        from app.agents.supervisor import compile_supervisor_graph
         _supervisor_graph = compile_supervisor_graph()
     return _supervisor_graph
 

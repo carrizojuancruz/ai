@@ -1,23 +1,25 @@
 import logging
 from typing import Any, Dict, List
+
 import requests
 from bs4 import BeautifulSoup
 from langchain_community.document_loaders import RecursiveUrlLoader, SitemapLoader
 from langchain_core.documents import Document
+
 from app.knowledge import config
 
 logger = logging.getLogger(__name__)
 
 
 class CrawlerService:
-    
+
     crawl_type = config.CRAWL_TYPE
     max_pages = config.CRAWL_MAX_PAGES
     max_depth = config.CRAWL_MAX_DEPTH
     timeout = config.CRAWL_TIMEOUT
-    
+
     async def crawl_source(self, source_url: str) -> Dict[str, Any]:
-        """Crawl a source URL and return documents"""
+        """Crawl a source URL and return documents."""
         documents = await self._load_documents(source_url)
 
         return {
@@ -28,8 +30,7 @@ class CrawlerService:
         }
 
     async def _load_documents(self, url: str) -> List[Document]:
-        """Load documents based on crawl type configuration"""
-        
+        """Load documents based on crawl type configuration."""
         if self.crawl_type == "single":
             return await self._load_single_page(url)
         elif self.crawl_type == "sitemap":
@@ -38,7 +39,7 @@ class CrawlerService:
             return await self._load_recursive(url)
 
     async def _load_sitemap(self, url: str) -> List[Document]:
-        """Load documents from sitemap"""
+        """Load documents from sitemap."""
         try:
             loader = SitemapLoader(web_path=url)
             documents = loader.load()[:self.max_pages]
@@ -48,7 +49,7 @@ class CrawlerService:
             return []
 
     async def _load_recursive(self, url: str) -> List[Document]:
-        """Load documents recursively following links"""
+        """Load documents recursively following links."""
         try:
             loader = RecursiveUrlLoader(
                 url=url,
@@ -64,7 +65,7 @@ class CrawlerService:
             return []
 
     async def _load_single_page(self, url: str) -> List[Document]:
-        """Load a single page"""
+        """Load a single page."""
         try:
             response = requests.get(url, timeout=self.timeout)
             response.raise_for_status()
@@ -76,13 +77,13 @@ class CrawlerService:
             return []
 
     def _process_documents(self, documents: List[Document], source_url: str) -> List[Document]:
-        """Process and clean document content"""
+        """Process and clean document content."""
         for doc in documents:
             doc.page_content = self._clean_html(doc.page_content)
         return documents
 
     def _clean_html(self, html_content: str) -> str:
-        """Clean HTML/XML content removing unnecessary tags"""
+        """Clean HTML/XML content removing unnecessary tags."""
         soup = BeautifulSoup(html_content, "lxml")
         for tag in soup(["script", "style", "noscript", "meta", "link", "head", "nav", "header", "footer"]):
             tag.decompose()

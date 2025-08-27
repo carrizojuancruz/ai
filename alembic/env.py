@@ -1,24 +1,23 @@
 from __future__ import annotations
 
 import asyncio
-import os
-from logging.config import fileConfig
 import logging
+import os
+import sys
+from logging.config import fileConfig
+from pathlib import Path
 
 from sqlalchemy import create_engine, pool
 from sqlalchemy.engine import Connection
 
 from alembic import context
-import sys
-from pathlib import Path
+from app.db.base import Base
+from app.db.models.user import UserContextORM  # noqa: F401 - explicit import to populate metadata
 
 # Ensure project root is on sys.path for 'from app...' imports
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-from app.db import models  # noqa: F401 - ensure models are imported for metadata
-from app.db.models.user import UserContextORM  # noqa: F401 - explicit import to populate metadata
-from app.db.base import Base
 
 config = context.config
 

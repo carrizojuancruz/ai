@@ -1,21 +1,23 @@
 import logging
-from typing import Any, Dict, List
 import time
+from typing import Any, Dict, List
+
 from langchain_aws.embeddings import BedrockEmbeddings
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.knowledge import config
+
 from .vector_store.service import S3VectorStoreService
 
 logger = logging.getLogger(__name__)
 
 
 class KnowledgeService:
-    
-    def __init__(self):     
+
+    def __init__(self):
         self.vector_store_service = S3VectorStoreService()
-        
+
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=config.CHUNK_SIZE,
             chunk_overlap=config.CHUNK_OVERLAP,
@@ -58,7 +60,7 @@ class KnowledgeService:
             }
         except Exception as e:
             logger.error(f"Failed processing source {source_id}: {str(e)}")
-            raise Exception(f"Index update failed: {str(e)}")
+            raise Exception(f"Index update failed: {str(e)}") from e
 
     async def search(self, query: str) -> List[Dict[str, Any]]:
         try:
@@ -76,7 +78,7 @@ class KnowledgeService:
             return []
 
     def delete_source_documents(self, source_id: str) -> bool:
-        """Delete all documents for a given source"""
+        """Delete all documents for a given source."""
         try:
             self.vector_store_service.delete_documents(source_id)
             logger.info(f"Deleted documents for source: {source_id}")

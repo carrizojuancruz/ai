@@ -104,7 +104,7 @@ class OnboardingService:
 
         final_state = None
         stream_acc = ""
-        async for event, state in agent.process_message_with_events(user_uuid, "", state):
+        async for event, current_state in agent.process_message_with_events(user_uuid, "", state):
             if not event:
                 continue
             ev_name = event.get("event")
@@ -122,9 +122,9 @@ class OnboardingService:
                         await queue.put({"event": "token.delta", "data": {"text": delta}})
                 continue
             if ev_name == "onboarding.status" and (event.get("data", {}) or {}).get("status") == "done":
-                await self._export_user_context(state, thread_id)
+                await self._export_user_context(current_state, thread_id)
             await queue.put(event)
-            final_state = state
+            final_state = current_state
 
         set_thread_state(thread_id, final_state)
 
