@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from datetime import datetime, timezone, timedelta, tzinfo
+from datetime import datetime, timedelta, timezone, tzinfo
 from typing import Any
 from uuid import uuid4
 
@@ -14,7 +14,8 @@ from langgraph.graph import MessagesState
 
 from app.core.app_state import get_sse_queue
 from app.repositories.session_store import get_session_store
-from .utils import _utc_now_iso, _parse_iso
+
+from .utils import _parse_iso, _utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -242,8 +243,10 @@ async def _persist_session_ctrl(session_store: Any, thread_id: str | None, sess:
 
 
 async def episodic_capture(state: MessagesState, config: RunnableConfig) -> dict:
-    """Main orchestrator for episodic memory capture: cooldown checks, summarization,
-    dedupe/merge, persistence, and SSE notifications. Returns empty dict as a node output."""
+    """Orchestrate episodic memory capture: cooldown checks, summarization, dedupe/merge, persistence, and SSE notifications.
+
+    Returns empty dict as a node output.
+    """
     try:
         user_id = config.get("configurable", {}).get("user_id")
         thread_id = config.get("configurable", {}).get("thread_id")
@@ -294,21 +297,24 @@ async def episodic_capture(state: MessagesState, config: RunnableConfig) -> dict
 
         neighbors = _get_neighbors(store, namespace, human_summary, limit=5)
         best = neighbors[0] if neighbors else None
-        if best and isinstance(getattr(best, "score", None), (int, float)):
-            if _should_merge_neighbor(best, now_utc, novelty_min, merge_window_hours):
-                merged = await _merge_existing_if_applicable(
-                    store,
-                    namespace,
-                    best,
-                    human_summary,
-                    thread_id,
-                    session_store,
-                    sess,
-                    ctrl,
-                    now_utc,
-                )
-                if merged:
-                    return {}
+        if (
+            best
+            and isinstance(getattr(best, "score", None), (int, float))
+            and _should_merge_neighbor(best, now_utc, novelty_min, merge_window_hours)
+        ):
+            merged = await _merge_existing_if_applicable(
+                store,
+                namespace,
+                best,
+                human_summary,
+                thread_id,
+                session_store,
+                sess,
+                ctrl,
+                now_utc,
+            )
+            if merged:
+                return {}
 
         candidate_id = uuid4().hex
         now_iso = _utc_now_iso()
