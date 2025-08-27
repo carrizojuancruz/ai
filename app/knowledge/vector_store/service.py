@@ -3,6 +3,7 @@ from typing import Any, Dict, List
 
 import boto3
 from langchain_core.documents import Document
+
 from app.knowledge import config
 
 
@@ -48,7 +49,7 @@ class S3VectorStoreService:
                 filter={'source_id': source_id}
             )
         except Exception:
-            pass
+            return None
 
     def get_source_chunk_hashes(self, source_id: str) -> set[str]:
         """Get all content hashes for a specific source using pagination to avoid topK limits."""

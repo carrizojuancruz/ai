@@ -9,7 +9,7 @@ from app.knowledge.sources.base_repository import SourceRepositoryInterface
 
 
 class SourceRepository(SourceRepositoryInterface):
-    """JSON file-based implementation of SourceRepositoryInterface"""
+    """JSON file-based implementation of SourceRepositoryInterface."""
 
     def __init__(self):
         self.file_path = str(Path(config.SOURCES_FILE_PATH).resolve())
