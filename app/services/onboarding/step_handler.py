@@ -47,10 +47,9 @@ class StepHandlerService:
         state.multi_min = None
         state.multi_max = None
 
-        if step in [OnboardingStep.HOME, OnboardingStep.FAMILY_UNIT, OnboardingStep.HEALTH_COVERAGE]:
-            if not state.should_show_conditional_node(step):
-                state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
-                return state
+        if step in [OnboardingStep.HOME, OnboardingStep.FAMILY_UNIT, OnboardingStep.HEALTH_COVERAGE] and not state.should_show_conditional_node(step):
+            state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
+            return state
 
         missing_fields = self._get_missing_fields(state, step)
 
@@ -121,11 +120,10 @@ class StepHandlerService:
         state.multi_min = None
         state.multi_max = None
 
-        if step in [OnboardingStep.HOME, OnboardingStep.FAMILY_UNIT, OnboardingStep.HEALTH_COVERAGE]:
-            if not state.should_show_conditional_node(step):
-                state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
-                yield ("", state)
-                return
+        if step in [OnboardingStep.HOME, OnboardingStep.FAMILY_UNIT, OnboardingStep.HEALTH_COVERAGE] and not state.should_show_conditional_node(step):
+            state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
+            yield ("", state)
+            return
 
         missing_fields = self._get_missing_fields(state, step)
 
