@@ -13,7 +13,7 @@ from .onboarding_reasoning import onboarding_reasoning_service
 class StepHandlerService:
     def __init__(self) -> None:
         self._missing_fields_by_step: dict[OnboardingStep, list[str] | Callable] = {
-            OnboardingStep.WARMUP: lambda state: [],
+            OnboardingStep.WARMUP: lambda state: ["warmup_choice"],
             OnboardingStep.IDENTITY: self._get_identity_missing_fields,
             OnboardingStep.INCOME_MONEY: self._get_income_money_missing_fields,
             OnboardingStep.ASSETS_EXPENSES: lambda state: ["assets_types", "fixed_expenses"],
@@ -26,7 +26,7 @@ class StepHandlerService:
         }
 
         self._completion_checks: dict[OnboardingStep, Callable[[OnboardingState], bool]] = {
-            OnboardingStep.WARMUP: lambda state: True,
+            OnboardingStep.WARMUP: self._is_warmup_complete,
             OnboardingStep.IDENTITY: self._is_identity_complete,
             OnboardingStep.INCOME_MONEY: self._is_income_money_complete,
             OnboardingStep.ASSETS_EXPENSES: lambda state: True,
@@ -40,6 +40,12 @@ class StepHandlerService:
 
     async def handle_step(self, state: OnboardingState, step: OnboardingStep) -> OnboardingState:
         state.current_step = step
+
+        state.current_interaction_type = "free_text"
+        state.current_choices = []
+        state.current_binary_choices = None
+        state.multi_min = None
+        state.multi_max = None
 
         if step in [OnboardingStep.HOME, OnboardingStep.FAMILY_UNIT, OnboardingStep.HEALTH_COVERAGE]:
             if not state.should_show_conditional_node(step):
@@ -108,6 +114,12 @@ class StepHandlerService:
         self, state: OnboardingState, step: OnboardingStep
     ) -> AsyncGenerator[tuple[str, OnboardingState], None]:
         state.current_step = step
+
+        state.current_interaction_type = "free_text"
+        state.current_choices = []
+        state.current_binary_choices = None
+        state.multi_min = None
+        state.multi_max = None
 
         if step in [OnboardingStep.HOME, OnboardingStep.FAMILY_UNIT, OnboardingStep.HEALTH_COVERAGE]:
             if not state.should_show_conditional_node(step):
@@ -232,6 +244,9 @@ class StepHandlerService:
 
     def _is_income_money_complete(self, state: OnboardingState) -> bool:
         return hasattr(state.user_context, "money_feelings") or state.user_context.income is not None
+
+    def _is_warmup_complete(self, state: OnboardingState) -> bool:
+        return bool(state.last_user_message and state.last_user_message.strip() and len(state.conversation_history) > 0)
 
     def _get_default_next_step(self, current_step: OnboardingStep) -> OnboardingStep:
         return OnboardingStep.CHECKOUT_EXIT
