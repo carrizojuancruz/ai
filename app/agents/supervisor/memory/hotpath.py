@@ -1,24 +1,26 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
 import re
 import unicodedata
+from json import JSONDecodeError
 from typing import Any
 from uuid import uuid4
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
-from json import JSONDecodeError
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_store
 from langgraph.graph import MessagesState
 
 from app.core.app_state import get_sse_queue
-from .utils import _utc_now_iso, _build_profile_line, _parse_iso
+
+from .utils import _build_profile_line, _parse_iso, _utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -243,10 +245,8 @@ async def _write_semantic_memory(
                     did_update = True
                     logger.info("memory.update: mode=auto id=%s into=%s score=%.3f", candidate_id, best.key, score_val)
                 if queue:
-                    try:
+                    with contextlib.suppress(Exception):
                         await queue.put({"event": "memory.updated", "data": {"id": getattr(best, "key", None), "type": mem_type, "category": (getattr(best, "value", {}) or {}).get("category")}})
-                    except Exception:
-                        pass
             else:
                 for n in sorted_neigh:
                     s = float(getattr(n, "score", 0.0) or 0.0)
@@ -267,10 +267,8 @@ async def _write_semantic_memory(
                             logger.info("memory.update: mode=classified id=%s into=%s", candidate_id, getattr(n, "key", ""))
                         did_update = True
                         if queue:
-                            try:
+                            with contextlib.suppress(Exception):
                                 await queue.put({"event": "memory.updated", "data": {"id": getattr(n, "key", ""), "type": mem_type, "category": (getattr(n, "value", {}) or {}).get("category")}})
-                            except Exception:
-                                pass
                         break
         if not did_update and FALLBACK_ENABLED and (not FALLBACK_CATEGORIES or category in FALLBACK_CATEGORIES):
             checked = 0
@@ -319,13 +317,12 @@ async def _write_semantic_memory(
                         logger.info("memory.update: mode=fallback id=%s into=%s", candidate_id, getattr(n, "key", ""))
                     did_update = True
                     if queue:
-                        try:
+
+                        with contextlib.suppress(Exception):
                             await queue.put({
                                 "event": "memory.updated",
                                 "data": {"id": getattr(n, "key", ""), "type": mem_type, "category": (getattr(n, "value", {}) or {}).get("category")},
                             })
-                        except Exception:
-                            pass
                     break
         if not did_update:
             if int(candidate_value.get("importance") or 1) < SEMANTIC_MIN_IMPORTANCE:
@@ -336,10 +333,8 @@ async def _write_semantic_memory(
                 from .profile_sync import _profile_sync_from_memory  # type: ignore
                 asyncio.create_task(_profile_sync_from_memory(user_id, thread_id, candidate_value))
                 if queue:
-                    try:
+                    with contextlib.suppress(Exception):
                         await queue.put({"event": "memory.created", "data": {"id": candidate_value["id"], "type": mem_type, "category": category}})
-                    except Exception:
-                        pass
     except Exception:
         logger.exception("memory_hotpath.error: id=%s", candidate_value.get("id"))
         if thread_id:

@@ -4,4 +4,6 @@ __all__ = [
     "UserContextORM",
 ]
 
-
+models = [
+    UserContextORM,
+]

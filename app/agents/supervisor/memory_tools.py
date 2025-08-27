@@ -1,19 +1,19 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import uuid4
-from datetime import datetime, timezone
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_store
 
 
 def _utc_now_iso() -> str:
-    """
-    Returns the current UTC time in ISO format.
-    
+    """Return the current UTC time in ISO format.
+
     Returns:
         str: Current UTC time in ISO 8601 format.
+
     """
     return datetime.now(tz=timezone.utc).isoformat()
 
@@ -30,19 +30,19 @@ ALLOWED_CATEGORIES: set[str] = {
 
 
 def _normalize_category(raw: Optional[str]) -> str:
-    """
-    Normalizes and validates a category string against allowed categories.
-    
+    """Normalize and validate a category string against allowed categories.
+
     Args:
         raw (Optional[str]): Raw category string to normalize.
-        
+
     Returns:
-        str: Normalized category string. If the raw string is empty/None or not in 
-             allowed categories, returns "Other".
-             
+        str: Normalized category string. If the raw string is empty/None or not in
+            allowed categories, returns "Other".
+
     Notes:
         - Converts underscores to spaces, applies title case, then back to underscores
         - Ensures the result matches one of the predefined ALLOWED_CATEGORIES
+
     """
     if not raw:
         return "Other"
@@ -54,24 +54,26 @@ async def semantic_memory_search(
     topic: Optional[str] = None,
     query: Optional[str] = None,
     limit: int = 5,
-    config: RunnableConfig = {},
+    config: RunnableConfig = dict,
 ) -> list[dict[str, Any]]:
-    """
-    Performs a semantic search in the user's memory using a vector store.
-    
+    """Perform a semantic search in the user's memory using a vector store.
+
     Args:
         topic (Optional[str]): Optional category to filter the results (e.g., "python", "history").
         query (Optional[str]): Search query used to find semantically similar items.
         limit (int): Maximum number of results to return. Defaults to 5.
         config (RunnableConfig): Configuration dictionary, expected to include `user_id` inside `configurable`.
-        
+
     Returns:
         list[dict[str, Any]]: A list of matched items, each represented as a dictionary.
-        
+
     Notes:
         - The function searches within the namespace associated with the user (`user_id`) and the optional category.
         - If no items are found with the category filter, it retries the search without it.
+
     """
+    if config is None:
+        config = {}
     store = get_store()
     user_id = config.get("configurable", {}).get("user_id")
     if not user_id:
@@ -91,24 +93,24 @@ async def episodic_memory_fetch(
     topic: Optional[str] = None,
     query: Optional[str] = None,
     limit: int = 3,
-    config: RunnableConfig = {},
+    config: RunnableConfig = dict,
 ) -> list[dict[str, Any]]:
-    """
-    Retrieves episodic memories from the user's memory store.
-    
+    """Retrieve episodic memories from the user's memory store.
+
     Args:
         topic (Optional[str]): Optional category to filter the results (e.g., "conversation", "meeting").
         query (Optional[str]): Search query for finding relevant episodic memories.
         limit (int): Maximum number of results to return. Defaults to 3.
         config (RunnableConfig): Configuration dictionary, expected to include `user_id` inside `configurable`.
-        
+
     Returns:
         list[dict[str, Any]]: A list of episodic memory items, each represented as a dictionary.
-        
+
     Notes:
         - Searches within the episodic memory namespace for the specific user.
         - If no query is provided, defaults to "recent conversation" for general retrieval.
         - Falls back to unfiltered search if category-filtered search returns no results.
+
     """
     store = get_store()
     user_id = config.get("configurable", {}).get("user_id")
@@ -132,11 +134,10 @@ async def semantic_memory_put(
     source: Optional[str] = None,
     importance: Optional[int] = None,
     pinned: Optional[bool] = None,
-    config: RunnableConfig = {},
+    config: RunnableConfig = dict,
 ) -> dict[str, Any]:
-    """
-    Stores a new semantic memory item in the user's memory store.
-    
+    """Store a new semantic memory item in the user's memory store.
+
     Args:
         summary (str): The main content/summary of the memory item.
         category (Optional[str]): Category classification for the memory item.
@@ -146,16 +147,17 @@ async def semantic_memory_put(
         importance (Optional[int]): Importance level of the memory (1-10 scale). Defaults to 1.
         pinned (Optional[bool]): Whether the memory should be pinned for quick access. Defaults to False.
         config (RunnableConfig): Configuration dictionary, expected to include `user_id` inside `configurable`.
-        
+
     Returns:
         dict[str, Any]: Response dictionary with operation status and created item details.
             - On success: {"ok": True, "key": str, "value": dict}
             - On failure: {"ok": False, "error": str}
-            
+
     Notes:
         - Automatically normalizes the category using _normalize_category function.
         - Sets creation and last accessed timestamps to current UTC time.
         - Indexes the summary field for semantic search capabilities.
+
     """
     store = get_store()
     user_id = config.get("configurable", {}).get("user_id")
@@ -189,11 +191,10 @@ async def episodic_memory_put(
     source: Optional[str] = None,
     importance: Optional[int] = None,
     pinned: Optional[bool] = None,
-    config: RunnableConfig = {},
+    config: RunnableConfig = dict,
 ) -> dict[str, Any]:
-    """
-    Stores a new episodic memory item in the user's memory store.
-    
+    """Store a new episodic memory item in the user's memory store.
+
     Args:
         summary (str): The main content/summary of the episodic memory.
         category (Optional[str]): Category classification for the memory item.
@@ -203,17 +204,18 @@ async def episodic_memory_put(
         importance (Optional[int]): Importance level of the memory (1-10 scale). Defaults to 1.
         pinned (Optional[bool]): Whether the memory should be pinned for quick access. Defaults to False.
         config (RunnableConfig): Configuration dictionary, expected to include `user_id` inside `configurable`.
-        
+
     Returns:
         dict[str, Any]: Response dictionary with operation status and created item details.
             - On success: {"ok": True, "key": str, "value": dict}
             - On failure: {"ok": False, "error": str}
-            
+
     Notes:
         - Creates episodic memories which represent specific events or experiences.
         - Automatically normalizes the category using _normalize_category function.
         - Sets creation and last accessed timestamps to current UTC time.
         - Indexes the summary field for semantic search capabilities.
+
     """
     store = get_store()
     user_id = config.get("configurable", {}).get("user_id")
@@ -246,11 +248,10 @@ async def semantic_memory_update(
     tags: Optional[list[str]] = None,
     importance: Optional[int] = None,
     pinned: Optional[bool] = None,
-    config: RunnableConfig = {},
+    config: RunnableConfig = dict,
 ) -> dict[str, Any]:
-    """
-    Updates an existing semantic memory item in the user's memory store.
-    
+    """Update an existing semantic memory item in the user's memory store.
+
     Args:
         key (str): Unique identifier of the memory item to update.
         summary (Optional[str]): New summary content for the memory item.
@@ -259,17 +260,18 @@ async def semantic_memory_update(
         importance (Optional[int]): New importance level for the memory item.
         pinned (Optional[bool]): New pinned status for the memory item.
         config (RunnableConfig): Configuration dictionary, expected to include `user_id` inside `configurable`.
-        
+
     Returns:
         dict[str, Any]: Response dictionary with operation status and updated item details.
             - On success: {"ok": True, "key": str, "value": dict}
             - On failure: {"ok": False, "error": str}
-            
+
     Notes:
         - Only updates the fields that are provided (None values are ignored).
         - Automatically normalizes the category if provided.
         - Updates the last_accessed timestamp to current UTC time.
         - Re-indexes the summary field if it was modified.
+
     """
     store = get_store()
     user_id = config.get("configurable", {}).get("user_id")
@@ -302,11 +304,10 @@ async def episodic_memory_update(
     tags: Optional[list[str]] = None,
     importance: Optional[int] = None,
     pinned: Optional[bool] = None,
-    config: RunnableConfig = {},
+    config: RunnableConfig = dict,
 ) -> dict[str, Any]:
-    """
-    Updates an existing episodic memory item in the user's memory store.
-    
+    """Update an existing episodic memory item in the user's memory store.
+
     Args:
         key (str): Unique identifier of the episodic memory item to update.
         summary (Optional[str]): New summary content for the episodic memory.
@@ -315,18 +316,19 @@ async def episodic_memory_update(
         importance (Optional[int]): New importance level for the episodic memory.
         pinned (Optional[bool]): New pinned status for the episodic memory.
         config (RunnableConfig): Configuration dictionary, expected to include `user_id` inside `configurable`.
-        
+
     Returns:
         dict[str, Any]: Response dictionary with operation status and updated item details.
             - On success: {"ok": True, "key": str, "value": dict}
             - On failure: {"ok": False, "error": str}
-            
+
     Notes:
         - Only updates the fields that are provided (None values are ignored).
         - Automatically normalizes the category if provided.
         - Updates the last_accessed timestamp to current UTC time.
         - Re-indexes the summary field if it was modified.
         - Episodic memories represent specific events or experiences that can be updated over time.
+
     """
     store = get_store()
     user_id = config.get("configurable", {}).get("user_id")

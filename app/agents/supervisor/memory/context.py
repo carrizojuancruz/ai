@@ -82,7 +82,6 @@ def _select_episodic_items(epi_results: list[Any], topn: int, score_fn) -> list[
 def _items_to_bullets(epi_items: list[Any], sem_items: list[Any], topn: int) -> list[str]:
     bullets: list[str] = []
     for it in epi_items[:2]:
-        cat = getattr(it, "value", {}) .get("category") if hasattr(it, "value") else None
         val = getattr(it, "value", {}) or {}
         txt = val.get("summary")
         if txt:

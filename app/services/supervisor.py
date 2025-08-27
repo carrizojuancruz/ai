@@ -3,8 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from typing import Any
-from uuid import UUID
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from langfuse.callback import CallbackHandler
 from langgraph.graph.state import CompiledStateGraph
@@ -15,10 +14,10 @@ from app.core.app_state import (
     get_supervisor_graph,
     set_last_emitted_text,
 )
-from app.repositories.session_store import InMemorySessionStore, get_session_store
 from app.db.session import get_async_session
-from app.repositories.postgres.user_repository import PostgresUserRepository
 from app.models.user import UserContext
+from app.repositories.postgres.user_repository import PostgresUserRepository
+from app.repositories.session_store import InMemorySessionStore, get_session_store
 from app.utils.welcome import generate_personalized_welcome
 
 langfuse_handler = CallbackHandler(

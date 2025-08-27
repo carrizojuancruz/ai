@@ -1,5 +1,6 @@
 """Application logging configuration."""
 
+import contextlib
 import logging
 import os
 
@@ -28,10 +29,8 @@ def configure_logging(level: str | None = None) -> None:
 
     if os.getenv("LOG_QUIET_LIBS", "").lower() in {"1", "true", "yes", "on"}:
         for noisy in ("uvicorn", "uvicorn.error", "uvicorn.access", "botocore", "boto3"):
-            try:
+            with contextlib.suppress(Exception):
                 logging.getLogger(noisy).setLevel(os.getenv("LOG_LIB_LEVEL", "WARNING").upper())
-            except Exception:
-                pass
 
 
 def get_logger(name: str) -> logging.Logger:

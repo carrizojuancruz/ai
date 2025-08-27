@@ -3,6 +3,7 @@ from typing import Any, Dict, List
 
 import boto3
 from langchain_core.documents import Document
+
 from app.knowledge import config
 
 
@@ -24,7 +25,7 @@ class S3VectorStoreService:
                 'source': source_url,
                 'source_id': source_id,
                 'chunk_index': i,
-                'chunk_content': doc.page_content  
+                'chunk_content': doc.page_content
             }
 
             vectors.append({
@@ -47,7 +48,7 @@ class S3VectorStoreService:
                 filter={'source_id': source_id}
             )
         except Exception:
-            pass
+            return None
 
     def similarity_search(self, query_embedding: List[float], k: int) -> List[Dict[str, Any]]:
         response = self.client.query_vectors(
