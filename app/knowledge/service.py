@@ -1,5 +1,4 @@
 import logging
-from typing import Any, Dict, List
 import hashlib
 import time
 from typing import Any, Dict, List
@@ -94,10 +93,8 @@ class KnowledgeService:
         for doc in documents:
             doc.metadata["source_id"] = source_id
             chunks = self.text_splitter.split_documents([doc])
-            
             for chunk in chunks:
-                chunk.metadata["content_hash"] = hashlib.sha256(content.encode()).hexdigest()
-            
+                chunk.metadata["content_hash"] = hashlib.sha256(chunk.page_content.encode()).hexdigest()
             all_chunks.extend(chunks)
 
         return all_chunks
