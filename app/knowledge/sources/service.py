@@ -3,10 +3,11 @@ from typing import Any, Dict, List
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from ..crawler.service import CrawlerService
-from ..models import BulkSourceRequest, Source, SourceRequest
+from app.knowledge.crawler.service import CrawlerService
+from app.knowledge.models import BulkSourceRequest, Source, SourceRequest
+from app.knowledge.service import get_knowledge_service
+
 from .repository import SourceRepository
-from ..service import get_knowledge_service
 
 logger = logging.getLogger(__name__)
 

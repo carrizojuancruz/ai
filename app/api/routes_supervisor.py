@@ -3,11 +3,11 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncGenerator
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from uuid import UUID
 
 from app.core.app_state import get_sse_queue
 from app.services.supervisor import supervisor_service
