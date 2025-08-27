@@ -20,7 +20,7 @@ def _format_user_context_for_prompt(user_context: dict[str, Any]) -> str:
     return f"name={name}; tone={tone}; locale={locale}; goals={goals_str}"
 
 
-async def generate_personalized_welcome(user_context: dict[str, Any]) -> str:
+async def generate_personalized_welcome(user_context: dict[str, Any], prior_summary: Any | None = None) -> str:
     region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
     model_id = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
     if not region:
@@ -34,10 +34,19 @@ async def generate_personalized_welcome(user_context: dict[str, Any]) -> str:
         "You are Vera, a warm, concise financial assistant.\n"
         "Greet the user personally if a name is available.\n"
         "Keep the welcome to one short sentence (<= 30 words).\n"
+        "If a brief summary of the LAST conversation is provided, optionally and subtly invite continuing it, in the SAME sentence.\n"
         "Do not include emojis. Do not ask multiple questions."
     )
     context_str = _format_user_context_for_prompt(user_context)
-    human = f"User context: {context_str}. Compose the welcome."
+    last_gist = None
+    if isinstance(prior_summary, dict):
+        last_gist = prior_summary.get("short_one_liner")
+    elif isinstance(prior_summary, str):
+        last_gist = prior_summary
+    if isinstance(last_gist, str) and last_gist.strip():
+        human = f"User context: {context_str}. Summary of our last conversation: {last_gist.strip()}. Compose the welcome."
+    else:
+        human = f"User context: {context_str}. Compose the welcome."
 
     try:
         msg = await chat.ainvoke([SystemMessage(content=system), HumanMessage(content=human)])
