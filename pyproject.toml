@@ -99,6 +99,7 @@ exclude = [
     "dist",
     "node_modules",
     "venv",
+        "alembic/versions",
 ]
 
 # Same as Black.
