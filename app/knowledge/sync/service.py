@@ -1,12 +1,11 @@
 import logging
 from typing import Set, List
 
-from ..vector_store.service import S3VectorStoreService
-from ..crawler.service import CrawlerService
-from ..service import KnowledgeService
-from ..models import SyncResult, Source
-from ..sources.repository import SourceRepository
-from .. import config
+from app.knowledge.vector_store.service import S3VectorStoreService
+from app.knowledge.crawler.service import CrawlerService
+from app.knowledge.service import KnowledgeService
+from app.knowledge.models import SyncResult, Source
+from app.knowledge.sources.repository import SourceRepository
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +67,7 @@ class SyncService:
                 success=False,
                 message=f"Sync failed: {str(e)}"
             )
-    
+
     async def sync_sources(self) -> List[SyncResult]:
         """Sync all sources using parent-child strategy."""
         

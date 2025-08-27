@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import List, Optional
 
 from app.knowledge import config
-from ..models import Source
-from .base_repository import SourceRepositoryInterface
+from app.knowledge.models import Source
+from app.knowledge.sources.base_repository import SourceRepositoryInterface
 
 
 class SourceRepository(SourceRepositoryInterface):

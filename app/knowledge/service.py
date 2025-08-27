@@ -6,8 +6,8 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.knowledge import config
-from .vector_store.service import S3VectorStoreService
-from .utils.utils_hash import create_content_hash
+from app.knowledge.vector_store.service import S3VectorStoreService
+from app.knowledge.utils.utils_hash import create_content_hash
 
 logger = logging.getLogger(__name__)
 

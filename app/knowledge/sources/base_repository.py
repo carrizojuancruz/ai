@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
-from ..models import Source
+from app.knowledge.models import Source
 
 
 class SourceRepositoryInterface(ABC):
