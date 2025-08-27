@@ -1,5 +1,6 @@
 import logging
 from typing import Any, Dict, List
+import hashlib
 import time
 from langchain_aws.embeddings import BedrockEmbeddings
 from langchain_core.documents import Document
@@ -7,7 +8,6 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.knowledge import config
 from app.knowledge.vector_store.service import S3VectorStoreService
-from app.knowledge.utils.utils_hash import create_content_hash
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ class KnowledgeService:
             chunks = self.text_splitter.split_documents([doc])
             
             for chunk in chunks:
-                chunk.metadata["content_hash"] = create_content_hash(chunk.page_content)
+                chunk.metadata["content_hash"] = hashlib.sha256(content.encode()).hexdigest()
             
             all_chunks.extend(chunks)
 

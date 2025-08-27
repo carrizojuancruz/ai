@@ -144,14 +144,6 @@ The `SyncService` orchestrates synchronization by:
 4. Re-indexing entire source if any chunk differs (parent-child deletion)
 5. Tracking sync results with chunks reindexed count and change flags
 
-### Configuration
-
-```python
-# Environment variables
-SYNC_ENABLED=true  # Enable/disable synchronization 
-SYNC_SCHEDULE_DAYS=3  # Sync interval in days
-```
-
 ### Usage
 
 ```python

@@ -12,12 +12,11 @@ CRAWL_MAX_DEPTH = int(os.environ.get("CRAWL_MAX_DEPTH", "3"))
 CRAWL_MAX_PAGES = int(os.environ.get("CRAWL_MAX_PAGES", "50"))
 CRAWL_TIMEOUT = int(os.environ.get("CRAWL_TIMEOUT", "30"))
 
-SYNC_ENABLED = os.environ.get("SYNC_ENABLED", "true")
-SYNC_SCHEDULE_DAYS = int(os.environ.get("SYNC_SCHEDULE_DAYS", "3"))
-
 S3_VECTOR_NAME = os.environ["S3_VECTOR_NAME"]
 VECTOR_INDEX_NAME = os.environ["VECTOR_INDEX_NAME"]
 EMBEDDINGS_MODEL_ID = os.environ["EMBEDDINGS_MODEL_ID"]
 AWS_REGION = os.environ["AWS_REGION"]
 
 SOURCES_FILE_PATH = "./app/knowledge/sources/sources.json"
+
+

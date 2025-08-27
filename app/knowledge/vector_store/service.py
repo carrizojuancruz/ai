@@ -56,21 +56,20 @@ class S3VectorStoreService:
             hashes = set()
             paginator = self.client.get_paginator('list_vectors')
             
-            # Use paginator to get all vectors with metadata only
             page_iterator = paginator.paginate(
                 vectorBucketName=self.bucket_name,
                 indexName=self.index_name,
                 returnMetadata=True,
-                returnData=False,  # We only need metadata, not vector data
+                returnData=False, 
                 PaginationConfig={
-                    'PageSize': 1000  # Process in batches of 1000
+                    'PageSize': 1000 
                 }
             )
             
             for page in page_iterator:
                 for vector in page.get('vectors', []):
                     metadata = vector.get('metadata', {})
-                    # Filter by source_id and collect hashes
+       
                     if metadata.get('source_id') == source_id:
                         content_hash = metadata.get('content_hash')
                         if content_hash:
