@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-import logging
-from datetime import datetime, timezone
-from typing import Any, Callable, Iterable, Literal, Optional, Sequence, Tuple, TypeAlias, cast
-from uuid import UUID, NAMESPACE_URL, uuid5
 import json
+import logging
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any, Iterable, Literal, Optional, Sequence, Tuple, TypeAlias, cast
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 try:
-    from langgraph.store.base import BaseStore, Item, SearchItem, Op, Result, NOT_PROVIDED, NotProvided
+    from langgraph.store.base import NOT_PROVIDED, BaseStore, Item, NotProvided, Op, Result, SearchItem
 except Exception:  # pragma: no cover
     from typing import Protocol
 
@@ -47,7 +47,6 @@ except Exception:  # pragma: no cover
 
 from botocore.client import BaseClient
 from botocore.exceptions import ClientError
-
 
 Namespace = Tuple[str, ...]
 
@@ -283,13 +282,8 @@ class S3VectorsStore(BaseStore):
             score: Optional[float]
             if isinstance(raw_distance, (int, float)):
                 d = float(raw_distance)
-                if self._distance == "COSINE":
-                    # cosine_distance ~= 1 - cosine_similarity (clamp to [0,1])
-                    score = max(0.0, min(1.0, 1.0 - d))
-                else:
-                    # For Euclidean, map to (0,1]: smaller distance => higher similarity
-                    score = 1.0 / (1.0 + max(0.0, d))
-                
+                # Use ternary operator for score calculation
+                score = max(0.0, min(1.0, 1.0 - d)) if self._distance == "COSINE" else 1.0 / (1.0 + max(0.0, d))
             else:
                 score = None
             items.append(
@@ -525,10 +519,7 @@ class S3VectorsStore(BaseStore):
             payload = {"inputText": text}
             res = self._bedrock.invoke_model(modelId=self._model_id, body=json.dumps(payload))
             body = res.get("body")
-            if hasattr(body, "read"):
-                data = json.loads(body.read())
-            else:
-                data = json.loads(body)
+            data = json.loads(body.read()) if hasattr(body, "read") else json.loads(body)
             embedding = cast(list[float], data.get("embedding") or [])
             if len(embedding) != self._dims:
                 # Coerce or pad/truncate defensively

@@ -7,11 +7,11 @@ from typing import Any, Optional
 
 import boto3
 
+from app.agents.onboarding.state import OnboardingState, OnboardingStep
 from app.db.session import get_async_session
 from app.models.user import UserContext
 from app.repositories.postgres.user_repository import PostgresUserRepository
 from app.services.onboarding.context_patching import context_patching_service
-from app.agents.onboarding.state import OnboardingState, OnboardingStep
 
 logger = logging.getLogger(__name__)
 

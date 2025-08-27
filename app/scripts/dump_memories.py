@@ -112,39 +112,39 @@ def main() -> None:
             all_keys = []
             offset = 0
             limit = 30
-            
+
             # Use a generic query to find all memories
             query = "profile" if args.type == "semantic" else "recent conversation"
-            
+
             while True:
                 items = store.search(namespace, query=query, limit=limit, offset=offset)
                 batch_keys = [item.key for item in items]
-                
+
                 if not batch_keys:
                     break
-                    
+
                 all_keys.extend(batch_keys)
                 offset += limit
-                
+
                 # If we got fewer than the limit, we've reached the end
                 if len(batch_keys) < limit:
                     break
-            
+
             if not all_keys:
                 print(json.dumps({"ok": True, "deleted_count": 0, "message": "No memories found to delete"}, ensure_ascii=False, default=str))
                 return
-            
+
             # Delete all memories
             deleted_count = 0
             failed_count = 0
-            
+
             for key in all_keys:
                 try:
                     store.delete(namespace, key)
                     deleted_count += 1
-                except Exception as e:
+                except Exception:
                     failed_count += 1
-            
+
             result = {
                 "ok": True,
                 "deleted_count": deleted_count,
@@ -172,11 +172,7 @@ def main() -> None:
         return
 
     # S3 Vectors requires a semantic query; provide a sensible default if not given
-    eff_query: Optional[str]
-    if args.query:
-        eff_query = args.query
-    else:
-        eff_query = "recent conversation" if args.type == "episodic" else "profile"
+    eff_query: Optional[str] = args.query if args.query else "recent conversation" if args.type == "episodic" else "profile"
 
     user_filter: Optional[dict[str, Any]] = {"category": args.category} if args.category else None
     items = store.search(namespace, query=eff_query, filter=user_filter, limit=args.limit, offset=args.offset)

@@ -43,48 +43,48 @@ You are Vera, a trusted AI financial advisor for Verde Money, conducting an onbo
 
 STEP_GUIDANCE: dict[OnboardingStep, str] = {
     OnboardingStep.WARMUP: """
-Focus on building initial rapport and explaining the process. This is about creating a warm welcome 
+Focus on building initial rapport and explaining the process. This is about creating a warm welcome
 and setting expectations. If the user wants to skip onboarding, respect that choice immediately.
 """,
     OnboardingStep.IDENTITY: """
 IMPORTANT: Start by asking about their age. This is required information for the identity step.
-Gather basic information about age, location, and personal goals. For age, start with an open-ended 
-question, then offer ranges if they're hesitant. If under 18, politely explain that the service is 
-for adults and end the conversation. After age, ask about their location (city/state). If they mention 
+Gather basic information about age, location, and personal goals. For age, start with an open-ended
+question, then offer ranges if they're hesitant. If under 18, politely explain that the service is
+for adults and end the conversation. After age, ask about their location (city/state). If they mention
 wanting to learn, note this for routing to the learning path.
 """,
     OnboardingStep.INCOME_MONEY: """
-Explore their emotional relationship with money and income information. Start by understanding their 
-feelings about money, then ask about income. If they're hesitant about sharing exact income, offer 
+Explore their emotional relationship with money and income information. Start by understanding their
+feelings about money, then ask about income. If they're hesitant about sharing exact income, offer
 ranges instead. This is a sensitive topic - be especially empathetic and non-judgmental.
 """,
     OnboardingStep.ASSETS_EXPENSES: """
-This is an optional node for users with higher income or who feel comfortable with money. Ask about 
+This is an optional node for users with higher income or who feel comfortable with money. Ask about
 significant assets and fixed monthly expenses. Keep it simple and don't pressure for details.
 """,
     OnboardingStep.HOME: """
-Only shown if housing topics were mentioned. Understand their current housing situation, satisfaction 
+Only shown if housing topics were mentioned. Understand their current housing situation, satisfaction
 level, and any future plans. This helps contextualize their financial goals.
 """,
     OnboardingStep.FAMILY_UNIT: """
-Only shown if family topics were mentioned. Simple questions about dependents and pets. Keep it brief 
+Only shown if family topics were mentioned. Simple questions about dependents and pets. Keep it brief
 and respectful of privacy.
 """,
     OnboardingStep.HEALTH_COVERAGE: """
-Only shown if health topics were mentioned. Basic questions about health insurance status and costs 
+Only shown if health topics were mentioned. Basic questions about health insurance status and costs
 if self-paid. Very brief and optional.
 """,
     OnboardingStep.LEARNING_PATH: """
-For users who expressed interest in learning. Present educational topic options and understand their 
+For users who expressed interest in learning. Present educational topic options and understand their
 learning priorities. Be encouraging about their learning journey.
 """,
     OnboardingStep.PLAID_INTEGRATION: """
-This is a technical integration step. Simply acknowledge that we're ready to connect their accounts 
+This is a technical integration step. Simply acknowledge that we're ready to connect their accounts
 to see their full financial picture. Keep it brief and transition smoothly.
 """,
     OnboardingStep.CHECKOUT_EXIT: """
-Natural transition to either continue chatting (2 more messages) or complete setup. Make this feel 
-like a natural conversation progression, not a system decision. Reference what they've shared and 
+Natural transition to either continue chatting (2 more messages) or complete setup. Make this feel
+like a natural conversation progression, not a system decision. Reference what they've shared and
 suggest natural next steps.
 """,
 }

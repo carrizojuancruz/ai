@@ -1,7 +1,8 @@
 import json
-import streamlit as st
-import requests
 import uuid
+
+import requests
+import streamlit as st
 from sseclient import SSEClient
 
 st.set_page_config(page_title="Supervisor Test UI", layout="wide")
@@ -28,7 +29,7 @@ with st.sidebar:
         st.rerun()
 
 def start_conversation():
-    """Initializes a new conversation thread with the supervisor."""
+    """Initialize a new conversation thread with the supervisor."""
     try:
         response = requests.post(
             f"{st.session_state.base_url}/supervisor/initialize",
@@ -72,7 +73,7 @@ else:
             with st.chat_message("assistant"):
                 message_placeholder = st.empty()
                 full_response = ""
-                
+
                 sse_url = f"{st.session_state.base_url}/supervisor/sse/{st.session_state.thread_id}"
                 headers = {'Accept': 'text/event-stream'}
                 response = requests.get(sse_url, stream=True, headers=headers)
@@ -85,13 +86,13 @@ else:
                     if event.event == "token.delta":
                         data = json.loads(event.data)
                         text_delta = data.get("text", "")
-                        
+
                         # The first token.delta is the welcome message, which we already have.
                         # We consume it from the stream and discard it.
                         if is_first_delta and text_delta.strip() == welcome_message.strip():
                             is_first_delta = False
                             continue
-                        
+
                         is_first_delta = False
 
                         # Filter out internal context messages
@@ -121,14 +122,14 @@ else:
                         data = json.loads(event.data)
                         if data.get("status") == "presented":
                             break
-                
+
                 message_placeholder.markdown(full_response)
-            
+
             st.session_state.messages.append({"role": "assistant", "content": full_response})
 
         except requests.exceptions.RequestException as e:
             st.error(f"Failed to send message: {e}")
         except Exception as e:
             st.error(f"An unexpected error occurred: {e}")
-            
+
         st.rerun()
