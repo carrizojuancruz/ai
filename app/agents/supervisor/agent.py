@@ -8,8 +8,12 @@ from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
+from app.agents.supervisor.memory import episodic_capture, memory_context, memory_hotpath
+from app.services.memory.store_factory import create_s3_vectors_store_from_env
+
 from .handoff import create_task_description_handoff_tool
 from .prompts import SUPERVISOR_PROMPT
+from .tools import knowledge_search_tool
 from .workers import math_agent, research_agent
 
 logger = logging.getLogger(__name__)
@@ -40,20 +44,31 @@ def compile_supervisor_graph() -> CompiledStateGraph:
         tools=[
             assign_to_research_agent_with_description,
             assign_to_math_agent_with_description,
+            knowledge_search_tool,
         ],
         prompt=SUPERVISOR_PROMPT,
         name="supervisor",
     )
 
     builder = StateGraph(MessagesState)
+
+    builder.add_node("memory_hotpath", memory_hotpath)
+    builder.add_node("memory_context", memory_context)
     builder.add_node(
-        supervisor_agent_with_description, destinations=("research_agent", "math_agent", END)
+        supervisor_agent_with_description, destinations=("research_agent", "math_agent", "episodic_capture")
     )
+    builder.add_node("episodic_capture", episodic_capture)
     builder.add_node("research_agent", research_agent)
     builder.add_node("math_agent", math_agent)
-    builder.add_edge(START, "supervisor")
+    builder.add_edge(START, "memory_hotpath")
+    builder.add_edge("memory_hotpath", "memory_context")
+    builder.add_edge("memory_context", "supervisor")
     builder.add_edge("research_agent", "supervisor")
     builder.add_edge("math_agent", "supervisor")
-    return builder.compile()
+    builder.add_edge("supervisor", "episodic_capture")
+    builder.add_edge("episodic_capture", END)
+    # Provide S3 Vectors store to graph so get_store() works inside nodes/tools
+    store = create_s3_vectors_store_from_env()
+    return builder.compile(store=store)
 
 

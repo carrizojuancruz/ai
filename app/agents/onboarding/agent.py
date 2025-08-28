@@ -82,6 +82,7 @@ class OnboardingAgent:
                 "configurable": {
                     "session_id": str(state.conversation_id),
                     "original_query": message,
+                    "user_id": str(state.user_id),
                 },
             },
         )
@@ -122,6 +123,14 @@ class OnboardingAgent:
                 accumulated_text += chunk
                 yield ({"event": "token.delta", "data": {"text": chunk}}, current_state)
 
+        yield (
+            {
+                "event": "message.completed",
+                "data": {"text": accumulated_text},
+            },
+            current_state,
+        )
+
         new_completed = set(s.value for s in current_state.completed_steps)
         for step_value in sorted(new_completed - prev_completed):
             yield (
@@ -142,6 +151,29 @@ class OnboardingAgent:
             },
             current_state,
         )
+
+        if current_state.current_interaction_type != "free_text" and current_state.current_step == step:
+            interaction_data = {
+                "type": current_state.current_interaction_type,
+                "step_id": current_state.current_step.value,
+            }
+
+            if current_state.current_interaction_type == "binary_choice":
+                interaction_data["primary_choice"] = current_state.current_binary_choices.get("primary_choice")
+                interaction_data["secondary_choice"] = current_state.current_binary_choices.get("secondary_choice")
+            elif current_state.current_interaction_type in ["single_choice", "multi_choice"]:
+                interaction_data["choices"] = current_state.current_choices
+                if current_state.current_interaction_type == "multi_choice":
+                    interaction_data["multi_min"] = current_state.multi_min
+                    interaction_data["multi_max"] = current_state.multi_max
+
+            yield (
+                {
+                    "event": "interaction.update",
+                    "data": interaction_data,
+                },
+                current_state,
+            )
 
         if current_state.ready_for_completion and current_state.user_context.ready_for_orchestrator:
             yield ({"event": "onboarding.status", "data": {"status": "done"}}, current_state)

@@ -9,8 +9,6 @@ from langgraph.graph.state import CompiledStateGraph
 if TYPE_CHECKING:
     from app.agents.onboarding import OnboardingAgent, OnboardingState
 
-from app.agents.supervisor import compile_supervisor_graph
-
 _onboarding_agent: "OnboardingAgent | None" = None
 _supervisor_graph = None
 _user_sessions: "dict[UUID, OnboardingState]" = {}
@@ -33,6 +31,8 @@ def get_onboarding_agent() -> OnboardingAgent:
 def get_supervisor_graph() -> CompiledStateGraph:
     global _supervisor_graph
     if _supervisor_graph is None:
+        from app.agents.supervisor import compile_supervisor_graph
+
         _supervisor_graph = compile_supervisor_graph()
     return _supervisor_graph
 
@@ -71,3 +71,36 @@ def set_last_emitted_text(thread_id: str, text: str) -> None:
     if text is None:
         text = ""
     _last_emitted_text[thread_id] = text
+
+
+def find_user_threads(user_id: UUID) -> list[tuple[str, "OnboardingState"]]:
+    return [(tid, st) for tid, st in _onboarding_threads.items() if getattr(st, "user_id", None) == user_id]
+
+
+def get_onboarding_status_for_user(user_id: UUID) -> dict:
+    threads = find_user_threads(user_id)
+    if not threads:
+        return {
+            "active": False,
+            "onboarding_done": False,
+            "thread_id": None,
+            "current_step": None,
+        }
+
+    def _score(item: tuple[str, "OnboardingState"]) -> int:
+        tid, st = item
+        try:
+            return int(getattr(st, "turn_number", 0))
+        except Exception:
+            return len(getattr(st, "conversation_history", []) or [])
+
+    latest_tid, latest_st = max(threads, key=_score)
+
+    done = bool(getattr(latest_st.user_context, "ready_for_orchestrator", False))
+
+    return {
+        "active": not done,
+        "onboarding_done": done,
+        "thread_id": latest_tid if not done else None,
+        "current_step": getattr(latest_st.current_step, "value", None) if not done else None,
+    }

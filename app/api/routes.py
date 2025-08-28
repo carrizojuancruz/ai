@@ -3,15 +3,16 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncGenerator
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.core.app_state import (
+    get_onboarding_status_for_user,
     get_sse_queue,
     get_thread_state,
-    get_user_sessions,
 )
 from app.services.onboarding.service import onboarding_service
 
@@ -20,21 +21,39 @@ router = APIRouter(prefix="/onboarding", tags=["Onboarding"])
 
 @router.get("/status/{user_id}")
 async def get_onboarding_status(user_id: str) -> dict:
-    sessions = get_user_sessions()
-    state = sessions.get(user_id)
-    if state is None:
-        return {"error": "User session not found"}
-    return {
-        "user_id": str(user_id),
-        "current_step": state.current_step.value,
-        "completed_steps": [step.value for step in state.completed_steps],
-        "skipped_steps": [step.value for step in state.skipped_steps],
-        "ready_for_orchestrator": state.user_context.ready_for_orchestrator,
-        "user_context": state.user_context.model_dump(),
-        "semantic_memories_count": len(state.semantic_memories),
-        "blocked_topics_count": len(state.blocked_topics),
-        "conversation_turns": state.turn_number,
-    }
+    try:
+        uid = UUID(user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="Invalid user_id") from e
+
+    status = get_onboarding_status_for_user(uid)
+
+    if not status.get("active") and not status.get("onboarding_done"):
+        try:
+            from app.models import UserContext
+            from app.services.external_context.client import ExternalUserRepository
+            from app.services.external_context.mapping import map_ai_context_to_user_context
+
+            repo = ExternalUserRepository()
+            data = await repo.get_by_id(uid)
+            if data:
+                ctx = UserContext(user_id=uid)
+                map_ai_context_to_user_context(data, ctx)
+                if ctx.ready_for_orchestrator:
+                    status = {
+                        "active": False,
+                        "onboarding_done": True,
+                        "thread_id": None,
+                        "current_step": None,
+                    }
+        except Exception:
+            pass
+
+    return status
+
+
+class InitializePayload(BaseModel):
+    user_id: str | None = None
 
 
 class InitializeResponse(BaseModel):
@@ -44,22 +63,27 @@ class InitializeResponse(BaseModel):
 
 
 @router.post("/initialize", response_model=InitializeResponse)
-async def initialize_onboarding() -> InitializeResponse:
-    result = await onboarding_service.initialize()
+async def initialize_onboarding(payload: InitializePayload) -> InitializeResponse:
+    result = await onboarding_service.initialize(user_id=payload.user_id)
     return InitializeResponse(**result)
 
 
 class MessagePayload(BaseModel):
     thread_id: str
-    type: str  # "text" | "choice" | "control"
+    type: str
     text: str | None = None
     step_id: str | None = None
     choice_ids: list[str] | None = None
-    action: str | None = None  # "back" | "skip"
+    action: str | None = None
 
 
 @router.post("/message")
 async def onboarding_message(payload: MessagePayload) -> dict:
+    if payload.type == "choice" and not payload.choice_ids:
+        raise HTTPException(status_code=400, detail="choice_ids required for type 'choice'")
+    if payload.type == "text" and payload.text is None:
+        raise HTTPException(status_code=400, detail="text required for type 'text'")
+
     return await onboarding_service.process_message(
         thread_id=payload.thread_id,
         type=payload.type,
@@ -77,6 +101,9 @@ async def onboarding_done(thread_id: str) -> dict:
 
     q = get_sse_queue(thread_id)
     await q.put({"event": "onboarding.status", "data": {"status": "processing"}})
+
+    await onboarding_service.finalize(thread_id=thread_id)
+
     await q.put({"event": "onboarding.status", "data": {"status": "done"}})
     return {"status": "done"}
 

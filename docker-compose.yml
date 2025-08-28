@@ -12,12 +12,11 @@ services:
       - "8000:8000"
     volumes:
       - ./:/app
-      - venv_cache:/app/.venv
     environment:
       - PYTHONDONTWRITEBYTECODE=1
       - POETRY_VIRTUALENVS_CREATE=true
       - POETRY_VIRTUALENVS_IN_PROJECT=true
-      - DATABASE_URL=postgresql+asyncpg://verde:verde@postgres:5432/verde
+      - DATABASE_ASYNC_URL=postgresql+asyncpg://verde:verde@postgres:5432/verde
     depends_on:
       - postgres
   postgres:

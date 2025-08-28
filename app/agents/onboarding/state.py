@@ -20,7 +20,6 @@ class OnboardingStep(str, Enum):
     PLAID_INTEGRATION = "plaid_integration"
     CHECKOUT_EXIT = "checkout_exit"
 
-
 class OnboardingState(BaseModel):
     conversation_id: UUID = Field(default_factory=uuid4)
     user_id: UUID
@@ -44,6 +43,12 @@ class OnboardingState(BaseModel):
 
     skip_count: int = 0
     skipped_nodes: list[str] = Field(default_factory=list)
+
+    current_interaction_type: str = "free_text"
+    current_choices: list[dict[str, Any]] = Field(default_factory=list)
+    current_binary_choices: dict[str, Any] | None = None
+    multi_min: int | None = None
+    multi_max: int | None = None
 
     def mark_step_completed(self, step: OnboardingStep) -> None:
         if step not in self.completed_steps:
@@ -93,7 +98,6 @@ class OnboardingState(BaseModel):
         for turn in self.conversation_history:
             all_text += f" {turn.get('user_message', '')} {turn.get('agent_response', '')}"
         all_text = all_text.lower()
-
         return any(keyword.lower() in all_text for keyword in keywords)
 
     def should_show_conditional_node(self, node: OnboardingStep) -> bool:
@@ -120,7 +124,6 @@ class OnboardingState(BaseModel):
                 "homeowner",
             ]
             return self.has_mentioned_topic(keywords)
-
         elif node == OnboardingStep.FAMILY_UNIT:
             keywords = [
                 "family",
@@ -146,7 +149,6 @@ class OnboardingState(BaseModel):
                 "family expenses",
             ]
             return self.has_mentioned_topic(keywords)
-
         elif node == OnboardingStep.HEALTH_COVERAGE:
             keywords = [
                 "health",
@@ -165,51 +167,40 @@ class OnboardingState(BaseModel):
                 "surgery",
             ]
             return self.has_mentioned_topic(keywords)
-
         return False
 
     def get_next_step(self) -> OnboardingStep | None:
         if self.skip_count >= 3:
             return OnboardingStep.PLAID_INTEGRATION
-
         if self.current_step == OnboardingStep.WARMUP:
             return OnboardingStep.IDENTITY
-
         elif self.current_step == OnboardingStep.IDENTITY:
             if self.last_user_message and "learn" in self.last_user_message.lower():
                 return OnboardingStep.LEARNING_PATH
             return OnboardingStep.INCOME_MONEY
-
         elif self.current_step == OnboardingStep.INCOME_MONEY:
             income_range = self.user_context.income
             if income_range in ["75k_100k", "over_100k"]:
                 return OnboardingStep.ASSETS_EXPENSES
             return self._get_next_conditional_node()
-
         elif self.current_step == OnboardingStep.ASSETS_EXPENSES:
             return self._get_next_conditional_node()
-
         elif self.current_step == OnboardingStep.HOME:
             if self.should_show_conditional_node(OnboardingStep.FAMILY_UNIT):
                 return OnboardingStep.FAMILY_UNIT
             elif self.should_show_conditional_node(OnboardingStep.HEALTH_COVERAGE):
                 return OnboardingStep.HEALTH_COVERAGE
             return OnboardingStep.PLAID_INTEGRATION
-
         elif self.current_step == OnboardingStep.FAMILY_UNIT:
             if self.should_show_conditional_node(OnboardingStep.HEALTH_COVERAGE):
                 return OnboardingStep.HEALTH_COVERAGE
             return OnboardingStep.PLAID_INTEGRATION
-
         elif self.current_step == OnboardingStep.HEALTH_COVERAGE or self.current_step == OnboardingStep.LEARNING_PATH:
             return OnboardingStep.PLAID_INTEGRATION
-
         elif self.current_step == OnboardingStep.PLAID_INTEGRATION:
             return OnboardingStep.CHECKOUT_EXIT
-
         elif self.current_step == OnboardingStep.CHECKOUT_EXIT:
             return None
-
         return None
 
     def _get_next_conditional_node(self) -> OnboardingStep:
@@ -219,7 +210,6 @@ class OnboardingState(BaseModel):
             return OnboardingStep.FAMILY_UNIT
         elif self.should_show_conditional_node(OnboardingStep.HEALTH_COVERAGE):
             return OnboardingStep.HEALTH_COVERAGE
-
         return OnboardingStep.PLAID_INTEGRATION
 
     def can_complete(self) -> bool:

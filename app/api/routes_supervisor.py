@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncGenerator
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -21,7 +22,7 @@ class SupervisorInitializeResponse(BaseModel):
 
 
 class SupervisorInitializePayload(BaseModel):
-    user_id: str
+    user_id: UUID
 
 
 @router.post("/initialize", response_model=SupervisorInitializeResponse)

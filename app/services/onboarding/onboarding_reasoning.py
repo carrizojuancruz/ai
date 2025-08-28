@@ -14,6 +14,7 @@ from app.agents.onboarding.state import OnboardingState, OnboardingStep
 from app.services.llm import get_llm_client
 
 from .context_patching import context_patching_service
+from .interaction_choices import get_choices_for_field, should_always_offer_choices
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ langfuse_handler = CallbackHandler(
 )
 
 ALLOWED_FIELDS_BY_STEP: dict[OnboardingStep, list[str]] = {
-    OnboardingStep.WARMUP: [],
+    OnboardingStep.WARMUP: ["warmup_choice"],
     OnboardingStep.IDENTITY: ["age", "age_range", "location", "city", "region", "personal_goals"],
     OnboardingStep.INCOME_MONEY: ["money_feelings", "annual_income", "annual_income_range", "income", "income_range"],
     OnboardingStep.ASSETS_EXPENSES: ["assets_types", "fixed_expenses"],
@@ -49,6 +50,43 @@ class OnboardingReasoningService:
                 "declined": {"type": "boolean"},
                 "off_topic": {"type": "boolean"},
                 "memory_candidates": {"type": "array", "items": {"type": "string"}},
+                "interaction_type": {
+                    "type": "string",
+                    "enum": ["free_text", "binary_choice", "single_choice", "multi_choice", "technical_integration"],
+                },
+                "choices": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "string"},
+                            "label": {"type": "string"},
+                            "value": {"type": "string"},
+                            "synonyms": {"type": "array", "items": {"type": "string"}},
+                        },
+                        "required": ["id", "label", "value"],
+                    },
+                },
+                "multi_min": {"type": "integer"},
+                "multi_max": {"type": "integer"},
+                "primary_choice": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "label": {"type": "string"},
+                        "value": {"type": "string"},
+                        "synonyms": {"type": "array", "items": {"type": "string"}},
+                    },
+                },
+                "secondary_choice": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "label": {"type": "string"},
+                        "value": {"type": "string"},
+                        "synonyms": {"type": "array", "items": {"type": "string"}},
+                    },
+                },
             },
             "required": [
                 "assistant_text",
@@ -56,6 +94,7 @@ class OnboardingReasoningService:
                 "complete",
                 "declined",
                 "off_topic",
+                "interaction_type",
             ],
             "additionalProperties": False,
         }
@@ -81,6 +120,7 @@ class OnboardingReasoningService:
                 context={
                     "conversation_id": str(state.conversation_id),
                     "thread_id": str(state.conversation_id),
+                    "user_id": str(state.user_id),
                     "step": step.value,
                     "tags": ["onboarding", "verde-ai", f"step:{step.name}", "reason"],
                     "original_query": state.last_user_message or "",
@@ -88,6 +128,89 @@ class OnboardingReasoningService:
             )
             result = self._parse_llm_response(raw_response)
             result["patch"] = context_patching_service.normalize_patch_for_step(step, result.get("patch") or {})
+
+            if state.last_user_message:
+                msg_lower = state.last_user_message.lower()
+                wants_options = any(
+                    word in msg_lower
+                    for word in [
+                        "option",
+                        "options",
+                        "choice",
+                        "choices",
+                        "range",
+                        "ranges",
+                        "category",
+                        "categories",
+                        "example",
+                        "examples",
+                        "what are my",
+                        "give me",
+                        "show me",
+                        "list",
+                    ]
+                )
+                if step == OnboardingStep.IDENTITY and wants_options:
+                    if "age_range" in missing_fields or "age" in missing_fields:
+                        result["interaction_type"] = "single_choice"
+                        result["patch"]["age_range"] = None
+                        result["patch"].pop("age", None)
+                elif step == OnboardingStep.INCOME_MONEY:
+                    income_hesitation = any(
+                        word in msg_lower
+                        for word in ["uncomfortable", "prefer not", "rather not", "don't want to share", "private"]
+                    )
+                    if (wants_options or income_hesitation) and any(
+                        field in missing_fields
+                        for field in ["annual_income", "annual_income_range", "income", "income_range"]
+                    ):
+                        result["interaction_type"] = "single_choice"
+                        result["patch"]["annual_income_range"] = None
+                        for field in ["annual_income", "income"]:
+                            result["patch"].pop(field, None)
+                elif step == OnboardingStep.LEARNING_PATH and "learning_interests" in missing_fields:
+                    result["interaction_type"] = "multi_choice"
+                    result["multi_min"] = 1
+                    result["multi_max"] = 3
+
+            if step == OnboardingStep.WARMUP:
+                choice_info = get_choices_for_field("warmup_choice", step)
+                if choice_info:
+                    result["interaction_type"] = choice_info["type"]
+                    result["choices"] = choice_info.get("choices", [])
+                    result.pop("primary_choice", None)
+                    result.pop("secondary_choice", None)
+            else:
+                if (result.get("interaction_type") == "free_text") and missing_fields:
+                    for field in missing_fields:
+                        if should_always_offer_choices(step, field):
+                            choice_info = get_choices_for_field(field, step)
+                            if choice_info:
+                                result["interaction_type"] = choice_info["type"]
+                                if choice_info["type"] == "binary_choice":
+                                    result["primary_choice"] = choice_info.get("primary_choice")
+                                    result["secondary_choice"] = choice_info.get("secondary_choice")
+                                elif choice_info["type"] in ["single_choice", "multi_choice"]:
+                                    result["choices"] = choice_info.get("choices", [])
+                                    if choice_info["type"] == "multi_choice":
+                                        result["multi_min"] = choice_info.get("multi_min", 1)
+                                        result["multi_max"] = choice_info.get("multi_max", 3)
+                                break
+
+                if result.get("interaction_type") != "free_text" and missing_fields:
+                    for field in missing_fields:
+                        choice_info = get_choices_for_field(field, step)
+                        if choice_info:
+                            if choice_info["type"] == "binary_choice":
+                                result["primary_choice"] = choice_info.get("primary_choice")
+                                result["secondary_choice"] = choice_info.get("secondary_choice")
+                            elif choice_info["type"] in ["single_choice", "multi_choice"]:
+                                result["choices"] = choice_info.get("choices", [])
+                                if choice_info["type"] == "multi_choice":
+                                    result["multi_min"] = choice_info.get("multi_min", 1)
+                                    result["multi_max"] = choice_info.get("multi_max", 3)
+                            break
+
             return result
         except Exception as e:
             logger.error("LLM reason failed: %s", e)
@@ -110,6 +233,8 @@ class OnboardingReasoningService:
 
         accumulated_text = ""
         try:
+            with suppress(Exception):
+                self._llm.set_callbacks([langfuse_handler])
             async for chunk in self._llm.generate_stream(
                 prompt=text_prompt,
                 system=ONBOARDING_SYSTEM_PROMPT
@@ -117,6 +242,7 @@ class OnboardingReasoningService:
                 context={
                     "conversation_id": str(state.conversation_id),
                     "thread_id": str(state.conversation_id),
+                    "user_id": str(state.user_id),
                     "step": step.value,
                     "tags": ["onboarding", "verde-ai", f"step:{step.name}", "text"],
                     "original_query": state.last_user_message or "",
@@ -134,18 +260,6 @@ class OnboardingReasoningService:
                     "chunk": chunk,
                 }
 
-            if accumulated_text:
-                yield {
-                    "assistant_text": accumulated_text,
-                    "patch": {},
-                    "complete": False,
-                    "declined": False,
-                    "off_topic": False,
-                    "memory_candidates": [],
-                    "streaming": True,
-                    "chunk": accumulated_text,
-                }
-
             metadata_prompt = self._build_metadata_prompt(
                 step=step,
                 missing_fields=missing_fields,
@@ -161,6 +275,7 @@ class OnboardingReasoningService:
                 context={
                     "conversation_id": str(state.conversation_id),
                     "thread_id": str(state.conversation_id),
+                    "user_id": str(state.user_id),
                     "step": step.value,
                     "tags": ["onboarding", "verde-ai", f"step:{step.name}", "metadata"],
                 },
@@ -170,6 +285,71 @@ class OnboardingReasoningService:
             result["assistant_text"] = accumulated_text
             result["patch"] = context_patching_service.normalize_patch_for_step(step, result.get("patch") or {})
             result["streaming"] = False
+
+            if state.last_user_message:
+                msg_lower = state.last_user_message.lower()
+                wants_options = any(
+                    word in msg_lower
+                    for word in [
+                        "option",
+                        "options",
+                        "choice",
+                        "choices",
+                        "range",
+                        "ranges",
+                        "category",
+                        "categories",
+                        "example",
+                        "examples",
+                        "what are my",
+                        "give me",
+                        "show me",
+                        "list",
+                    ]
+                )
+                if step == OnboardingStep.IDENTITY and wants_options:
+                    if "age_range" in missing_fields or "age" in missing_fields:
+                        result["interaction_type"] = "single_choice"
+                        result["patch"]["age_range"] = None
+                        result["patch"].pop("age", None)
+                elif step == OnboardingStep.INCOME_MONEY:
+                    income_hesitation = any(
+                        word in msg_lower
+                        for word in ["uncomfortable", "prefer not", "rather not", "don't want to share", "private"]
+                    )
+                    if (wants_options or income_hesitation) and any(
+                        field in missing_fields
+                        for field in ["annual_income", "annual_income_range", "income", "income_range"]
+                    ):
+                        result["interaction_type"] = "single_choice"
+                        result["patch"]["annual_income_range"] = None
+                        for field in ["annual_income", "income"]:
+                            result["patch"].pop(field, None)
+                elif step == OnboardingStep.LEARNING_PATH and "learning_interests" in missing_fields:
+                    result["interaction_type"] = "multi_choice"
+                    result["multi_min"] = 1
+                    result["multi_max"] = 3
+
+            if step == OnboardingStep.WARMUP:
+                choice_info = get_choices_for_field("warmup_choice", step)
+                if choice_info:
+                    result["interaction_type"] = choice_info["type"]
+                    result["choices"] = choice_info.get("choices", [])
+                    result.pop("primary_choice", None)
+                    result.pop("secondary_choice", None)
+            elif result.get("interaction_type") != "free_text" and missing_fields:
+                for field in missing_fields:
+                    choice_info = get_choices_for_field(field, step)
+                    if choice_info:
+                        if choice_info["type"] == "binary_choice":
+                            result["primary_choice"] = choice_info.get("primary_choice")
+                            result["secondary_choice"] = choice_info.get("secondary_choice")
+                        elif choice_info["type"] in ["single_choice", "multi_choice"]:
+                            result["choices"] = choice_info.get("choices", [])
+                            if choice_info["type"] == "multi_choice":
+                                result["multi_min"] = choice_info.get("multi_min", 1)
+                                result["multi_max"] = choice_info.get("multi_max", 3)
+                        break
 
             yield result
 
@@ -193,12 +373,60 @@ class OnboardingReasoningService:
         state_dict: dict[str, Any],
     ) -> str:
         step_guidance = STEP_GUIDANCE.get(step, "")
+
+        available_choices = {}
+        for field in missing_fields:
+            choice_info = get_choices_for_field(field, step)
+            if choice_info:
+                available_choices[field] = choice_info
+
         instructions = (
-            ((step_guidance + "\n") if step_guidance else "") + "Follow these rules strictly:\n"
-            "- Use Allowed patch fields exactly (map synonyms like 'preferred_name'/'city' to canonical dot-paths).\n"
-            "- If the user explicitly declines this field, set declined=true and keep assistant_text concise.\n"
-            "- If off-topic, set off_topic=true and assistant_text should briefly acknowledge then pivot back.\n"
-            "- Output ONLY JSON for the schema.\n"
+            ((step_guidance + "\n") if step_guidance else "")
+            + "You are conducting an onboarding conversation. Based on the user's response, decide the best interaction type.\n\n"
+            "INTERACTION TYPE DECISION RULES:\n"
+            "1. Use 'free_text' when:\n"
+            "   - User provides a direct, confident answer\n"
+            "   - User seems comfortable sharing specific information\n"
+            "   - The question is open-ended without predefined options\n\n"
+            "2. Switch to choice-based interactions when:\n"
+            "   - User expresses hesitation, uncertainty, or discomfort\n"
+            "   - User asks for options, ranges, or examples (e.g., 'give me ranges', 'what are my options')\n"
+            "   - User says they prefer ranges or categories over exact values\n"
+            "   - User seems unclear about what you're asking\n"
+            "   - User explicitly prefers not to share exact details\n"
+            "   - The field naturally works better with predefined options\n"
+            "   - For age: User mentions 'range', 'options', 'categories' or shows any hesitation\n"
+            "   - For income: User mentions 'range', is uncomfortable, or prefers not to share exact amount\n"
+            "   - For money_feelings: ALWAYS use multi_choice (this field always offers choices)\n"
+            "   - For learning_interests: ALWAYS use multi_choice (this field always offers choices)\n"
+            "   - For housing_type: ALWAYS use single_choice (this field always offers choices)\n"
+            "   - For health_insurance_status: ALWAYS use single_choice (this field always offers choices)\n\n"
+            "Available choice-based options for current fields:\n"
+        )
+
+        for field, choice_info in available_choices.items():
+            instructions += f"- {field}: {choice_info['type']} available\n"
+
+        if "age" in missing_fields and "age_range" not in missing_fields:
+            instructions += "\nNOTE: If user asks for age ranges or shows hesitation about exact age, use the 'age_range' field with single_choice instead of free_text 'age'.\n"
+
+        always_choice_fields = []
+        for field in missing_fields:
+            if should_always_offer_choices(step, field):
+                always_choice_fields.append(field)
+
+        if always_choice_fields:
+            instructions += f"\nFIELDS THAT SHOULD ALWAYS USE CHOICES: {', '.join(always_choice_fields)}\n"
+
+        instructions += (
+            "\nYour response should:\n"
+            "- Naturally acknowledge the user's comfort level\n"
+            "- Offer choices conversationally when appropriate\n"
+            "- Never force specific answers if user is uncomfortable\n"
+            "- For binary_choice, use primary_choice and secondary_choice fields\n"
+            "- For single_choice and multi_choice, use the choices array\n"
+            "- IMPORTANT: If user asks for age ranges/options, set interaction_type='single_choice' and patch={'age_range': null}\n"
+            "- Output ONLY JSON matching the schema\n\n"
             f"Step: {step.value}\n"
             f"Missing fields: {missing_fields}\n"
             f"Allowed patch fields: {allowed_fields}\n"
@@ -224,6 +452,7 @@ class OnboardingReasoningService:
         result.setdefault("declined", False)
         result.setdefault("off_topic", False)
         result.setdefault("memory_candidates", [])
+        result.setdefault("interaction_type", "free_text")
         return result
 
     def _default_response(self) -> dict[str, Any]:
@@ -234,7 +463,58 @@ class OnboardingReasoningService:
             "declined": False,
             "off_topic": False,
             "memory_candidates": [],
+            "interaction_type": "free_text",
         }
+
+    def _build_context_summary(self, state_dict: dict[str, Any]) -> str:
+        lines: list[str] = []
+        max_lines = 12
+        max_depth = 2
+        max_list_items = 3
+
+        def add_line(key: str, value: Any) -> None:
+            nonlocal lines
+            if len(lines) >= max_lines:
+                return
+            if isinstance(value, str):
+                val = value.strip()
+                if not val:
+                    return
+                if len(val) > 80:
+                    val = val[:77] + "..."
+                lines.append(f"{key}: {val}")
+            elif isinstance(value, (int, float, bool)):
+                lines.append(f"{key}: {value}")
+            elif isinstance(value, list):
+                if not value:
+                    return
+                items: list[str] = []
+                for item in value[:max_list_items]:
+                    if isinstance(item, (str, int, float, bool)):
+                        item_str = str(item)
+                        if len(item_str) > 40:
+                            item_str = item_str[:37] + "..."
+                        items.append(item_str)
+                if items:
+                    suffix = f" (+{len(value) - len(items)} more)" if len(value) > len(items) else ""
+                    lines.append(f"{key}: {', '.join(items)}{suffix}")
+
+        def walk(d: dict[str, Any], prefix: str = "", depth: int = 0) -> None:
+            if depth > max_depth or len(lines) >= max_lines:
+                return
+            if not isinstance(d, dict):
+                return
+            for k, v in d.items():
+                path = f"{prefix}{k}" if not prefix else f"{prefix}.{k}"
+                if v in (None, "", [], {}):
+                    continue
+                if isinstance(v, (str, int, float, bool, list)):
+                    add_line(path, v)
+                elif isinstance(v, dict):
+                    walk(v, path, depth + 1)
+
+        walk(state_dict, "", 0)
+        return "\n".join(lines) if lines else "(none)"
 
     def _build_text_prompt(
         self,
@@ -247,12 +527,17 @@ class OnboardingReasoningService:
         step_guidance = STEP_GUIDANCE.get(step, "")
         default_prompt = DEFAULT_RESPONSE_BY_STEP.get(step, "")
 
+        ctx_block = self._build_context_summary(state_dict)
+
         prompt = f"""Current step: {step.value}
 
 {step_guidance}
 
 Missing information: {", ".join(missing_fields) if missing_fields else "None"}
 User's last message: {last_user_message or "(Starting conversation)"}
+
+Known user context (short):
+{ctx_block}
 
 Recent conversation:
 {convo_tail}

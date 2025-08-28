@@ -13,7 +13,7 @@ from .onboarding_reasoning import onboarding_reasoning_service
 class StepHandlerService:
     def __init__(self) -> None:
         self._missing_fields_by_step: dict[OnboardingStep, list[str] | Callable] = {
-            OnboardingStep.WARMUP: lambda state: [],
+            OnboardingStep.WARMUP: lambda state: ["warmup_choice"],
             OnboardingStep.IDENTITY: self._get_identity_missing_fields,
             OnboardingStep.INCOME_MONEY: self._get_income_money_missing_fields,
             OnboardingStep.ASSETS_EXPENSES: lambda state: ["assets_types", "fixed_expenses"],
@@ -26,7 +26,7 @@ class StepHandlerService:
         }
 
         self._completion_checks: dict[OnboardingStep, Callable[[OnboardingState], bool]] = {
-            OnboardingStep.WARMUP: lambda state: True,
+            OnboardingStep.WARMUP: self._is_warmup_complete,
             OnboardingStep.IDENTITY: self._is_identity_complete,
             OnboardingStep.INCOME_MONEY: self._is_income_money_complete,
             OnboardingStep.ASSETS_EXPENSES: lambda state: True,
@@ -41,10 +41,15 @@ class StepHandlerService:
     async def handle_step(self, state: OnboardingState, step: OnboardingStep) -> OnboardingState:
         state.current_step = step
 
-        if step in [OnboardingStep.HOME, OnboardingStep.FAMILY_UNIT, OnboardingStep.HEALTH_COVERAGE]:
-            if not state.should_show_conditional_node(step):
-                state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
-                return state
+        state.current_interaction_type = "free_text"
+        state.current_choices = []
+        state.current_binary_choices = None
+        state.multi_min = None
+        state.multi_max = None
+
+        if step in [OnboardingStep.HOME, OnboardingStep.FAMILY_UNIT, OnboardingStep.HEALTH_COVERAGE] and not state.should_show_conditional_node(step):
+            state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
+            return state
 
         missing_fields = self._get_missing_fields(state, step)
 
@@ -62,6 +67,18 @@ class StepHandlerService:
         context_patching_service.apply_context_patch(state, step, decision.get("patch") or {})
 
         response = decision.get("assistant_text") or DEFAULT_RESPONSE_BY_STEP.get(step, "")
+
+        state.current_interaction_type = decision.get("interaction_type", "free_text")
+        state.current_choices = decision.get("choices", [])
+        if decision.get("interaction_type") == "binary_choice":
+            state.current_binary_choices = {
+                "primary_choice": decision.get("primary_choice"),
+                "secondary_choice": decision.get("secondary_choice"),
+            }
+        else:
+            state.current_binary_choices = None
+        state.multi_min = decision.get("multi_min")
+        state.multi_max = decision.get("multi_max")
 
         if decision.get("complete") or self.is_step_complete(state, step):
             state.mark_step_completed(step)
@@ -97,11 +114,16 @@ class StepHandlerService:
     ) -> AsyncGenerator[tuple[str, OnboardingState], None]:
         state.current_step = step
 
-        if step in [OnboardingStep.HOME, OnboardingStep.FAMILY_UNIT, OnboardingStep.HEALTH_COVERAGE]:
-            if not state.should_show_conditional_node(step):
-                state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
-                yield ("", state)
-                return
+        state.current_interaction_type = "free_text"
+        state.current_choices = []
+        state.current_binary_choices = None
+        state.multi_min = None
+        state.multi_max = None
+
+        if step in [OnboardingStep.HOME, OnboardingStep.FAMILY_UNIT, OnboardingStep.HEALTH_COVERAGE] and not state.should_show_conditional_node(step):
+            state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
+            yield ("", state)
+            return
 
         missing_fields = self._get_missing_fields(state, step)
 
@@ -130,6 +152,18 @@ class StepHandlerService:
 
         if final_decision:
             context_patching_service.apply_context_patch(state, step, final_decision.get("patch") or {})
+
+            state.current_interaction_type = final_decision.get("interaction_type", "free_text")
+            state.current_choices = final_decision.get("choices", [])
+            if final_decision.get("interaction_type") == "binary_choice":
+                state.current_binary_choices = {
+                    "primary_choice": final_decision.get("primary_choice"),
+                    "secondary_choice": final_decision.get("secondary_choice"),
+                }
+            else:
+                state.current_binary_choices = None
+            state.multi_min = final_decision.get("multi_min")
+            state.multi_max = final_decision.get("multi_max")
 
             if final_decision.get("complete") or self.is_step_complete(state, step):
                 state.mark_step_completed(step)
@@ -182,20 +216,25 @@ class StepHandlerService:
 
     def _get_identity_missing_fields(self, state: OnboardingState) -> list[str]:
         missing: list[str] = []
-        if not state.user_context.age and not state.user_context.age_range:
-            missing.append("age")
-        if not state.user_context.location.city:
+        has_age = bool(getattr(state.user_context, "age", None))
+        has_age_range = bool(getattr(state.user_context, "age_range", None))
+        if not has_age and not has_age_range:
+            missing.append("age_range")
+        if not getattr(state.user_context.location, "city", None):
             missing.append("location")
-        if not state.user_context.goals:
+        if not getattr(state.user_context, "goals", None):
             missing.append("personal_goals")
         return missing
 
     def _get_income_money_missing_fields(self, state: OnboardingState) -> list[str]:
         missing: list[str] = []
-        if not hasattr(state.user_context, "money_feelings"):
+        if not getattr(state.user_context, "money_feelings", None):
             missing.append("money_feelings")
-        if not state.user_context.income:
-            missing.append("annual_income")
+        has_income = bool(getattr(state.user_context, "income", None))
+        has_income_range = bool(getattr(state.user_context, "income_range", None))
+        has_annual_income_range = bool(getattr(state.user_context, "annual_income_range", None))
+        if not (has_income or has_income_range or has_annual_income_range):
+            missing.append("annual_income_range")
         return missing
 
     def _is_identity_complete(self, state: OnboardingState) -> bool:
@@ -203,6 +242,9 @@ class StepHandlerService:
 
     def _is_income_money_complete(self, state: OnboardingState) -> bool:
         return hasattr(state.user_context, "money_feelings") or state.user_context.income is not None
+
+    def _is_warmup_complete(self, state: OnboardingState) -> bool:
+        return bool(state.last_user_message and state.last_user_message.strip() and len(state.conversation_history) > 0)
 
     def _get_default_next_step(self, current_step: OnboardingStep) -> OnboardingStep:
         return OnboardingStep.CHECKOUT_EXIT
