@@ -5,6 +5,7 @@ load_dotenv(".env.local", override=True)
 
 from collections.abc import Callable
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, Request, Response
 
@@ -45,10 +46,11 @@ async def health_check() -> dict[str, str]:
     return {"message": "Verde AI - Vera Agent System", "status": "healthy"}
 
 @app.get("/actual_config")
-async def actual_config() -> dict[str, str]:
-    logger.info(f"Actual config requested: {config.get_actual_config()}")
+async def actual_config() -> dict[str, Any]:
+    actual_config_data = config.get_actual_config()
+    logger.info(f"Actual config requested: {actual_config_data}")
 
-    return {"message": "Verde AI - Vera Agent System", "status": "healthy"}
+    return actual_config_data
 
 app.include_router(api_router)
 app.include_router(supervisor_router)
