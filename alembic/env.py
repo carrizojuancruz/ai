@@ -42,9 +42,8 @@ def _run_sync_migrations(connection: Connection) -> None:
 
 
 def run_migrations() -> None:
+
     url = app_config.get_database_url()
-    if not url:
-        raise RuntimeError("DATABASE_URL is not set")
 
     if "+asyncpg" in url:
         from sqlalchemy.ext.asyncio import create_async_engine
