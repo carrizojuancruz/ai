@@ -1,0 +1,1115 @@
+[
+  {
+    "name": "MyMoney.gov",
+    "type": "Government Portal",
+    "category": "Personal Finance",
+    "url": "http://MyMoney.gov",
+    "description": "Official U.S. government portal for financial education programs and information"
+  },
+  {
+    "name": "Consumer Financial Protection Bureau (CFPB)",
+    "type": "Government Agency",
+    "category": "Personal Finance",
+    "url": "https://www.consumerfinance.gov/consumer-tools/",
+    "description": "Consumer protection and financial tools from consumerfinance.gov"
+  },
+  {
+    "name": "Consumer.gov",
+    "type": "Government Portal",
+    "category": "Personal Finance",
+    "url": "http://Consumer.gov",
+    "description": "Reliable FTC information on money management basics and avoiding scams"
+  },
+  {
+    "name": "Investor.gov (SEC)",
+    "type": "Government Agency",
+    "category": "Personal Finance",
+    "url": "http://Investor.gov",
+    "description": "Official SEC investor education website with tools and information"
+  },
+  {
+    "name": "FINRA Investor Education",
+    "type": "Financial Regulatory Organization",
+    "category": "Personal Finance",
+    "url": "https://www.finra.org/investors/investing/investing-basics/investment-goals",
+    "description": "Unbiased information on money and investment issues from FINRA"
+  },
+  {
+    "name": "FDIC Money Smart",
+    "type": "Government Program",
+    "category": "Personal Finance",
+    "url": "https://www.fdic.gov/consumer-resource-center/money-smart-young-adults",
+    "description": "Free educational program providing practical knowledge and skills"
+  },
+  {
+    "name": "Federal Student Aid (StudentAid.gov)",
+    "type": "Government Program",
+    "category": "Personal Finance",
+    "url": "http://StudentAid.gov",
+    "description": "Official U.S. Department of Education resource for college financing"
+  },
+  {
+    "name": "National Endowment for Financial Education",
+    "type": "Non-Profit Organization",
+    "category": "Personal Finance",
+    "url": "https://www.nefe.org",
+    "description": "National Endowment for Financial Education"
+  },
+  {
+    "name": "Jump$tart Coalition for Personal Financial Literacy",
+    "type": "Non-Profit Organization",
+    "category": "Personal Finance",
+    "url": "https://www.jumpstart.org",
+    "description": "Jump$tart Coalition for Personal Financial Literacy"
+  },
+  {
+    "name": "HUD Helping Americans",
+    "type": "Government Agency",
+    "category": "Personal Finance",
+    "url": "https://www.hud.gov/helping-americans",
+    "description": "Housing resources from the Department of Housing and Urban Development"
+  },
+  {
+    "name": "211.org",
+    "type": "Information Service",
+    "category": "Personal Finance",
+    "url": "http://211.org",
+    "description": "Information and referrals for social services"
+  },
+  {
+    "name": "USA.gov",
+    "type": "Government Portal",
+    "category": "Personal Finance",
+    "url": "http://USA.gov",
+    "description": "Official U.S. government information and services portal"
+  },
+  {
+    "name": "MentalHealth.gov",
+    "type": "Government Portal",
+    "category": "Mental Health",
+    "url": "https://www.mentalhealth.gov",
+    "description": "U.S. government's one-stop access to mental health information and resources"
+  },
+  {
+    "name": "National Institute of Mental Health (NIMH)",
+    "type": "Government Research Agency",
+    "category": "Mental Health",
+    "url": "https://www.nimh.nih.gov/health",
+    "description": "Lead federal agency for research on mental disorders"
+  },
+  {
+    "name": "SAMHSA's National Helpline",
+    "type": "Government Helpline",
+    "category": "Mental Health",
+    "url": "https://www.samhsa.gov/find-help/helplines",
+    "description": "1-800-662-HELP (24/7 free and confidential helpline)"
+  },
+  {
+    "name": "988 Suicide & Crisis Lifeline",
+    "type": "Government Crisis Service",
+    "category": "Mental Health",
+    "url": "https://988lifeline.org",
+    "description": "Nationwide three-digit number for crisis support"
+  },
+  {
+    "name": "Crisis Text Line",
+    "type": "Crisis Support Service",
+    "category": "Mental Health",
+    "url": "https://www.crisistextline.org",
+    "description": "Text HOME to 741741 for 24/7 mental health support"
+  },
+  {
+    "name": "National Alliance on Mental Illness (NAMI)",
+    "type": "Non-Profit Organization",
+    "category": "Mental Health",
+    "url": "https://www.nami.org",
+    "description": "Nation's largest grassroots mental health organization"
+  },
+  {
+    "name": "NIH's NCCIH",
+    "type": "Government Research Agency",
+    "category": "Mental Health",
+    "url": "https://www.nccih.nih.gov",
+    "description": "Evidence-based information on meditation and mindfulness practices"
+  },
+  {
+    "name": "Anxiety and Depression Association (ADAA)",
+    "type": "Non-Profit Organization",
+    "category": "Mental Health",
+    "url": "https://adaa.org/",
+    "description": "Resources for anxiety and depression"
+  },
+  {
+    "name": "American Psychological Association (APA)",
+    "type": "Professional Organization",
+    "category": "Mental Health",
+    "url": "http://apa.org/helpcenter",
+    "description": "APA help center resources"
+  },
+  {
+    "name": "Mental Health America",
+    "type": "Non-Profit Organization",
+    "category": "Mental Health",
+    "url": "https://mhanational.org/resources/",
+    "description": "Mental health resources and support"
+  },
+  {
+    "name": "CareerOneStop (U.S. Dept of Labor)",
+    "type": "Government Portal",
+    "category": "Career Development",
+    "url": "https://www.careeronestop.org",
+    "description": "Comprehensive career development portal sponsored by DOL"
+  },
+  {
+    "name": "USA.gov",
+    "type": "Government Portal",
+    "category": "Career Development",
+    "url": "https://www.usa.gov",
+    "description": "Official guide to U.S. government information and services with practical articles"
+  },
+  {
+    "name": "Benefits.gov - Benefit Finder",
+    "type": "Government Tool",
+    "category": "Crisis Resources",
+    "url": "https://www.benefits.gov/",
+    "description": "Questionnaire to screen for federal and state benefits"
+  },
+  {
+    "name": "CFPB - Help for renters",
+    "type": "Government Guide",
+    "category": "Crisis Resources",
+    "url": "https://www.consumerfinance.gov/housing/housing-insecurity/help-for-renters/",
+    "description": "Steps if you're behind on rent, rights & eviction resources"
+  },
+  {
+    "name": "Find a HUD-approved housing counselor",
+    "type": "Government Directory",
+    "category": "Crisis Resources",
+    "url": "https://www.consumerfinance.gov/find-a-housing-counselor/",
+    "description": "Search tool for HUD-approved counseling agencies"
+  },
+  {
+    "name": "HUD - Avoiding foreclosure",
+    "type": "Government Guide",
+    "category": "Crisis Resources",
+    "url": "https://www.hud.gov/helping-americans/avoiding-foreclosure",
+    "description": "What to do if you're behind on your mortgage"
+  },
+  {
+    "name": "LIHEAP - Energy bill help",
+    "type": "Government Program",
+    "category": "Crisis Resources",
+    "url": "https://acf.gov/ocs/programs/liheap",
+    "description": "Assistance with heating, cooling, and energy crises"
+  },
+  {
+    "name": "USDA - SNAP (food assistance)",
+    "type": "Government Program",
+    "category": "Crisis Resources",
+    "url": "https://www.fns.usda.gov/snap/supplemental-nutrition-assistance-program",
+    "description": "Food benefits; includes EBT basics"
+  },
+  {
+    "name": "Lifeline - Phone/Internet discount",
+    "type": "Government Program",
+    "category": "Crisis Resources",
+    "url": "https://www.lifelinesupport.org/",
+    "description": "Up to $9.25/mo (more on Tribal lands) off service"
+  },
+  {
+    "name": "FTC - Choosing a Credit Counselor",
+    "type": "Government Guide",
+    "category": "Credit & Debt",
+    "url": "https://consumer.ftc.gov/sites/default/files/articles/pdf/pdf-0040-choosing-a-credit-counselor.pdf",
+    "description": "How to vet reputable nonprofit counseling agencies"
+  },
+  {
+    "name": "FTC - How to Get Out of Debt",
+    "type": "Government Guide",
+    "category": "Credit & Debt",
+    "url": "https://consumer.ftc.gov/articles/how-get-out-debt",
+    "description": "Covers debt management plans (DMPs) and alternatives"
+  },
+  {
+    "name": "CFPB - Debt collector rights",
+    "type": "Government Guide",
+    "category": "Credit & Debt",
+    "url": "https://www.consumerfinance.gov/ask-cfpb/what-should-i-do-when-a-debt-collector-contacts-me-en-1695/",
+    "description": "Know your rights; links to sample letters"
+  },
+  {
+    "name": "AnnualCreditReport.com",
+    "type": "Government Tool",
+    "category": "Credit & Debt",
+    "url": "https://www.annualcreditreport.com/index.action",
+    "description": "Request Equifax, Experian, and TransUnion reports"
+  },
+  {
+    "name": "CFPB - Dispute credit report errors",
+    "type": "Government Guide",
+    "category": "Credit & Debt",
+    "url": "https://www.consumerfinance.gov/ask-cfpb/how-do-i-dispute-an-error-on-my-credit-report-en-314/",
+    "description": "Steps to correct inaccurate information"
+  },
+  {
+    "name": "U.S. Courts - Bankruptcy Basics",
+    "type": "Government Guide",
+    "category": "Credit & Debt",
+    "url": "https://www.uscourts.gov/court-programs/bankruptcy/bankruptcy-basics",
+    "description": "Overview of Chapters 7, 11, 13, etc."
+  },
+  {
+    "name": "Federal Student Aid - Loan Simulator",
+    "type": "Government Tool",
+    "category": "Student Loans",
+    "url": "https://studentaid.gov/loan-simulator",
+    "description": "Estimate payments & compare plans"
+  },
+  {
+    "name": "Federal Student Aid - Repayment Plans",
+    "type": "Government Guide",
+    "category": "Student Loans",
+    "url": "https://studentaid.gov/manage-loans/repayment/plans",
+    "description": "Standard vs. income-driven options"
+  },
+  {
+    "name": "Federal Student Aid - Apply/Recertify for IDR",
+    "type": "Government Form",
+    "category": "Student Loans",
+    "url": "https://studentaid.gov/idr/",
+    "description": "Start or recertify an income-driven plan"
+  },
+  {
+    "name": "CFPB - Student Loans hub",
+    "type": "Government Guide",
+    "category": "Student Loans",
+    "url": "https://www.consumerfinance.gov/consumer-tools/student-loans/",
+    "description": "Consumer tools, complaint help, and tips"
+  },
+  {
+    "name": "CFPB - Your Money, Your Goals",
+    "type": "Government Toolkit",
+    "category": "Budgeting",
+    "url": "https://www.consumerfinance.gov/consumer-tools/educator-tools/your-money-your-goals/",
+    "description": "Evidence-based tools for casework & coaching"
+  },
+  {
+    "name": "CFPB - Bill Calendar",
+    "type": "Government Tool",
+    "category": "Budgeting",
+    "url": "https://files.consumerfinance.gov/f/documents/cfpb_well-being_bill-calendar.pdf",
+    "description": "Plot bill due dates vs. paydays to avoid late fees"
+  },
+  {
+    "name": "Consumer.gov - Budget Worksheet",
+    "type": "Government Worksheet",
+    "category": "Budgeting",
+    "url": "https://consumer.gov/sites/default/files/pdf-1020-make-budget-worksheet_form.pdf",
+    "description": "Simple monthly budget form"
+  },
+  {
+    "name": "CFPB - Emergency fund guide",
+    "type": "Government Guide",
+    "category": "Budgeting",
+    "url": "https://www.consumerfinance.gov/an-essential-guide-to-building-an-emergency-fund/",
+    "description": "How much to save and how to start"
+  },
+  {
+    "name": "SEC Investor.gov - Introduction to Investing",
+    "type": "Government Guide",
+    "category": "Building Wealth",
+    "url": "https://www.investor.gov/introduction-investing",
+    "description": "Core investing concepts and avoiding fraud"
+  },
+  {
+    "name": "SEC Investor.gov - Financial Tools & Calculators",
+    "type": "Government Tools",
+    "category": "Building Wealth",
+    "url": "https://www.investor.gov/free-financial-planning-tools",
+    "description": "Compound interest, RMD, and savings goal calculators"
+  },
+  {
+    "name": "FINRA - For Investors",
+    "type": "Financial Regulatory Guide",
+    "category": "Building Wealth",
+    "url": "https://www.finra.org/investors",
+    "description": "Investor education, tools and alerts"
+  },
+  {
+    "name": "TreasuryDirect - I Bonds",
+    "type": "Government Program",
+    "category": "Building Wealth",
+    "url": "https://www.treasurydirect.gov/savings-bonds/i-bonds/",
+    "description": "Inflation-protected savings bonds; buy via TreasuryDirect"
+  },
+  {
+    "name": "FINRA - 529 College Savings Plans",
+    "type": "Financial Regulatory Guide",
+    "category": "Building Wealth",
+    "url": "https://www.finra.org/investors/investing/investment-accounts/college-savings-accounts/529-plans",
+    "description": "Basics of state-sponsored 529 plans"
+  },
+  {
+    "name": "IRS - Earned Income Tax Credit (EITC)",
+    "type": "Government Program",
+    "category": "Building Wealth",
+    "url": "https://www.irs.gov/credits-deductions/individuals/earned-income-tax-credit-eitc",
+    "description": "Refundable credit for eligible workers and families"
+  },
+  {
+    "name": "FTC - How to avoid imposter scams",
+    "type": "Government Guide",
+    "category": "Protection",
+    "url": "https://consumer.ftc.gov/features/how-avoid-imposter-scams",
+    "description": "Spot red flags and avoid government/tech support scams"
+  },
+  {
+    "name": "ReportFraud.ftc.gov",
+    "type": "Government Portal",
+    "category": "Protection",
+    "url": "https://reportfraud.ftc.gov/",
+    "description": "Report fraud; get next-step guidance"
+  },
+  {
+    "name": "IdentityTheft.gov",
+    "type": "Government Portal",
+    "category": "Protection",
+    "url": "https://www.identitytheft.gov/",
+    "description": "Personalized recovery plans and letters"
+  },
+  {
+    "name": "IRS - Recognize tax scams and fraud",
+    "type": "Government Guide",
+    "category": "Protection",
+    "url": "https://www.irs.gov/help/tax-scams/recognize-tax-scams-and-fraud",
+    "description": "Dirty Dozen & how the IRS contacts you"
+  },
+  {
+    "name": "CFPB - Overdraft fees & your rights",
+    "type": "Government Rule/Explainer",
+    "category": "Protection",
+    "url": "https://www.consumerfinance.gov/rules-policy/regulations/1005/17",
+    "description": "Opt-in required for ATM/one-time debit card overdrafts"
+  },
+  {
+    "name": "CFPB - Remittance transfers and rights",
+    "type": "Government Guide",
+    "category": "Money Transfers",
+    "url": "https://www.consumerfinance.gov/ask-cfpb/what-is-a-remittance-transfer-and-what-are-my-rights-en-1161/",
+    "description": "Key rights, disclosures, error resolution"
+  },
+  {
+    "name": "CFPB - Money transfers consumer hub",
+    "type": "Government Guide",
+    "category": "Money Transfers",
+    "url": "https://www.consumerfinance.gov/consumer-tools/money-transfers/",
+    "description": "Know your rights; what to do if there's a problem"
+  },
+  {
+    "name": "CFPB - Submit a complaint",
+    "type": "Government Portal",
+    "category": "Money Transfers",
+    "url": "https://www.consumerfinance.gov/complaint/",
+    "description": "Escalate problems with banks, lenders & money transfer firms"
+  },
+  {
+    "name": "Alabama Department of Human Resources",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dhr.alabama.gov",
+    "description": "Alabama social services and human resources"
+  },
+  {
+    "name": "Alabama Housing Finance Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.ahfa.com",
+    "description": "Alabama housing finance and assistance"
+  },
+  {
+    "name": "Alaska Department of Family and Community Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dfcs.alaska.gov",
+    "description": "Alaska social services and family support"
+  },
+  {
+    "name": "Alaska Housing Finance Corporation",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.ahfc.us",
+    "description": "Alaska housing finance and programs"
+  },
+  {
+    "name": "Arizona Department of Economic Security",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://des.az.gov",
+    "description": "Arizona social services and economic support"
+  },
+  {
+    "name": "Arizona Department of Housing",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://housing.az.gov",
+    "description": "Arizona housing and community development"
+  },
+  {
+    "name": "Arkansas Department of Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://humanservices.arkansas.gov",
+    "description": "Arkansas social services and human resources"
+  },
+  {
+    "name": "Arkansas Development Finance Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.arkansas.gov/adfa",
+    "description": "Arkansas development finance and housing"
+  },
+  {
+    "name": "California Department of Social Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.cdss.ca.gov",
+    "description": "California social services and support programs"
+  },
+  {
+    "name": "California Housing Finance Agency",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.calhfa.ca.gov",
+    "description": "California housing finance and mortgage programs"
+  },
+  {
+    "name": "Colorado Department of Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://cdhs.colorado.gov",
+    "description": "Colorado social services and human resources"
+  },
+  {
+    "name": "Colorado Housing and Finance Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.chfainfo.com",
+    "description": "Colorado housing finance and development"
+  },
+  {
+    "name": "Connecticut Department of Social Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://portal.ct.gov",
+    "description": "Connecticut social services and human resources"
+  },
+  {
+    "name": "Connecticut Housing Finance Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.chfa.org",
+    "description": "Connecticut housing finance and mortgage programs"
+  },
+  {
+    "name": "Delaware Department of Health and Social Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.dhss.delaware.gov",
+    "description": "Delaware health and social services"
+  },
+  {
+    "name": "Delaware State Housing Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.destatehousing.com",
+    "description": "Delaware housing authority and programs"
+  },
+  {
+    "name": "Florida Department of Children and Families",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.myflfamilies.com",
+    "description": "Florida children and families services"
+  },
+  {
+    "name": "Florida Housing Finance Corporation",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.floridahousing.org",
+    "description": "Florida housing finance and development"
+  },
+  {
+    "name": "Georgia Department of Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dhs.georgia.gov",
+    "description": "Georgia social services and human resources"
+  },
+  {
+    "name": "Georgia Department of Community Affairs",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.dca.ga.gov",
+    "description": "Georgia community affairs and housing"
+  },
+  {
+    "name": "Hawaii Department of Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://humanservices.hawaii.gov",
+    "description": "Hawaii social services and human resources"
+  },
+  {
+    "name": "Hawaii Housing Finance and Development Corporation",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.hawaii.gov/dbedt/hhfdc",
+    "description": "Hawaii housing finance and development"
+  },
+  {
+    "name": "Idaho Department of Health and Welfare",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://healthandwelfare.idaho.gov",
+    "description": "Idaho health and welfare services"
+  },
+  {
+    "name": "Idaho Housing and Finance Association",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.idahohousing.com",
+    "description": "Idaho housing and finance programs"
+  },
+  {
+    "name": "Illinois Department of Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.dhs.state.il.us",
+    "description": "Illinois social services and human resources"
+  },
+  {
+    "name": "Illinois Housing Development Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.ihda.org",
+    "description": "Illinois housing development and finance"
+  },
+  {
+    "name": "Indiana Family and Social Services Administration",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.in.gov",
+    "description": "Indiana family and social services"
+  },
+  {
+    "name": "Indiana Housing and Community Development Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.in.gov/ihcda",
+    "description": "Indiana housing and community development"
+  },
+  {
+    "name": "Iowa Department of Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://hhs.iowa.gov",
+    "description": "Iowa human services and support programs"
+  },
+  {
+    "name": "Iowa Finance Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://opportunityiowa.gov",
+    "description": "Iowa finance authority and development"
+  },
+  {
+    "name": "Kansas Department for Children and Families",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.dcf.ks.gov",
+    "description": "Kansas children and families services"
+  },
+  {
+    "name": "Kansas Housing Corporation",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://kshousingcorp.org",
+    "description": "Kansas housing corporation and programs"
+  },
+  {
+    "name": "Kentucky Department for Community Based Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.chfs.ky.gov",
+    "description": "Kentucky community based services"
+  },
+  {
+    "name": "Kentucky Housing Corporation",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.kyhousing.org",
+    "description": "Kentucky housing corporation and finance"
+  },
+  {
+    "name": "Louisiana Department of Children and Family Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.dcfs.louisiana.gov",
+    "description": "Louisiana children and family services"
+  },
+  {
+    "name": "Louisiana Housing Corporation",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.lhc.la.gov",
+    "description": "Louisiana housing corporation and programs"
+  },
+  {
+    "name": "Maine Department of Health and Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.maine.gov",
+    "description": "Maine health and human services"
+  },
+  {
+    "name": "Maine State Housing Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.mainehousing.org",
+    "description": "Maine housing authority and programs"
+  },
+  {
+    "name": "Maryland Department of Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dhs.maryland.gov",
+    "description": "Maryland social services and human resources"
+  },
+  {
+    "name": "Maryland Department of Housing and Community Development",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dhcd.maryland.gov",
+    "description": "Maryland housing and community development"
+  },
+  {
+    "name": "Massachusetts Executive Office of Health and Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.mass.gov",
+    "description": "Massachusetts health and human services"
+  },
+  {
+    "name": "Massachusetts Housing Partnership Fund",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.masshousing.com",
+    "description": "Massachusetts housing partnership and finance"
+  },
+  {
+    "name": "Michigan Department of Health and Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.michigan.gov",
+    "description": "Michigan health and human services"
+  },
+  {
+    "name": "Michigan State Housing Development Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.michigan.gov/mshda",
+    "description": "Michigan housing development authority"
+  },
+  {
+    "name": "Minnesota Department of Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://mn.gov",
+    "description": "Minnesota human services and support programs"
+  },
+  {
+    "name": "Minnesota Housing Finance Agency",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.mnhousing.gov",
+    "description": "Minnesota housing finance and development"
+  },
+  {
+    "name": "Mississippi Department of Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.mdhs.ms.gov",
+    "description": "Mississippi human services and support programs"
+  },
+  {
+    "name": "Mississippi Home Corporation",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.mshomecorp.com",
+    "description": "Mississippi home corporation and housing"
+  },
+  {
+    "name": "Missouri Department of Social Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dss.mo.gov",
+    "description": "Missouri social services and human resources"
+  },
+  {
+    "name": "Missouri Housing Development Commission",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.mhdc.com",
+    "description": "Missouri housing development commission"
+  },
+  {
+    "name": "Montana Department of Public Health and Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dphhs.mt.gov",
+    "description": "Montana public health and human services"
+  },
+  {
+    "name": "Montana Department of Commerce - Housing",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://commerce.mt.gov/housing/",
+    "description": "Montana housing and community development"
+  },
+  {
+    "name": "Nebraska Department of Health and Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dhhs.ne.gov",
+    "description": "Nebraska health and human services"
+  },
+  {
+    "name": "Nebraska Investment Finance Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.nifa.org",
+    "description": "Nebraska investment finance authority"
+  },
+  {
+    "name": "Nevada Department of Health and Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dwss.nv.gov",
+    "description": "Nevada welfare and supportive services"
+  },
+  {
+    "name": "Nevada Housing Division",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://housing.nv.gov",
+    "description": "Nevada housing division and programs"
+  },
+  {
+    "name": "New Hampshire Department of Health and Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.dhhs.nh.gov",
+    "description": "New Hampshire health and human services"
+  },
+  {
+    "name": "New Hampshire Housing Finance Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.nhhfa.org",
+    "description": "New Hampshire housing finance authority"
+  },
+  {
+    "name": "New Jersey Department of Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.nj.gov",
+    "description": "New Jersey human services and support programs"
+  },
+  {
+    "name": "New Jersey Housing and Mortgage Finance Agency",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.njhousing.gov",
+    "description": "New Jersey housing and mortgage finance"
+  },
+  {
+    "name": "New Mexico Human Services Department",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.hca.nm.gov",
+    "description": "New Mexico human services and support programs"
+  },
+  {
+    "name": "New Mexico Mortgage Finance Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.housingnm.org",
+    "description": "New Mexico mortgage finance authority"
+  },
+  {
+    "name": "New York State Office of Temporary and Disability Assistance",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.ny.gov",
+    "description": "New York temporary and disability assistance"
+  },
+  {
+    "name": "New York State Housing and Community Renewal",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.hcr.ny.gov",
+    "description": "New York housing and community renewal"
+  },
+  {
+    "name": "North Carolina Department of Health and Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.ncdhhs.gov",
+    "description": "North Carolina health and human services"
+  },
+  {
+    "name": "North Carolina Housing Finance Agency",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.nchfa.com",
+    "description": "North Carolina housing finance agency"
+  },
+  {
+    "name": "North Dakota Department of Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.hhs.nd.gov",
+    "description": "North Dakota human services and support programs"
+  },
+  {
+    "name": "North Dakota Housing Finance Agency",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.ndhfa.org",
+    "description": "North Dakota housing finance agency"
+  },
+  {
+    "name": "Ohio Department of Job and Family Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://jfs.ohio.gov",
+    "description": "Ohio job and family services"
+  },
+  {
+    "name": "Ohio Housing Finance Agency",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.ohiohome.org",
+    "description": "Ohio housing finance agency"
+  },
+  {
+    "name": "Oklahoma Department of Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://oklahoma.gov",
+    "description": "Oklahoma human services and support programs"
+  },
+  {
+    "name": "Oklahoma Housing Finance Agency",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.ohfa.org",
+    "description": "Oklahoma housing finance agency"
+  },
+  {
+    "name": "Oregon Department of Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.oregon.gov",
+    "description": "Oregon human services and support programs"
+  },
+  {
+    "name": "Oregon Housing and Community Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.ohcs.oregon.gov",
+    "description": "Oregon housing and community services"
+  },
+  {
+    "name": "Pennsylvania Department of Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.pa.gov",
+    "description": "Pennsylvania human services and support programs"
+  },
+  {
+    "name": "Pennsylvania Housing Finance Agency",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.phfa.org",
+    "description": "Pennsylvania housing finance agency"
+  },
+  {
+    "name": "Rhode Island Department of Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dhs.ri.gov",
+    "description": "Rhode Island human services and support programs"
+  },
+  {
+    "name": "Rhode Island Housing",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.rihousing.com",
+    "description": "Rhode Island housing and community development"
+  },
+  {
+    "name": "South Carolina Department of Social Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dss.sc.gov",
+    "description": "South Carolina social services and human resources"
+  },
+  {
+    "name": "South Carolina State Housing Finance and Development Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.schousing.com",
+    "description": "South Carolina housing finance and development"
+  },
+  {
+    "name": "South Dakota Department of Social Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dss.sd.gov",
+    "description": "South Dakota social services and human resources"
+  },
+  {
+    "name": "South Dakota Housing Development Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.sdhda.org",
+    "description": "South Dakota housing development authority"
+  },
+  {
+    "name": "Tennessee Department of Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.tn.gov",
+    "description": "Tennessee human services and support programs"
+  },
+  {
+    "name": "Tennessee Housing Development Agency",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.thda.org",
+    "description": "Tennessee housing development agency"
+  },
+  {
+    "name": "Texas Health and Human Services Commission",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.hhs.texas.gov",
+    "description": "Texas health and human services commission"
+  },
+  {
+    "name": "Texas Department of Housing and Community Affairs",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.tdhca.texas.gov",
+    "description": "Texas housing and community affairs"
+  },
+  {
+    "name": "Utah Department of Health and Human Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dhhs.utah.gov",
+    "description": "Utah health and human services"
+  },
+  {
+    "name": "Utah Housing Corporation",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.utahhousingcorp.org",
+    "description": "Utah housing corporation and programs"
+  },
+  {
+    "name": "Vermont Department of Disabilities, Aging and Independent Living",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://humanservices.vermont.gov",
+    "description": "Vermont disabilities, aging and independent living"
+  },
+  {
+    "name": "Vermont Housing Finance Agency",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.vhfa.org",
+    "description": "Vermont housing finance agency"
+  },
+  {
+    "name": "Virginia Department of Social Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dss.virginia.gov",
+    "description": "Virginia social services and human resources"
+  },
+  {
+    "name": "Virginia Housing Development Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.virginiahousing.com",
+    "description": "Virginia housing development authority"
+  },
+  {
+    "name": "Washington Department of Social and Health Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dshs.wa.gov",
+    "description": "Washington social and health services"
+  },
+  {
+    "name": "Washington State Housing Finance Commission",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.wshfc.org",
+    "description": "Washington housing finance commission"
+  },
+  {
+    "name": "West Virginia Department of Health and Human Resources",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dhhr.wv.gov",
+    "description": "West Virginia health and human resources"
+  },
+  {
+    "name": "West Virginia Housing Development Fund",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.wvhdf.com",
+    "description": "West Virginia housing development fund"
+  },
+  {
+    "name": "Wisconsin Department of Children and Families",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dcf.wisconsin.gov",
+    "description": "Wisconsin children and families services"
+  },
+  {
+    "name": "Wisconsin Housing and Economic Development Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.wheda.com",
+    "description": "Wisconsin housing and economic development"
+  },
+  {
+    "name": "Wyoming Department of Family Services",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://dfs.wyo.gov",
+    "description": "Wyoming family services and support programs"
+  },
+  {
+    "name": "Wyoming Community Development Authority",
+    "type": "State Government",
+    "category": "State Services",
+    "url": "https://www.wyomingcda.com",
+    "description": "Wyoming community development authority"
+  }
+]
