@@ -3,17 +3,18 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 from typing import Any, Optional
 from uuid import UUID
+
+from app.core.config import config
 
 logger = logging.getLogger(__name__)
 
 
 class ExternalUserRepository:
     def __init__(self) -> None:
-        self.base_url: str | None = os.getenv("FOS_SERVICE_URL")
-        self.api_key: Optional[str] = os.getenv("FOS_API_KEY")
+        self.base_url: str | None = config.FOS_SERVICE_URL
+        self.api_key: Optional[str] = config.FOS_API_KEY
 
         if not self.base_url:
             logger.info("FOS_SERVICE_URL not set; Context prefill will be skipped during initialization")

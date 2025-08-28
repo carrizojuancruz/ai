@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from typing import Any, Optional
 
 import boto3
 
 from app.agents.onboarding.state import OnboardingState, OnboardingStep
+from app.core.config import config
 from app.db.session import get_async_session
 from app.models.user import UserContext
 from app.repositories.postgres.user_repository import PostgresUserRepository
@@ -17,9 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], value: dict[str, Any]) -> None:
+
     try:
-        model_id = os.getenv("MEMORY_TINY_LLM_MODEL_ID", "amazon.nova-micro-v1:0")
-        region = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
+        model_id = config.MEMORY_TINY_LLM_MODEL_ID
+        region = config.AWS_REGION
         bedrock = boto3.client("bedrock-runtime", region_name=region)
         summary = str(value.get("summary") or "")[:500]
         category = str(value.get("category") or "")[:64]

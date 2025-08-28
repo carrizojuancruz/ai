@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -14,6 +13,7 @@ from app.core.app_state import (
     get_supervisor_graph,
     set_last_emitted_text,
 )
+from app.core.config import config
 from app.db.session import get_async_session
 from app.models.user import UserContext
 from app.repositories.postgres.user_repository import PostgresUserRepository
@@ -21,25 +21,21 @@ from app.repositories.session_store import InMemorySessionStore, get_session_sto
 from app.utils.welcome import generate_personalized_welcome
 
 langfuse_handler = CallbackHandler(
-    public_key=os.getenv("LANGFUSE_PUBLIC_SUPERVISOR_KEY"),
-    secret_key=os.getenv("LANGFUSE_SECRET_SUPERVISOR_KEY"),
-    host=os.getenv("LANGFUSE_HOST_SUPERVISOR"),
+    public_key=config.LANGFUSE_PUBLIC_SUPERVISOR_KEY,
+    secret_key=config.LANGFUSE_SECRET_SUPERVISOR_KEY,
+    host=config.LANGFUSE_HOST_SUPERVISOR,
 )
 
 logger = logging.getLogger(__name__)
 
 logger.info(
-    f"Langfuse env vars: {os.getenv('LANGFUSE_PUBLIC_SUPERVISOR_KEY')}, "
-    f"{os.getenv('LANGFUSE_SECRET_SUPERVISOR_KEY')}, {os.getenv('LANGFUSE_HOST_SUPERVISOR')}"
+    f"Langfuse env vars: {config.LANGFUSE_PUBLIC_SUPERVISOR_KEY}, "
+    f"{config.LANGFUSE_SECRET_SUPERVISOR_KEY}, {config.LANGFUSE_HOST_SUPERVISOR}"
 )
 
 
 # Warn if Langfuse env is missing so callbacks would be disabled silently
-if not (
-    os.getenv("LANGFUSE_PUBLIC_SUPERVISOR_KEY")
-    and os.getenv("LANGFUSE_SECRET_SUPERVISOR_KEY")
-    and os.getenv("LANGFUSE_HOST_SUPERVISOR")
-):
+if not config.is_langfuse_supervisor_enabled():
     logger.warning(
         "Langfuse env vars missing or incomplete; callback tracing will be disabled"
     )

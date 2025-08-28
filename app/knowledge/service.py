@@ -7,7 +7,7 @@ from langchain_aws.embeddings import BedrockEmbeddings
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from app.knowledge import config
+from app.core.config import config
 from app.knowledge.vector_store.service import S3VectorStoreService
 
 logger = logging.getLogger(__name__)
