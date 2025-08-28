@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 from typing import Any, Optional, List, Dict, Tuple
@@ -14,9 +15,7 @@ from app.core.app_state import (
     get_supervisor_graph,
     set_last_emitted_text,
 )
-from app.db.session import get_async_session
 from app.models.user import UserContext
-from app.repositories.postgres.user_repository import PostgresUserRepository
 from app.repositories.session_store import InMemorySessionStore, get_session_store
 from app.utils.welcome import generate_personalized_welcome, call_llm
 
@@ -166,6 +165,50 @@ async def _get_prior_conversation_summary(session_store: InMemorySessionStore, u
 
 
 class SupervisorService:
+    async def _load_user_context_from_external(self, user_id: UUID) -> UserContext:
+        """Load UserContext from external FOS service with fallback."""
+        try:
+            from app.services.external_context.client import ExternalUserRepository
+            from app.services.external_context.mapping import map_ai_context_to_user_context
+
+            repo = ExternalUserRepository()
+            external_ctx = await repo.get_by_id(user_id)
+
+            ctx = UserContext(user_id=user_id)
+            if external_ctx:
+                ctx = map_ai_context_to_user_context(external_ctx, ctx)
+                logger.info(f"[SUPERVISOR] External AI Context loaded for user: {user_id}")
+            else:
+                logger.info(f"[SUPERVISOR] No external AI Context found for user: {user_id}")
+
+            return ctx
+
+        except Exception as e:
+            logger.warning(f"[SUPERVISOR] Failed to load external user context: {e}")
+            # Fallback to empty UserContext if external service fails
+            return UserContext(user_id=user_id)
+
+    async def _export_user_context_to_external(self, user_context: UserContext) -> bool:
+        """Export UserContext to external FOS service."""
+        try:
+            from app.services.external_context.client import ExternalUserRepository
+            from app.services.external_context.mapping import map_user_context_to_ai_context
+
+            repo = ExternalUserRepository()
+            body = map_user_context_to_ai_context(user_context)
+            logger.info(f"[SUPERVISOR] Prepared external payload: {json.dumps(body, ensure_ascii=False)}")
+            resp = await repo.upsert(user_context.user_id, body)
+            if resp is not None:
+                logger.info(f"[SUPERVISOR] External API acknowledged update for user {user_context.user_id}")
+                return True
+            else:
+                logger.warning(f"[SUPERVISOR] External API returned no body or 404 for user {user_context.user_id}")
+                return False
+
+        except Exception as e:
+            logger.warning(f"[SUPERVISOR] Failed to export user context: {e}")
+            return False
+
     def _is_guardrail_intervention(self, text: str) -> bool:
         if not isinstance(text, str):
             return False
@@ -218,23 +261,19 @@ class SupervisorService:
 
         await queue.put({"event": "conversation.started", "data": {"thread_id": thread_id}})
 
-        # Load or create UserContext from Postgres
+        # Load UserContext from external FOS service
         session_store = get_session_store()
         uid: UUID = user_id
-        async for db in get_async_session():
-            repo = PostgresUserRepository(db)
-            ctx = await repo.get_by_id(uid)
-            if ctx is None:
-                ctx = UserContext(user_id=uid)
-                ctx = await repo.upsert(ctx)
-            await session_store.set_session(
-                thread_id,
-                {
-                    "user_id": str(uid),
-                    "user_context": ctx.model_dump(mode="json"),
-                    "conversation_messages": [],  # Initialize empty message history
-                },
-            )
+        ctx = await self._load_user_context_from_external(uid)
+
+        await session_store.set_session(
+            thread_id,
+            {
+                "user_id": str(uid),
+                "user_context": ctx.model_dump(mode="json"),
+                "conversation_messages": [],  # Initialize empty message history
+            },
+        )
 
         # Get summary of prior conversation
         prior_summary = await _get_prior_conversation_summary(session_store, str(uid), thread_id)
@@ -273,21 +312,13 @@ class SupervisorService:
         # Collect assistant response
         assistant_response_parts = []
 
-        # Refresh UserContext from Postgres each turn to avoid stale profile
+        # Refresh UserContext from external FOS service each turn to avoid stale profile
         user_id = session_ctx.get("user_id")
         if user_id:
-            try:
-                uid = UUID(user_id)
-                async for db in get_async_session():
-                    repo = PostgresUserRepository(db)
-                    ctx = await repo.get_by_id(uid)
-                    if ctx is None:
-                        ctx = UserContext(user_id=uid)
-                        ctx = await repo.upsert(ctx)
-                    session_ctx["user_context"] = ctx.model_dump(mode="json")
-                    await session_store.set_session(thread_id, session_ctx)
-            except Exception:
-                pass
+            uid = UUID(user_id)
+            ctx = await self._load_user_context_from_external(uid)
+            session_ctx["user_context"] = ctx.model_dump(mode="json")
+            await session_store.set_session(thread_id, session_ctx)
         configurable = {
             "thread_id": thread_id,
             "session_id": thread_id,
@@ -365,6 +396,15 @@ class SupervisorService:
             session_ctx["conversation_messages"] = conversation_messages
             await session_store.set_session(thread_id, session_ctx)
             logger.info(f"Stored conversation for thread {thread_id}: {len(conversation_messages)} messages")
+
+            # Export updated UserContext back to external FOS service
+            user_id = session_ctx.get("user_id")
+            if user_id:
+                user_ctx_dict = session_ctx.get("user_context", {})
+                if user_ctx_dict:
+                    ctx = UserContext.model_validate(user_ctx_dict)
+                    await self._export_user_context_to_external(ctx)
+
         except Exception as e:
             logger.exception(f"Failed to store conversation for thread {thread_id}: {e}")
 
