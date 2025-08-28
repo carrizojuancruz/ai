@@ -10,7 +10,7 @@ from app.services.external_context.http_client import FOSHttpClient
 
 class ExternalUserRepository:
     """Repository for external user operations using FOS service."""
-    
+
     def __init__(self) -> None:
         self.client = FOSHttpClient()
 

@@ -17,11 +17,10 @@ class ExternalSourcesRepository(ExternalSourcesRepositoryInterface):
     def __init__(self) -> None:
         logger.info("ExternalSourcesRepository initialized with MOCK data")
 
-    async def get_sources(self) -> List[ExternalSource]:
+    async def get_all(self) -> List[ExternalSource]:
         """Get all sources from external API - MOCKED implementation."""
         logger.info("Fetching sources from MOCK data (not real external API)")
 
-        # Mock data matching the expected external API response format
         mock_sources = [
             ExternalSource(
                 name="MyMoney.gov",

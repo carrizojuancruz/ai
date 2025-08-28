@@ -1,10 +1,6 @@
 """Schemas for cron API endpoints."""
 
-from typing import List
-
 from pydantic import BaseModel
-
-from app.knowledge.models import SyncResult
 
 
 class CronSyncResponse(BaseModel):
@@ -12,10 +8,11 @@ class CronSyncResponse(BaseModel):
 
     success: bool
     message: str
-    results: List[SyncResult]
-    total_sources: int
-    successful_syncs: int
-    sources_with_changes: int
+    sources_created: int
+    sources_updated: int
+    sources_deleted: int
+    kb_synced: int
+    kb_failed: int
 
 class CronStatusResponse(BaseModel):
     """Response for sync system status check."""
