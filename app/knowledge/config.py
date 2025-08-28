@@ -19,3 +19,5 @@ EMBEDDINGS_MODEL_ID = os.environ["EMBEDDINGS_MODEL_ID"]
 AWS_REGION = os.environ["AWS_REGION"]
 
 SOURCES_FILE_PATH = "./app/knowledge/sources/sources.json"
+
+

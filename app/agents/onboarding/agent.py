@@ -152,7 +152,7 @@ class OnboardingAgent:
             current_state,
         )
 
-        if current_state.current_interaction_type != "free_text":
+        if current_state.current_interaction_type != "free_text" and current_state.current_step == step:
             interaction_data = {
                 "type": current_state.current_interaction_type,
                 "step_id": current_state.current_step.value,
