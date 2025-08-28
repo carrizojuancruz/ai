@@ -25,7 +25,10 @@ class S3VectorStoreService:
                 'source_id': source_id,
                 'chunk_index': i,
                 'chunk_content': doc.page_content,
-                'content_hash': content_hash
+                'content_hash': content_hash,
+                'source_type': doc.metadata.get('source_type', ''),
+                'source_category': doc.metadata.get('source_category', ''),
+                'source_description': doc.metadata.get('source_description', '')
             }
 
             vectors.append({
@@ -96,6 +99,9 @@ class S3VectorStoreService:
                 'source_id': v['metadata'].get('source_id', ''),
                 'chunk_index': v['metadata'].get('chunk_index', 0),
                 'content_hash': v['metadata'].get('content_hash', ''),
+                'source_type': v['metadata'].get('source_type', ''),
+                'source_category': v['metadata'].get('source_category', ''),
+                'source_description': v['metadata'].get('source_description', ''),
                 **v['metadata']
             },
             'score': 1 - v.get('distance', 0),

@@ -17,15 +17,6 @@ class CronSyncResponse(BaseModel):
     successful_syncs: int
     sources_with_changes: int
 
-
-class CronSyncSourceResponse(BaseModel):
-    """Response for single source sync operation."""
-
-    success: bool
-    message: str
-    result: SyncResult | None
-
-
 class CronStatusResponse(BaseModel):
     """Response for sync system status check."""
 

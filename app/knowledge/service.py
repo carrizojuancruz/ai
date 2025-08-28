@@ -8,6 +8,7 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.knowledge import config
+from app.knowledge.models import Source
 from app.knowledge.vector_store.service import S3VectorStoreService
 
 logger = logging.getLogger(__name__)
@@ -29,15 +30,15 @@ class KnowledgeService:
             region_name=config.AWS_REGION
         )
 
-    async def add_documents(self, documents: List[Document], source_id: str) -> Dict[str, Any]:
+    async def add_documents(self, documents: List[Document], source: Source) -> Dict[str, Any]:
         if not documents:
             return {"documents_added": 0, "message": "No documents to add"}
 
         try:
-            logger.info(f"Starting document processing for source {source_id}")
-            self.vector_store_service.delete_documents(source_id)
+            logger.info(f"Starting document processing for source {source.id}")
+            self.vector_store_service.delete_documents(source.id)
 
-            chunks = self._split_documents(documents, source_id)
+            chunks = self._split_documents(documents, source)
             logger.info(f"Split {len(documents)} documents into {len(chunks)} chunks")
 
             if chunks:
@@ -54,12 +55,12 @@ class KnowledgeService:
             return {
                 "documents_added": len(chunks),
                 "original_documents": len(documents),
-                "source_id": source_id,
+                "source_id": source.id,
                 "storage_type": "s3_vectors",
-                "message": f"Updated {len(documents)} documents into {len(chunks)} chunks for source {source_id}"
+                "message": f"Updated {len(documents)} documents into {len(chunks)} chunks for source {source.id}"
             }
         except Exception as e:
-            logger.error(f"Failed processing source {source_id}: {str(e)}")
+            logger.error(f"Failed processing source {source.id}: {str(e)}")
             raise Exception(f"Index update failed: {str(e)}") from e
 
     async def search(self, query: str) -> List[Dict[str, Any]]:
@@ -87,11 +88,14 @@ class KnowledgeService:
             logger.error(f"Failed to delete documents for source {source_id}: {str(e)}")
             return False
 
-    def _split_documents(self, documents: List[Document], source_id: str) -> List[Document]:
+    def _split_documents(self, documents: List[Document], source: Source) -> List[Document]:
         all_chunks = []
 
         for doc in documents:
-            doc.metadata["source_id"] = source_id
+            doc.metadata["source_id"] = source.id
+            doc.metadata["source_type"] = source.type or ""
+            doc.metadata["source_category"] = source.category or ""
+            doc.metadata["source_description"] = source.description or ""
             chunks = self.text_splitter.split_documents([doc])
             for chunk in chunks:
                 chunk.metadata["content_hash"] = hashlib.sha256(chunk.page_content.encode()).hexdigest()

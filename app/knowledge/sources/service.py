@@ -50,7 +50,7 @@ class SourceService:
             documents = crawl_result.get("documents", [])
 
             if documents:
-                index_result = await self.knowledge_service.add_documents(documents, source.id)
+                index_result = await self.knowledge_service.add_documents(documents, source)
                 documents_indexed = index_result.get("documents_added", 0)
                 return {
                     "source": source,

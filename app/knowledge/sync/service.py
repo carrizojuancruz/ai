@@ -36,13 +36,13 @@ class SyncService:
                     message="No documents found during crawl"
                 )
 
-            chunks = self.knowledge_service._split_documents(documents, source.id)
+            chunks = self.knowledge_service._split_documents(documents, source)
             new_hashes = {doc.metadata.get("content_hash") for doc in chunks}
 
             if self.needs_reindex(source.id, new_hashes):
                 self.vector_store.delete_documents(source.id)
 
-                await self.knowledge_service.add_documents(documents, source.id)
+                await self.knowledge_service.add_documents(documents, source)
 
                 return SyncResult(
                     source_id=source.id,
