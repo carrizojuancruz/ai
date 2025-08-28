@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import logging
 import sys
@@ -7,36 +8,55 @@ from app.knowledge.sync.service import SyncService
 
 logger = logging.getLogger(__name__)
 
-async def sync_all():
 
-    sync_service = SyncService()
-    results = await sync_service.sync_sources()
-    logger.info(f"Synced {len(results)} sources")
+class SyncManager:
+    """Manages synchronization operations for knowledge sources."""
 
-async def sync_source(source_id):
+    def __init__(self):
+        self.source_repo = SourceRepository()
+        self.sync_service = SyncService()
+
+    async def sync_all(self):
+        """Sync all sources."""
+        results = await self.sync_service.sync_sources()
+        logger.info(f"Synced {len(results)} sources")
+        return results
+
+    async def sync_source(self, source_id: str):
+        """Sync a specific source by ID."""
+        source = self.source_repo.find_by_id(source_id)
+        if not source:
+            logger.error(f"Source {source_id} not found")
+            return None
+
+        result = await self.sync_service.sync_source(source)
+        logger.info(f"Synced {source_id}")
+        return result
 
 
-    source_repo = SourceRepository()
-    sync_service = SyncService()
+def main():
+    """Run as command line entry point."""
+    parser = argparse.ArgumentParser(description="Knowledge sync manager")
+    subparsers = parser.add_subparsers(dest='command', help='Commands')
 
-    source = source_repo.find_by_id(source_id)
-    if not source:
-        logger.error(f"Source {source_id} not found")
-        return
+    subparsers.add_parser('sync-all', help='Sync all sources')
 
-    await sync_service.sync_source(source)
-    logger.info(f"Synced {source_id}")
+    sync_source = subparsers.add_parser('sync-source', help='Sync specific source')
+    sync_source.add_argument('source_id', help='Source ID to sync')
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        logger.error("Usage: python sync_manager.py sync-all | python sync_manager.py sync-source <source_id>")
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
         sys.exit(1)
 
-    if sys.argv[1] == "sync-all":
-        asyncio.run(sync_all())
-    elif sys.argv[1] == "sync-source":
-        if len(sys.argv) < 3:
-            logger.error("Error: 'sync-source' command requires a source ID argument")
-            logger.error("Usage: python sync_manager.py sync-source <source_id>")
-            sys.exit(1)
-        asyncio.run(sync_source(sys.argv[2]))
+    sync_manager = SyncManager()
+
+    if args.command == "sync-all":
+        asyncio.run(sync_manager.sync_all())
+    elif args.command == "sync-source":
+        asyncio.run(sync_manager.sync_source(args.source_id))
+
+
+if __name__ == "__main__":
+    main()
