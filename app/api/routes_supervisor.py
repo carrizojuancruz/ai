@@ -19,6 +19,7 @@ class SupervisorInitializeResponse(BaseModel):
     thread_id: str
     welcome: str
     sse_url: str
+    prior_conversation_summary: str | None = None
 
 
 class SupervisorInitializePayload(BaseModel):

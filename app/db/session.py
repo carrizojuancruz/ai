@@ -8,6 +8,7 @@ from app.core.config import config
 
 DATABASE_URL = config.get_database_url()
 
+
 engine = create_async_engine(DATABASE_URL, echo=False, future=True)
 
 async_session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
