@@ -8,14 +8,23 @@ from typing import Optional
 
 
 class Config:
-    # Memory Context Configuration
-    MEMORY_CONTEXT_TOPK: int = int(os.getenv("MEMORY_CONTEXT_TOPK", "24"))
-    MEMORY_CONTEXT_TOPN: int = int(os.getenv("MEMORY_CONTEXT_TOPN", "5"))
-    MEMORY_RERANK_WEIGHTS: str = os.getenv("MEMORY_RERANK_WEIGHTS", "sim=0.55,imp=0.20,recency=0.15,pinned=0.10")
     """Centralized configuration class for managing environment variables.
 
     All configuration values should be accessed through this class instead of directly using os.getenv().
     """
+
+    # Episodic Memory Configuration
+    EPISODIC_COOLDOWN_TURNS: int = int(os.getenv("EPISODIC_COOLDOWN_TURNS", "3"))
+    EPISODIC_COOLDOWN_MINUTES: int = int(os.getenv("EPISODIC_COOLDOWN_MINUTES", "10"))
+    EPISODIC_MAX_PER_DAY: int = int(os.getenv("EPISODIC_MAX_PER_DAY", "5"))
+    EPISODIC_WINDOW_N: int = int(os.getenv("EPISODIC_WINDOW_N", "10"))
+    EPISODIC_MERGE_WINDOW_HOURS: int = int(os.getenv("EPISODIC_MERGE_WINDOW_HOURS", "48"))
+    EPISODIC_NOVELTY_MIN: float = float(os.getenv("EPISODIC_NOVELTY_MIN", "0.90"))
+    MEMORY_TINY_LLM_MODEL_ID: str = os.getenv("MEMORY_TINY_LLM_MODEL_ID", "amazon.nova-micro-v1:0")
+    # Memory Context Configuration
+    MEMORY_CONTEXT_TOPK: int = int(os.getenv("MEMORY_CONTEXT_TOPK", "24"))
+    MEMORY_CONTEXT_TOPN: int = int(os.getenv("MEMORY_CONTEXT_TOPN", "5"))
+    MEMORY_RERANK_WEIGHTS: str = os.getenv("MEMORY_RERANK_WEIGHTS", "sim=0.55,imp=0.20,recency=0.15,pinned=0.10")
 
     # AWS Configuration
     AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
