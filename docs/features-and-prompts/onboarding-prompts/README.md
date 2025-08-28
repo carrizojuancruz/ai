@@ -1,15 +1,15 @@
-# Onboarding Prompts - Verde Money's Vera Assistant
+# Onboarding Prompts - Vera AI Financial Assistant
 
 ## Overview
 
-This directory contains the complete prompt specification for Verde Money's Vera onboarding system, structured as a conversational node graph that collects user information while maintaining Vera's warm, professional, and slightly quirky personality.
+This directory contains the complete prompt specification for Vera's onboarding system, structured as a natural conversation flow that collects user information while maintaining Vera's warm, professional, and slightly quirky personality.
 
 ## System Architecture
 
-Vera's onboarding is designed as a human-like conversational experience where each file represents a specific interaction node. The system includes:
+Vera's conversation system is designed as a human-like conversational experience where each file represents a specific interaction node. The system includes:
 
 - **Master prompt** (`00_`): Vera's core personality, tone, and communication guidelines for all interactions
-- **Conversational nodes** (`01-08`): LLM-powered interactions that collect user information naturally
+- **Conversational nodes** (`01-08`): LLM-powered interactions that collect user information through natural conversation
 - **Technical integrations** (`09_`): Signals to frontend for component integration (e.g., Plaid)
 - **System nodes** (`10_`): System-controlled nodes for handling special cases (skip tracking, early exit)
 - **Conditional flow**: Optional nodes based on user responses and eligibility
@@ -49,7 +49,7 @@ flowchart TD
     %% Warmup binary choice - NEW LOGIC
     A[01_warmup] --> A1{Continue vs Skip?}
     A1 -->|Continue| B[02_identity]
-    A1 -->|Skip onboarding| V[10_checkout_exit]
+    A1 -->|Skip conversation| V[10_checkout_exit]
     
     %% Main onboarding flow
     B --> C{Learning interest?}
