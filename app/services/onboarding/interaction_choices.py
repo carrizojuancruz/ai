@@ -19,6 +19,12 @@ WARMUP_CHOICES = [
 
 AGE_RANGE_CHOICES = [
     {
+        "id": "under_18",
+        "label": "I'm under 18",
+        "value": "under_18",
+        "synonyms": ["minor", "teen", "teenager", "under 18", "young"],
+    },
+    {
         "id": "18_24",
         "label": "18-24 years",
         "value": "18_24",
