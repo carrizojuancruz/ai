@@ -1,7 +1,4 @@
-from __future__ import annotations
-
 import logging
-import os
 from collections.abc import AsyncGenerator, Callable
 from typing import Any
 from uuid import UUID
@@ -9,17 +6,19 @@ from uuid import UUID
 from langfuse.callback import CallbackHandler
 from langgraph.graph import END, StateGraph
 
+from app.core.config import config
+
 from .state import OnboardingState, OnboardingStep
 
 langfuse_handler = CallbackHandler(
-    public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
-    secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
-    host=os.getenv("LANGFUSE_HOST"),
+    public_key=config.LANGFUSE_PUBLIC_KEY,
+    secret_key=config.LANGFUSE_SECRET_KEY,
+    host=config.LANGFUSE_HOST,
 )
 
 logger = logging.getLogger(__name__)
 
-if not (os.getenv("LANGFUSE_PUBLIC_KEY") and os.getenv("LANGFUSE_SECRET_KEY") and os.getenv("LANGFUSE_HOST")):
+if not (config.LANGFUSE_PUBLIC_KEY and config.LANGFUSE_SECRET_KEY and config.LANGFUSE_HOST):
     logger.warning("Langfuse env vars missing or incomplete; callback tracing will be disabled")
 
 
