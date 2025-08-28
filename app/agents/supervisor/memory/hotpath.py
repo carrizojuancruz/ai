@@ -480,24 +480,38 @@ def _normalize_summary_text(text: str) -> str:
     return t
 
 
+# Pre-compiled regex patterns for better performance
+_TIME_SANITIZATION_PATTERNS = [
+    (re.compile(r"\b(today|yesterday|tomorrow)\b", re.IGNORECASE), ""),
+    (re.compile(r"\b(this\s+(morning|afternoon|evening|tonight))\b", re.IGNORECASE), ""),
+    (re.compile(r"\b(last|next)\s+(week|month|year)\b", re.IGNORECASE), ""),
+    (re.compile(r"\b(recently|soon|earlier|later|now)\b", re.IGNORECASE), ""),
+    (re.compile(r"\bon\s+\d{4}-\d{2}-\d{2}\b", re.IGNORECASE), ""),
+    (re.compile(r"\bthis\s+year\b", re.IGNORECASE), ""),
+]
+
+# Additional cleanup patterns
+_CLEANUP_PATTERNS = [
+    (re.compile(r"\s{2,}"), " "),
+    (re.compile(r"\s+,"), ","),
+    (re.compile(r"\(\s*\)"), ""),
+]
+
+
 def _sanitize_semantic_time_phrases(text: str) -> str:
+    """Sanitize semantic time phrases from text for better memory storage."""
     if not isinstance(text, str):
         return ""
-    rules: list[tuple[str, str]] = [
-        (r"\b(today|yesterday|tomorrow)\b", ""),
-        (r"\b(this\s+(morning|afternoon|evening|tonight))\b", ""),
-        (r"\b(last|next)\s+(week|month|year)\b", ""),
-        (r"\b(recently|soon|earlier|later|now)\b", ""),
-        (r"\bon\s+\d{4}-\d{2}-\d{2}\b", ""),
-        (r"\bthis\s+year\b", ""),
-    ]
+
     sanitized: str = text
-    for pattern, repl in rules:
-        sanitized = re.sub(pattern, repl, sanitized, flags=re.IGNORECASE)
-    sanitized = re.sub(r"\s{2,}", " ", sanitized).strip()
-    sanitized = re.sub(r"\s+,", ",", sanitized)
-    sanitized = re.sub(r"\(\s*\)", "", sanitized)
-    return sanitized
+
+    for pattern, repl in _TIME_SANITIZATION_PATTERNS:
+        sanitized = pattern.sub(repl, sanitized)
+
+    for pattern, repl in _CLEANUP_PATTERNS:
+        sanitized = pattern.sub(repl, sanitized)
+
+    return sanitized.strip()
 
 def _has_min_token_overlap(a: str, b: str) -> bool:
     # Very light lexical guard: share at least one non-stopword token (len>=3)
