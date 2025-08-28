@@ -1,17 +1,11 @@
-import os
-
 from dotenv import load_dotenv
 
 load_dotenv(".env", override=False)
 load_dotenv(".env.local", override=True)
 
-from .core.aws_config import load_aws_secrets
-
-if os.getenv("FOS_SECRETS_ID"):
-    load_aws_secrets()
-
 from collections.abc import Callable
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, Request, Response
 
@@ -21,7 +15,7 @@ from .api.routes_cron import router as cron_router
 from .api.routes_guest import router as guest_router
 from .api.routes_knowledge import router as knowledge_router
 from .api.routes_supervisor import router as supervisor_router
-from .db.session import engine
+from .core.config import config
 from .observability.logging_config import configure_logging, get_logger
 
 configure_logging()
@@ -30,18 +24,11 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from sqlalchemy import text
-    from sqlalchemy.ext.asyncio import AsyncEngine
-
-    async_engine: AsyncEngine = engine
-    async with async_engine.connect() as conn:
-        await conn.execute(text("SELECT 1"))
-    logger.info("Database connection established")
+    logger.info("Application startup complete")
     try:
         yield
     finally:
-        await engine.dispose()
-        logger.info("Database engine disposed")
+        logger.info("Application shutdown complete")
 
 
 app = FastAPI(title="Verde AI - Vera Agent System", version="0.1.0", lifespan=lifespan)
@@ -58,16 +45,14 @@ async def log_requests(request: Request, call_next: Callable[[Request], Response
 @app.get("/health")
 async def health_check() -> dict[str, str]:
     logger.info("Health check requested")
-    try:
-        from sqlalchemy import text
+    return {"message": "Verde AI - Vera Agent System", "status": "healthy"}
 
-        async with engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
-        return {"message": "Verde AI - Verde Agent System", "status": "healthy", "database": "connected"}
-    except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        return {"message": "Verde AI - Verde Agent System", "status": "unhealthy", "error": str(e)}
+@app.get("/actual_config")
+async def actual_config() -> dict[str, Any]:
+    actual_config_data = config.get_actual_config()
+    logger.info(f"Actual config requested: {actual_config_data}")
 
+    return actual_config_data
 
 app.include_router(api_router)
 app.include_router(supervisor_router)

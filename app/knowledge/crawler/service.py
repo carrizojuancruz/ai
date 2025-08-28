@@ -6,8 +6,8 @@ from bs4 import BeautifulSoup
 from langchain_community.document_loaders import RecursiveUrlLoader, SitemapLoader
 from langchain_core.documents import Document
 
-from app.knowledge import config
 from app.knowledge.models import Source
+from app.core.config import config
 
 logger = logging.getLogger(__name__)
 
