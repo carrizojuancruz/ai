@@ -9,7 +9,7 @@ from app.core.config import config
 class S3VectorStoreService:
     def __init__(self):
         self.bucket_name = config.S3V_BUCKET
-        self.index_name = config.S3V_INDEX_MEMORY
+        self.index_name = config.S3V_INDEX_KB
         self.client = boto3.client('s3vectors', region_name=config.AWS_REGION)
 
     def add_documents(self, documents: List[Document], embeddings: List[List[float]]):
