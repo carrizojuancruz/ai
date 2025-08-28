@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Any, Optional, List, Dict, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
 from langfuse.callback import CallbackHandler
@@ -17,7 +17,7 @@ from app.core.app_state import (
 )
 from app.models.user import UserContext
 from app.repositories.session_store import InMemorySessionStore, get_session_store
-from app.utils.welcome import generate_personalized_welcome, call_llm
+from app.utils.welcome import call_llm, generate_personalized_welcome
 
 langfuse_handler = CallbackHandler(
     public_key=os.getenv("LANGFUSE_PUBLIC_SUPERVISOR_KEY"),
