@@ -77,7 +77,7 @@ class Config:
     CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "200"))
 
     # Guest Agent Configuration
-    GUEST_MAX_MESSAGES: int = int(os.getenv("GUEST_MAX_MESSAGES", "50"))
+    GUEST_MAX_MESSAGES: int = int(os.getenv("GUEST_MAX_MESSAGES", "5"))
 
     # Database Configuration
     DATABASE_HOST: str = os.getenv("DATABASE_HOST", "localhost")
