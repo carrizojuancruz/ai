@@ -480,17 +480,15 @@ def _normalize_summary_text(text: str) -> str:
     return t
 
 
-# Pre-compiled regex patterns for better performance
-_TIME_SANITIZATION_PATTERNS = [
-    (re.compile(r"\b(today|yesterday|tomorrow)\b", re.IGNORECASE), ""),
-    (re.compile(r"\b(this\s+(morning|afternoon|evening|tonight))\b", re.IGNORECASE), ""),
-    (re.compile(r"\b(last|next)\s+(week|month|year)\b", re.IGNORECASE), ""),
-    (re.compile(r"\b(recently|soon|earlier|later|now)\b", re.IGNORECASE), ""),
-    (re.compile(r"\bon\s+\d{4}-\d{2}-\d{2}\b", re.IGNORECASE), ""),
-    (re.compile(r"\bthis\s+year\b", re.IGNORECASE), ""),
-]
+# Combined regex pattern for time sanitization (single pass)
+_TIME_SANITIZATION_PATTERN = re.compile(
+    r"\b(today|yesterday|tomorrow|this\s+(morning|afternoon|evening|tonight)|"
+    r"(last|next)\s+(week|month|year)|recently|soon|earlier|later|now)\b|"
+    r"\bon\s+\d{4}-\d{2}-\d{2}\b|\bthis\s+year\b",
+    re.IGNORECASE
+)
 
-# Additional cleanup patterns
+# Cleanup patterns for whitespace and punctuation
 _CLEANUP_PATTERNS = [
     (re.compile(r"\s{2,}"), " "),
     (re.compile(r"\s+,"), ","),
@@ -499,14 +497,15 @@ _CLEANUP_PATTERNS = [
 
 
 def _sanitize_semantic_time_phrases(text: str) -> str:
-    """Sanitize semantic time phrases from text for better memory storage."""
+    """Sanitize semantic time phrases from text for better memory storage.
+
+    Uses a single-pass regex pattern to remove time-related phrases efficiently,
+    minimizing intermediate string creation for optimal performance.
+    """
     if not isinstance(text, str):
         return ""
 
-    sanitized: str = text
-
-    for pattern, repl in _TIME_SANITIZATION_PATTERNS:
-        sanitized = pattern.sub(repl, sanitized)
+    sanitized = _TIME_SANITIZATION_PATTERN.sub("", text)
 
     for pattern, repl in _CLEANUP_PATTERNS:
         sanitized = pattern.sub(repl, sanitized)
