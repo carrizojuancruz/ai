@@ -17,7 +17,9 @@ from fastapi import FastAPI, Request, Response
 
 from .api.admin.sources import router as admin_router
 from .api.routes import router as api_router
+from .api.routes_cron import router as cron_router
 from .api.routes_guest import router as guest_router
+from .api.routes_knowledge import router as knowledge_router
 from .api.routes_supervisor import router as supervisor_router
 from .db.session import engine
 from .observability.logging_config import configure_logging, get_logger
@@ -71,3 +73,5 @@ app.include_router(api_router)
 app.include_router(supervisor_router)
 app.include_router(admin_router)
 app.include_router(guest_router)
+app.include_router(cron_router)
+app.include_router(knowledge_router)

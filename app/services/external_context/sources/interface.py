@@ -12,6 +12,6 @@ class ExternalSourcesRepositoryInterface(ABC):
     """Interface for external sources repository."""
 
     @abstractmethod
-    async def get_sources(self) -> List[ExternalSource]:
+    async def get_all(self) -> List[ExternalSource]:
         """Get all sources from external API."""
         pass

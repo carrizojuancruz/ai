@@ -30,6 +30,10 @@ class Source(BaseModel):
     type: str | None = None
     category: str | None = None
     description: str | None = None
+    include_path_patterns: str | None = None
+    exclude_path_patterns: str | None = None
+    total_max_pages: str | None = None
+    recursion_depth: str | None = None
 
 
 class KBSearchResult(BaseModel):

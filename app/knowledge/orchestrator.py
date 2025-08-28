@@ -1,3 +1,4 @@
+import hashlib
 from typing import Any, Dict
 
 from app.knowledge.models import Source
@@ -11,6 +12,10 @@ class KnowledgeBaseOrchestrator:
         self.external_repo = ExternalSourcesRepository()
         self.local_repo = SourceRepository()
         self.sync_service = SyncService()
+
+    def _generate_source_id(self, url: str) -> str:
+        """Generate source ID from URL using SHA256 hash."""
+        return hashlib.sha256(url.encode()).hexdigest()
 
     async def sync_all(self) -> Dict[str, Any]:
         try:
@@ -29,8 +34,19 @@ class KnowledgeBaseOrchestrator:
             # Update local sources
             created = updated = 0
             for ext in external_sources:
-                source = Source(id=ext.id, name=ext.name, url=ext.url, enabled=ext.enabled,
-                              type=ext.type or "", category=ext.category or "", description=ext.description or "")
+                source = Source(
+                    id=self._generate_source_id(ext.url),
+                    name=ext.name,
+                    url=ext.url,
+                    enabled=ext.enable == "true",
+                    type=ext.type or "",
+                    category=ext.category or "",
+                    description=ext.description or "",
+                    include_path_patterns=ext.include_path_patterns or "",
+                    exclude_path_patterns=ext.exclude_path_patterns or "",
+                    total_max_pages=ext.total_max_pages or "",
+                    recursion_depth=ext.recursion_depth or ""
+                )
                 if ext.url in local_urls:
                     source.id = self.local_repo.find_by_url(ext.url).id
                     self.local_repo.update(source)

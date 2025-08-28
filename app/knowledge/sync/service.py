@@ -26,7 +26,7 @@ class SyncService:
     async def sync_source(self, source: Source) -> SyncResult:
         """Sync a single source using parent-child strategy."""
         try:
-            crawl_result = await self.crawler.crawl_source(source.url)
+            crawl_result = await self.crawler.crawl_source(source)
             documents = crawl_result.get("documents", [])
 
             if not documents:

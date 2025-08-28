@@ -29,6 +29,7 @@ SQLAlchemy = "2.0.43"
 asyncpg = "0.30.0"
 alembic = "1.16.4"
 lxml = "^6.0.0"
+psycopg2-binary = "^2.9.10"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.11.12"

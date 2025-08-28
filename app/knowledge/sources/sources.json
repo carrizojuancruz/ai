@@ -1,11 +1,28 @@
 [
   {
-    "id": "0752df5269e17c7debd5b5687e606c7f92aef9220c9772bdc897ff14d8830bf9",
-    "name": "Documentación de promtior",
-    "url": "https://www.promtior.ai/",
+    "id": "725d9e3b56b461433108d47d7f8619e0f661c529de12171d972a810220b2b79b",
+    "name": "Verde Money",
+    "url": "https://verdemoney.com/es/",
     "enabled": true,
-    "type": "Documentation",
-    "category": "Technology",
-    "description": "Technical documentation and guides for promtior.ai platform"
+    "type": "Financial Website",
+    "category": "Finance",
+    "description": "Plataforma financiera Verde Money",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": "30",
+    "recursion_depth": "2"
+  },
+  {
+    "id": "58870627298eb11b03d6be7e8f0fcc97cf8d303e9dcd48eed108b727482a4f27",
+    "name": "Tienda Inglesa",
+    "url": "https://www.tiendainglesa.com.uy/",
+    "enabled": true,
+    "type": "E-commerce",
+    "category": "Retail",
+    "description": "Supermercado online Tienda Inglesa Uruguay",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": "20",
+    "recursion_depth": "1"
   }
 ]
