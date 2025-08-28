@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 DATABASE_URL = config.get_database_url()
 
-# Lazy-loaded database components
 _engine = None
 _async_session_factory = None
 
