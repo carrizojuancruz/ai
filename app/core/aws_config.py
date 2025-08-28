@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -60,14 +59,3 @@ def load_aws_secrets() -> None:
         logger.error(f"Failed to parse secret JSON: {e}")
     except Exception as e:
         logger.error(f"Unexpected error loading secrets: {e}")
-
-
-def configure_aws_environment() -> dict[str, Any]:
-    config = {
-        "region": os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1",
-        "secrets_loaded": bool(os.getenv("FOS_SECRETS_ID")),
-        "llm_provider": os.getenv("LLM_PROVIDER", "stub"),
-        "bedrock_model_id": os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0"),
-    }
-    logger.info(f"AWS Configuration: Region={config['region']}, Provider={config['llm_provider']}")
-    return config
