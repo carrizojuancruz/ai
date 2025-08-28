@@ -44,20 +44,22 @@ if not (
     )
 
 
-def _find_latest_prior_thread(session_store: InMemorySessionStore, user_id: str, exclude_thread_id: str) -> Optional[str]:
+async def _find_latest_prior_thread(session_store: InMemorySessionStore, user_id: str, exclude_thread_id: str) -> Optional[str]:
     """Find the most recent previous thread for this user (excluding current thread)."""
+    user_threads = await session_store.get_user_threads(user_id)
+
     latest_thread = None
     latest_timestamp = None
 
-    for thread_id, session_data in session_store.sessions.items():
+    for thread_id in user_threads:
         if thread_id == exclude_thread_id:
             continue
 
-        if session_data.get("user_id") == user_id:
-            timestamp = session_data.get("last_accessed")
-            if timestamp and (latest_timestamp is None or timestamp > latest_timestamp):
-                latest_thread = thread_id
-                latest_timestamp = timestamp
+        session_data = session_store.sessions.get(thread_id, {})
+        timestamp = session_data.get("last_accessed")
+        if timestamp and (latest_timestamp is None or timestamp > latest_timestamp):
+            latest_thread = thread_id
+            latest_timestamp = timestamp
 
     return latest_thread
 
@@ -134,7 +136,7 @@ async def _get_prior_conversation_summary(session_store: InMemorySessionStore, u
     """Get summary of the most recent prior conversation for this user."""
     try:
         # Find the latest previous thread for this user
-        prior_thread_id = _find_latest_prior_thread(session_store, user_id, current_thread_id)
+        prior_thread_id = await _find_latest_prior_thread(session_store, user_id, current_thread_id)
 
         if not prior_thread_id:
             logger.info(f"No prior conversation found for user {user_id}")
