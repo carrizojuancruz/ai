@@ -4,7 +4,6 @@ import asyncio
 import contextlib
 import json
 import logging
-import os
 import re
 import unicodedata
 from json import JSONDecodeError
@@ -19,24 +18,25 @@ from langgraph.config import get_store
 from langgraph.graph import MessagesState
 
 from app.core.app_state import get_sse_queue
+from app.core.config import config
 
 from .utils import _build_profile_line, _parse_iso, _utc_now_iso
 
 logger = logging.getLogger(__name__)
 
-# Environment variables
-MODEL_ID = os.getenv("MEMORY_TINY_LLM_MODEL_ID", "amazon.nova-micro-v1:0")
-REGION = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
-MERGE_TOPK = int(os.getenv("MEMORY_MERGE_TOPK", "5"))
-AUTO_UPDATE = float(os.getenv("MEMORY_MERGE_AUTO_UPDATE", "0.85"))
-CHECK_LOW = float(os.getenv("MEMORY_MERGE_CHECK_LOW", "0.60"))
-MERGE_MODE = (os.getenv("MEMORY_MERGE_MODE", "recreate") or "recreate").lower()
-SEMANTIC_MIN_IMPORTANCE = int(os.getenv("MEMORY_SEMANTIC_MIN_IMPORTANCE", "1"))
-FALLBACK_ENABLED = (os.getenv("MEMORY_MERGE_FALLBACK_ENABLED", "true").lower() == "true")
-FALLBACK_LOW = float(os.getenv("MEMORY_MERGE_FALLBACK_LOW", "0.30"))
-FALLBACK_TOPK = int(os.getenv("MEMORY_MERGE_FALLBACK_TOPK", "3"))
-FALLBACK_RECENCY_DAYS = int(os.getenv("MEMORY_MERGE_FALLBACK_RECENCY_DAYS", "90"))
-FALLBACK_CATEGORIES_RAW = os.getenv("MEMORY_MERGE_FALLBACK_CATEGORIES", "Personal,Goals")
+
+MODEL_ID = config.MEMORY_TINY_LLM_MODEL_ID
+REGION = config.AWS_REGION
+MERGE_TOPK = config.MEMORY_MERGE_TOPK
+AUTO_UPDATE = config.MEMORY_MERGE_AUTO_UPDATE
+CHECK_LOW = config.MEMORY_MERGE_CHECK_LOW
+MERGE_MODE = config.MEMORY_MERGE_MODE.lower()
+SEMANTIC_MIN_IMPORTANCE = config.MEMORY_SEMANTIC_MIN_IMPORTANCE
+FALLBACK_ENABLED = config.MEMORY_MERGE_FALLBACK_ENABLED
+FALLBACK_LOW = config.MEMORY_MERGE_FALLBACK_LOW
+FALLBACK_TOPK = config.MEMORY_MERGE_FALLBACK_TOPK
+FALLBACK_RECENCY_DAYS = config.MEMORY_MERGE_FALLBACK_RECENCY_DAYS
+FALLBACK_CATEGORIES_RAW = config.MEMORY_MERGE_FALLBACK_CATEGORIES
 FALLBACK_CATEGORIES = {c.strip() for c in FALLBACK_CATEGORIES_RAW.split(",") if c.strip()}
 
 
@@ -129,24 +129,6 @@ def _trigger_decide(text: str) -> dict[str, Any]:
     except (BotoCoreError, ClientError, JSONDecodeError, UnicodeDecodeError):
         logger.exception("trigger.error")
         return {"should_create": False}
-
-
-def _build_candidate_value(user_id: str, summary: str, category: str, importance: int) -> dict[str, Any]:
-    now = _utc_now_iso()
-    candidate_id = uuid4().hex
-    return {
-        "id": candidate_id,
-        "user_id": user_id,
-        "type": "semantic",
-        "summary": summary,
-        "category": category,
-        "tags": [],
-        "source": "chat",
-        "importance": importance,
-        "pinned": False,
-        "created_at": now,
-        "last_accessed": now,
-    }
 
 
 def _search_neighbors(store: Any, namespace: tuple[str, ...], summary: str, category: str) -> list[Any]:

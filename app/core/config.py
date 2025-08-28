@@ -8,6 +8,17 @@ from typing import Optional
 
 
 class Config:
+    # Semantic Memory Merge Configuration
+    MEMORY_MERGE_TOPK: int = int(os.getenv("MEMORY_MERGE_TOPK", "5"))
+    MEMORY_MERGE_AUTO_UPDATE: float = float(os.getenv("MEMORY_MERGE_AUTO_UPDATE", "0.85"))
+    MEMORY_MERGE_CHECK_LOW: float = float(os.getenv("MEMORY_MERGE_CHECK_LOW", "0.60"))
+    MEMORY_MERGE_MODE: str = os.getenv("MEMORY_MERGE_MODE", "recreate")
+    MEMORY_SEMANTIC_MIN_IMPORTANCE: int = int(os.getenv("MEMORY_SEMANTIC_MIN_IMPORTANCE", "1"))
+    MEMORY_MERGE_FALLBACK_ENABLED: bool = os.getenv("MEMORY_MERGE_FALLBACK_ENABLED", "true").lower() == "true"
+    MEMORY_MERGE_FALLBACK_LOW: float = float(os.getenv("MEMORY_MERGE_FALLBACK_LOW", "0.30"))
+    MEMORY_MERGE_FALLBACK_TOPK: int = int(os.getenv("MEMORY_MERGE_FALLBACK_TOPK", "3"))
+    MEMORY_MERGE_FALLBACK_RECENCY_DAYS: int = int(os.getenv("MEMORY_MERGE_FALLBACK_RECENCY_DAYS", "90"))
+    MEMORY_MERGE_FALLBACK_CATEGORIES: str = os.getenv("MEMORY_MERGE_FALLBACK_CATEGORIES", "Personal,Goals")
     """Centralized configuration class for managing environment variables.
 
     All configuration values should be accessed through this class instead of directly using os.getenv().
