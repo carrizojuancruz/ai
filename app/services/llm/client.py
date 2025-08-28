@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
-import os
 from typing import Final
+
+from app.core.config import config
 
 from .base import LLM
 from .bedrock import BedrockLLM
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_llm_client() -> LLM:
-    provider = os.getenv("LLM_PROVIDER", DEFAULT_PROVIDER).strip().lower()
+    provider = config.LLM_PROVIDER.strip().lower()
     logger.info(f"LLM provider requested: {provider}")
     try:
         if provider == "bedrock":

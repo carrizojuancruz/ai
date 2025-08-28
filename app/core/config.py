@@ -1,0 +1,144 @@
+"""Configuration management for FOS-AI application.
+
+Centralizes all environment variables and provides type-safe access to configuration values.
+"""
+
+import os
+from typing import Optional
+
+
+class Config:
+    """Centralized configuration class for managing environment variables.
+
+    All configuration values should be accessed through this class instead of directly using os.getenv().
+    """
+
+    # AWS Configuration
+    AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
+    AWS_DEFAULT_REGION: str = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+    AWS_ACCESS_KEY_ID: Optional[str] = os.getenv("AWS_ACCESS_KEY_ID")
+    AWS_SECRET_ACCESS_KEY: Optional[str] = os.getenv("AWS_SECRET_ACCESS_KEY")
+
+    # Application Environment
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+    DEBUG: bool = os.getenv("DEBUG", "false").lower() in {"true", "1", "yes", "on"}
+
+    # AI Models Configuration
+    AGENT_MODEL_ID: str = os.getenv("AGENT_MODEL_ID", "anthropic.claude-sonnet-4-20250514-v1:0")
+    EMBEDDINGS_MODEL_ID: str = os.getenv("EMBEDDINGS_MODEL_ID", "amazon.titan-embed-text-v2:0")
+    BEDROCK_MODEL_ID: str = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20240620-v1:0")
+    BEDROCK_EMBED_MODEL_ID: str = os.getenv("BEDROCK_EMBED_MODEL_ID", "amazon.titan-embed-text-v2:0")
+    BEDROCK_GUARDRAIL_ID: Optional[str] = os.getenv("BEDROCK_GUARDRAIL_ID")
+    BEDROCK_GUARDRAIL_VERSION: Optional[str] = os.getenv("BEDROCK_GUARDRAIL_VERSION")
+
+    # LLM Configuration
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "bedrock")
+    LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.3"))
+
+    # S3 Vectors Configuration
+    MEMORIES_INDEX_ID: Optional[str] = os.getenv("MEMORIES_INDEX_ID")
+    EMBEDDING_INDEX_ID: Optional[str] = os.getenv("EMBEDDING_INDEX_ID")
+    S3_VECTOR_NAME: str = os.getenv("S3_VECTOR_NAME", "vera-ai-dev-s3-vector")
+    VECTOR_INDEX_NAME: str = os.getenv("VECTOR_INDEX_NAME", "web-sources")
+    S3V_BUCKET: Optional[str] = os.getenv("S3V_BUCKET")
+    S3V_INDEX: Optional[str] = os.getenv("S3V_INDEX")
+    S3V_DISTANCE: str = os.getenv("S3V_DISTANCE", "cosine").upper()
+    S3V_DIMS: int = int(os.getenv("S3V_DIMS", "1024"))
+
+    # Langfuse Configuration (Guest)
+    LANGFUSE_PUBLIC_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY")
+    LANGFUSE_SECRET_KEY: Optional[str] = os.getenv("LANGFUSE_SECRET_KEY")
+    LANGFUSE_HOST: str = os.getenv("LANGFUSE_HOST", "https://langfuse.promtior.ai")
+    LANGFUSE_GUEST_PUBLIC_KEY: Optional[str] = os.getenv("LANGFUSE_GUEST_PUBLIC_KEY")
+    LANGFUSE_GUEST_SECRET_KEY: Optional[str] = os.getenv("LANGFUSE_GUEST_SECRET_KEY")
+
+    # Langfuse Configuration (Supervisor)
+    LANGFUSE_PUBLIC_SUPERVISOR_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_SUPERVISOR_KEY")
+    LANGFUSE_SECRET_SUPERVISOR_KEY: Optional[str] = os.getenv("LANGFUSE_SECRET_SUPERVISOR_KEY")
+    LANGFUSE_HOST_SUPERVISOR: str = os.getenv("LANGFUSE_HOST_SUPERVISOR", "https://langfuse.promtior.ai")
+
+    # Logging Configuration
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
+    LOG_SIMPLE: bool = os.getenv("LOG_SIMPLE", "").lower() in {"1", "true", "yes", "on"}
+    LOG_FORMAT: str = os.getenv("LOG_FORMAT", "%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    LOG_DATEFMT: str = os.getenv("LOG_DATEFMT", "%Y-%m-%dT%H:%M:%S%z")
+    LOG_QUIET_LIBS: bool = os.getenv("LOG_QUIET_LIBS", "").lower() in {"1", "true", "yes", "on"}
+    LOG_LIB_LEVEL: str = os.getenv("LOG_LIB_LEVEL", "WARNING").upper()
+
+    # Crawling Configuration
+    CRAWL_TYPE: str = os.getenv("CRAWL_TYPE", "recursive")
+    CRAWL_MAX_DEPTH: int = int(os.getenv("CRAWL_MAX_DEPTH", "3"))
+    CRAWL_MAX_PAGES: int = int(os.getenv("CRAWL_MAX_PAGES", "50"))
+    CRAWL_TIMEOUT: int = int(os.getenv("CRAWL_TIMEOUT", "30"))
+
+    # Search Configuration
+    TOP_K_SEARCH: int = int(os.getenv("TOP_K_SEARCH", "10"))
+    CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "1500"))
+    CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "200"))
+
+    # Guest Agent Configuration
+    GUEST_MAX_MESSAGES: int = int(os.getenv("GUEST_MAX_MESSAGES", "50"))
+
+    # Database Configuration
+    DATABASE_HOST: str = os.getenv("DATABASE_HOST", "localhost")
+    DATABASE_PORT: str = os.getenv("DATABASE_PORT", "5432")
+    DATABASE_NAME: str = os.getenv("DATABASE_NAME", "verde")
+    DATABASE_USER: str = os.getenv("DATABASE_USER", "verde")
+    DATABASE_PASSWORD: str = os.getenv("DATABASE_PASSWORD", "verde")
+    DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL")
+
+    # External Services Configuration
+    FOS_SERVICE_URL: Optional[str] = os.getenv("FOS_SERVICE_URL")
+    FOS_API_KEY: Optional[str] = os.getenv("FOS_API_KEY")
+    FOS_SECRETS_ID: Optional[str] = os.getenv("FOS_SECRETS_ID")
+
+    @classmethod
+    def get_aws_region(cls) -> str:
+        """Get AWS region with fallback logic."""
+        return cls.AWS_REGION or cls.AWS_DEFAULT_REGION
+
+    @classmethod
+    def get_database_url(cls) -> str:
+        """Generate database URL if not provided via environment."""
+        if cls.DATABASE_URL:
+            return cls.DATABASE_URL
+        return f"postgresql+asyncpg://{cls.DATABASE_USER}:{cls.DATABASE_PASSWORD}@{cls.DATABASE_HOST}:{cls.DATABASE_PORT}/{cls.DATABASE_NAME}"
+
+    @classmethod
+    def is_langfuse_enabled(cls) -> bool:
+        """Check if Langfuse is properly configured for guest."""
+        return bool(cls.LANGFUSE_PUBLIC_KEY and cls.LANGFUSE_SECRET_KEY and cls.LANGFUSE_HOST)
+
+    @classmethod
+    def is_langfuse_supervisor_enabled(cls) -> bool:
+        """Check if Langfuse is properly configured for supervisor."""
+        return bool(
+            cls.LANGFUSE_PUBLIC_SUPERVISOR_KEY
+            and cls.LANGFUSE_SECRET_SUPERVISOR_KEY
+            and cls.LANGFUSE_HOST_SUPERVISOR
+        )
+
+    @classmethod
+    def get_bedrock_config(cls) -> dict:
+        """Get Bedrock configuration dictionary."""
+        return {
+            "region": cls.get_aws_region(),
+            "model_id": cls.BEDROCK_MODEL_ID,
+            "temperature": cls.LLM_TEMPERATURE,
+            "guardrail_id": cls.BEDROCK_GUARDRAIL_ID,
+            "guardrail_version": cls.BEDROCK_GUARDRAIL_VERSION,
+        }
+
+    @classmethod
+    def validate_required_s3_vars(cls) -> list[str]:
+        """Validate required S3 variables and return missing ones."""
+        required_vars = {
+            "S3V_BUCKET": cls.S3V_BUCKET,
+            "S3V_INDEX": cls.S3V_INDEX,
+            "AWS_REGION": cls.get_aws_region(),
+        }
+        return [name for name, value in required_vars.items() if not value]
+
+
+# Create a singleton instance for easy import
+config = Config()

@@ -1,21 +1,22 @@
-import os
-
+"""TODO: Sacar esto y reemplazarlo por el config ubicado en core."""
 from dotenv import load_dotenv
+
+from app.core.config import config
 
 load_dotenv()
 
-CHUNK_SIZE = int(os.environ.get("CHUNK_SIZE", "1500"))
-CHUNK_OVERLAP = int(os.environ.get("CHUNK_OVERLAP", "200"))
-TOP_K_SEARCH = int(os.environ.get("TOP_K_SEARCH", "10"))
+CHUNK_SIZE = config.CHUNK_SIZE
+CHUNK_OVERLAP = config.CHUNK_OVERLAP
+TOP_K_SEARCH = config.TOP_K_SEARCH
 
-CRAWL_TYPE = os.environ.get("CRAWL_TYPE", "recursive")
-CRAWL_MAX_DEPTH = int(os.environ.get("CRAWL_MAX_DEPTH", "3"))
-CRAWL_MAX_PAGES = int(os.environ.get("CRAWL_MAX_PAGES", "50"))
-CRAWL_TIMEOUT = int(os.environ.get("CRAWL_TIMEOUT", "30"))
+CRAWL_TYPE = config.CRAWL_TYPE
+CRAWL_MAX_DEPTH = config.CRAWL_MAX_DEPTH
+CRAWL_MAX_PAGES = config.CRAWL_MAX_PAGES
+CRAWL_TIMEOUT = config.CRAWL_TIMEOUT
 
-S3_VECTOR_NAME = os.environ["S3_VECTOR_NAME"]
-VECTOR_INDEX_NAME = os.environ["VECTOR_INDEX_NAME"]
-EMBEDDINGS_MODEL_ID = os.environ["EMBEDDINGS_MODEL_ID"]
-AWS_REGION = os.environ["AWS_REGION"]
+S3_VECTOR_NAME = config.S3_VECTOR_NAME
+VECTOR_INDEX_NAME = config.VECTOR_INDEX_NAME
+EMBEDDINGS_MODEL_ID = config.EMBEDDINGS_MODEL_ID
+AWS_REGION = config.get_aws_region()
 
 SOURCES_FILE_PATH = "./app/knowledge/sources/sources.json"

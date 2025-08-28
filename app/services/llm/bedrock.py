@@ -1,23 +1,24 @@
 from __future__ import annotations
 
 import json
-import os
 from collections.abc import AsyncIterator
 from typing import Any
 
 from langchain_aws import ChatBedrock
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from app.core.config import config
+
 from .base import LLM
 
 
 class BedrockLLM(LLM):
     def __init__(self) -> None:
-        region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
+        region = config.get_aws_region()
         if not region:
             raise RuntimeError("AWS_REGION (or AWS_DEFAULT_REGION) is required for Bedrock provider")
-        self.model_id = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
-        self.temperature = float(os.getenv("LLM_TEMPERATURE", "0.3"))
+        self.model_id = config.BEDROCK_MODEL_ID
+        self.temperature = config.LLM_TEMPERATURE
         self.chat_model = ChatBedrock(
             model_id=self.model_id,
             region_name=region,

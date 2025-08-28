@@ -1,13 +1,12 @@
-import os
-
 from dotenv import load_dotenv
 
 load_dotenv(".env", override=False)
 load_dotenv(".env.local", override=True)
 
 from .core.aws_config import load_aws_secrets
+from .core.config import config
 
-if os.getenv("FOS_SECRETS_ID"):
+if config.FOS_SECRETS_ID:
     load_aws_secrets()
 
 from collections.abc import Callable

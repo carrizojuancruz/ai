@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import sys
 from logging.config import fileConfig
 from pathlib import Path
@@ -11,6 +10,7 @@ from sqlalchemy import create_engine, pool
 from sqlalchemy.engine import Connection
 
 from alembic import context
+from app.core.config import config as app_config
 from app.db.base import Base
 from app.db.models.user import UserContextORM  # noqa: F401 - explicit import to populate metadata
 
@@ -42,7 +42,7 @@ def _run_sync_migrations(connection: Connection) -> None:
 
 
 def run_migrations() -> None:
-    url = os.getenv("DATABASE_URL")
+    url = app_config.get_database_url()
     if not url:
         raise RuntimeError("DATABASE_URL is not set")
 
