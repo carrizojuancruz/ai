@@ -16,8 +16,8 @@ class BedrockLLM(LLM):
         region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
         if not region:
             raise RuntimeError("AWS_REGION (or AWS_DEFAULT_REGION) is required for Bedrock provider")
-        self.model_id = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
-        self.temperature = float(os.getenv("LLM_TEMPERATURE", "0.3"))
+        self.model_id = os.getenv("BEDROCK_MODEL_ID")
+        self.temperature = float(os.getenv("LLM_TEMPERATURE") or "0.3")
         self.chat_model = ChatBedrock(
             model_id=self.model_id,
             region_name=region,
