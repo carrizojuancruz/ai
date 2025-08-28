@@ -222,6 +222,10 @@ class OnboardingService:
         state = get_thread_state(thread_id)
         if state is None:
             raise HTTPException(status_code=404, detail="Thread not found")
+
+        state.ready_for_completion = True
+        state.user_context.ready_for_orchestrator = True
+        set_thread_state(thread_id, state)
         await self._export_user_context(state, thread_id)
 
 

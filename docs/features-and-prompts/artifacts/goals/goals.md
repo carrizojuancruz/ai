@@ -93,9 +93,9 @@ In addition to automatic Plaid transactions, the system contemplates:
 **Purpose:** Classification of the objective for intelligent routing to specialized agents and filtering in memory retrieval.
 
 **Agent Mapping:**
-- `debt` → `DebtCoachAgent`
-- `saving`, `spending`, `investment` → `BudgetBuilderAgent`
-- `income`, `net_worth` → `FinanceAgent`
+- `debt` → `BudgetAgent`
+- `saving`, `spending`, `investment` → `BudgetAgent`
+- `income`, `net_worth` → `BudgetAgent`
 - All categories → `Education & Wealth Coach` for contextual guidance
 
 ---
@@ -425,22 +425,23 @@ stateDiagram-v2
 
 ## Integration with Vera Architecture
 
-### Memory System Integration (to be defined)
+### Memory System Separation
 
-Goals are deeply integrated with Vera's memory system:
+Goals operate as an independent system, separate from Vera's memory architecture:
 
-- **Semantic Memory:** Active goals are stored as semantic facts for retrieval in conversations
-- **Episodic Memory:** Progress updates and achievements are captured as episodic events
-- **User Context:** Main goals are included in the user_context injected to the orchestrator
+- **Independent Storage:** Goals maintain their own dedicated storage layer and data models
+- **Separate Logic:** Goal tracking, progress calculation, and state management operate independently from memory systems
+- **Non-overlapping Architecture:** Goals and memory systems are built as distinct components without direct integration or data overlap
+- **Interface Communication:** When needed, goals communicate with other systems (including memory) through well-defined APIs rather than shared data structures
 
 ### Agent Specialization
 
-Each type of goal is routed to the appropriate specialist agent:
+Each type of goal is routed to the BudgetAgent specialist agent:
 
 ```
-category: debt → DebtCoachAgent
-category: saving|spending → BudgetBuilderAgent  
-category: income|investment|net_worth → FinanceAgent
+category: debt → BudgetAgent
+category: saving|spending → BudgetAgent  
+category: income|investment|net_worth → BudgetAgent
 all categories → Education & Wealth Coach (guidance)
 ```
 

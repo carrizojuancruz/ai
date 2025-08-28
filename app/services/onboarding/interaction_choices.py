@@ -2,6 +2,21 @@ from typing import Any
 
 from app.agents.onboarding.state import OnboardingStep
 
+WARMUP_CHOICES = [
+    {
+        "id": "yes",
+        "label": "Let's chat!",
+        "value": "yes",
+        "synonyms": ["sure", "okay", "yes", "yeah", "let's go", "sounds good"],
+    },
+    {
+        "id": "no",
+        "label": "Not right now",
+        "value": "no",
+        "synonyms": ["no", "not now", "maybe later", "skip", "pass"],
+    },
+]
+
 AGE_RANGE_CHOICES = [
     {
         "id": "18_24",
@@ -217,6 +232,12 @@ HEALTH_INSURANCE_CHOICES = [
 
 
 def get_choices_for_field(field: str, step: OnboardingStep) -> dict[str, Any] | None:
+    if step == OnboardingStep.WARMUP or field == "warmup_choice":
+        return {
+            "type": "single_choice",
+            "choices": WARMUP_CHOICES,
+        }
+
     field_choices_map = {
         "age_range": AGE_RANGE_CHOICES,
         "income_range": INCOME_RANGE_CHOICES,
@@ -252,6 +273,9 @@ def get_choices_for_field(field: str, step: OnboardingStep) -> dict[str, Any] | 
 
 
 def should_always_offer_choices(step: OnboardingStep, field: str) -> bool:
+    if step == OnboardingStep.WARMUP:
+        return True
+
     if step == OnboardingStep.CHECKOUT_EXIT and field == "final_choice":
         return True
 

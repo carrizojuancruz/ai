@@ -25,7 +25,7 @@ langfuse_handler = CallbackHandler(
 )
 
 ALLOWED_FIELDS_BY_STEP: dict[OnboardingStep, list[str]] = {
-    OnboardingStep.WARMUP: [],
+    OnboardingStep.WARMUP: ["warmup_choice"],
     OnboardingStep.IDENTITY: ["age", "age_range", "location", "city", "region", "personal_goals"],
     OnboardingStep.INCOME_MONEY: ["money_feelings", "annual_income", "annual_income_range", "income", "income_range"],
     OnboardingStep.ASSETS_EXPENSES: ["assets_types", "fixed_expenses"],
@@ -129,36 +129,87 @@ class OnboardingReasoningService:
             result = self._parse_llm_response(raw_response)
             result["patch"] = context_patching_service.normalize_patch_for_step(step, result.get("patch") or {})
 
-            if (result.get("interaction_type") == "free_text") and missing_fields:
-                for field in missing_fields:
-                    if should_always_offer_choices(step, field):
+            if state.last_user_message:
+                msg_lower = state.last_user_message.lower()
+                wants_options = any(
+                    word in msg_lower
+                    for word in [
+                        "option",
+                        "options",
+                        "choice",
+                        "choices",
+                        "range",
+                        "ranges",
+                        "category",
+                        "categories",
+                        "example",
+                        "examples",
+                        "what are my",
+                        "give me",
+                        "show me",
+                        "list",
+                    ]
+                )
+                if step == OnboardingStep.IDENTITY and wants_options:
+                    if "age_range" in missing_fields or "age" in missing_fields:
+                        result["interaction_type"] = "single_choice"
+                        result["patch"]["age_range"] = None
+                        result["patch"].pop("age", None)
+                elif step == OnboardingStep.INCOME_MONEY:
+                    income_hesitation = any(
+                        word in msg_lower
+                        for word in ["uncomfortable", "prefer not", "rather not", "don't want to share", "private"]
+                    )
+                    if (wants_options or income_hesitation) and any(
+                        field in missing_fields
+                        for field in ["annual_income", "annual_income_range", "income", "income_range"]
+                    ):
+                        result["interaction_type"] = "single_choice"
+                        result["patch"]["annual_income_range"] = None
+                        for field in ["annual_income", "income"]:
+                            result["patch"].pop(field, None)
+                elif step == OnboardingStep.LEARNING_PATH and "learning_interests" in missing_fields:
+                    result["interaction_type"] = "multi_choice"
+                    result["multi_min"] = 1
+                    result["multi_max"] = 3
+
+            if step == OnboardingStep.WARMUP:
+                choice_info = get_choices_for_field("warmup_choice", step)
+                if choice_info:
+                    result["interaction_type"] = choice_info["type"]
+                    result["choices"] = choice_info.get("choices", [])
+                    result.pop("primary_choice", None)
+                    result.pop("secondary_choice", None)
+            else:
+                if (result.get("interaction_type") == "free_text") and missing_fields:
+                    for field in missing_fields:
+                        if should_always_offer_choices(step, field):
+                            choice_info = get_choices_for_field(field, step)
+                            if choice_info:
+                                result["interaction_type"] = choice_info["type"]
+                                if choice_info["type"] == "binary_choice":
+                                    result["primary_choice"] = choice_info.get("primary_choice")
+                                    result["secondary_choice"] = choice_info.get("secondary_choice")
+                                elif choice_info["type"] in ["single_choice", "multi_choice"]:
+                                    result["choices"] = choice_info.get("choices", [])
+                                    if choice_info["type"] == "multi_choice":
+                                        result["multi_min"] = choice_info.get("multi_min", 1)
+                                        result["multi_max"] = choice_info.get("multi_max", 3)
+                                break
+
+                if result.get("interaction_type") != "free_text" and missing_fields:
+                    for field in missing_fields:
                         choice_info = get_choices_for_field(field, step)
                         if choice_info:
                             if choice_info["type"] == "binary_choice":
-                                result["interaction_type"] = "binary_choice"
                                 result["primary_choice"] = choice_info.get("primary_choice")
                                 result["secondary_choice"] = choice_info.get("secondary_choice")
                             elif choice_info["type"] in ["single_choice", "multi_choice"]:
-                                result["interaction_type"] = choice_info["type"]
                                 result["choices"] = choice_info.get("choices", [])
                                 if choice_info["type"] == "multi_choice":
                                     result["multi_min"] = choice_info.get("multi_min", 1)
                                     result["multi_max"] = choice_info.get("multi_max", 3)
                             break
-
-            if result.get("interaction_type") != "free_text" and missing_fields:
-                for field in missing_fields:
-                    choice_info = get_choices_for_field(field, step)
-                    if choice_info:
-                        if choice_info["type"] == "binary_choice":
-                            result["primary_choice"] = choice_info.get("primary_choice")
-                            result["secondary_choice"] = choice_info.get("secondary_choice")
-                        elif choice_info["type"] in ["single_choice", "multi_choice"]:
-                            result["choices"] = choice_info.get("choices", [])
-                            if choice_info["type"] == "multi_choice":
-                                result["multi_min"] = choice_info.get("multi_min", 1)
-                                result["multi_max"] = choice_info.get("multi_max", 3)
-                        break
 
             return result
         except Exception as e:
@@ -209,7 +260,6 @@ class OnboardingReasoningService:
                     "chunk": chunk,
                 }
 
-
             metadata_prompt = self._build_metadata_prompt(
                 step=step,
                 missing_fields=missing_fields,
@@ -236,7 +286,58 @@ class OnboardingReasoningService:
             result["patch"] = context_patching_service.normalize_patch_for_step(step, result.get("patch") or {})
             result["streaming"] = False
 
-            if result.get("interaction_type") != "free_text" and missing_fields:
+            if state.last_user_message:
+                msg_lower = state.last_user_message.lower()
+                wants_options = any(
+                    word in msg_lower
+                    for word in [
+                        "option",
+                        "options",
+                        "choice",
+                        "choices",
+                        "range",
+                        "ranges",
+                        "category",
+                        "categories",
+                        "example",
+                        "examples",
+                        "what are my",
+                        "give me",
+                        "show me",
+                        "list",
+                    ]
+                )
+                if step == OnboardingStep.IDENTITY and wants_options:
+                    if "age_range" in missing_fields or "age" in missing_fields:
+                        result["interaction_type"] = "single_choice"
+                        result["patch"]["age_range"] = None
+                        result["patch"].pop("age", None)
+                elif step == OnboardingStep.INCOME_MONEY:
+                    income_hesitation = any(
+                        word in msg_lower
+                        for word in ["uncomfortable", "prefer not", "rather not", "don't want to share", "private"]
+                    )
+                    if (wants_options or income_hesitation) and any(
+                        field in missing_fields
+                        for field in ["annual_income", "annual_income_range", "income", "income_range"]
+                    ):
+                        result["interaction_type"] = "single_choice"
+                        result["patch"]["annual_income_range"] = None
+                        for field in ["annual_income", "income"]:
+                            result["patch"].pop(field, None)
+                elif step == OnboardingStep.LEARNING_PATH and "learning_interests" in missing_fields:
+                    result["interaction_type"] = "multi_choice"
+                    result["multi_min"] = 1
+                    result["multi_max"] = 3
+
+            if step == OnboardingStep.WARMUP:
+                choice_info = get_choices_for_field("warmup_choice", step)
+                if choice_info:
+                    result["interaction_type"] = choice_info["type"]
+                    result["choices"] = choice_info.get("choices", [])
+                    result.pop("primary_choice", None)
+                    result.pop("secondary_choice", None)
+            elif result.get("interaction_type") != "free_text" and missing_fields:
                 for field in missing_fields:
                     choice_info = get_choices_for_field(field, step)
                     if choice_info:
@@ -289,15 +390,25 @@ class OnboardingReasoningService:
             "   - The question is open-ended without predefined options\n\n"
             "2. Switch to choice-based interactions when:\n"
             "   - User expresses hesitation, uncertainty, or discomfort\n"
-            "   - User asks for options, ranges, or examples\n"
+            "   - User asks for options, ranges, or examples (e.g., 'give me ranges', 'what are my options')\n"
+            "   - User says they prefer ranges or categories over exact values\n"
             "   - User seems unclear about what you're asking\n"
             "   - User explicitly prefers not to share exact details\n"
-            "   - The field naturally works better with predefined options\n\n"
+            "   - The field naturally works better with predefined options\n"
+            "   - For age: User mentions 'range', 'options', 'categories' or shows any hesitation\n"
+            "   - For income: User mentions 'range', is uncomfortable, or prefers not to share exact amount\n"
+            "   - For money_feelings: ALWAYS use multi_choice (this field always offers choices)\n"
+            "   - For learning_interests: ALWAYS use multi_choice (this field always offers choices)\n"
+            "   - For housing_type: ALWAYS use single_choice (this field always offers choices)\n"
+            "   - For health_insurance_status: ALWAYS use single_choice (this field always offers choices)\n\n"
             "Available choice-based options for current fields:\n"
         )
 
         for field, choice_info in available_choices.items():
             instructions += f"- {field}: {choice_info['type']} available\n"
+
+        if "age" in missing_fields and "age_range" not in missing_fields:
+            instructions += "\nNOTE: If user asks for age ranges or shows hesitation about exact age, use the 'age_range' field with single_choice instead of free_text 'age'.\n"
 
         always_choice_fields = []
         for field in missing_fields:
@@ -314,6 +425,7 @@ class OnboardingReasoningService:
             "- Never force specific answers if user is uncomfortable\n"
             "- For binary_choice, use primary_choice and secondary_choice fields\n"
             "- For single_choice and multi_choice, use the choices array\n"
+            "- IMPORTANT: If user asks for age ranges/options, set interaction_type='single_choice' and patch={'age_range': null}\n"
             "- Output ONLY JSON matching the schema\n\n"
             f"Step: {step.value}\n"
             f"Missing fields: {missing_fields}\n"
