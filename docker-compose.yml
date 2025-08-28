@@ -12,7 +12,6 @@ services:
       - "8000:8000"
     volumes:
       - ./:/app
-      - venv_cache:/app/.venv
     environment:
       - PYTHONDONTWRITEBYTECODE=1
       - POETRY_VIRTUALENVS_CREATE=true
