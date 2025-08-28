@@ -38,8 +38,8 @@ class Config:
     # S3 Vectors Configuration
     MEMORIES_INDEX_ID: Optional[str] = os.getenv("MEMORIES_INDEX_ID")
     EMBEDDING_INDEX_ID: Optional[str] = os.getenv("EMBEDDING_INDEX_ID")
-    S3_VECTOR_NAME: str = os.getenv("S3_VECTOR_NAME", "vera-ai-dev-s3-vector")
     VECTOR_INDEX_NAME: str = os.getenv("VECTOR_INDEX_NAME", "web-sources")
+    S3V_INDEX_MEMORY: str = os.getenv("S3V_INDEX_MEMORY", "memory-search")
     S3V_BUCKET: Optional[str] = os.getenv("S3V_BUCKET")
     S3V_INDEX: Optional[str] = os.getenv("S3V_INDEX")
     S3V_DISTANCE: str = os.getenv("S3V_DISTANCE", "cosine").upper()
@@ -91,6 +91,9 @@ class Config:
     FOS_SERVICE_URL: Optional[str] = os.getenv("FOS_SERVICE_URL")
     FOS_API_KEY: Optional[str] = os.getenv("FOS_API_KEY")
     FOS_SECRETS_ID: Optional[str] = os.getenv("FOS_SECRETS_ID")
+
+    # Knowledge Base Configuration
+    SOURCES_FILE_PATH: str = os.getenv("SOURCES_FILE_PATH", "./app/knowledge/sources/sources.json")
 
     @classmethod
     def get_aws_region(cls) -> str:

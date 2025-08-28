@@ -22,8 +22,8 @@ def create_s3_vectors_store_from_env(
       - S3V_DIMS (default: 1024)
       - BEDROCK_EMBED_MODEL_ID (default: amazon.titan-embed-text-v2:0)
     """
-    bucket = config.S3_VECTOR_NAME
-    index = config.S3_VECTOR_NAME
+    bucket = config.S3V_BUCKET
+    index = config.S3V_INDEX_MEMORY
     if not bucket or not index:
         raise RuntimeError("Missing S3V_BUCKET or S3V_INDEX environment variables")
 
