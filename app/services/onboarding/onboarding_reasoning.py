@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from collections.abc import AsyncGenerator
 from contextlib import suppress
 from typing import Any
@@ -11,6 +10,7 @@ from langfuse.callback import CallbackHandler
 
 from app.agents.onboarding.prompts import DEFAULT_RESPONSE_BY_STEP, ONBOARDING_SYSTEM_PROMPT, STEP_GUIDANCE
 from app.agents.onboarding.state import OnboardingState, OnboardingStep
+from app.core.config import config
 from app.services.llm import get_llm_client
 
 from .context_patching import context_patching_service
@@ -19,9 +19,9 @@ from .interaction_choices import get_choices_for_field, should_always_offer_choi
 logger = logging.getLogger(__name__)
 
 langfuse_handler = CallbackHandler(
-    public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
-    secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
-    host=os.getenv("LANGFUSE_HOST"),
+    public_key=config.LANGFUSE_PUBLIC_KEY,
+    secret_key=config.LANGFUSE_SECRET_KEY,
+    host=config.LANGFUSE_HOST,
 )
 
 ALLOWED_FIELDS_BY_STEP: dict[OnboardingStep, list[str]] = {

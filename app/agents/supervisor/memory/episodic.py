@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from datetime import datetime, timedelta, timezone, tzinfo
 from typing import Any
 from uuid import uuid4
@@ -13,6 +12,7 @@ from langgraph.config import get_store
 from langgraph.graph import MessagesState
 
 from app.core.app_state import get_sse_queue
+from app.core.config import config as app_config
 from app.repositories.session_store import get_session_store
 
 from .utils import _parse_iso, _utc_now_iso
@@ -20,15 +20,15 @@ from .utils import _parse_iso, _utc_now_iso
 logger = logging.getLogger(__name__)
 
 
-# Environment variables
-EPISODIC_COOLDOWN_TURNS = int(os.getenv("EPISODIC_COOLDOWN_TURNS", "3"))
-EPISODIC_COOLDOWN_MINUTES = int(os.getenv("EPISODIC_COOLDOWN_MINUTES", "10"))
-EPISODIC_MAX_PER_DAY = int(os.getenv("EPISODIC_MAX_PER_DAY", "5"))
-EPISODIC_WINDOW_N = int(os.getenv("EPISODIC_WINDOW_N", "10"))
-EPISODIC_MERGE_WINDOW_HOURS = int(os.getenv("EPISODIC_MERGE_WINDOW_HOURS", "48"))
-EPISODIC_NOVELTY_MIN = float(os.getenv("EPISODIC_NOVELTY_MIN", "0.90"))
-MEMORY_TINY_LLM_MODEL_ID = os.getenv("MEMORY_TINY_LLM_MODEL_ID", "amazon.nova-micro-v1:0")
-AWS_REGION = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
+# Config variables
+EPISODIC_COOLDOWN_TURNS = app_config.EPISODIC_COOLDOWN_TURNS
+EPISODIC_COOLDOWN_MINUTES = app_config.EPISODIC_COOLDOWN_MINUTES
+EPISODIC_MAX_PER_DAY = app_config.EPISODIC_MAX_PER_DAY
+EPISODIC_WINDOW_N = app_config.EPISODIC_WINDOW_N
+EPISODIC_MERGE_WINDOW_HOURS = app_config.EPISODIC_MERGE_WINDOW_HOURS
+EPISODIC_NOVELTY_MIN = app_config.EPISODIC_NOVELTY_MIN
+MEMORY_TINY_LLM_MODEL_ID = app_config.MEMORY_TINY_LLM_MODEL_ID
+AWS_REGION = app_config.get_aws_region()
 
 
 def _resolve_user_tz_from_config(config: RunnableConfig) -> tzinfo:

@@ -3,13 +3,13 @@ from typing import Any, Dict, List
 import boto3
 from langchain_core.documents import Document
 
-from app.knowledge import config
+from app.core.config import config
 
 
 class S3VectorStoreService:
     def __init__(self):
-        self.bucket_name = config.S3_VECTOR_NAME
-        self.index_name = config.VECTOR_INDEX_NAME
+        self.bucket_name = config.S3V_BUCKET
+        self.index_name = config.S3V_INDEX_MEMORY
         self.client = boto3.client('s3vectors', region_name=config.AWS_REGION)
 
     def add_documents(self, documents: List[Document], embeddings: List[List[float]]):

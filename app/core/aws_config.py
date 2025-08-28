@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+from typing import Any
+
+from app.core.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +18,12 @@ def load_aws_secrets() -> None:
         logger.warning("boto3 not available, skipping AWS Secrets Manager loading")
         return
 
-    secret_id = os.getenv("FOS_SECRETS_ID")
+    secret_id = config.FOS_SECRETS_ID
     if not secret_id:
         logger.info("No FOS_SECRETS_ID provided, using local environment variables")
         return
 
-    region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+    region = config.get_aws_region()
 
     try:
         session = boto3.session.Session()
@@ -59,3 +62,14 @@ def load_aws_secrets() -> None:
         logger.error(f"Failed to parse secret JSON: {e}")
     except Exception as e:
         logger.error(f"Unexpected error loading secrets: {e}")
+
+
+def configure_aws_environment() -> dict[str, Any]:
+    aws_config = {
+        "region": config.get_aws_region(),
+        "secrets_loaded": bool(config.FOS_SECRETS_ID),
+        "llm_provider": config.LLM_PROVIDER,
+        "bedrock_model_id": config.BEDROCK_MODEL_ID,
+    }
+    logger.info(f"AWS Configuration: Region={aws_config['region']}, Provider={aws_config['llm_provider']}")
+    return aws_config
