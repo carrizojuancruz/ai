@@ -38,12 +38,9 @@ def load_aws_secrets() -> None:
         secret_data = json.loads(secret_string)
         loaded_count = 0
         for key, value in secret_data.items():
-            if key not in os.environ:
-                os.environ[key] = str(value)
-                logger.debug(f"Set environment variable: {key}")
-                loaded_count += 1
-            else:
-                logger.debug(f"Skipping {key} - already set in environment")
+            os.environ[key] = str(value)
+            logger.debug(f"Set environment variable: {key} (overwritten if existed)")
+            loaded_count += 1
         logger.info(f"Successfully loaded {loaded_count} secrets from AWS Secrets Manager")
         if "AWS_REGION" not in os.environ and "AWS_DEFAULT_REGION" not in os.environ:
             os.environ["AWS_DEFAULT_REGION"] = region

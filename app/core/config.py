@@ -8,6 +8,11 @@ from typing import Optional
 
 
 class Config:
+    """Centralized configuration class for managing environment variables.
+
+    All configuration values should be accessed through this class instead of directly using os.getenv().
+    """
+
     # Semantic Memory Merge Configuration
     MEMORY_MERGE_TOPK: int = int(os.getenv("MEMORY_MERGE_TOPK", "5"))
     MEMORY_MERGE_AUTO_UPDATE: float = float(os.getenv("MEMORY_MERGE_AUTO_UPDATE", "0.85"))
@@ -19,10 +24,6 @@ class Config:
     MEMORY_MERGE_FALLBACK_TOPK: int = int(os.getenv("MEMORY_MERGE_FALLBACK_TOPK", "3"))
     MEMORY_MERGE_FALLBACK_RECENCY_DAYS: int = int(os.getenv("MEMORY_MERGE_FALLBACK_RECENCY_DAYS", "90"))
     MEMORY_MERGE_FALLBACK_CATEGORIES: str = os.getenv("MEMORY_MERGE_FALLBACK_CATEGORIES", "Personal,Goals")
-    """Centralized configuration class for managing environment variables.
-
-    All configuration values should be accessed through this class instead of directly using os.getenv().
-    """
 
     # Episodic Memory Configuration
     EPISODIC_COOLDOWN_TURNS: int = int(os.getenv("EPISODIC_COOLDOWN_TURNS", "3"))
@@ -44,7 +45,7 @@ class Config:
     AWS_SECRET_ACCESS_KEY: Optional[str] = os.getenv("AWS_SECRET_ACCESS_KEY")
 
     # Application Environment
-    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT")
     DEBUG: bool = os.getenv("DEBUG", "false").lower() in {"true", "1", "yes", "on"}
 
     # AI Models Configuration
@@ -104,12 +105,11 @@ class Config:
     GUEST_MAX_MESSAGES: int = int(os.getenv("GUEST_MAX_MESSAGES", "5"))
 
     # Database Configuration
-    DATABASE_HOST: str = os.getenv("DATABASE_HOST", "localhost")
-    DATABASE_PORT: str = os.getenv("DATABASE_PORT", "5432")
-    DATABASE_NAME: str = os.getenv("DATABASE_NAME", "verde")
-    DATABASE_USER: str = os.getenv("DATABASE_USER", "verde")
-    DATABASE_PASSWORD: str = os.getenv("DATABASE_PASSWORD", "verde")
-    DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL")
+    DATABASE_HOST: str = os.getenv("DATABASE_HOST")
+    DATABASE_PORT: str = os.getenv("DATABASE_PORT")
+    DATABASE_NAME: str = os.getenv("DATABASE_NAME")
+    DATABASE_USER: str = os.getenv("DATABASE_USER")
+    DATABASE_PASSWORD: str = os.getenv("DATABASE_PASSWORD")
 
     # External Services Configuration
     FOS_SERVICE_URL: Optional[str] = os.getenv("FOS_SERVICE_URL")
@@ -127,8 +127,6 @@ class Config:
     @classmethod
     def get_database_url(cls) -> str:
         """Generate database URL if not provided via environment."""
-        if cls.DATABASE_URL:
-            return cls.DATABASE_URL
         return f"postgresql+asyncpg://{cls.DATABASE_USER}:{cls.DATABASE_PASSWORD}@{cls.DATABASE_HOST}:{cls.DATABASE_PORT}/{cls.DATABASE_NAME}"
 
     @classmethod
@@ -166,6 +164,22 @@ class Config:
         }
         return [name for name, value in required_vars.items() if not value]
 
+    @classmethod
+    def get_actual_config(cls) -> dict[str, any]:
+        """Get the actual configuration values."""
+        config_dict = {}
+
+        # Get all class attributes that are configuration variables
+        for attr_name in dir(cls):
+            # Skip private methods and built-in attributes
+            if (not attr_name.startswith('_') and
+                not callable(getattr(cls, attr_name)) and
+                attr_name not in ['get_aws_region', 'get_database_url', 'is_langfuse_enabled',
+                                'is_langfuse_supervisor_enabled', 'get_bedrock_config',
+                                'validate_required_s3_vars', 'get_actual_config']):
+                config_dict[attr_name] = getattr(cls, attr_name)
+
+        return config_dict
 
 # Create a singleton instance for easy import
 config = Config()
