@@ -5,8 +5,6 @@ import logging
 import os
 from typing import Any
 
-from app.core.config import config
-
 logger = logging.getLogger(__name__)
 
 
@@ -18,12 +16,12 @@ def load_aws_secrets() -> None:
         logger.warning("boto3 not available, skipping AWS Secrets Manager loading")
         return
 
-    secret_id = config.FOS_SECRETS_ID
+    secret_id = os.getenv("FOS_SECRETS_ID")
     if not secret_id:
         logger.info("No FOS_SECRETS_ID provided, using local environment variables")
         return
 
-    region = config.get_aws_region()
+    region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
 
     try:
         session = boto3.session.Session()
@@ -38,12 +36,9 @@ def load_aws_secrets() -> None:
         secret_data = json.loads(secret_string)
         loaded_count = 0
         for key, value in secret_data.items():
-            if key not in os.environ:
-                os.environ[key] = str(value)
-                logger.debug(f"Set environment variable: {key}")
-                loaded_count += 1
-            else:
-                logger.debug(f"Skipping {key} - already set in environment")
+            os.environ[key] = str(value)
+            logger.debug(f"Set environment variable: {key} (overwritten if existed)")
+            loaded_count += 1
         logger.info(f"Successfully loaded {loaded_count} secrets from AWS Secrets Manager")
         if "AWS_REGION" not in os.environ and "AWS_DEFAULT_REGION" not in os.environ:
             os.environ["AWS_DEFAULT_REGION"] = region
@@ -66,10 +61,10 @@ def load_aws_secrets() -> None:
 
 def configure_aws_environment() -> dict[str, Any]:
     aws_config = {
-        "region": config.get_aws_region(),
-        "secrets_loaded": bool(config.FOS_SECRETS_ID),
-        "llm_provider": config.LLM_PROVIDER,
-        "bedrock_model_id": config.BEDROCK_MODEL_ID,
+        "region": os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION"),
+        "secrets_loaded": bool(os.getenv("FOS_SECRETS_ID")),
+        "llm_provider": os.getenv("LLM_PROVIDER"),
+        "bedrock_model_id": os.getenv("BEDROCK_MODEL_ID"),
     }
     logger.info(f"AWS Configuration: Region={aws_config['region']}, Provider={aws_config['llm_provider']}")
     return aws_config

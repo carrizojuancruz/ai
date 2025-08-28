@@ -3,14 +3,9 @@ from dotenv import load_dotenv
 load_dotenv(".env", override=False)
 load_dotenv(".env.local", override=True)
 
-from .core.aws_config import load_aws_secrets
-from .core.config import config
-
-if config.FOS_SECRETS_ID:
-    load_aws_secrets()
-
 from collections.abc import Callable
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, Request, Response
 
@@ -18,6 +13,7 @@ from .api.admin.sources import router as admin_router
 from .api.routes import router as api_router
 from .api.routes_guest import router as guest_router
 from .api.routes_supervisor import router as supervisor_router
+from .core.config import config
 from .observability.logging_config import configure_logging, get_logger
 
 configure_logging()
@@ -49,6 +45,12 @@ async def health_check() -> dict[str, str]:
     logger.info("Health check requested")
     return {"message": "Verde AI - Vera Agent System", "status": "healthy"}
 
+@app.get("/actual_config")
+async def actual_config() -> dict[str, Any]:
+    actual_config_data = config.get_actual_config()
+    logger.info(f"Actual config requested: {actual_config_data}")
+
+    return actual_config_data
 
 app.include_router(api_router)
 app.include_router(supervisor_router)
