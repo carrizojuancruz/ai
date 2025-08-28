@@ -1,10 +1,8 @@
-from __future__ import annotations
-
-import os
 from typing import Optional
 
 import boto3
 
+from app.core.config import config
 from app.repositories.s3_vectors_store import S3VectorsStore
 
 
@@ -24,15 +22,15 @@ def create_s3_vectors_store_from_env(
       - S3V_DIMS (default: 1024)
       - BEDROCK_EMBED_MODEL_ID (default: amazon.titan-embed-text-v2:0)
     """
-    bucket = os.getenv("S3V_BUCKET")
-    index = os.getenv("S3V_INDEX")
+    bucket = config.S3V_BUCKET
+    index = config.S3V_INDEX_MEMORY
     if not bucket or not index:
         raise RuntimeError("Missing S3V_BUCKET or S3V_INDEX environment variables")
 
-    region = region_name or os.getenv("AWS_REGION", "us-east-1")
-    distance = (os.getenv("S3V_DISTANCE", "cosine")).upper()
-    dims = int(os.getenv("S3V_DIMS", "1024"))
-    model_id = os.getenv("BEDROCK_EMBED_MODEL_ID", "amazon.titan-embed-text-v2:0")
+    region = region_name or config.get_aws_region()
+    distance = config.S3V_DISTANCE
+    dims = config.S3V_DIMS
+    model_id = config.BEDROCK_EMBED_MODEL_ID
 
     s3v = boto3.client("s3vectors", region_name=region)
     bedrock = boto3.client("bedrock-runtime", region_name=region)

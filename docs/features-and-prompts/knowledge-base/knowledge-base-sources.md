@@ -207,5 +207,3 @@ This knowledge base contains reliable and authoritative resources for young Amer
 - Emergency Assistance Programs
 
 ---
-
-*Last Updated: January 2024*

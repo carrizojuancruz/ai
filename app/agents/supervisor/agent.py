@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 
 from langchain_aws import ChatBedrock
 from langgraph.graph import END, START, MessagesState, StateGraph
@@ -9,6 +8,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
 from app.agents.supervisor.memory import episodic_capture, memory_context, memory_hotpath
+from app.core.config import config
 from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
 from .handoff import create_task_description_handoff_tool
@@ -26,10 +26,11 @@ def compile_supervisor_graph() -> CompiledStateGraph:
         agent_name="math_agent", description="Assign task to a math agent."
     )
 
-    region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
-    model_id = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
-    guardrail_id = os.getenv("BEDROCK_GUARDRAIL_ID")
-    guardrail_version = os.getenv("BEDROCK_GUARDRAIL_VERSION")
+
+    region = config.AWS_REGION
+    model_id = config.BEDROCK_MODEL_ID
+    guardrail_id = config.BEDROCK_GUARDRAIL_ID
+    guardrail_version = config.BEDROCK_GUARDRAIL_VERSION
 
     guardrails = {
         "guardrailIdentifier": guardrail_id,

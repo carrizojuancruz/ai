@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -19,14 +18,15 @@ from app.core.app_state import (
     set_last_emitted_text,
     set_thread_state,
 )
+from app.core.config import config
 from app.repositories.session_store import get_session_store
 
 logger = logging.getLogger(__name__)
 
 langfuse_handler = CallbackHandler(
-    public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
-    secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
-    host=os.getenv("LANGFUSE_HOST"),
+    public_key=config.LANGFUSE_PUBLIC_KEY,
+    secret_key=config.LANGFUSE_SECRET_KEY,
+    host=config.LANGFUSE_HOST,
 )
 
 

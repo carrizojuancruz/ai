@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 from uuid import uuid4
 
@@ -15,6 +14,7 @@ from app.core.app_state import (
     register_thread,
     set_thread_state,
 )
+from app.core.config import config
 from app.repositories.session_store import get_session_store
 
 logger = logging.getLogger(__name__)
@@ -44,14 +44,14 @@ def _wrap(content: str, count: int, max_messages: int) -> dict[str, Any]:
 class GuestService:
     def __init__(self) -> None:
         try:
-            self.max_messages = max(1, int(os.getenv("GUEST_MAX_MESSAGES", "5")))
+            self.max_messages = max(1, config.GUEST_MAX_MESSAGES)
         except Exception:
             self.max_messages = 5
         self.graph = get_guest_graph()
 
-        guest_pk = os.getenv("LANGFUSE_GUEST_PUBLIC_KEY")
-        guest_sk = os.getenv("LANGFUSE_GUEST_SECRET_KEY")
-        guest_host = os.getenv("LANGFUSE_HOST")
+        guest_pk = config.LANGFUSE_GUEST_PUBLIC_KEY
+        guest_sk = config.LANGFUSE_GUEST_SECRET_KEY
+        guest_host = config.LANGFUSE_HOST
         self.callbacks = []
         if guest_pk and guest_sk and guest_host:
             try:
