@@ -41,7 +41,6 @@ def _get_session_factory():
     return _async_session_factory
 
 
-# Backwards compatibility - these will only be created when first accessed
 def get_engine():
     """Get database engine (lazy-loaded)."""
     return _get_engine()
