@@ -28,8 +28,8 @@ async def sync_all_sources() -> CronSyncResponse:
             sources_created=result["sources_created"],
             sources_updated=result["sources_updated"],
             sources_deleted=result["sources_deleted"],
-            kb_synced=result["kb_synced"],
-            kb_failed=result["kb_failed"]
+            sources_synced=result["sources_synced"],
+            sync_failures=result["sync_failures"]
         )
     except Exception as e:
         logger.error(f"Failed to sync all sources: {str(e)}")

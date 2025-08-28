@@ -40,8 +40,19 @@ class SyncService:
             new_hashes = {doc.metadata.get("content_hash") for doc in chunks}
 
             if self.needs_reindex(source.id, new_hashes):
-                self.vector_store.delete_documents(source.id)
+                logger.info(f"Source {source.id} needs reindexing - deleting old documents")
+                deletion_result = self.vector_store.delete_documents(source.id)
 
+                if not deletion_result["success"]:
+                    logger.error(f"Failed to delete documents for source {source.id} during reindexing: {deletion_result['message']}")
+                    return SyncResult(
+                        source_id=source.id,
+                        success=False,
+                        message=f"Failed to delete old documents: {deletion_result['message']}"
+                    )
+
+                logger.info(f"Successfully deleted {deletion_result['vectors_deleted']} vectors for source {source.id}")
+                logger.info(f"Adding new documents for source {source.id}")
                 await self.knowledge_service.add_documents(documents, source)
 
                 return SyncResult(

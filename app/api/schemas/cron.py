@@ -11,8 +11,8 @@ class CronSyncResponse(BaseModel):
     sources_created: int
     sources_updated: int
     sources_deleted: int
-    kb_synced: int
-    kb_failed: int
+    sources_synced: int
+    sync_failures: int
 
 class CronStatusResponse(BaseModel):
     """Response for sync system status check."""

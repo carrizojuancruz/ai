@@ -3,7 +3,7 @@ import logging
 import time
 from typing import Any, Dict, List
 
-from langchain_aws.embeddings import BedrockEmbeddings
+from langchain_aws import BedrockEmbeddings
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
