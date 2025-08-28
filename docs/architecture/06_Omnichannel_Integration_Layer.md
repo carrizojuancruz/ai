@@ -15,7 +15,7 @@ The Vera AI Core only ever processes text. This layer acts as a universal adapte
 
 ### Event types (shared across onboarding and general chat)
 - `conversation.started` { thread_id }
-- `token.delta` { text }
+- `token.delta` { text, sources }
 - `step.update` { node, status }
 - `memory.candidate` { temp_id, type_hint, tags_hint }
 - `memory.created` { memory_id, summary, type, tags, created_at }

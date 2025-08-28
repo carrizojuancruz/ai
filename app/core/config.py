@@ -65,7 +65,7 @@ class Config:
     VECTOR_INDEX_NAME: str = os.getenv("VECTOR_INDEX_NAME", "web-sources")
     S3V_INDEX_MEMORY: str = os.getenv("S3V_INDEX_MEMORY", "memory-search")
     S3V_BUCKET: Optional[str] = os.getenv("S3V_BUCKET")
-    S3V_INDEX: Optional[str] = os.getenv("S3V_INDEX")
+    S3V_INDEX_KB: Optional[str] = os.getenv("S3V_INDEX_KB")
     S3V_DISTANCE: str = os.getenv("S3V_DISTANCE", "cosine").upper()
     S3V_DIMS: int = int(os.getenv("S3V_DIMS", "1024"))
 

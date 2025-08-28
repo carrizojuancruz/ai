@@ -8,9 +8,9 @@ import boto3
 
 from app.agents.onboarding.state import OnboardingState, OnboardingStep
 from app.core.config import config
-from app.db.session import get_async_session
 from app.models.user import UserContext
-from app.repositories.postgres.user_repository import PostgresUserRepository
+from app.services.external_context.client import ExternalUserRepository
+from app.services.external_context.mapping import map_ai_context_to_user_context, map_user_context_to_ai_context
 from app.services.onboarding.context_patching import context_patching_service
 
 logger = logging.getLogger(__name__)
@@ -64,11 +64,19 @@ async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], valu
                 if isinstance(goals_add, list):
                     patch["goals_add"] = [str(x) for x in goals_add if isinstance(x, str) and x.strip()]
 
-        async for db in get_async_session():
-            repo = PostgresUserRepository(db)
+        try:
             from uuid import UUID as _UUID
             uid = _UUID(user_id)
-            ctx = await repo.get_by_id(uid) or UserContext(user_id=uid)
+
+            repo = ExternalUserRepository()
+            external_ctx = await repo.get_by_id(uid)
+
+            ctx = UserContext(user_id=uid)
+            if external_ctx:
+                ctx = map_ai_context_to_user_context(external_ctx, ctx)
+                logger.info(f"[PROFILE_SYNC] Loaded external AI Context for user: {uid}")
+            else:
+                logger.info(f"[PROFILE_SYNC] No external AI Context found for user: {uid}")
 
             apply_patch: dict[str, Any] = {}
             changed: dict[str, Any] = {}
@@ -94,8 +102,18 @@ async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], valu
             if apply_patch:
                 state = OnboardingState(user_id=uid, user_context=ctx)
                 context_patching_service.apply_context_patch(state, OnboardingStep.IDENTITY, apply_patch)
-                await repo.upsert(state.user_context)
+
+                body = map_user_context_to_ai_context(state.user_context)
+                logger.info(f"[PROFILE_SYNC] Prepared external payload: {json.dumps(body, ensure_ascii=False)}")
+                resp = await repo.upsert(state.user_context.user_id, body)
+                if resp is not None:
+                    logger.info(f"[PROFILE_SYNC] External API acknowledged update for user {state.user_context.user_id}")
+                else:
+                    logger.warning(f"[PROFILE_SYNC] External API returned no body or 404 for user {state.user_context.user_id}")
+
                 logger.info("profile_sync.applied: %s", json.dumps(changed)[:400])
+        except Exception as e:
+            logger.warning(f"[PROFILE_SYNC] Failed to sync profile from memory: {e}")
     except Exception:
         logger.exception("profile_sync.error")
 
