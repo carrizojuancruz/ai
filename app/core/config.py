@@ -6,6 +6,8 @@ Centralizes all environment variables and provides type-safe access to configura
 import os
 from typing import Optional
 
+from .aws_config import load_aws_secrets
+
 
 class Config:
     """Centralized configuration class for managing environment variables.
@@ -181,5 +183,6 @@ class Config:
 
         return config_dict
 
+load_aws_secrets()
 # Create a singleton instance for easy import
 config = Config()
