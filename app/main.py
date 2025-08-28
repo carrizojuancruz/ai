@@ -49,6 +49,11 @@ async def health_check() -> dict[str, str]:
     logger.info("Health check requested")
     return {"message": "Verde AI - Vera Agent System", "status": "healthy"}
 
+@app.get("/actual_config")
+async def actual_config() -> dict[str, str]:
+    logger.info(f"Actual config requested: {config.get_actual_config()}")
+
+    return {"message": "Verde AI - Vera Agent System", "status": "healthy"}
 
 app.include_router(api_router)
 app.include_router(supervisor_router)
