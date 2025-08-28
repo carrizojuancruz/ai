@@ -1,15 +1,15 @@
 [
   {
-    "id": "545a1068be7863342fcd2738d7df6f7e845caeb0a67b5252b89b5772ac220a37",
-    "name": "Promtior",
-    "url": "https://promtior.ai/",
+    "id": "725d9e3b56b461433108d47d7f8619e0f661c529de12171d972a810220b2b79b",
+    "name": "Tienda verde",
+    "url": "https://verdemoney.com/es/",
     "enabled": true,
     "type": "Technology Website",
     "category": "AI/Tech",
     "description": "AI prompting and automation platform",
     "include_path_patterns": "",
     "exclude_path_patterns": "",
-    "total_max_pages": "25",
+    "total_max_pages": "30",
     "recursion_depth": "2"
   }
 ]
