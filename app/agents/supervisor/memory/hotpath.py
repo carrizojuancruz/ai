@@ -20,6 +20,7 @@ from langgraph.graph import MessagesState
 from app.core.app_state import get_sse_queue
 from app.core.config import config
 
+from .profile_sync import _profile_sync_from_memory
 from .utils import _build_profile_line, _parse_iso, _utc_now_iso
 
 logger = logging.getLogger(__name__)
@@ -312,7 +313,7 @@ async def _write_semantic_memory(
             else:
                 store.put(namespace, candidate_value["id"], candidate_value, index=["summary"])  # async context
                 logger.info("memory.create: id=%s type=%s category=%s", candidate_value["id"], "semantic", category)
-                from .profile_sync import _profile_sync_from_memory  # type: ignore
+
                 asyncio.create_task(_profile_sync_from_memory(user_id, thread_id, candidate_value))
                 if queue:
                     with contextlib.suppress(Exception):
