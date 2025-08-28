@@ -8,6 +8,10 @@ from typing import Optional
 
 
 class Config:
+    # Memory Context Configuration
+    MEMORY_CONTEXT_TOPK: int = int(os.getenv("MEMORY_CONTEXT_TOPK", "24"))
+    MEMORY_CONTEXT_TOPN: int = int(os.getenv("MEMORY_CONTEXT_TOPN", "5"))
+    MEMORY_RERANK_WEIGHTS: str = os.getenv("MEMORY_RERANK_WEIGHTS", "sim=0.55,imp=0.20,recency=0.15,pinned=0.10")
     """Centralized configuration class for managing environment variables.
 
     All configuration values should be accessed through this class instead of directly using os.getenv().

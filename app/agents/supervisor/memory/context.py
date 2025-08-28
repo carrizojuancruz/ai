@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from datetime import datetime, timezone, tzinfo
 from typing import Any
 
@@ -11,14 +10,16 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_store
 from langgraph.graph import MessagesState
 
+from app.core.config import config
+
 from .utils import _parse_iso, _parse_weights
 
 logger = logging.getLogger(__name__)
 
-# Environment variables
-CONTEXT_TOPK = int(os.getenv("MEMORY_CONTEXT_TOPK", "24"))
-CONTEXT_TOPN = int(os.getenv("MEMORY_CONTEXT_TOPN", "5"))
-RERANK_WEIGHTS_RAW = os.getenv("MEMORY_RERANK_WEIGHTS", "sim=0.55,imp=0.20,recency=0.15,pinned=0.10")
+# Config variables
+CONTEXT_TOPK = config.MEMORY_CONTEXT_TOPK
+CONTEXT_TOPN = config.MEMORY_CONTEXT_TOPN
+RERANK_WEIGHTS_RAW = config.MEMORY_RERANK_WEIGHTS
 
 
 def _extract_user_text(messages: list[Any]) -> str | None:
