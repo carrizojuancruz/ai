@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
@@ -15,7 +14,7 @@ from app.core.app_state import (
     get_supervisor_graph,
     set_last_emitted_text,
 )
-
+from app.core.config import config
 from app.models.user import UserContext
 from app.repositories.session_store import InMemorySessionStore, get_session_store
 from app.utils.welcome import call_llm, generate_personalized_welcome
