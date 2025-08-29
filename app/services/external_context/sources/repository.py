@@ -21,10 +21,10 @@ class ExternalSourcesRepository(ExternalSourcesRepositoryInterface):
         """Get all sources from external API - MOCKED implementation."""
         mock_sources = [
             ExternalSource(
-                name="Tienda verde",
+                name="Promtior",
                 type="Technology Website",
                 category="AI/Tech",
-                url="https://verdemoney.com/es/",
+                url="https://www.promtior.ai/",
                 description="AI prompting and automation platform",
                 include_path_patterns="",
                 exclude_path_patterns="",
