@@ -6,9 +6,7 @@ Centralizes all environment variables and provides type-safe access to configura
 import os
 from typing import Optional
 
-from .aws_config import load_aws_secrets
-
-load_aws_secrets()
+from app.core.aws_config import AWSConfig
 
 
 class Config:
@@ -119,9 +117,36 @@ class Config:
     FOS_SERVICE_URL: Optional[str] = os.getenv("FOS_SERVICE_URL")
     FOS_API_KEY: Optional[str] = os.getenv("FOS_API_KEY")
     FOS_SECRETS_ID: Optional[str] = os.getenv("FOS_SECRETS_ID")
+    FOS_SECRETS_REGION: str = os.getenv("FOS_SECRETS_REGION", "us-east-1")
 
     # Knowledge Base Configuration
     SOURCES_FILE_PATH: str = os.getenv("SOURCES_FILE_PATH", "./app/knowledge/sources/sources.json")
+
+    def __init__(self):
+        self.__class__._initialize()
+
+    @classmethod
+    def _initialize(cls):
+        secrets = AWSConfig(cls.FOS_SECRETS_REGION, cls.FOS_SECRETS_ID).get_secrets_manager_values()
+        if secrets:
+            for key, value in secrets.items():
+                cls.set_env_var(key, value)
+
+    @classmethod
+    def set_env_var(cls, key: str, value: str):
+        """Set an environment variable."""
+        # Try to convert value to int, float, bool, or str
+        try:
+            if isinstance(value, str):
+                if value.lower() in ["true", "false"]:
+                    value = value.lower() == "true"
+                elif value.isdigit():
+                    value = int(value)
+                elif value.replace('.', '', 1).isdigit():
+                    value = float(value)
+            setattr(cls, key, value)
+        except (ValueError, TypeError):
+            print(f"Failed to set environment variable {key} with value {value}")
 
     @classmethod
     def get_aws_region(cls) -> str:
