@@ -22,7 +22,8 @@ Combination of `single_choice` and `free_text`
   },
   "age_restriction": {
     "min_age": 18,
-    "restriction_message": "Mmm... I'm sorry we can't continue our conversation, I can only talk to people who are 18 or older.",
+    "restriction_message": "I’m really sorry, but you need to be at least 18 to chat with me. It’s for safety and privacy reasons.
+I hope we can talk in the future!",
     "redirect_action": "end_conversation"
   }
 }
@@ -41,7 +42,8 @@ Combination of `single_choice` and `free_text`
   },
   "age_restriction": {
     "min_age": 18,
-    "restriction_message": "Mmm... I'm sorry we can't continue our conversation, I can only talk to people who are 18 or older.",
+    "restriction_message": "I’m really sorry, but you need to be at least 18 to chat with me. It’s for safety and privacy reasons.
+I hope we can talk in the future!",
     "redirect_action": "end_conversation"
   },
   "choices": [
@@ -278,7 +280,8 @@ def get_effective_age_range(state: OnboardingState) -> str:
 ### Age Restriction Message
 ```json
 {
-  "restriction_message": "Mmm... I'm sorry we can't continue our conversation, I can only talk to people who are 18 or older."
+  "restriction_message": "I’m really sorry, but you need to be at least 18 to chat with me. It’s for safety and privacy reasons.
+I hope we can talk in the future!"
 }
 ```
 
