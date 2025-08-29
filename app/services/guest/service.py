@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 HARDCODED_GUEST_WELCOME = (
     "But hey, I'm also up for talking about life, dreams, or the mysteries of the universe. Your cal!!\n\n"
-    "So tell me, what's in your mind today?"
+    "So tell me, what's on your mind today?"
 )
 
 
