@@ -3,6 +3,8 @@ from dotenv import load_dotenv
 load_dotenv(".env", override=False)
 load_dotenv(".env.local", override=True)
 
+from .core.config import config
+
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from typing import Any
@@ -13,7 +15,6 @@ from .api.admin.sources import router as admin_router
 from .api.routes import router as api_router
 from .api.routes_guest import router as guest_router
 from .api.routes_supervisor import router as supervisor_router
-from .core.config import config
 from .observability.logging_config import configure_logging, get_logger
 
 configure_logging()

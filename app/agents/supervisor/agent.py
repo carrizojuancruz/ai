@@ -30,7 +30,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     region = config.AWS_REGION
     model_id = config.BEDROCK_MODEL_ID
     guardrail_id = config.BEDROCK_GUARDRAIL_ID
-    guardrail_version = config.BEDROCK_GUARDRAIL_VERSION
+    guardrail_version = str(config.BEDROCK_GUARDRAIL_VERSION)
 
     guardrails = {
         "guardrailIdentifier": guardrail_id,
