@@ -19,6 +19,11 @@ from app.repositories.session_store import get_session_store
 
 logger = logging.getLogger(__name__)
 
+HARDCODED_GUEST_WELCOME = (
+    "But hey, I'm also up for talking about life, dreams, or the mysteries of the universe. Your call!\n\n"
+    "So tell me, what's on your mind today?"
+)
+
 
 def _wrap(content: str, count: int, max_messages: int) -> dict[str, Any]:
     content = (content or "").strip()
@@ -77,36 +82,8 @@ class GuestService:
 
         await queue.put({"event": "conversation.started", "data": {"thread_id": thread_id}})
 
-        inputs = {"messages": [{"role": "user", "content": "Say hi and explain the guest session limit."}]}
-
-        accumulated = ""
-        try:
-            async for ev in self.graph.astream_events(
-                inputs,
-                version="v1",
-                config={
-                    "callbacks": self.callbacks,
-                    "run_name": "guest.initialize",
-                    "tags": ["guest"],
-                    "metadata": {"thread_id": thread_id, "phase": "initialize"},
-                },
-            ):
-                if ev.get("event") == "on_chat_model_stream":
-                    data = ev.get("data", {})
-                    chunk = data.get("chunk")
-                    try:
-                        content = getattr(chunk, "content", "")
-                        if isinstance(content, list):
-                            text = "".join([str(p.get("text", "")) for p in content if isinstance(p, dict)])
-                        else:
-                            text = str(content or "")
-                    except Exception:
-                        text = ""
-                    if text:
-                        accumulated += text
-                        await queue.put({"event": "token.delta", "data": {"text": text}})
-        except Exception:
-            pass
+        accumulated = HARDCODED_GUEST_WELCOME
+        await queue.put({"event": "token.delta", "data": {"text": HARDCODED_GUEST_WELCOME}})
 
         content = (
             accumulated.strip()

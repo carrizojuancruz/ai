@@ -344,6 +344,8 @@ In addition to automatic Plaid transactions, the system contemplates:
 - **Description:** Goal with missing data or incomplete configuration
 - **Criteria:** Missing required fields, cannot evaluate progress, user has not finished setup
 - **Visual Badge:** ⏳ Yellow/orange badge with "Configuration Pending"
+- **Conversational Flow:** While in `pending`, the goal is refined via natural language. Vera asks short, focused questions to polish fields (title, amount, frequency, categories) using free text and choices.
+- **Finalization Pattern:** At the end of polishing, a `binary_choice` confirmation activates the goal or keeps it in `pending` to continue editing later.
 - **Available Actions:** Edit, Complete configuration, Delete
 
 #### `in_progress` 
@@ -377,15 +379,15 @@ State transitions follow specific logic to ensure consistency:
 ```mermaid
 stateDiagram-v2
     [*] --> pending : Initial creation
-    pending --> in_progress : Configuration completed
-    pending --> deleted : User cancels
+    pending --> in_progress : Activation confirmed (binary)
+    pending --> deleted : Delete confirmed (binary)
     in_progress --> completed : Target reached
     in_progress --> error : Technical problems
-    in_progress --> deleted : User archives
+    in_progress --> deleted : Archive confirmed (binary)
     error --> in_progress : Problem resolved
-    error --> deleted : User abandons
-    completed --> deleted : User archives
-    deleted --> in_progress : User restores
+    error --> deleted : Abandon confirmed (binary)
+    completed --> deleted : Archive confirmed (binary)
+    deleted --> in_progress : Restore confirmed (binary)
 ```
 
 **Transition Rules:**
@@ -406,6 +408,153 @@ stateDiagram-v2
 ```
 
 **Purpose:** Current status and progress tracking. Each state has specific visual badges and contextual actions available.
+
+---
+
+### Conversational Setup and Binary Choices
+
+#### Conversational Polishing while `pending`
+- **Flow:** Users can describe or adjust any field in natural language. Vera proposes structured updates and asks short follow-ups to clarify.
+- **Field coverage:** `goal`, `category`, `nature`, `frequency`, `amount`, `affected_categories`, `source`.
+- **Autosave (stream event):** On each relevant user disclosure, the change is immediately persisted and emitted as a stream event (SSE/WebSocket) and echoed in a normal chat message using:
+
+- new detail added: {detail-added-or-updated}. {revert}
+
+  `{revert}` is an inline control to undo the last change on that field.
+
+  Example SSE payload:
+  ```json
+  {
+    "type": "goal_autosave",
+    "goal_id": "uuid",
+    "field": "amount.absolute.target",
+    "old_value": 200,
+    "new_value": 250,
+    "message": "new detail added: amount.target=250 USD. {revert}",
+    "timestamp": "2024-02-15T08:30:00Z"
+  }
+  ```
+- **Closure:** The flow ends with a `binary_choice` to either (a) change state (e.g., activate) or (b) save or discard a set of structural changes.
+
+#### Binary Choice Pattern (aligned with onboarding `README.md`)
+```json
+{
+  "id": "goal_activation_confirmation",
+  "type": "binary_choice",
+  "prompt": "Activate this goal with the current configuration?",
+  "target_key": "goal.status",
+  "required": true,
+  "primary_choice": {
+    "id": "activate",
+    "label": "Yes, activate",
+    "value": "in_progress",
+    "action": "set_status_in_progress",
+    "synonyms": ["yes", "activate", "start"]
+  },
+  "secondary_choice": {
+    "id": "keep_pending",
+    "label": "Keep refining",
+    "value": "pending",
+    "action": "keep_pending_and_continue_editing",
+    "synonyms": ["no", "later", "pending"]
+  },
+  "routing": {
+    "activate": "apply_and_start_tracking",
+    "keep_pending": "continue_editing_flow"
+  }
+}
+```
+
+#### Save Changes Confirmation (while `in_progress` or critical changes)
+Use when a batch of structural changes (e.g., `amount`, `frequency`, `affected_categories`) needs explicit confirmation. Minor changes continue with conversational autosave.
+```json
+{
+  "id": "goal_save_changes_confirmation",
+  "type": "binary_choice",
+  "prompt": "Save these changes to the goal?",
+  "target_key": "goal.save_changes",
+  "required": true,
+  "primary_choice": {
+    "id": "save",
+    "label": "Save changes",
+    "value": true,
+    "action": "apply_changes"
+  },
+  "secondary_choice": {
+    "id": "discard",
+    "label": "Discard",
+    "value": false,
+    "action": "discard_changes"
+  },
+  "routing": {
+    "save": "recalculate_progress_and_remind",
+    "discard": "return_to_status_quo"
+  }
+}
+```
+
+#### Delete/Archive Confirmation
+```json
+{
+  "id": "goal_delete_confirmation",
+  "type": "binary_choice",
+  "prompt": "Archive/delete this goal?",
+  "target_key": "goal.status",
+  "required": true,
+  "primary_choice": {
+    "id": "archive",
+    "label": "Archive",
+    "value": "deleted",
+    "action": "soft_delete"
+  },
+  "secondary_choice": {
+    "id": "cancel",
+    "label": "Cancel",
+    "value": "unchanged",
+    "action": "cancel_delete"
+  },
+  "routing": {
+    "archive": "move_to_archived_view",
+    "cancel": "no_op"
+  }
+}
+```
+
+#### Minimal Handler Sketch
+```python
+def handle_goal_binary_transition(goal: Dict, choice: str) -> Dict:
+    transitions = {
+        "activate": lambda g: {**g, "status": {"value": "in_progress"}},
+        "keep_pending": lambda g: g,
+        "save": lambda g: recalc_and_update(g),
+        "discard": lambda g: g,
+        "archive": lambda g: {**g, "status": {"value": "deleted"}},
+        "cancel": lambda g: g,
+        "restore": lambda g: {**g, "status": {"value": "in_progress"}}
+    }
+    return transitions.get(choice, lambda g: g)(goal)
+```
+
+#### Nudges Integration (from `nudges.md`)
+- Goals that remain `pending` can trigger an in-app or push nudge with a `binary_choice` to activate or keep refining.
+- Example (push, binary choice):
+```json
+{
+  "id": "nudge_push_goal_pending",
+  "type": "nudge_push",
+  "preview_text": "You have a pending goal. Activate it?",
+  "target_key": "nudge.goal_pending_confirmation",
+  "welcome_message": {
+    "type": "binary_choice",
+    "message": "Do you want to activate your goal now?",
+    "choices": [
+      { "id": "accept", "label": "Yes, activate", "user_message": "Yes, activate my goal", "action": "continue_conversation" },
+      { "id": "decline", "label": "Keep refining", "user_message": "I prefer to keep refining", "action": "close_chat" }
+    ]
+  },
+  "manifestation": { "channel": "push_notification", "timing": "immediate" }
+}
+```
 
 ---
 
