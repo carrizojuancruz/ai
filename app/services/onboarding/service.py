@@ -147,6 +147,11 @@ class OnboardingService:
         if state is None:
             raise HTTPException(status_code=404, detail="Thread not found")
 
+        # Ensure state is an OnboardingState object, not a dict
+        if isinstance(state, dict):
+            from app.agents.onboarding.state import OnboardingState
+            state = OnboardingState(**state)
+
         user_text = ""
         if type == "text" and text is not None:
             user_text = text
@@ -222,6 +227,11 @@ class OnboardingService:
         state = get_thread_state(thread_id)
         if state is None:
             raise HTTPException(status_code=404, detail="Thread not found")
+
+        # Ensure state is an OnboardingState object, not a dict
+        if isinstance(state, dict):
+            from app.agents.onboarding.state import OnboardingState
+            state = OnboardingState(**state)
 
         state.ready_for_completion = True
         state.user_context.ready_for_orchestrator = True
