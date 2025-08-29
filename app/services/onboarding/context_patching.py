@@ -112,6 +112,29 @@ class ContextPatchingService:
                 except Exception:
                     pass
 
+        try:
+            if step == OnboardingStep.IDENTITY:
+                provided_keys = set(normalized_patch.keys())
+                has_age_or_range = any(
+                    k in provided_keys for k in ["age", "age_range", "identity.age", "identity.age_range"]
+                )
+                if not has_age_or_range and isinstance(getattr(state, "last_user_message", None), str):
+                    raw = state.last_user_message.strip().lower()
+                    if raw:
+                        candidate = raw.replace("years", "").replace("year", "").replace(" ", "")
+                        candidate = candidate.replace("-", "_")
+                        valid_tokens = {"under_18", "over_65", "over65", "65+", ">65"}
+                        is_range = bool(__import__("re").match(r"^\d+_\d+$", candidate)) or candidate in valid_tokens
+                        if is_range:
+                            canonical = candidate
+                            if candidate in {"over65", "65+", ">65"}:
+                                canonical = "over_65"
+                            if not state.user_context.age_range:
+                                state.user_context.age_range = canonical
+                                changes.append(f"age_range = {canonical} (inferred from user message)")
+        except Exception:
+            pass
+
         with suppress(Exception):
             state.user_context.sync_nested_to_flat()
 
@@ -120,7 +143,9 @@ class ContextPatchingService:
             for change in changes:
                 logger.info(f"[USER CONTEXT UPDATE]   - {change}")
 
-        logger.info(f"[USER CONTEXT UPDATE] Updated context: {json.dumps(state.user_context.model_dump(mode='json'), indent=2)}")
+        logger.info(
+            f"[USER CONTEXT UPDATE] Updated context: {json.dumps(state.user_context.model_dump(mode='json'), indent=2)}"
+        )
 
     def _set_by_path(self, obj: Any, path: str, value: Any) -> None:
         parts = [p for p in path.split(".") if p]

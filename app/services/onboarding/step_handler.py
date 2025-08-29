@@ -58,6 +58,7 @@ class StepHandlerService:
             age_range = state.user_context.age_range
             if (age and int(age) < 18) or age_range == "under_18":
                 state.ready_for_completion = True
+                state.user_context.ready_for_orchestrator = True
                 response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
                 state.add_conversation_turn(state.last_user_message or "", response)
                 return state
@@ -66,7 +67,24 @@ class StepHandlerService:
 
         context_patching_service.apply_context_patch(state, step, decision.get("patch") or {})
 
+        if step == OnboardingStep.IDENTITY:
+            try:
+                age = state.user_context.age
+                age_range = state.user_context.age_range
+                if (age and int(age) < 18) or age_range == "under_18":
+                    state.ready_for_completion = True
+                    state.user_context.ready_for_orchestrator = True
+                    response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
+                    state.add_conversation_turn(state.last_user_message or "", response)
+                    return state
+            except Exception:
+                pass
+
         response = decision.get("assistant_text") or DEFAULT_RESPONSE_BY_STEP.get(step, "")
+
+        if (decision.get("interaction_type") in ["single_choice", "multi_choice", "binary_choice"] and response and any(prefix in response for prefix in ["- ", "• ", "* ", "1.", "2.", "3."])):
+            lines = [ln for ln in response.splitlines() if not ln.strip().startswith(("-", "•", "*", "1.", "2.", "3."))]
+            response = "\n".join(lines).strip()
 
         state.current_interaction_type = decision.get("interaction_type", "free_text")
         state.current_choices = decision.get("choices", [])
@@ -132,6 +150,7 @@ class StepHandlerService:
             age_range = state.user_context.age_range
             if (age and int(age) < 18) or age_range == "under_18":
                 state.ready_for_completion = True
+                state.user_context.ready_for_orchestrator = True
                 response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
                 state.add_conversation_turn(state.last_user_message or "", response)
                 yield (response, state)
@@ -152,6 +171,20 @@ class StepHandlerService:
 
         if final_decision:
             context_patching_service.apply_context_patch(state, step, final_decision.get("patch") or {})
+
+            if step == OnboardingStep.IDENTITY:
+                try:
+                    age = state.user_context.age
+                    age_range = state.user_context.age_range
+                    if (age and int(age) < 18) or age_range == "under_18":
+                        state.ready_for_completion = True
+                        state.user_context.ready_for_orchestrator = True
+                        response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
+                        state.add_conversation_turn(state.last_user_message or "", response)
+                        yield (response, state)
+                        return
+                except Exception:
+                    pass
 
             state.current_interaction_type = final_decision.get("interaction_type", "free_text")
             state.current_choices = final_decision.get("choices", [])
@@ -178,6 +211,9 @@ class StepHandlerService:
             ):
                 state = self._handle_skip(state, step)
 
+            if (final_decision.get("interaction_type") in ["single_choice", "multi_choice", "binary_choice"] and any(tok in (accumulated_response or "") for tok in ["18-", "66+", "-24", "-34", "-44", "-54", "-64"])):
+                accumulated_response = ""
+
             if step == OnboardingStep.WARMUP:
                 if state.last_user_message and any(
                     skip_word in state.last_user_message.lower()
@@ -190,10 +226,21 @@ class StepHandlerService:
                 state.user_context.ready_for_orchestrator = True
                 state.ready_for_completion = True
 
+            if final_decision and final_decision.get("interaction_type") in ["single_choice", "multi_choice", "binary_choice"]:
+                accumulated_response = final_decision.get("assistant_text") or ""
+
             if not accumulated_response:
                 accumulated_response = (
                     final_decision.get("assistant_text") if final_decision else ""
                 ) or DEFAULT_RESPONSE_BY_STEP.get(step, "")
+
+            if (final_decision and final_decision.get("interaction_type") in ["single_choice", "multi_choice", "binary_choice"] and accumulated_response and any(prefix in accumulated_response for prefix in ["- ", "• ", "* ", "1.", "2.", "3."])):
+                lines = [
+                    ln
+                    for ln in accumulated_response.splitlines()
+                    if not ln.strip().startswith(("-", "•", "*", "1.", "2.", "3."))
+                ]
+                accumulated_response = "\n".join(lines).strip()
 
             state.add_conversation_turn(state.last_user_message or "", accumulated_response)
 
