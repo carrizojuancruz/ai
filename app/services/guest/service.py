@@ -82,7 +82,6 @@ class GuestService:
 
         await queue.put({"event": "conversation.started", "data": {"thread_id": thread_id}})
 
-        # Hardcode the first assistant message instead of calling the LLM
         accumulated = HARDCODED_GUEST_WELCOME
         await queue.put({"event": "token.delta", "data": {"text": HARDCODED_GUEST_WELCOME}})
 
