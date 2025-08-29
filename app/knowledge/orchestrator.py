@@ -26,33 +26,47 @@ class KnowledgeBaseOrchestrator:
             local_sources = self.local_repo.load_all()
             external_by_url = {s.url: s for s in external_sources}
             local_by_url = {s.url: s for s in local_sources}
-            created = updated = deleted = 0
+
+            created_count = 0
+            updated_count = 0
+            deleted_count = 0
             deletion_failures = []
+
             for local_source in local_sources:
                 if local_source.url not in external_by_url:
                     deletion_result = await self._delete_source(local_source)
                     if deletion_result["success"]:
-                        deleted += 1
+                        deleted_count += 1
                     else:
                         deletion_failures.append(deletion_result["error"])
+
             for ext_source in external_sources:
                 if ext_source.url in local_by_url:
                     await self._update_source(local_by_url[ext_source.url], ext_source)
-                    updated += 1
+                    updated_count += 1
                 else:
                     await self._create_source(ext_source)
-                    created += 1
+                    created_count += 1
 
             kb_results = await self.sync_service.sync_sources()
-            successful = sum(1 for r in kb_results if r.success)
+            synced_urls = []
+            failed_urls = []
+
+            for result in kb_results:
+                source = self.local_repo.find_by_id(result.source_id)
+                if source:
+                    if result.success:
+                        synced_urls.append(source.url)
+                    else:
+                        failed_urls.append(source.url)
 
             result = {
                 "success": True,
-                "sources_created": created,
-                "sources_updated": updated,
-                "sources_deleted": deleted,
-                "sources_synced": successful,
-                "sync_failures": len(kb_results) - successful
+                "sources_created": created_count,
+                "sources_updated": updated_count,
+                "sources_deleted": deleted_count,
+                "sources_synced": synced_urls,
+                "sync_failures": failed_urls
             }
             if deletion_failures:
                 result["deletion_failures"] = deletion_failures

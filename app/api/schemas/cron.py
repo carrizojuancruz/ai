@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import List, Optional
+
 from pydantic import BaseModel
 
 
@@ -9,6 +13,7 @@ class KbCronSyncResponse(BaseModel):
     sources_created: int
     sources_updated: int
     sources_deleted: int
-    sources_synced: int
-    sync_failures: int
+    sources_synced: List[str]
+    sync_failures: List[str]
+    deletion_failures: Optional[List[dict]] = None
 

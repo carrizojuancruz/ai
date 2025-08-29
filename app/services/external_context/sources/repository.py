@@ -1,5 +1,3 @@
-"""External sources repository with mocked implementation."""
-
 from __future__ import annotations
 
 import logging

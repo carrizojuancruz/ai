@@ -19,17 +19,15 @@ async def sync_all_sources() -> KbCronSyncResponse:
         orchestrator = KnowledgeBaseOrchestrator()
         result = await orchestrator.sync_all()
 
-        if not result["success"]:
-            raise HTTPException(status_code=500, detail=result["message"])
-
         return KbCronSyncResponse(
-            success=True,
-            message="External sync completed successfully",
-            sources_created=result["sources_created"],
-            sources_updated=result["sources_updated"],
-            sources_deleted=result["sources_deleted"],
-            sources_synced=result["sources_synced"],
-            sync_failures=result["sync_failures"]
+            success=result["success"],
+            message=result.get("message", "Sync operation completed"),
+            sources_created=result.get("sources_created", 0),
+            sources_updated=result.get("sources_updated", 0),
+            sources_deleted=result.get("sources_deleted", 0),
+            sources_synced=result.get("sources_synced", []),
+            sync_failures=result.get("sync_failures", []),
+            deletion_failures=result.get("deletion_failures")
         )
     except Exception as e:
         logger.error(f"Failed to sync all sources: {str(e)}")

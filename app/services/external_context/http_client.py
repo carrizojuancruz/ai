@@ -1,5 +1,3 @@
-"""Shared HTTP client for FOS external service."""
-
 from __future__ import annotations
 
 import logging
@@ -12,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class FOSHttpClient:
-    """Simple HTTP client for FOS service."""
+    """HTTP client for FOS service."""
 
     def __init__(self):
         self.base_url = (os.getenv("FOS_SERVICE_URL") or "").rstrip('/')

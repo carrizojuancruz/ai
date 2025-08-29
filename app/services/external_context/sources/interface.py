@@ -1,5 +1,3 @@
-"""Interface for external sources repository."""
-
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
