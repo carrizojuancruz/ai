@@ -21,7 +21,6 @@ class S3VectorStoreService:
             content_hash = doc.metadata.get('content_hash', '')
             source_id = doc.metadata.get('source_id', '')
 
-            # Use content hash for key (always present from document processing)
             content_hash = doc.metadata['content_hash']
             key = f"doc_{content_hash}"
 
@@ -46,33 +45,9 @@ class S3VectorStoreService:
             vectors=vectors
         )
 
-    def _iterate_vectors_by_source_id(self, source_id: str):
-        """Yield vectors for a specific source_id."""
-        try:
-            paginator = self.client.get_paginator('list_vectors')
-            page_iterator = paginator.paginate(
-                vectorBucketName=self.bucket_name,
-                indexName=self.index_name,
-                returnMetadata=True,
-                returnData=False,
-                PaginationConfig={'PageSize': 1000}
-            )
-
-            for page in page_iterator:
-                for vector in page.get('vectors', []):
-                    if vector.get('metadata', {}).get('source_id') == source_id:
-                        yield vector
-        except Exception as e:
-            logger.error(f"Failed to iterate vectors for source_id {source_id}: {str(e)}")
-
-    def _get_vector_keys_by_source_id(self, source_id: str) -> list[str]:
-        """Get all vector keys for a specific source_id."""
-        return [v.get('key') for v in self._iterate_vectors_by_source_id(source_id) if v.get('key')]
-
-    def delete_documents(self, source_id: str) -> dict[str, any]:
+    def delete_documents_by_source_id(self, source_id: str) -> dict[str, any]:
         """Delete all documents for a given source_id. Returns detailed results."""
         try:
-            # Step 1: Get all vector keys for this source_id
             vector_keys = self._get_vector_keys_by_source_id(source_id)
 
             if not vector_keys:
@@ -83,7 +58,6 @@ class S3VectorStoreService:
                     "message": "No vectors found to delete"
                 }
 
-            # Step 2: Delete vectors in batches
             batch_size = 100
             deleted_count = 0
             failed_keys = []
@@ -129,6 +103,30 @@ class S3VectorStoreService:
                 "vectors_failed": 0,
                 "message": f"Deletion process failed: {str(e)}"
             }
+
+    def _iterate_vectors_by_source_id(self, source_id: str):
+        """Yield vectors for a specific source_id."""
+        try:
+            paginator = self.client.get_paginator('list_vectors')
+            page_iterator = paginator.paginate(
+                vectorBucketName=self.bucket_name,
+                indexName=self.index_name,
+                returnMetadata=True,
+                returnData=False,
+                PaginationConfig={'PageSize': 1000}
+            )
+
+            for page in page_iterator:
+                for vector in page.get('vectors', []):
+                    if vector.get('metadata', {}).get('source_id') == source_id:
+                        yield vector
+        except Exception as e:
+            logger.error(f"Failed to iterate vectors for source_id {source_id}: {str(e)}")
+
+    def _get_vector_keys_by_source_id(self, source_id: str) -> list[str]:
+        """Get all vector keys for a specific source_id."""
+        return [v.get('key') for v in self._iterate_vectors_by_source_id(source_id) if v.get('key')]
+
 
     def get_source_chunk_hashes(self, source_id: str) -> set[str]:
         """Get all content hashes for a specific source."""

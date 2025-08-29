@@ -19,6 +19,7 @@ class SyncManager:
     async def sync_all(self):
         """Sync all sources."""
         results = await self.sync_service.sync_sources()
+        logger.info(f"Synced {len(results)} sources")
         return results
 
     async def sync_source(self, source_id: str):
@@ -29,6 +30,7 @@ class SyncManager:
             return None
 
         result = await self.sync_service.sync_source(source)
+        logger.info(f"Synced {source_id}")
         return result
 
 

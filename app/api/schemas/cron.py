@@ -1,9 +1,7 @@
-"""Schemas for cron API endpoints."""
-
 from pydantic import BaseModel
 
 
-class CronSyncResponse(BaseModel):
+class KbCronSyncResponse(BaseModel):
     """Response for sync-all operation."""
 
     success: bool
@@ -14,8 +12,3 @@ class CronSyncResponse(BaseModel):
     sources_synced: int
     sync_failures: int
 
-class CronStatusResponse(BaseModel):
-    """Response for sync system status check."""
-
-    status: str
-    message: str

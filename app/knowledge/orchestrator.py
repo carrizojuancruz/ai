@@ -107,7 +107,7 @@ class KnowledgeBaseOrchestrator:
     async def _update_source(self, existing_source: Source, ext_source) -> None:
         """Update an existing source with external data."""
         updated_source = Source(
-            id=existing_source.id,  # Keep existing ID
+            id=existing_source.id,
             name=ext_source.name,
             url=ext_source.url,
             enabled=ext_source.enable == "true",
@@ -120,10 +120,3 @@ class KnowledgeBaseOrchestrator:
             recursion_depth=ext_source.recursion_depth or ""
         )
         self.local_repo.update(updated_source)
-
-    def get_status(self) -> Dict[str, Any]:
-        sources = self.local_repo.load_all()
-        return {
-            "total_sources": len(sources),
-            "enabled_sources": sum(1 for s in sources if s.enabled)
-        }
