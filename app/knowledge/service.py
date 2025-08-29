@@ -36,7 +36,7 @@ class KnowledgeService:
 
         try:
             logger.info(f"Starting document processing for source {source.id}")
-            self.vector_store_service.delete_documents(source.id)
+            self.vector_store_service.delete_documents_by_source_id(source.id)
 
             chunks = self._split_documents(documents, source)
             logger.info(f"Split {len(documents)} documents into {len(chunks)} chunks")
@@ -81,7 +81,7 @@ class KnowledgeService:
     def delete_source_documents(self, source_id: str) -> bool:
         """Delete all documents for a given source."""
         try:
-            self.vector_store_service.delete_documents(source_id)
+            self.vector_store_service.delete_documents_by_source_id(source_id)
             logger.info(f"Deleted documents for source: {source_id}")
             return True
         except Exception as e:

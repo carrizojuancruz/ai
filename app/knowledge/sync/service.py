@@ -41,7 +41,7 @@ class SyncService:
 
             if self.needs_reindex(source.id, new_hashes):
                 logger.info(f"Source {source.id} needs reindexing - deleting old documents")
-                deletion_result = self.vector_store.delete_documents(source.id)
+                deletion_result = self.vector_store.delete_documents_by_source_id(source.id)
 
                 if not deletion_result["success"]:
                     logger.error(f"Failed to delete documents for source {source.id} during reindexing: {deletion_result['message']}")

@@ -65,7 +65,7 @@ class KnowledgeBaseOrchestrator:
     async def _delete_source(self, source: Source) -> Dict[str, Any]:
         """Delete a source from both vector store and local repository."""
         try:
-            deletion_result = self.sync_service.vector_store.delete_documents(source.id)
+            deletion_result = self.sync_service.vector_store.delete_documents_by_source_id(source.id)
             if deletion_result["success"]:
                 self.local_repo.delete_by_id(source.id)
                 logger.info(f"Successfully deleted source {source.id}")
@@ -93,14 +93,14 @@ class KnowledgeBaseOrchestrator:
             id=self._generate_source_id(ext_source.url),
             name=ext_source.name,
             url=ext_source.url,
-            enabled=ext_source.enable == "true",
+            enabled=ext_source.enable,
             type=ext_source.type or "",
             category=ext_source.category or "",
             description=ext_source.description or "",
             include_path_patterns=ext_source.include_path_patterns or "",
             exclude_path_patterns=ext_source.exclude_path_patterns or "",
-            total_max_pages=ext_source.total_max_pages or "",
-            recursion_depth=ext_source.recursion_depth or ""
+            total_max_pages=str(ext_source.total_max_pages) if ext_source.total_max_pages else "",
+            recursion_depth=str(ext_source.recursion_depth) if ext_source.recursion_depth else ""
         )
         self.local_repo.add(source)
 
@@ -110,13 +110,13 @@ class KnowledgeBaseOrchestrator:
             id=existing_source.id,
             name=ext_source.name,
             url=ext_source.url,
-            enabled=ext_source.enable == "true",
+            enabled=ext_source.enable,
             type=ext_source.type or "",
             category=ext_source.category or "",
             description=ext_source.description or "",
             include_path_patterns=ext_source.include_path_patterns or "",
             exclude_path_patterns=ext_source.exclude_path_patterns or "",
-            total_max_pages=ext_source.total_max_pages or "",
-            recursion_depth=ext_source.recursion_depth or ""
+            total_max_pages=str(ext_source.total_max_pages) if ext_source.total_max_pages else "",
+            recursion_depth=str(ext_source.recursion_depth) if ext_source.recursion_depth else ""
         )
         self.local_repo.update(updated_source)

@@ -28,9 +28,9 @@ class ExternalSourcesRepository(ExternalSourcesRepositoryInterface):
                 description="AI prompting and automation platform",
                 include_path_patterns="",
                 exclude_path_patterns="",
-                total_max_pages="30",
-                recursion_depth="2",
-                enable="true"
+                total_max_pages=30,
+                recursion_depth=2,
+                enable=True
             )
         ]
 

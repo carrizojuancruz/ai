@@ -15,6 +15,6 @@ class ExternalSource(BaseModel):
     description: str
     include_path_patterns: str
     exclude_path_patterns: str
-    total_max_pages: str
-    recursion_depth: str
-    enable: str
+    total_max_pages: int
+    recursion_depth: int
+    enable: bool
