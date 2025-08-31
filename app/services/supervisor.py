@@ -163,7 +163,7 @@ class SupervisorService:
                 content = output
             if isinstance(content, str):
                 content = json.loads(content)
-            for item in content:
+            for item in content if isinstance(content, list) else []:
                 if "source" in item and len(item["source"]) > 0:
                     if check_repeated_sources(sources, {"name": get_source_name(name), "source": item["source"]}):
                         sources.append({"name": get_source_name(name), "source": item["source"]})
@@ -346,12 +346,14 @@ class SupervisorService:
         graph: CompiledStateGraph = get_supervisor_graph()
         session_store: InMemorySessionStore = get_session_store()
         session_ctx = await session_store.get_session(thread_id) or {}
+        sources = []
 
         # Store the user message
         conversation_messages = session_ctx.get("conversation_messages", [])
         conversation_messages.append({
             "role": "user",
-            "content": text.strip()
+            "content": text.strip(),
+            "sources": sources
         })
         # Collect assistant response
         assistant_response_parts = []
@@ -368,10 +370,9 @@ class SupervisorService:
             "session_id": thread_id,
             **session_ctx,
         }
-        sources = []
 
         async for event in graph.astream_events(
-            {"messages": [{"role": "user", "content": text}]},
+            {"messages": [{"role": "user", "content": text}], "sources": sources},
             version="v2",
             config={
                 "callbacks": [langfuse_handler],
@@ -391,8 +392,9 @@ class SupervisorService:
                 if out and not self._is_injected_context(out):
                     last = get_last_emitted_text(thread_id)
                     if out != last:
-                        await q.put({"event": "token.delta", "data": {"text": out, "sources": sources}})
-                        set_last_emitted_text(thread_id, out)
+                        if name not in ["tools"]:
+                            await q.put({"event": "token.delta", "data": {"text": out, "sources": sources}})
+                            set_last_emitted_text(thread_id, out)
                         # Collect assistant response parts
                         assistant_response_parts.append(out)
             elif etype == "on_tool_start":
@@ -419,8 +421,9 @@ class SupervisorService:
                             if text and not self._is_injected_context(text):
                                 last = get_last_emitted_text(thread_id)
                                 if text != last:
-                                    await q.put({"event": "token.delta", "data": {"text": text, "sources": sources}})
-                                    set_last_emitted_text(thread_id, text)
+                                    if name not in ["tools"]:
+                                        await q.put({"event": "token.delta", "data": {"text": text, "sources": sources}})
+                                        set_last_emitted_text(thread_id, text)
                                     # Collect final assistant response
                                     assistant_response_parts.append(text)
                 except Exception:
@@ -436,7 +439,8 @@ class SupervisorService:
                 if assistant_response:
                     conversation_messages.append({
                         "role": "assistant",
-                        "content": assistant_response
+                        "content": assistant_response,
+                        "sources": sources
                     })
 
             # Update session with complete conversation
