@@ -18,14 +18,14 @@ Sequence of steps with conditional flow using `binary_choice` and `free_text`
   "required": true,
   "primary_choice": {
     "id": "continue",
-    "label": "Yes, let's chat! 💬",
+    "label": "Yes, let's do it! 💬",
     "value": "continue",
     "action": "continue_normal_flow",
     "synonyms": ["yes", "sure", "continue", "go ahead", "let's do it", "sounds good", "okay"]
   },
   "secondary_choice": {
     "id": "skip",
-    "label": "Skip to account setup",
+    "label": "I'd rather chat freely",
     "value": "skip_onboarding",
     "action": "onboarding_complete",
     "synonyms": ["skip", "no", "pass", "setup only", "just setup", "not now", "maybe later"]
@@ -37,18 +37,8 @@ Sequence of steps with conditional flow using `binary_choice` and `free_text`
 }
 ```
 
-### Step 1.2: Button Explanation 
-```json
-{
-  "id": "button_explanation",
-  "type": "free_text",
-  "prompt": "By the way, you'll sometimes see buttons like the ones above. They're just quick shortcuts for you.",
-  "target_key": "warmup.buttons_acknowledged",
-  "required": false
-}
-```
 
-### Step 1.3: About You
+### Step 1.2: About You
 ```json
 {
   "id": "about_you",

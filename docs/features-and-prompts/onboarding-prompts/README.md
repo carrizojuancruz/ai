@@ -46,19 +46,19 @@ Vera maintains consistent personality across all nodes:
 
 ```mermaid
 flowchart TD
-    %% Warmup binary choice - NEW LOGIC
-    A[01_warmup] --> A1{Continue vs Skip?}
-    A1 -->|Continue| B[02_identity]
-    A1 -->|Skip conversation| V[10_checkout_exit]
+    %% Warmup binary choice - UPDATED LABELS
+    A[01_warmup] --> A1{Continue vs Chat Freely?}
+    A1 -->|Yes, let's do it! 💬| B[02_identity]
+    A1 -->|I'd rather chat freely| V[10_checkout_exit]
     
     %% Main onboarding flow
     B --> C{Learning interest?}
     C -->|Yes| D[08_learning_path]
     C -->|No| E[03_income_money]
     
-    %% Age validation
+    %% Age validation - UPDATED WITH RESTRICTION MESSAGE
     B --> F{Under 18?}
-    F -->|Yes| G[End conversation]
+    F -->|Yes| G[End conversation with age restriction]
     F -->|No| E
     
     %% Income and assets flow
@@ -279,14 +279,14 @@ Binary decision with exactly two mutually exclusive options:
   "required": true,
   "primary_choice": {
     "id": "continue",
-    "label": "Yes, continue",
+    "label": "Yes, let's do it! 💬",
     "value": "continue",
     "action": "continue_normal_flow",
     "synonyms": ["yes", "sure", "continue"]
   },
   "secondary_choice": {
     "id": "skip",
-    "label": "Skip this for now",
+    "label": "I'd rather chat freely",
     "value": "skip",
     "action": "handle_skip_event",
     "synonyms": ["skip", "no", "pass"]
@@ -402,6 +402,17 @@ The `00_general_onboarding_prompt.md` should be used as the base system prompt f
 - Guidelines for handling sensitive topics and incomplete responses
 - Examples of ideal vs. problematic interactions
 - Best practices for building trust while gathering information
+
+### Age Restriction Handling
+The system includes age validation with a consistent restriction message:
+```json
+{
+  "restriction_message": "I’m really sorry, but you need to be at least 18 to chat with me. It’s for safety and privacy reasons.
+I hope we can talk in the future!"
+}
+```
+
+This message is used in both the open-ended age input and age range selection steps to ensure users under 18 are politely redirected with a clear explanation.
 
 ### Context Handling
 - Use `{user_context}` information silently to personalize responses
