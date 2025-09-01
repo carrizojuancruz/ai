@@ -32,33 +32,43 @@ class KnowledgeBaseOrchestrator:
             deleted_count = 0
             deletion_failures = []
 
-            for local_source in local_sources:
-                if local_source.url not in external_by_url:
-                    deletion_result = await self._delete_source(local_source)
-                    if deletion_result["success"]:
-                        deleted_count += 1
-                    else:
-                        deletion_failures.append(deletion_result["error"])
+            sources_to_delete = [s for s in local_sources if s.url not in external_by_url]
+            for i, local_source in enumerate(sources_to_delete, 1):
+                logger.info(f"Deleting source {i}/{len(sources_to_delete)}: {local_source.url}")
+                deletion_result = await self._delete_source(local_source)
+                if deletion_result["success"]:
+                    deleted_count += 1
+                    logger.info(f"Successfully deleted source: {local_source.url}")
+                else:
+                    deletion_failures.append(deletion_result["error"])
+                    logger.error(f"Failed to delete source {local_source.url}: {deletion_result['error']}")
 
-            for ext_source in external_sources:
+            for i, ext_source in enumerate(external_sources, 1):
+                logger.info(f"Processing source {i}/{len(external_sources)}: {ext_source.url}")
+
                 if ext_source.url in local_by_url:
                     await self._update_source(local_by_url[ext_source.url], ext_source)
                     updated_count += 1
+                    logger.info(f"Updated source: {ext_source.url}")
                 else:
                     await self._create_source(ext_source)
                     created_count += 1
+                    logger.info(f"Created source: {ext_source.url}")
 
+            logger.info("Starting document synchronization for all sources")
             kb_results = await self.sync_service.sync_sources()
             synced_urls = []
             failed_urls = []
 
-            for result in kb_results:
+            for i, result in enumerate(kb_results, 1):
                 source = self.local_repo.find_by_id(result.source_id)
                 if source:
+                    logger.info(f"Sync result {i}/{len(kb_results)}: {source.url} - {'SUCCESS' if result.success else 'FAILED'}")
                     if result.success:
                         synced_urls.append(source.url)
                     else:
                         failed_urls.append(source.url)
+                        logger.error(f"Document sync failed for {source.url}: {result.message}")
 
             result = {
                 "success": True,
