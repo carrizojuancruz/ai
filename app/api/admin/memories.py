@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, List, Optional, Union 
+from typing import Any, List, Optional, Union
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, field_validator
@@ -69,8 +69,7 @@ async def get_memories(
     limit: int = Query(50, description="Max items to return", ge=1, le=500),
     offset: int = Query(0, description="Offset for paging", ge=0),
 ) -> MemorySearchResponse:
-    """
-    Get all memories for a user with optional filtering.
+    """Get all memories for a user with optional filtering.
 
     This endpoint retrieves ALL memories for display in settings/profile views.
     Use filters to narrow down results as needed.
@@ -96,9 +95,9 @@ async def get_memories(
         return MemorySearchResponse(ok=result["ok"], count=result["count"], items=items)
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve memories: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve memories: {str(e)}") from e
 
 
 @router.get("/{user_id}/{memory_key}")
@@ -107,8 +106,7 @@ async def get_memory_by_key(
     memory_key: str,
     memory_type: str = Query("semantic", description="Memory type: semantic or episodic")
 ) -> MemoryGetResponse:
-    """
-    Get a single memory by key.
+    """Get a single memory by key.
 
     - **user_id**: User ID
     - **memory_key**: Memory key to retrieve
@@ -124,11 +122,11 @@ async def get_memory_by_key(
         return MemoryGetResponse(**result)
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except RuntimeError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve memory: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve memory: {str(e)}") from e
 
 
 @router.delete("/{user_id}/{memory_key}")
@@ -137,8 +135,7 @@ async def delete_memory_by_key(
     memory_key: str,
     memory_type: str = Query("semantic", description="Memory type: semantic or episodic")
 ) -> MemoryDeleteResponse:
-    """
-    Delete a single memory by key.
+    """Delete a single memory by key.
 
     - **user_id**: User ID
     - **memory_key**: Memory key to delete
@@ -154,7 +151,7 @@ async def delete_memory_by_key(
         return MemoryDeleteResponse(**result)
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.delete("/{user_id}")
@@ -163,8 +160,7 @@ async def delete_all_memories(
     memory_type: str = Query("semantic", description="Memory type: semantic or episodic"),
     confirm: bool = Query(False, description="Must be true to confirm deletion")
 ) -> MemoryDeleteResponse:
-    """
-    Delete all memories for a user and type.
+    """Delete all memories for a user and type.
 
     **WARNING**: This will delete ALL memories for the specified user and type.
     Set confirm=true to proceed.
@@ -188,6 +184,6 @@ async def delete_all_memories(
         return MemoryDeleteResponse(**result)
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete memories: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete memories: {str(e)}") from e

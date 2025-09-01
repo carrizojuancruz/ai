@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 from app.core.config import config
 from app.services.memory.store_factory import create_s3_vectors_store_from_env
@@ -28,8 +28,7 @@ class MemoryService:
         limit: int = 50,
         offset: int = 0,
     ) -> dict[str, Any]:
-        """
-        Retrieve memories for a user with optional filtering.
+        """Retrieve memories for a user with optional filtering.
 
         Args:
             user_id: User ID to retrieve memories for
@@ -41,6 +40,7 @@ class MemoryService:
 
         Returns:
             Dictionary with ok status, count, and items list
+
         """
         if memory_type not in ["semantic", "episodic"]:
             raise ValueError("memory_type must be 'semantic' or 'episodic'")
@@ -112,8 +112,7 @@ class MemoryService:
         memory_key: str,
         memory_type: str = "semantic"
     ) -> dict[str, Any]:
-        """
-        Retrieve a single memory by its key.
+        """Retrieve a single memory by its key.
 
         Args:
             user_id: User ID
@@ -126,6 +125,7 @@ class MemoryService:
         Raises:
             ValueError: If memory_type is invalid
             RuntimeError: If memory not found
+
         """
         if memory_type not in ["semantic", "episodic"]:
             raise ValueError("memory_type must be 'semantic' or 'episodic'")
@@ -162,8 +162,7 @@ class MemoryService:
         memory_key: str,
         memory_type: str = "semantic"
     ) -> dict[str, Any]:
-        """
-        Delete a single memory by its key.
+        """Delete a single memory by its key.
 
         Args:
             user_id: User ID
@@ -172,6 +171,7 @@ class MemoryService:
 
         Returns:
             Dictionary with deletion result
+
         """
         if memory_type not in ["semantic", "episodic"]:
             raise ValueError("memory_type must be 'semantic' or 'episodic'")
@@ -198,8 +198,7 @@ class MemoryService:
         user_id: str,
         memory_type: str = "semantic"
     ) -> dict[str, Any]:
-        """
-        Delete ALL memories for a user and type.
+        """Delete ALL memories for a user and type.
 
         Args:
             user_id: User ID
@@ -207,6 +206,7 @@ class MemoryService:
 
         Returns:
             Dictionary with deletion statistics
+
         """
         if memory_type not in ["semantic", "episodic"]:
             raise ValueError("memory_type must be 'semantic' or 'episodic'")
