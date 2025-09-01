@@ -1,5 +1,20 @@
 # 🤖 Agent Integration Guide for the Supervisor
 
+## 🚦 Agent Integration Steps
+
+1. **Implement the agent function in `workers.py`**
+   - Create an async function for your agent (e.g., `async def api_agent(state: MessagesState) -> dict[str, Any]: ...`).
+2. **Update the supervisor prompt in `prompts.py`**
+   - Add a description of your new agent and instructions for when the supervisor should delegate to it.
+3. **Add the agent to the supervisor graph in `agent.py`**
+   - Import your agent function.
+   - Add a handoff tool for your agent.
+   - Add the agent node to the graph and update the destinations and edges.
+
+**Optional:**
+- If your agent needs tools, add them in `tools.py`.
+- Update tests and documentation as needed.
+
 This guide explains step by step how to integrate a new specialized agent into Vera's supervisor graph, including tools, prompts, and full configuration.
 
 ## 📋 Table of Contents
