@@ -53,14 +53,21 @@ def compile_supervisor_graph() -> CompiledStateGraph:
 
     builder = StateGraph(MessagesState)
 
+    # --- Memory and context nodes ---
     builder.add_node("memory_hotpath", memory_hotpath)
     builder.add_node("memory_context", memory_context)
+
+    # --- Main supervisor node and destinations ---
     builder.add_node(
         supervisor_agent_with_description, destinations=("research_agent", "math_agent", "episodic_capture")
     )
+
+    # --- Specialist agent nodes ---
     builder.add_node("episodic_capture", episodic_capture)
     builder.add_node("research_agent", research_agent)
     builder.add_node("math_agent", math_agent)
+
+    # --- Define edges between nodes ---
     builder.add_edge(START, "memory_hotpath")
     builder.add_edge("memory_hotpath", "memory_context")
     builder.add_edge("memory_context", "supervisor")
@@ -68,7 +75,8 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     builder.add_edge("math_agent", "supervisor")
     builder.add_edge("supervisor", "episodic_capture")
     builder.add_edge("episodic_capture", END)
-    # Provide S3 Vectors store to graph so get_store() works inside nodes/tools
+
+    # --- Store configuration for tools ---
     store = create_s3_vectors_store_from_env()
     return builder.compile(store=store)
 
