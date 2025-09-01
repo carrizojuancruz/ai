@@ -8,7 +8,7 @@ Utility for inspecting and managing user memories stored in Amazon S3 Vectors vi
 - AWS credentials and required env vars available to the running container:
   - `AWS_REGION` (or `AWS_DEFAULT_REGION`)
   - `S3V_BUCKET`
-  - `S3V_INDEX`
+  - `S3V_INDEX_MEMORY`
 
 ### Basic usage
 
