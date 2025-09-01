@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 from datetime import datetime, timedelta, timezone, tzinfo
@@ -180,11 +181,8 @@ async def _merge_existing_if_applicable(
         store.put(namespace, existing.key, merged, index=["summary"])  # re-embed
         logger.info("episodic.merge: key=%s score=%.3f", existing.key, float(getattr(best, "score", 0.0) or 0.0))
         if thread_id:
-            try:
-                queue = get_sse_queue(thread_id)
+            with contextlib.suppress(Exception):
                 await _emit_memory_event(thread_id, existing.key, merged, is_created=False)
-            except Exception:
-                pass
         ctrl = _reset_ctrl_after_capture(ctrl, now_utc)
         sess["episodic_control"] = ctrl
         await session_store.set_session(thread_id, sess)

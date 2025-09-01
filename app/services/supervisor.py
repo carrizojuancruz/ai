@@ -47,8 +47,8 @@ class SupervisorService:
     async def _load_user_context_from_external(self, user_id: UUID) -> UserContext:
         """Load UserContext from external FOS service with fallback."""
         try:
-            from app.services.external_context.user.repository import ExternalUserRepository
             from app.services.external_context.user.mapping import map_ai_context_to_user_context
+            from app.services.external_context.user.repository import ExternalUserRepository
 
             repo = ExternalUserRepository()
             external_ctx = await repo.get_by_id(user_id)
@@ -70,8 +70,8 @@ class SupervisorService:
     async def _export_user_context_to_external(self, user_context: UserContext) -> bool:
         """Export UserContext to external FOS service."""
         try:
-            from app.services.external_context.user.repository import ExternalUserRepository
             from app.services.external_context.user.mapping import map_user_context_to_ai_context
+            from app.services.external_context.user.repository import ExternalUserRepository
 
             repo = ExternalUserRepository()
             body = map_user_context_to_ai_context(user_context)

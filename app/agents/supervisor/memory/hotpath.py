@@ -628,13 +628,12 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
         (summary[:80] + ("…" if len(summary) > 80 else "")),
     )
 
-    if int(candidate_value.get("importance") or 1) >= SEMANTIC_MIN_IMPORTANCE:
-        if thread_id:
-            try:
-                queue = get_sse_queue(thread_id)
-                await queue.put({"event": "memory.created", "data": {"id": candidate_id, "type": mem_type, "category": category, "summary": summary}})
-            except Exception:
-                pass
+    if int(candidate_value.get("importance") or 1) >= SEMANTIC_MIN_IMPORTANCE and thread_id:
+        try:
+            queue = get_sse_queue(thread_id)
+            await queue.put({"event": "memory.created", "data": {"id": candidate_id, "type": mem_type, "category": category, "summary": summary}})
+        except Exception:
+            pass
 
     asyncio.create_task(_write_semantic_memory(
         user_id=user_id,

@@ -31,8 +31,8 @@ async def get_onboarding_status(user_id: str) -> dict:
     if not status.get("active") and not status.get("onboarding_done"):
         try:
             from app.models import UserContext
-            from app.services.external_context.user.repository import ExternalUserRepository
             from app.services.external_context.user.mapping import map_ai_context_to_user_context
+            from app.services.external_context.user.repository import ExternalUserRepository
 
             repo = ExternalUserRepository()
             data = await repo.get_by_id(uid)
