@@ -7,8 +7,6 @@ SOURCE_MAPPING = {
     "episodic_capture": "Episodic capture",
     "research_agent": "Research agent",
     "math_agent": "Math agent",
-    "memory_hotpath": "Memory hotpath",
-    "memory_context": "Memory context",
     "supervisor": "Supervisor",
 }
 
