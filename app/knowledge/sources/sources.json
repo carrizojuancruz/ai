@@ -1,8 +1,15 @@
 [
   {
     "id": "0752df5269e17c7debd5b5687e606c7f92aef9220c9772bdc897ff14d8830bf9",
-    "name": "Documentación de promtior",
+    "name": "Promtior",
     "url": "https://www.promtior.ai/",
-    "enabled": true
+    "enabled": true,
+    "type": "Technology Website",
+    "category": "AI/Tech",
+    "description": "AI prompting and automation platform",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": "30",
+    "recursion_depth": "2"
   }
 ]

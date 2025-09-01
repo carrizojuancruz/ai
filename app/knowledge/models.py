@@ -9,6 +9,9 @@ class SourceRequest(BaseModel):
 
     name: str
     url: str
+    type: str | None = None
+    category: str | None = None
+    description: str | None = None
 
 
 class BulkSourceRequest(BaseModel):
@@ -24,6 +27,13 @@ class Source(BaseModel):
     name: str
     url: str
     enabled: bool = True
+    type: str | None = None
+    category: str | None = None
+    description: str | None = None
+    include_path_patterns: str | None = None
+    exclude_path_patterns: str | None = None
+    total_max_pages: str | None = None
+    recursion_depth: str | None = None
 
 
 class KBSearchResult(BaseModel):

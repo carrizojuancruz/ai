@@ -45,7 +45,7 @@ Implement a LangGraph `BaseStore` backend using Amazon S3 Vectors (preview) with
 - Environment variables:
   - `AWS_REGION=us-east-1`
   - `S3V_BUCKET=vera-ai-dev-s3-vector`
-  - `S3V_INDEX=memory-search`
+  - `S3V_INDEX_MEMORY=memory-search`
   - `S3V_DISTANCE=cosine`
   - `BEDROCK_EMBED_MODEL_ID=amazon.titan-embed-text-v2:0`
 - Credentials: standard AWS credentials (env/profile/role) available to the runtime containers
@@ -193,7 +193,7 @@ Retrieval budgets and reranking (applies now; subagents can reuse later):
   - Instantiate `boto3` clients:
     - `s3v = boto3.client("s3vectors", region_name=AWS_REGION)`
     - `bedrock = boto3.client("bedrock-runtime", region_name=AWS_REGION)`
-  - Create store: `S3VectorsStore(s3v, bedrock, S3V_BUCKET, S3V_INDEX, dims=1024, model_id=BEDROCK_EMBED_MODEL_ID)`
+  - Create store: `S3VectorsStore(s3v, bedrock, S3V_BUCKET, S3V_INDEX_MEMORY, dims=1024, model_id=BEDROCK_EMBED_MODEL_ID)`
   - Provide to `graph.compile(..., store=store)` or app-level DI
 - Always pass `config.configurable.user_id` in LangGraph runs to enable proper filtering
 
