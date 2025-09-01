@@ -10,5 +10,11 @@ services:
       - .env
     ports:
       - "8000:8000"
+    volumes:
+      # Map source code for development (hot reload)
+      - .:/app
+      # Exclude .venv to avoid host OS dependency conflicts
+      - /app/.venv
+
 volumes:
   postgres_data:
