@@ -1,21 +1,10 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 
 from app.knowledge.service import KnowledgeService
 
+from .schemas.knowledge import SearchRequest, SearchResponse
+
 router = APIRouter(prefix="/knowledge", tags=["Knowledge Base"])
-
-
-class SearchRequest(BaseModel):
-    query: str
-    limit: int = 5
-
-
-class SearchResponse(BaseModel):
-    results: list
-    query: str
-    total_results: int
-
 
 @router.post("/search", response_model=SearchResponse)
 async def search_knowledge_base(request: SearchRequest) -> SearchResponse:
