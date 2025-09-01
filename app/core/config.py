@@ -163,7 +163,8 @@ class Config:
         """Validate required S3 variables and return missing ones."""
         required_vars = {
             "S3V_BUCKET": cls.S3V_BUCKET,
-            "S3V_INDEX": cls.S3V_INDEX,
+            "S3V_INDEX_MEMORY": cls.S3V_INDEX_MEMORY,
+            "S3V_INDEX_KB": cls.S3V_INDEX_KB,
             "AWS_REGION": cls.get_aws_region(),
         }
         return [name for name, value in required_vars.items() if not value]
