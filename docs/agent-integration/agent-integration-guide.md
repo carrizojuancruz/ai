@@ -1,22 +1,22 @@
-# 🤖 Guía de Integración de Nuevos Agentes al Supervisor
+# 🤖 Agent Integration Guide for the Supervisor
 
-Esta guía explica paso a paso cómo integrar un nuevo agente especializado al grafo del supervisor de Vera, incluyendo herramientas, prompts y configuración completa.
+This guide explains step by step how to integrate a new specialized agent into Vera's supervisor graph, including tools, prompts, and full configuration.
 
-## 📋 Tabla de Contenidos
+## 📋 Table of Contents
 
-1. [Arquitectura del Sistema](#arquitectura-del-sistema)
-2. [Tipos de Agentes](#tipos-de-agentes)
-3. [Creación de un Nuevo Agente](#creación-de-un-nuevo-agente)
-4. [Integración al Supervisor](#integración-al-supervisor)
-5. [Testing y Validación](#testing-y-validación)
-6. [Mejores Prácticas](#mejores-prácticas)
+1. [System Architecture](#system-architecture)
+2. [Agent Types](#agent-types)
+3. [Creating a New Agent](#creating-a-new-agent)
+4. [Supervisor Integration](#supervisor-integration)
+5. [Testing and Validation](#testing-and-validation)
+6. [Best Practices](#best-practices)
 7. [Troubleshooting](#troubleshooting)
 
 ---
 
-## 🏗️ Arquitectura del Sistema
+## 🏗️ System Architecture
 
-### Flujo Actual del Supervisor
+### Current Supervisor Flow
 
 ```mermaid
 graph TD
@@ -32,81 +32,81 @@ graph TD
     G --> H[Response to User]
 ```
 
-### Componentes Clave
+### Key Components
 
-- **Supervisor**: Orquestador principal que decide routing
-- **Workers**: Agentes especializados (research_agent, math_agent)
-- **Tools**: Herramientas disponibles para el supervisor
-- **Handoff**: Sistema de delegación entre agentes
-- **Memory**: Sistema de contexto y captura episódica
-
----
-
-## 🎯 Tipos de Agentes
-
-### 1. **Worker Agents** (Recomendado)
-- Funciones simples y especializadas
-- Se ejecutan en el mismo grafo
-- Retornan directamente al supervisor
-- **Ejemplo**: `research_agent`, `math_agent`
-
-### 2. **Sub-Graph Agents** (Avanzado)
-- Grafos independientes con estado propio
-- Mayor complejidad pero más flexibilidad
-- **Ejemplo**: Onboarding agent
-
-### 3. **Tool Agents** (Herramientas)
-- Funciones síncronas/asíncronas simples
-- Sin estado propio
-- **Ejemplo**: `query_knowledge_base`
+- **Supervisor**: Main orchestrator that decides routing
+- **Workers**: Specialized agents (research_agent, math_agent)
+- **Tools**: Tools available to the supervisor
+- **Handoff**: Delegation system between agents
+- **Memory**: Context and episodic capture system
 
 ---
 
-## 🚀 Creación de un Nuevo Agente
+## 🎯 Agent Types
 
-### Paso 1: Estructura de Archivos
+### 1. **Worker Agents** (Recommended)
+- Simple, specialized functions
+- Run in the same graph
+- Return directly to the supervisor
+- **Example**: `research_agent`, `math_agent`
 
-Para un nuevo agente llamado `api_agent`:
+### 2. **Sub-Graph Agents** (Advanced)
+- Independent graphs with their own state
+- More complex but more flexible
+- **Example**: Onboarding agent
+
+### 3. **Tool Agents** (Tools)
+- Simple synchronous/asynchronous functions
+- Stateless
+- **Example**: `query_knowledge_base`
+
+---
+
+## 🚀 Creating a New Agent
+
+### Step 1: File Structure
+
+For a new agent called `api_agent`:
 
 ```
 app/agents/supervisor/
-├── workers.py          # ← Agregar aquí función del agente
-├── agent.py           # ← Modificar compile_supervisor_graph()
-├── prompts.py         # ← Actualizar SUPERVISOR_PROMPT
-├── handoff.py         # ← Ya existe, no modificar
-└── tools.py           # ← Agregar herramientas si es necesario
+├── workers.py          # ← Add agent function here
+├── agent.py           # ← Modify compile_supervisor_graph()
+├── prompts.py         # ← Update SUPERVISOR_PROMPT
+├── handoff.py         # ← Already exists, no change needed
+└── tools.py           # ← Add tools if needed
 ```
 
-### Paso 2: Implementar el Worker Agent
+### Step 2: Implement the Worker Agent
 
-En `app/agents/supervisor/workers.py`:
+In `app/agents/supervisor/workers.py`:
 
 ```python
 async def api_agent(state: MessagesState) -> dict[str, Any]:
     """
-    Agent que maneja llamadas a APIs externas.
+    Agent that handles calls to external APIs.
     
     Args:
-        state: Estado del mensaje con contexto
+        state: Message state with context
         
     Returns:
-        dict con mensaje de respuesta del agente
+        dict with agent response message
     """
     system: str = (
         "You are an API integration agent. You handle calls to external services "
         "and return structured responses. Be concise and factual."
     )
     
-    # Extraer el último mensaje del usuario
+    # Extract the last user message
     prompt: str = _get_last_user_message_text(state["messages"]) or "Handle API request."
     
     try:
-        # Aquí implementar la lógica específica del agente
-        # Por ejemplo: llamadas a ExternalUserRepository
+        # Implement agent-specific logic here
+        # For example: calls to ExternalUserRepository
         from app.services.external_context.client import ExternalUserRepository
         
         repo = ExternalUserRepository()
-        # Implementar lógica específica según el prompt
+        # Implement logic based on the prompt
         
         content: str = await call_llm(system, prompt)
         content = content or "API request could not be processed at this time."
@@ -118,13 +118,13 @@ async def api_agent(state: MessagesState) -> dict[str, Any]:
     return {"messages": [{"role": "assistant", "content": content, "name": "api_agent"}]}
 ```
 
-### Paso 3: Crear Herramienta de Handoff
+### Step 3: Create Handoff Tool
 
-En `app/agents/supervisor/agent.py`, agregar:
+In `app/agents/supervisor/agent.py`, add:
 
 ```python
 def compile_supervisor_graph() -> CompiledStateGraph:
-    # Herramientas de handoff existentes
+    # Existing handoff tools
     assign_to_research_agent_with_description = create_task_description_handoff_tool(
         agent_name="research_agent", description="Assign task to a researcher agent."
     )
@@ -132,13 +132,13 @@ def compile_supervisor_graph() -> CompiledStateGraph:
         agent_name="math_agent", description="Assign task to a math agent."
     )
     
-    # ✅ AGREGAR: Nueva herramienta de handoff
+    # ✅ ADD: New handoff tool
     assign_to_api_agent_with_description = create_task_description_handoff_tool(
         agent_name="api_agent", 
         description="Assign task to API integration agent for external service calls."
     )
 
-    # Configuración del modelo (sin cambios)
+    # Model configuration (unchanged)
     region = config.AWS_REGION
     model_id = config.BEDROCK_MODEL_ID
     guardrail_id = config.BEDROCK_GUARDRAIL_ID
@@ -151,40 +151,40 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     }
     chat_bedrock = ChatBedrock(model_id=model_id, region_name=region, guardrails=guardrails)
 
-    # ✅ MODIFICAR: Agregar nueva herramienta al supervisor
+    # ✅ MODIFY: Add new tool to supervisor
     supervisor_agent_with_description = create_react_agent(
         model=chat_bedrock,
         tools=[
             assign_to_research_agent_with_description,
             assign_to_math_agent_with_description,
-            assign_to_api_agent_with_description,  # ← NUEVO
+            assign_to_api_agent_with_description,  # ← NEW
             knowledge_search_tool,
         ],
         prompt=SUPERVISOR_PROMPT,
         name="supervisor",
     )
 
-    # ✅ MODIFICAR: Configurar el grafo
+    # ✅ MODIFY: Configure the graph
     builder = StateGraph(MessagesState)
 
     builder.add_node("memory_hotpath", memory_hotpath)
     builder.add_node("memory_context", memory_context)
     builder.add_node(
         supervisor_agent_with_description, 
-        destinations=("research_agent", "math_agent", "api_agent", "episodic_capture")  # ← AGREGAR api_agent
+        destinations=("research_agent", "math_agent", "api_agent", "episodic_capture")  # ← ADD api_agent
     )
     builder.add_node("episodic_capture", episodic_capture)
     builder.add_node("research_agent", research_agent)
     builder.add_node("math_agent", math_agent)
-    builder.add_node("api_agent", api_agent)  # ← NUEVO NODO
+    builder.add_node("api_agent", api_agent)  # ← NEW NODE
 
-    # Edges existentes (sin cambios)
+    # Existing edges (unchanged)
     builder.add_edge(START, "memory_hotpath")
     builder.add_edge("memory_hotpath", "memory_context")
     builder.add_edge("memory_context", "supervisor")
     builder.add_edge("research_agent", "supervisor")
     builder.add_edge("math_agent", "supervisor")
-    builder.add_edge("api_agent", "supervisor")  # ← NUEVO EDGE
+    builder.add_edge("api_agent", "supervisor")  # ← NEW EDGE
     builder.add_edge("supervisor", "episodic_capture")
     builder.add_edge("episodic_capture", END)
 
@@ -192,9 +192,9 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     return builder.compile(store=store)
 ```
 
-### Paso 4: Actualizar el Prompt del Supervisor
+### Step 4: Update Supervisor Prompt
 
-En `app/agents/supervisor/prompts.py`:
+In `app/agents/supervisor/prompts.py`:
 
 ```python
 SUPERVISOR_PROMPT = """
@@ -205,58 +205,58 @@ SUPERVISOR_PROMPT = """
     Agents available:
     - research_agent — use only to retrieve external information not present in the provided context.
     - math_agent — use only for non-trivial calculations that need precision.
-    - api_agent — use for external API calls, user data updates, or integration tasks.  # ← AGREGAR
+    - api_agent — use for external API calls, user data updates, or integration tasks.  # ← ADD
     
-    # ... resto del prompt sin cambios ...
+    # ... rest of the prompt unchanged ...
     
     Tool routing policy:
     - Prefer answering directly from user message + context; minimize tool calls.
     - Use exactly one agent at a time; never call agents in parallel.
     - research_agent: only if updated, external, or missing info is essential to answer.
     - math_agent: only if a careful calculation is required beyond simple mental math.
-    - api_agent: for user profile updates, external service integration, or data synchronization.  # ← AGREGAR
+    - api_agent: for user profile updates, external service integration, or data synchronization.  # ← ADD
     - For recall, personalization, or formatting tasks, do not use tools.
     
-    # ... resto del prompt sin cambios ...
+    # ... rest of the prompt unchanged ...
 """
 ```
 
-### Paso 5: Importar el Nuevo Worker
+### Step 5: Import the New Worker
 
-En `app/agents/supervisor/agent.py`, agregar el import:
+In `app/agents/supervisor/agent.py`, add the import:
 
 ```python
-from .workers import math_agent, research_agent, api_agent  # ← AGREGAR api_agent
+from .workers import math_agent, research_agent, api_agent  # ← ADD api_agent
 ```
 
 ---
 
-## 🔧 Integración al Supervisor
+## 🔧 Supervisor Integration
 
-### Checklist de Integración
+### Integration Checklist
 
-- [ ] **Worker function** implementada en `workers.py`
-- [ ] **Import** agregado en `agent.py`
-- [ ] **Handoff tool** creada en `compile_supervisor_graph()`
-- [ ] **Tool agregada** al supervisor agent
-- [ ] **Nodo agregado** al StateGraph
-- [ ] **Destination** agregado al supervisor
-- [ ] **Edge** configurado (agente → supervisor)
-- [ ] **Prompt actualizado** con instrucciones del nuevo agente
+- [ ] **Worker function** implemented in `workers.py`
+- [ ] **Import** added in `agent.py`
+- [ ] **Handoff tool** created in `compile_supervisor_graph()`
+- [ ] **Tool added** to supervisor agent
+- [ ] **Node added** to StateGraph
+- [ ] **Destination** added to supervisor
+- [ ] **Edge** configured (agent → supervisor)
+- [ ] **Prompt updated** with instructions for the new agent
 
-### Ejemplo Completo: API Agent
+### Complete Example: API Agent
 
 ```python
-# En workers.py
+# In workers.py
 async def api_agent(state: MessagesState) -> dict[str, Any]:
     system = "You are an API integration specialist. Handle external service calls efficiently."
     prompt = _get_last_user_message_text(state["messages"])
     
-    # Lógica específica del agente
+    # Agent-specific logic
     content = await call_llm(system, prompt)
     return {"messages": [{"role": "assistant", "content": content, "name": "api_agent"}]}
 
-# En agent.py - dentro de compile_supervisor_graph()
+# In agent.py - inside compile_supervisor_graph()
 assign_to_api_agent = create_task_description_handoff_tool(
     agent_name="api_agent", 
     description="Handle external API integrations and user data operations."
@@ -267,22 +267,22 @@ supervisor_agent = create_react_agent(
     tools=[
         assign_to_research_agent,
         assign_to_math_agent,
-        assign_to_api_agent,  # ← Nuevo
+        assign_to_api_agent,  # ← New
         knowledge_search_tool,
     ],
     prompt=SUPERVISOR_PROMPT,
     name="supervisor",
 )
 
-# Configuración del grafo
+# Graph configuration
 builder.add_node("api_agent", api_agent)
 builder.add_edge("api_agent", "supervisor")
-# Actualizar destinations en supervisor
+# Update destinations in supervisor
 ```
 
 ---
 
-## 🧪 Testing y Validación
+## 🧪 Testing and Validation
 
 ### 1. Unit Tests
 
@@ -310,14 +310,14 @@ async def test_api_agent_basic():
 # tests/test_supervisor_integration.py
 @pytest.mark.asyncio
 async def test_supervisor_routes_to_api_agent():
-    # Test que el supervisor delega correctamente al API agent
+    # Test that the supervisor correctly delegates to the API agent
     pass
 ```
 
-### 3. Testing Manual
+### 3. Manual Testing
 
 ```bash
-# Usar Streamlit o endpoints para probar manualmente
+# Use Streamlit or endpoints for manual testing
 curl -X POST "http://localhost:8000/supervisor/message" \
   -H "Content-Type: application/json" \
   -d '{"thread_id": "test-123", "text": "Update my user profile"}'
@@ -325,17 +325,17 @@ curl -X POST "http://localhost:8000/supervisor/message" \
 
 ---
 
-## ✨ Mejores Prácticas
+## ✨ Best Practices
 
-### 1. **Principio de Responsabilidad Única**
-- Cada agente debe tener un propósito específico y bien definido
-- Evitar solapamiento de funcionalidades entre agentes
+### 1. **Single Responsibility Principle**
+- Each agent should have a specific, well-defined purpose
+- Avoid overlapping functionalities between agents
 
-### 2. **Manejo de Errores Robusto**
+### 2. **Robust Error Handling**
 ```python
 async def my_agent(state: MessagesState) -> dict[str, Any]:
     try:
-        # Lógica del agente
+        # Agent logic
         result = await some_operation()
         content = process_result(result)
     except SpecificException as e:
@@ -348,7 +348,7 @@ async def my_agent(state: MessagesState) -> dict[str, Any]:
     return {"messages": [{"role": "assistant", "content": content, "name": "my_agent"}]}
 ```
 
-### 3. **Logging y Observabilidad**
+### 3. **Logging and Observability**
 ```python
 import logging
 logger = logging.getLogger(__name__)
@@ -357,85 +357,85 @@ async def my_agent(state: MessagesState) -> dict[str, Any]:
     user_message = _get_last_user_message_text(state["messages"])
     logger.info(f"my_agent processing: {user_message[:100]}...")
     
-    # Lógica del agente
+    # Agent logic
     
     logger.info(f"my_agent completed successfully")
     return result
 ```
 
-### 4. **Prompts Claros y Específicos**
-- Definir claramente cuándo usar cada agente
-- Incluir ejemplos en el prompt del supervisor
-- Ser específico sobre el formato de respuesta esperado
+### 4. **Clear and Specific Prompts**
+- Clearly define when to use each agent
+- Include examples in the supervisor prompt
+- Be specific about the expected response format
 
-### 5. **Estado Mínimo**
-- Los worker agents deben ser stateless
-- Toda la información necesaria debe venir en el estado
-- Evitar dependencias externas complejas
+### 5. **Minimal State**
+- Worker agents should be stateless
+- All necessary information should come in the state
+- Avoid complex external dependencies
 
 ---
 
 ## 🔍 Troubleshooting
 
-### Problema: El supervisor no delega al nuevo agente
+### Problem: Supervisor does not delegate to the new agent
 
-**Síntomas**: El supervisor responde directamente en lugar de usar el agente
+**Symptoms**: Supervisor responds directly instead of using the agent
 
-**Soluciones**:
-1. Verificar que el agente esté en la lista `destinations` del supervisor
-2. Revisar las instrucciones en `SUPERVISOR_PROMPT`
-3. Asegurar que la herramienta de handoff esté en la lista `tools`
+**Solutions**:
+1. Check that the agent is in the supervisor's `destinations` list
+2. Review instructions in `SUPERVISOR_PROMPT`
+3. Ensure the handoff tool is in the `tools` list
 
-### Problema: Error "Agent not found" 
+### Problem: "Agent not found" Error
 
-**Síntomas**: `KeyError` o `ValueError` al intentar usar el agente
+**Symptoms**: `KeyError` or `ValueError` when trying to use the agent
 
-**Soluciones**:
-1. Verificar que el nodo esté agregado al StateGraph: `builder.add_node("agent_name", agent_function)`
-2. Confirmar que el edge esté configurado: `builder.add_edge("agent_name", "supervisor")`
-3. Verificar el import en `agent.py`
+**Solutions**:
+1. Check that the node is added to the StateGraph: `builder.add_node("agent_name", agent_function)`
+2. Confirm the edge is configured: `builder.add_edge("agent_name", "supervisor")`
+3. Check the import in `agent.py`
 
-### Problema: El agente no retorna al supervisor
+### Problem: Agent does not return to supervisor
 
-**Síntomas**: El flujo se queda colgado después de llamar al agente
+**Symptoms**: Flow hangs after calling the agent
 
-**Soluciones**:
-1. Asegurar que el edge del agente apunte al supervisor: `builder.add_edge("my_agent", "supervisor")`
-2. Verificar que la función del agente retorne el formato correcto
-3. Revisar logs por errores en la ejecución del agente
+**Solutions**:
+1. Ensure the agent's edge points to supervisor: `builder.add_edge("my_agent", "supervisor")`
+2. Check that the agent function returns the correct format
+3. Review logs for errors in agent execution
 
-### Problema: Sources no se extraen correctamente
+### Problem: Sources are not extracted correctly
 
-**Síntomas**: Las fuentes no aparecen en `token.delta`
+**Symptoms**: Sources do not appear in `token.delta`
 
-**Soluciones**:
-1. Si el agente usa herramientas que retornan sources, verificar `_add_source_from_tool_end`
-2. Asegurar que el agente esté configurado en `get_all_source_key_names()`
-3. Revisar el formato de output del agente
+**Solutions**:
+1. If the agent uses tools that return sources, check `_add_source_from_tool_end`
+2. Ensure the agent is configured in `get_all_source_key_names()`
+3. Review the agent's output format
 
 ---
 
-## 📚 Recursos Adicionales
+## 📚 Additional Resources
 
-### Archivos Clave
-- [`app/agents/supervisor/agent.py`](../app/agents/supervisor/agent.py) - Configuración principal del grafo
-- [`app/agents/supervisor/workers.py`](../app/agents/supervisor/workers.py) - Implementación de workers
-- [`app/agents/supervisor/prompts.py`](../app/agents/supervisor/prompts.py) - Prompts del supervisor
-- [`app/agents/supervisor/handoff.py`](../app/agents/supervisor/handoff.py) - Sistema de delegación
+### Key Files
+- [`app/agents/supervisor/agent.py`](../app/agents/supervisor/agent.py) - Main graph configuration
+- [`app/agents/supervisor/workers.py`](../app/agents/supervisor/workers.py) - Worker implementation
+- [`app/agents/supervisor/prompts.py`](../app/agents/supervisor/prompts.py) - Supervisor prompts
+- [`app/agents/supervisor/handoff.py`](../app/agents/supervisor/handoff.py) - Delegation system
 
-### Documentación Relacionada
+### Related Documentation
 - [LangGraph Documentation](https://python.langchain.com/docs/langgraph)
 - [Multi-Agent Systems](https://python.langchain.com/docs/tutorials/multi_agent)
 - [Message State](https://python.langchain.com/docs/langgraph/how-tos/state-model)
 
 ---
 
-## 📝 Template Rápido
+## 📝 Quick Template
 
-Para crear un nuevo agente rápidamente, copia y modifica este template:
+To quickly create a new agent, copy and modify this template:
 
 ```python
-# En workers.py
+# In workers.py
 async def {{AGENT_NAME}}_agent(state: MessagesState) -> dict[str, Any]:
     """
     {{DESCRIPTION}}
@@ -447,7 +447,7 @@ async def {{AGENT_NAME}}_agent(state: MessagesState) -> dict[str, Any]:
     prompt: str = _get_last_user_message_text(state["messages"]) or "{{DEFAULT_PROMPT}}"
     
     try:
-        # TODO: Implementar lógica específica
+        # TODO: Implement specific logic
         content: str = await call_llm(system, prompt)
         content = content or "{{ERROR_MESSAGE}}"
         
@@ -458,4 +458,4 @@ async def {{AGENT_NAME}}_agent(state: MessagesState) -> dict[str, Any]:
     return {"messages": [{"role": "assistant", "content": content, "name": "{{AGENT_NAME}}_agent"}]}
 ```
 
-¡Ahora tienes todo lo necesario para integrar nuevos agentes al sistema supervisor de Vera! 🚀
+You now have everything you need to integrate new agents into Vera's supervisor system! 🚀
