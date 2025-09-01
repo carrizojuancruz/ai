@@ -26,7 +26,7 @@ class SyncService:
     async def sync_source(self, source: Source) -> SyncResult:
         """Sync a single source using parent-child strategy."""
         try:
-            crawl_result = await self.crawler.crawl_source(source.url)
+            crawl_result = await self.crawler.crawl_source(source)
             documents = crawl_result.get("documents", [])
 
             if not documents:
@@ -36,13 +36,24 @@ class SyncService:
                     message="No documents found during crawl"
                 )
 
-            chunks = self.knowledge_service._split_documents(documents, source.id)
+            chunks = self.knowledge_service._split_documents(documents, source)
             new_hashes = {doc.metadata.get("content_hash") for doc in chunks}
 
             if self.needs_reindex(source.id, new_hashes):
-                self.vector_store.delete_documents(source.id)
+                logger.info(f"Source {source.id} needs reindexing - deleting old documents")
+                deletion_result = self.vector_store.delete_documents_by_source_id(source.id)
 
-                await self.knowledge_service.add_documents(documents, source.id)
+                if not deletion_result["success"]:
+                    logger.error(f"Failed to delete documents for source {source.id} during reindexing: {deletion_result['message']}")
+                    return SyncResult(
+                        source_id=source.id,
+                        success=False,
+                        message=f"Failed to delete old documents: {deletion_result['message']}"
+                    )
+
+                logger.info(f"Successfully deleted {deletion_result['vectors_deleted']} vectors for source {source.id}")
+                logger.info(f"Adding new documents for source {source.id}")
+                await self.knowledge_service.add_documents(documents, source)
 
                 return SyncResult(
                     source_id=source.id,
