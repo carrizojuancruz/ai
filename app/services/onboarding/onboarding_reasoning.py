@@ -238,7 +238,8 @@ class OnboardingReasoningService:
             async for chunk in self._llm.generate_stream(
                 prompt=text_prompt,
                 system=ONBOARDING_SYSTEM_PROMPT
-                + "\n\nGenerate only the conversational response text, no JSON or metadata.",
+                + "\n\nGenerate only the conversational response text, no JSON or metadata.\n"
+                + "Do NOT list or enumerate options/choices; the UI will present them. If offering choices, only invite selection briefly.",
                 context={
                     "conversation_id": str(state.conversation_id),
                     "thread_id": str(state.conversation_id),
@@ -422,6 +423,9 @@ class OnboardingReasoningService:
             "\nYour response should:\n"
             "- Naturally acknowledge the user's comfort level\n"
             "- Offer choices conversationally when appropriate\n"
+            "- Do NOT list or enumerate options/choices in the assistant text; the UI will present them\n"
+            "- If offering choices, invite selection in 1–2 sentences (no bullets or lists)\n"
+            "- Always respond to the user's latest message shown below\n"
             "- Never force specific answers if user is uncomfortable\n"
             "- For binary_choice, use primary_choice and secondary_choice fields\n"
             "- For single_choice and multi_choice, use the choices array\n"
@@ -539,10 +543,15 @@ User's last message: {last_user_message or "(Starting conversation)"}
 Known user context (short):
 {ctx_block}
 
-Recent conversation:
+Recent conversation (most recent last):
 {convo_tail}
 
 Respond naturally and conversationally. Default prompt if needed: "{default_prompt}"
+
+Important UI rules:
+- Do NOT list or enumerate options/choices in your message. The UI will present them separately.
+- If offering choices, simply invite selection in 1–2 sentences (no bullets or lists).
+- Always respond to the 'User's last message' shown above; avoid referencing earlier turns unless necessary for clarity.
 """
         return prompt
 

@@ -104,6 +104,13 @@ class OnboardingAgent:
         prev_completed = set(s.value for s in state.completed_steps)
         current_state = state
 
+        prev_step = state.current_step
+        prev_interaction_type = state.current_interaction_type
+        prev_choices = list(state.current_choices) if isinstance(state.current_choices, list) else []
+        prev_binary_choices = (
+            dict(state.current_binary_choices) if isinstance(state.current_binary_choices, dict) else None
+        )
+
         yield (
             {
                 "event": "step.update",
@@ -130,6 +137,11 @@ class OnboardingAgent:
             current_state,
         )
 
+        if current_state.ready_for_completion:
+            yield ({"event": "onboarding.status", "data": {"status": "done"}}, current_state)
+            yield (None, current_state)
+            return
+
         new_completed = set(s.value for s in current_state.completed_steps)
         for step_value in sorted(new_completed - prev_completed):
             yield (
@@ -151,7 +163,24 @@ class OnboardingAgent:
             current_state,
         )
 
-        if current_state.current_interaction_type != "free_text" and current_state.current_step == step:
+        changed_interaction = (
+            current_state.current_step != prev_step
+            or current_state.current_interaction_type != prev_interaction_type
+            or (
+                current_state.current_interaction_type in ("single_choice", "multi_choice")
+                and list(current_state.current_choices or []) != prev_choices
+            )
+            or (
+                current_state.current_interaction_type == "binary_choice"
+                and (current_state.current_binary_choices or {}) != (prev_binary_choices or {})
+            )
+        )
+
+        if (
+            changed_interaction
+            and current_state.current_interaction_type != "free_text"
+            and current_state.current_step == step
+        ):
             interaction_data = {
                 "type": current_state.current_interaction_type,
                 "step_id": current_state.current_step.value,

@@ -14,7 +14,7 @@ def create_s3_vectors_store_from_env(
 
     Required env vars:
       - S3V_BUCKET
-      - S3V_INDEX
+      - S3V_INDEX_MEMORY
 
     Optional env vars:
       - AWS_REGION (default: us-east-1 if not provided via region_name)
@@ -25,7 +25,7 @@ def create_s3_vectors_store_from_env(
     bucket = config.S3V_BUCKET
     index = config.S3V_INDEX_MEMORY
     if not bucket or not index:
-        raise RuntimeError("Missing S3V_BUCKET or S3V_INDEX environment variables")
+        raise RuntimeError("Missing S3V_BUCKET or S3V_INDEX_MEMORY environment variables")
 
     region = region_name or config.get_aws_region()
     distance = config.S3V_DISTANCE

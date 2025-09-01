@@ -22,7 +22,8 @@ Combination of `single_choice` and `free_text`
   },
   "age_restriction": {
     "min_age": 18,
-    "restriction_message": "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!",
+    "restriction_message": "I’m really sorry, but you need to be at least 18 to chat with me. It’s for safety and privacy reasons.
+I hope we can talk in the future!",
     "redirect_action": "end_conversation"
   }
 }
@@ -41,7 +42,8 @@ Combination of `single_choice` and `free_text`
   },
   "age_restriction": {
     "min_age": 18,
-    "restriction_message": "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!",
+    "restriction_message": "I’m really sorry, but you need to be at least 18 to chat with me. It’s for safety and privacy reasons.
+I hope we can talk in the future!",
     "redirect_action": "end_conversation"
   },
   "choices": [
@@ -270,10 +272,18 @@ def get_effective_age_range(state: OnboardingState) -> str:
 
 ## Edge Cases
 
-1. **Under 18**: Display age restriction message and end conversation immediately
+1. **Under 18**: Display age restriction message (see code snippet below) and end conversation immediately
 2. **Learning focus**: Route to learning path node
 3. **No personal goals**: Skip conditional questions
 4. **Uncertain about help**: Skip onboarding entirely
+
+### Age Restriction Message
+```json
+{
+  "restriction_message": "I’m really sorry, but you need to be at least 18 to chat with me. It’s for safety and privacy reasons.
+I hope we can talk in the future!"
+}
+```
 
 ## System Prompts for Node
 
