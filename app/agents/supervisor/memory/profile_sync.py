@@ -9,8 +9,8 @@ import boto3
 from app.agents.onboarding.state import OnboardingState, OnboardingStep
 from app.core.config import config
 from app.models.user import UserContext
-from app.services.external_context.client import ExternalUserRepository
-from app.services.external_context.mapping import map_ai_context_to_user_context, map_user_context_to_ai_context
+from app.services.external_context.user.repository import ExternalUserRepository
+from app.services.external_context.user.mapping import map_ai_context_to_user_context, map_user_context_to_ai_context
 from app.services.onboarding.context_patching import context_patching_service
 
 logger = logging.getLogger(__name__)

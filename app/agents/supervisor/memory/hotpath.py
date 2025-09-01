@@ -229,9 +229,19 @@ async def _write_semantic_memory(
                     _do_update(store, namespace, best.key, summary, best)
                     did_update = True
                     logger.info("memory.update: mode=auto id=%s into=%s score=%.3f", candidate_id, best.key, score_val)
-                if queue:
+                updated_memory = store.get(namespace, best.key)
+                if queue and updated_memory:
                     with contextlib.suppress(Exception):
-                        await queue.put({"event": "memory.updated", "data": {"id": getattr(best, "key", None), "type": mem_type, "category": (getattr(best, "value", {}) or {}).get("category")}})
+                        await queue.put({"event": "memory.updated", "data": {
+                            "id": updated_memory.key,
+                            "type": mem_type,
+                            "category": (updated_memory.value or {}).get("category"),
+                            "summary": (updated_memory.value or {}).get("summary"),
+                            "importance": (updated_memory.value or {}).get("importance"),
+                            "created_at": updated_memory.created_at,
+                            "updated_at": updated_memory.updated_at,
+                            "value": updated_memory.value
+                        }})
             else:
                 for n in sorted_neigh:
                     s = float(getattr(n, "score", 0.0) or 0.0)
@@ -251,9 +261,19 @@ async def _write_semantic_memory(
                             _do_update(store, namespace, getattr(n, "key", ""), summary, n)
                             logger.info("memory.update: mode=classified id=%s into=%s", candidate_id, getattr(n, "key", ""))
                         did_update = True
-                        if queue:
+                        updated_memory = store.get(namespace, getattr(n, "key", ""))
+                        if queue and updated_memory:
                             with contextlib.suppress(Exception):
-                                await queue.put({"event": "memory.updated", "data": {"id": getattr(n, "key", ""), "type": mem_type, "category": (getattr(n, "value", {}) or {}).get("category")}})
+                                await queue.put({"event": "memory.updated", "data": {
+                                    "id": updated_memory.key,
+                                    "type": mem_type,
+                                    "category": (updated_memory.value or {}).get("category"),
+                                    "summary": (updated_memory.value or {}).get("summary"),
+                                    "importance": (updated_memory.value or {}).get("importance"),
+                                    "created_at": updated_memory.created_at,
+                                    "updated_at": updated_memory.updated_at,
+                                    "value": updated_memory.value
+                                }})
                         break
         if not did_update and FALLBACK_ENABLED and (not FALLBACK_CATEGORIES or category in FALLBACK_CATEGORIES):
             checked = 0
@@ -301,13 +321,19 @@ async def _write_semantic_memory(
                         _do_update(store, namespace, getattr(n, "key", ""), summary, n)
                         logger.info("memory.update: mode=fallback id=%s into=%s", candidate_id, getattr(n, "key", ""))
                     did_update = True
-                    if queue:
-
+                    updated_memory = store.get(namespace, getattr(n, "key", ""))
+                    if queue and updated_memory:
                         with contextlib.suppress(Exception):
-                            await queue.put({
-                                "event": "memory.updated",
-                                "data": {"id": getattr(n, "key", ""), "type": mem_type, "category": (getattr(n, "value", {}) or {}).get("category")},
-                            })
+                            await queue.put({"event": "memory.updated", "data": {
+                                "id": updated_memory.key,
+                                "type": mem_type,
+                                "category": (updated_memory.value or {}).get("category"),
+                                "summary": (updated_memory.value or {}).get("summary"),
+                                "importance": (updated_memory.value or {}).get("importance"),
+                                "created_at": updated_memory.created_at,
+                                "updated_at": updated_memory.updated_at,
+                                "value": updated_memory.value
+                            }})
                     break
         if not did_update:
             if int(candidate_value.get("importance") or 1) < SEMANTIC_MIN_IMPORTANCE:
@@ -319,7 +345,16 @@ async def _write_semantic_memory(
                 asyncio.create_task(_profile_sync_from_memory(user_id, thread_id, candidate_value))
                 if queue:
                     with contextlib.suppress(Exception):
-                        await queue.put({"event": "memory.created", "data": {"id": candidate_value["id"], "type": mem_type, "category": category}})
+                        await queue.put({"event": "memory.created", "data": {
+                            "id": candidate_value["id"],
+                            "type": mem_type,
+                            "category": category,
+                            "summary": candidate_value.get("summary"),
+                            "importance": candidate_value.get("importance"),
+                            "created_at": candidate_value.get("created_at"),
+                            "updated_at": candidate_value.get("updated_at"),
+                            "value": candidate_value
+                        }})
     except Exception:
         logger.exception("memory_hotpath.error: id=%s", candidate_value.get("id"))
         if thread_id:
@@ -593,13 +628,13 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
         (summary[:80] + ("…" if len(summary) > 80 else "")),
     )
 
-    if thread_id:
-        try:
-            queue = get_sse_queue(thread_id)
-            await queue.put({"event": "memory.candidate", "data": {"id": candidate_id, "type": mem_type, "category": category, "summary": summary}})
-        except Exception:
-            pass
-
+    if int(candidate_value.get("importance") or 1) >= SEMANTIC_MIN_IMPORTANCE:
+        if thread_id:
+            try:
+                queue = get_sse_queue(thread_id)
+                await queue.put({"event": "memory.created", "data": {"id": candidate_id, "type": mem_type, "category": category, "summary": summary}})
+            except Exception:
+                pass
 
     asyncio.create_task(_write_semantic_memory(
         user_id=user_id,

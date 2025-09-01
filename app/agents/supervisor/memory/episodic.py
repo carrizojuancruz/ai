@@ -182,7 +182,7 @@ async def _merge_existing_if_applicable(
         if thread_id:
             try:
                 queue = get_sse_queue(thread_id)
-                await queue.put({"event": "episodic.updated", "data": {"id": existing.key}})
+                await _emit_memory_event(thread_id, existing.key, merged, is_created=False)
             except Exception:
                 pass
         ctrl = _reset_ctrl_after_capture(ctrl, now_utc)
@@ -217,13 +217,23 @@ def _create_episodic_value(
     }
 
 
-async def _emit_created_event(thread_id: str | None, candidate_id: str) -> None:
-    """Emit SSE event for a newly created episodic item if a thread is available."""
+async def _emit_memory_event(thread_id: str | None, memory_id: str, value: dict[str, Any], is_created: bool = True) -> None:
+    """Emit SSE event for episodic memory creation or update."""
     if not thread_id:
         return
     try:
         queue = get_sse_queue(thread_id)
-        await queue.put({"event": "episodic.created", "data": {"id": candidate_id}})
+        event_type = "episodic.created" if is_created else "episodic.updated"
+        await queue.put({"event": event_type, "data": {
+            "id": memory_id,
+            "type": "episodic",
+            "category": value.get("category"),
+            "summary": value.get("summary"),
+            "importance": value.get("importance"),
+            "created_at": value.get("created_at"),
+            "updated_at": value.get("last_accessed"),
+            "value": value
+        }})
     except Exception:
         pass
 
@@ -328,7 +338,7 @@ async def episodic_capture(state: MessagesState, config: RunnableConfig) -> dict
         )
         store.put(namespace, candidate_id, value, index=["summary"])  # async context
         logger.info("episodic.create: id=%s", candidate_id)
-        await _emit_created_event(thread_id, candidate_id)
+        await _emit_memory_event(thread_id, candidate_id, value, is_created=True)
         ctrl = _reset_ctrl_after_capture(ctrl, now_utc)
         await _persist_session_ctrl(session_store, thread_id, sess, ctrl)
         return {}

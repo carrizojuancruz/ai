@@ -38,8 +38,8 @@ class OnboardingService:
             if session_ctx.get("fos_exported"):
                 return
 
-            from app.services.external_context.client import ExternalUserRepository
-            from app.services.external_context.mapping import map_user_context_to_ai_context
+            from app.services.external_context.user.repository import ExternalUserRepository
+            from app.services.external_context.user.mapping import map_user_context_to_ai_context
 
             repo = ExternalUserRepository()
             body = map_user_context_to_ai_context(state.user_context)
@@ -70,8 +70,8 @@ class OnboardingService:
         state = OnboardingState(user_id=user_uuid)
 
         try:
-            from app.services.external_context.client import ExternalUserRepository
-            from app.services.external_context.mapping import map_ai_context_to_user_context
+            from app.services.external_context.user.repository import ExternalUserRepository
+            from app.services.external_context.user.mapping import map_ai_context_to_user_context
 
             repo = ExternalUserRepository()
             external_ctx = await repo.get_by_id(user_uuid)
