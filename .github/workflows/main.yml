@@ -12,13 +12,14 @@ on:
 env:
   ECR_REPOSITORY: "${{ github.event.repository.name }}-${{ github.ref_name }}"
   AWS_REGION: us-east-1
-  AWS_ACCOUNT_ID: 905418355862
-  ROLE_NAME: "GitHubActions-Vera-Dev-Role"
-  ECS_CLUSTER: fos-cluster-dev
-  ECS_SERVICE: "fos-dev-fos-ai-service"
+  AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+  ROLE_NAME: ${{ vars.ROLE_NAME }}
+  ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+  ECS_SERVICE: ${{ vars.ECS_SERVICE }}
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name }}
     permissions:
       id-token: write
       contents: read
