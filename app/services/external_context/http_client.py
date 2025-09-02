@@ -1,9 +1,11 @@
 from __future__ import annotations
+
 import logging
-import os
 from typing import Any, Dict
-from app.core.config import config
+
 import httpx
+
+from app.core.config import config
 
 logger = logging.getLogger(__name__)
 
