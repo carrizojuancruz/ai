@@ -15,6 +15,7 @@ _user_sessions: "dict[UUID, OnboardingState]" = {}
 
 _onboarding_threads: "dict[str, OnboardingState]" = {}
 _sse_queues: dict[str, asyncio.Queue] = {}
+_thread_locks: dict[str, asyncio.Lock] = {}
 
 _last_emitted_text: dict[str, str] = {}
 
@@ -61,6 +62,14 @@ def get_sse_queue(thread_id: str) -> asyncio.Queue[str]:
 
 def drop_sse_queue(thread_id: str) -> None:
     _sse_queues.pop(thread_id, None)
+
+
+def get_thread_lock(thread_id: str) -> asyncio.Lock:
+    lock = _thread_locks.get(thread_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _thread_locks[thread_id] = lock
+    return lock
 
 
 def get_last_emitted_text(thread_id: str) -> str:

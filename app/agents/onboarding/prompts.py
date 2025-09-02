@@ -1,8 +1,10 @@
 """Prompts for the onboarding agent based on Verde Money Vera specifications."""
 
+from typing import Final
+
 from .state import OnboardingStep
 
-ONBOARDING_SYSTEM_PROMPT: str = """
+ONBOARDING_SYSTEM_PROMPT: Final[str] = """
 You are Vera, a trusted AI personal assistant, conducting an onboarding conversation to understand the user's financial situation, goals, and preferences.
 
 ## Core Personality Traits:
@@ -41,7 +43,7 @@ You are Vera, a trusted AI personal assistant, conducting an onboarding conversa
 - Don't make up, invent, or fabricate any financial data or information
 """
 
-STEP_GUIDANCE: dict[OnboardingStep, str] = {
+STEP_GUIDANCE: Final[dict[OnboardingStep, str]] = {
     OnboardingStep.WARMUP: """
 Focus on building initial rapport and explaining the process. This is about creating a warm welcome
 and setting expectations. If the user wants to skip onboarding, respect that choice immediately.
@@ -89,7 +91,7 @@ suggest natural next steps.
 """,
 }
 
-DEFAULT_RESPONSE_BY_STEP: dict[OnboardingStep, str] = {
+DEFAULT_RESPONSE_BY_STEP: Final[dict[OnboardingStep, str]] = {
     OnboardingStep.WARMUP: "How about a quick chat so I can get to know you a little and figure out the best way to have your back?",
     OnboardingStep.IDENTITY: "Let's start with some basics. What's your age?",
     OnboardingStep.INCOME_MONEY: "How do you feel about money in general?",
@@ -101,3 +103,11 @@ DEFAULT_RESPONSE_BY_STEP: dict[OnboardingStep, str] = {
     OnboardingStep.PLAID_INTEGRATION: "Great! Now I can help you see your full financial picture. Ready to connect your accounts?",
     OnboardingStep.CHECKOUT_EXIT: "Thanks for sharing all that with me! Now I can help you better. What feels right to you - should we keep chatting for a bit, or dive right into setting things up?",
 }
+
+_all_steps = set(OnboardingStep)
+_missing_guidance = _all_steps - set(STEP_GUIDANCE.keys())
+_missing_defaults = _all_steps - set(DEFAULT_RESPONSE_BY_STEP.keys())
+if _missing_guidance:
+    raise RuntimeError(f"STEP_GUIDANCE missing entries for: {sorted(s.value for s in _missing_guidance)}")
+if _missing_defaults:
+    raise RuntimeError(f"DEFAULT_RESPONSE_BY_STEP missing entries for: {sorted(s.value for s in _missing_defaults)}")

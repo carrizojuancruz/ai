@@ -8,6 +8,11 @@ from typing import Any
 
 from langfuse.callback import CallbackHandler
 
+from app.agents.onboarding.constants import (
+    AGE_HESITATION_WORDS,
+    INCOME_HESITATION_WORDS,
+    OPTIONS_WORDS,
+)
 from app.agents.onboarding.prompts import DEFAULT_RESPONSE_BY_STEP, ONBOARDING_SYSTEM_PROMPT, STEP_GUIDANCE
 from app.agents.onboarding.state import OnboardingState, OnboardingStep
 from app.core.config import config
@@ -131,35 +136,20 @@ class OnboardingReasoningService:
 
             if state.last_user_message:
                 msg_lower = state.last_user_message.lower()
-                wants_options = any(
-                    word in msg_lower
-                    for word in [
-                        "option",
-                        "options",
-                        "choice",
-                        "choices",
-                        "range",
-                        "ranges",
-                        "category",
-                        "categories",
-                        "example",
-                        "examples",
-                        "what are my",
-                        "give me",
-                        "show me",
-                        "list",
-                    ]
-                )
-                if step == OnboardingStep.IDENTITY and wants_options:
+                wants_options = any(word in msg_lower for word in OPTIONS_WORDS)
+                age_hesitation = any(word in msg_lower for word in AGE_HESITATION_WORDS) or msg_lower.strip() in {"no"}
+                if (
+                    step == OnboardingStep.IDENTITY
+                    and wants_options
+                    or step == OnboardingStep.IDENTITY
+                    and age_hesitation
+                ):
                     if "age_range" in missing_fields or "age" in missing_fields:
                         result["interaction_type"] = "single_choice"
                         result["patch"]["age_range"] = None
                         result["patch"].pop("age", None)
                 elif step == OnboardingStep.INCOME_MONEY:
-                    income_hesitation = any(
-                        word in msg_lower
-                        for word in ["uncomfortable", "prefer not", "rather not", "don't want to share", "private"]
-                    )
+                    income_hesitation = any(word in msg_lower for word in INCOME_HESITATION_WORDS)
                     if (wants_options or income_hesitation) and any(
                         field in missing_fields
                         for field in ["annual_income", "annual_income_range", "income", "income_range"]
@@ -289,35 +279,15 @@ class OnboardingReasoningService:
 
             if state.last_user_message:
                 msg_lower = state.last_user_message.lower()
-                wants_options = any(
-                    word in msg_lower
-                    for word in [
-                        "option",
-                        "options",
-                        "choice",
-                        "choices",
-                        "range",
-                        "ranges",
-                        "category",
-                        "categories",
-                        "example",
-                        "examples",
-                        "what are my",
-                        "give me",
-                        "show me",
-                        "list",
-                    ]
-                )
-                if step == OnboardingStep.IDENTITY and wants_options:
+                wants_options = any(word in msg_lower for word in OPTIONS_WORDS)
+                age_hesitation = any(word in msg_lower for word in AGE_HESITATION_WORDS) or msg_lower.strip() in {"no"}
+                if step == OnboardingStep.IDENTITY and wants_options or step == OnboardingStep.IDENTITY and age_hesitation:
                     if "age_range" in missing_fields or "age" in missing_fields:
                         result["interaction_type"] = "single_choice"
                         result["patch"]["age_range"] = None
                         result["patch"].pop("age", None)
                 elif step == OnboardingStep.INCOME_MONEY:
-                    income_hesitation = any(
-                        word in msg_lower
-                        for word in ["uncomfortable", "prefer not", "rather not", "don't want to share", "private"]
-                    )
+                    income_hesitation = any(word in msg_lower for word in INCOME_HESITATION_WORDS)
                     if (wants_options or income_hesitation) and any(
                         field in missing_fields
                         for field in ["annual_income", "annual_income_range", "income", "income_range"]
@@ -396,7 +366,7 @@ class OnboardingReasoningService:
             "   - User seems unclear about what you're asking\n"
             "   - User explicitly prefers not to share exact details\n"
             "   - The field naturally works better with predefined options\n"
-            "   - For age: User mentions 'range', 'options', 'categories' or shows any hesitation\n"
+            "   - For age: User mentions 'range', 'options', is hesitant, OR simply declines (e.g., says 'no')\n"
             "   - For income: User mentions 'range', is uncomfortable, or prefers not to share exact amount\n"
             "   - For money_feelings: ALWAYS use multi_choice (this field always offers choices)\n"
             "   - For learning_interests: ALWAYS use multi_choice (this field always offers choices)\n"
@@ -429,7 +399,7 @@ class OnboardingReasoningService:
             "- Never force specific answers if user is uncomfortable\n"
             "- For binary_choice, use primary_choice and secondary_choice fields\n"
             "- For single_choice and multi_choice, use the choices array\n"
-            "- IMPORTANT: If user asks for age ranges/options, set interaction_type='single_choice' and patch={'age_range': null}\n"
+            "- IMPORTANT: If user asks for age ranges or shows hesitation or declines, set interaction_type='single_choice' and patch={'age_range': null}\n"
             "- Output ONLY JSON matching the schema\n\n"
             f"Step: {step.value}\n"
             f"Missing fields: {missing_fields}\n"

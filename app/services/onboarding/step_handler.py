@@ -3,8 +3,16 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from typing import Callable
 
+from app.agents.onboarding.constants import SKIP_WORDS, UNDER_18_TOKENS
+from app.agents.onboarding.formatter import format_brief
 from app.agents.onboarding.prompts import DEFAULT_RESPONSE_BY_STEP
 from app.agents.onboarding.state import OnboardingState, OnboardingStep
+from app.agents.onboarding.types import (
+    BinaryChoices,
+    InteractionType,
+    choice_from_dict,
+    choices_from_list,
+)
 
 from .context_patching import context_patching_service
 from .onboarding_reasoning import onboarding_reasoning_service
@@ -41,26 +49,41 @@ class StepHandlerService:
     async def handle_step(self, state: OnboardingState, step: OnboardingStep) -> OnboardingState:
         state.current_step = step
 
-        state.current_interaction_type = "free_text"
+        state.current_interaction_type = InteractionType.FREE_TEXT
         state.current_choices = []
         state.current_binary_choices = None
         state.multi_min = None
         state.multi_max = None
 
-        if step in [OnboardingStep.HOME, OnboardingStep.FAMILY_UNIT, OnboardingStep.HEALTH_COVERAGE] and not state.should_show_conditional_node(step):
+        if step in [
+            OnboardingStep.HOME,
+            OnboardingStep.FAMILY_UNIT,
+            OnboardingStep.HEALTH_COVERAGE,
+        ] and not state.should_show_conditional_node(step):
             state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
             return state
 
         missing_fields = self._get_missing_fields(state, step)
 
         if step == OnboardingStep.IDENTITY:
+            msg = (state.last_user_message or "").strip().lower()
+            if msg in UNDER_18_TOKENS:
+                state.ready_for_completion = True
+                state.user_context.ready_for_orchestrator = True
+                response = (
+                    "I appreciate your interest, but I'm designed to help adults (18+) with their finances. "
+                    "Please come back when you're 18 or older!"
+                )
+                state.add_conversation_turn(state.last_user_message or "", format_brief(response))
+                return state
+
             age = state.user_context.age
             age_range = state.user_context.age_range
             if (age and int(age) < 18) or age_range == "under_18":
                 state.ready_for_completion = True
                 state.user_context.ready_for_orchestrator = True
                 response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
-                state.add_conversation_turn(state.last_user_message or "", response)
+                state.add_conversation_turn(state.last_user_message or "", format_brief(response))
                 return state
 
         decision = onboarding_reasoning_service.reason_step(state, step, missing_fields)
@@ -75,28 +98,41 @@ class StepHandlerService:
                     state.ready_for_completion = True
                     state.user_context.ready_for_orchestrator = True
                     response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
-                    state.add_conversation_turn(state.last_user_message or "", response)
+                    state.add_conversation_turn(state.last_user_message or "", format_brief(response))
                     return state
             except Exception:
                 pass
 
         response = decision.get("assistant_text") or DEFAULT_RESPONSE_BY_STEP.get(step, "")
 
-        if (decision.get("interaction_type") in ["single_choice", "multi_choice", "binary_choice"] and response and any(prefix in response for prefix in ["- ", "• ", "* ", "1.", "2.", "3."])):
+        if (
+            decision.get("interaction_type") in ["single_choice", "multi_choice", "binary_choice"]
+            and response
+            and any(prefix in response for prefix in ["- ", "• ", "* ", "1.", "2.", "3."])
+        ):
             lines = [ln for ln in response.splitlines() if not ln.strip().startswith(("-", "•", "*", "1.", "2.", "3."))]
             response = "\n".join(lines).strip()
 
-        state.current_interaction_type = decision.get("interaction_type", "free_text")
-        state.current_choices = decision.get("choices", [])
-        if decision.get("interaction_type") == "binary_choice":
-            state.current_binary_choices = {
-                "primary_choice": decision.get("primary_choice"),
-                "secondary_choice": decision.get("secondary_choice"),
-            }
+        itype = InteractionType(decision.get("interaction_type", "free_text"))
+        state.current_interaction_type = itype
+        state.current_choices = choices_from_list(decision.get("choices"))
+        if itype == InteractionType.BINARY_CHOICE:
+            state.current_binary_choices = BinaryChoices(
+                primary_choice=choice_from_dict(decision.get("primary_choice")),
+                secondary_choice=choice_from_dict(decision.get("secondary_choice")),
+            )
         else:
             state.current_binary_choices = None
         state.multi_min = decision.get("multi_min")
         state.multi_max = decision.get("multi_max")
+
+        if itype == InteractionType.BINARY_CHOICE and not (
+            state.current_binary_choices and (
+                state.current_binary_choices.primary_choice or state.current_binary_choices.secondary_choice
+            )
+        ):
+            state.current_interaction_type = InteractionType.FREE_TEXT
+            state.current_binary_choices = None
 
         if decision.get("complete") or self.is_step_complete(state, step):
             state.mark_step_completed(step)
@@ -104,10 +140,7 @@ class StepHandlerService:
 
         if decision.get("declined") or (
             state.last_user_message
-            and any(
-                skip_word in state.last_user_message.lower()
-                for skip_word in ["skip", "pass", "next", "not now", "maybe later"]
-            )
+            and any(skip_word in state.last_user_message.lower() for skip_word in SKIP_WORDS)
         ):
             state = self._handle_skip(state, step)
 
@@ -123,128 +156,172 @@ class StepHandlerService:
             state.user_context.ready_for_orchestrator = True
             state.ready_for_completion = True
 
-        state.add_conversation_turn(state.last_user_message or "", response)
+        state.add_conversation_turn(state.last_user_message or "", format_brief(response))
 
         return state
 
     async def handle_step_stream(
         self, state: OnboardingState, step: OnboardingStep
     ) -> AsyncGenerator[tuple[str, OnboardingState], None]:
-        state.current_step = step
+        try:
+            state.current_step = step
 
-        state.current_interaction_type = "free_text"
-        state.current_choices = []
-        state.current_binary_choices = None
-        state.multi_min = None
-        state.multi_max = None
+            state.current_interaction_type = InteractionType.FREE_TEXT
+            state.current_choices = []
+            state.current_binary_choices = None
+            state.multi_min = None
+            state.multi_max = None
 
-        if step in [OnboardingStep.HOME, OnboardingStep.FAMILY_UNIT, OnboardingStep.HEALTH_COVERAGE] and not state.should_show_conditional_node(step):
-            state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
-            yield ("", state)
-            return
-
-        missing_fields = self._get_missing_fields(state, step)
-
-        if step == OnboardingStep.IDENTITY:
-            age = state.user_context.age
-            age_range = state.user_context.age_range
-            if (age and int(age) < 18) or age_range == "under_18":
-                state.ready_for_completion = True
-                state.user_context.ready_for_orchestrator = True
-                response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
-                state.add_conversation_turn(state.last_user_message or "", response)
-                yield (response, state)
+            if step in [
+                OnboardingStep.HOME,
+                OnboardingStep.FAMILY_UNIT,
+                OnboardingStep.HEALTH_COVERAGE,
+            ] and not state.should_show_conditional_node(step):
+                state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
+                yield ("", state)
                 return
 
-        accumulated_response = ""
-        final_decision = None
+            if step == OnboardingStep.IDENTITY:
+                msg = (state.last_user_message or "").strip().lower()
+                if msg in UNDER_18_TOKENS:
+                    state.ready_for_completion = True
+                    state.user_context.ready_for_orchestrator = True
+                    response = (
+                        "I appreciate your interest, but I'm designed to help adults (18+) with their finances. "
+                        "Please come back when you're 18 or older!"
+                    )
+                    state.add_conversation_turn(state.last_user_message or "", format_brief(response))
+                    yield (format_brief(response), state)
+                    return
 
-        async for decision in onboarding_reasoning_service.reason_step_stream(state, step, missing_fields):
-            if decision.get("streaming", False):
-                chunk = decision.get("chunk", "")
-                if chunk:
-                    yield (chunk, state)
-                    accumulated_response = decision.get("assistant_text", "")
-            else:
-                final_decision = decision
-                break
-
-        if final_decision:
-            context_patching_service.apply_context_patch(state, step, final_decision.get("patch") or {})
+            missing_fields = self._get_missing_fields(state, step)
 
             if step == OnboardingStep.IDENTITY:
-                try:
-                    age = state.user_context.age
-                    age_range = state.user_context.age_range
-                    if (age and int(age) < 18) or age_range == "under_18":
-                        state.ready_for_completion = True
-                        state.user_context.ready_for_orchestrator = True
-                        response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
-                        state.add_conversation_turn(state.last_user_message or "", response)
-                        yield (response, state)
-                        return
-                except Exception:
-                    pass
+                age = state.user_context.age
+                age_range = state.user_context.age_range
+                if (age and int(age) < 18) or age_range == "under_18":
+                    state.ready_for_completion = True
+                    state.user_context.ready_for_orchestrator = True
+                    response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
+                    state.add_conversation_turn(state.last_user_message or "", format_brief(response))
+                    yield (format_brief(response), state)
+                    return
 
-            state.current_interaction_type = final_decision.get("interaction_type", "free_text")
-            state.current_choices = final_decision.get("choices", [])
-            if final_decision.get("interaction_type") == "binary_choice":
-                state.current_binary_choices = {
-                    "primary_choice": final_decision.get("primary_choice"),
-                    "secondary_choice": final_decision.get("secondary_choice"),
-                }
-            else:
-                state.current_binary_choices = None
-            state.multi_min = final_decision.get("multi_min")
-            state.multi_max = final_decision.get("multi_max")
+            accumulated_response = ""
+            final_decision = None
 
-            if final_decision.get("complete") or self.is_step_complete(state, step):
-                state.mark_step_completed(step)
-                state.current_step = state.get_next_step() or OnboardingStep.CHECKOUT_EXIT
+            async for decision in onboarding_reasoning_service.reason_step_stream(state, step, missing_fields):
+                if decision.get("streaming", False):
+                    chunk = decision.get("chunk", "")
+                    if chunk:
+                        yield (chunk, state)
+                        accumulated_response = decision.get("assistant_text", "")
+                else:
+                    final_decision = decision
+                    break
 
-            if final_decision.get("declined") or (
-                state.last_user_message
-                and any(
-                    skip_word in state.last_user_message.lower()
-                    for skip_word in ["skip", "pass", "next", "not now", "maybe later"]
-                )
-            ):
-                state = self._handle_skip(state, step)
+            if final_decision:
+                context_patching_service.apply_context_patch(state, step, final_decision.get("patch") or {})
 
-            if (final_decision.get("interaction_type") in ["single_choice", "multi_choice", "binary_choice"] and any(tok in (accumulated_response or "") for tok in ["18-", "66+", "-24", "-34", "-44", "-54", "-64"])):
-                accumulated_response = ""
+                if step == OnboardingStep.IDENTITY:
+                    try:
+                        age = state.user_context.age
+                        age_range = state.user_context.age_range
+                        if (age and int(age) < 18) or age_range == "under_18":
+                            state.ready_for_completion = True
+                            state.user_context.ready_for_orchestrator = True
+                            response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
+                            state.add_conversation_turn(state.last_user_message or "", format_brief(response))
+                            yield (format_brief(response), state)
+                            return
+                    except Exception:
+                        pass
 
-            if step == OnboardingStep.WARMUP:
-                if state.last_user_message and any(
-                    skip_word in state.last_user_message.lower()
-                    for skip_word in ["skip to account", "just setup", "skip onboarding"]
+                state.current_interaction_type = InteractionType(final_decision.get("interaction_type", "free_text"))
+                state.current_choices = choices_from_list(final_decision.get("choices"))
+                if state.current_interaction_type == InteractionType.BINARY_CHOICE:
+                    state.current_binary_choices = BinaryChoices(
+                        primary_choice=choice_from_dict(final_decision.get("primary_choice")),
+                        secondary_choice=choice_from_dict(final_decision.get("secondary_choice")),
+                    )
+                else:
+                    state.current_binary_choices = None
+                state.multi_min = final_decision.get("multi_min")
+                state.multi_max = final_decision.get("multi_max")
+
+                if (
+                    state.current_interaction_type == InteractionType.BINARY_CHOICE
+                    and not (
+                        state.current_binary_choices
+                        and (
+                            state.current_binary_choices.primary_choice or state.current_binary_choices.secondary_choice
+                        )
+                    )
                 ):
-                    state.current_step = OnboardingStep.CHECKOUT_EXIT
-                    accumulated_response = "No problem! Let's get your account set up."
+                    state.current_interaction_type = InteractionType.FREE_TEXT
+                    state.current_binary_choices = None
 
-            elif step == OnboardingStep.CHECKOUT_EXIT:
-                state.user_context.ready_for_orchestrator = True
-                state.ready_for_completion = True
+                if final_decision.get("complete") or self.is_step_complete(state, step):
+                    state.mark_step_completed(step)
+                    state.current_step = state.get_next_step() or OnboardingStep.CHECKOUT_EXIT
 
-            if final_decision and final_decision.get("interaction_type") in ["single_choice", "multi_choice", "binary_choice"]:
-                accumulated_response = final_decision.get("assistant_text") or ""
+                if final_decision.get("declined") or (
+                    state.last_user_message
+                    and any(skip_word in state.last_user_message.lower() for skip_word in SKIP_WORDS)
+                ):
+                    state = self._handle_skip(state, step)
 
-            if not accumulated_response:
-                accumulated_response = (
-                    final_decision.get("assistant_text") if final_decision else ""
-                ) or DEFAULT_RESPONSE_BY_STEP.get(step, "")
+                if final_decision.get("interaction_type") in ["single_choice", "multi_choice", "binary_choice"] and any(
+                    tok in (accumulated_response or "") for tok in ["18-", "66+", "-24", "-34", "-44", "-54", "-64"]
+                ):
+                    accumulated_response = ""
 
-            if (final_decision and final_decision.get("interaction_type") in ["single_choice", "multi_choice", "binary_choice"] and accumulated_response and any(prefix in accumulated_response for prefix in ["- ", "• ", "* ", "1.", "2.", "3."])):
-                lines = [
-                    ln
-                    for ln in accumulated_response.splitlines()
-                    if not ln.strip().startswith(("-", "•", "*", "1.", "2.", "3."))
-                ]
-                accumulated_response = "\n".join(lines).strip()
+                if step == OnboardingStep.WARMUP:
+                    if state.last_user_message and any(
+                        skip_word in state.last_user_message.lower()
+                        for skip_word in ["skip to account", "just setup", "skip onboarding"]
+                    ):
+                        state.current_step = OnboardingStep.CHECKOUT_EXIT
+                        accumulated_response = "No problem! Let's get your account set up."
 
-            state.add_conversation_turn(state.last_user_message or "", accumulated_response)
+                elif step == OnboardingStep.CHECKOUT_EXIT:
+                    state.user_context.ready_for_orchestrator = True
+                    state.ready_for_completion = True
 
-        yield ("", state)
+                if final_decision and final_decision.get("interaction_type") in [
+                    "single_choice",
+                    "multi_choice",
+                    "binary_choice",
+                ]:
+                    accumulated_response = final_decision.get("assistant_text") or ""
+
+                if not accumulated_response:
+                    accumulated_response = (
+                        final_decision.get("assistant_text") if final_decision else ""
+                    ) or DEFAULT_RESPONSE_BY_STEP.get(step, "")
+
+                if (
+                    final_decision
+                    and final_decision.get("interaction_type") in ["single_choice", "multi_choice", "binary_choice"]
+                    and accumulated_response
+                    and any(prefix in accumulated_response for prefix in ["- ", "• ", "* ", "1.", "2.", "3."])
+                ):
+                    lines = [
+                        ln
+                        for ln in accumulated_response.splitlines()
+                        if not ln.strip().startswith(("-", "•", "*", "1.", "2.", "3."))
+                    ]
+                    accumulated_response = "\n".join(lines).strip()
+
+                state.add_conversation_turn(state.last_user_message or "", format_brief(accumulated_response))
+
+            yield ("", state)
+        except Exception:
+            safe_text = format_brief(
+                "Sorry, I had trouble processing that. Let's continue and try again."
+            )
+            state.add_conversation_turn(state.last_user_message or "", safe_text)
+            yield (safe_text, state)
 
     def is_step_complete(self, state: OnboardingState, step: OnboardingStep) -> bool:
         check_func = self._completion_checks.get(step)

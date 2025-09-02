@@ -9,10 +9,12 @@ from fastapi import HTTPException
 from langfuse.callback import CallbackHandler
 
 from app.agents.onboarding.state import OnboardingState
+from app.agents.onboarding.types import InteractionType
 from app.core.app_state import (
     get_last_emitted_text,
     get_onboarding_agent,
     get_sse_queue,
+    get_thread_lock,
     get_thread_state,
     register_thread,
     set_last_emitted_text,
@@ -147,90 +149,98 @@ class OnboardingService:
         if state is None:
             raise HTTPException(status_code=404, detail="Thread not found")
 
-        # Ensure state is an OnboardingState object, not a dict
         if isinstance(state, dict):
             from app.agents.onboarding.state import OnboardingState
+
             state = OnboardingState(**state)
 
-        user_text = ""
-        if type == "text" and text is not None:
-            user_text = text
-        elif type == "choice" and choice_ids:
-            if state.current_interaction_type == "binary_choice":
-                if state.current_binary_choices:
+        lock = get_thread_lock(thread_id)
+        async with lock:
+            user_text = ""
+            if type == "text" and text is not None:
+                user_text = text
+            elif type == "choice" and choice_ids:
+                if state.current_interaction_type == InteractionType.BINARY_CHOICE:
+                    if state.current_binary_choices:
+                        for choice_id in choice_ids:
+                            if (
+                                state.current_binary_choices.primary_choice
+                                and choice_id == state.current_binary_choices.primary_choice.id
+                            ):
+                                user_text = state.current_binary_choices.primary_choice.value
+                            elif (
+                                state.current_binary_choices.secondary_choice
+                                and choice_id == state.current_binary_choices.secondary_choice.id
+                            ):
+                                user_text = state.current_binary_choices.secondary_choice.value
+                else:
+                    choice_values = []
                     for choice_id in choice_ids:
-                        if choice_id == state.current_binary_choices.get("primary_choice", {}).get("id"):
-                            user_text = state.current_binary_choices["primary_choice"]["value"]
-                        elif choice_id == state.current_binary_choices.get("secondary_choice", {}).get("id"):
-                            user_text = state.current_binary_choices["secondary_choice"]["value"]
-            else:
-                choice_values = []
-                for choice_id in choice_ids:
-                    for choice in state.current_choices:
-                        if choice.get("id") == choice_id:
-                            choice_values.append(choice.get("value", choice_id))
-                            break
-                user_text = ", ".join(choice_values) if choice_values else ", ".join(choice_ids)
-        elif type == "control" and action in {"back", "skip"}:
-            set_thread_state(thread_id, state)
-            await get_sse_queue(thread_id).put(
-                {
-                    "event": "step.update",
-                    "data": {"status": "completed", "step_id": state.current_step.value},
-                }
-            )
+                        for choice in state.current_choices:
+                            if choice.id == choice_id:
+                                choice_values.append(choice.value or choice_id)
+                                break
+                    user_text = ", ".join(choice_values) if choice_values else ", ".join(choice_ids)
+            elif type == "control" and action in {"back", "skip"}:
+                set_thread_state(thread_id, state)
+                await get_sse_queue(thread_id).put(
+                    {
+                        "event": "step.update",
+                        "data": {"status": "completed", "step_id": state.current_step.value},
+                    }
+                )
+                return {"status": "accepted"}
+
+            agent = get_onboarding_agent()
+            q = get_sse_queue(thread_id)
+
+            prev_text = get_last_emitted_text(thread_id)
+
+            state.last_user_message = user_text
+
+            final_state = None
+            stream_acc = ""
+            async for event, current_state in agent.process_message_with_events(state.user_id, user_text, state):
+                if not event:
+                    continue
+                ev_name = event.get("event")
+                if ev_name == "token.delta":
+                    raw = event.get("data", {}).get("text", "")
+                    if raw:
+                        if raw.startswith(stream_acc):
+                            delta = raw[len(stream_acc) :]
+                            stream_acc = raw
+                        else:
+                            delta = raw
+                            stream_acc = stream_acc + delta
+                        if delta:
+                            set_last_emitted_text(thread_id, delta)
+                            await q.put({"event": "token.delta", "data": {"text": delta}})
+                    continue
+                if ev_name == "onboarding.status" and (event.get("data", {}) or {}).get("status") == "done":
+                    await self._export_user_context(current_state, thread_id)
+                await q.put(event)
+                final_state = current_state
+
+            if not (final_state.last_agent_response or ""):
+                text_out, ensured_state = await agent.process_message(state.user_id, user_text, final_state)
+                final_state = ensured_state
+                if text_out and text_out != prev_text:
+                    await q.put({"event": "message.completed", "data": {"text": text_out}})
+                    set_last_emitted_text(thread_id, text_out)
+
+            set_thread_state(thread_id, final_state)
+
             return {"status": "accepted"}
-
-        agent = get_onboarding_agent()
-        q = get_sse_queue(thread_id)
-
-        prev_text = get_last_emitted_text(thread_id)
-
-        state.last_user_message = user_text
-
-        final_state = None
-        stream_acc = ""
-        async for event, current_state in agent.process_message_with_events(state.user_id, user_text, state):
-            if not event:
-                continue
-            ev_name = event.get("event")
-            if ev_name == "token.delta":
-                raw = event.get("data", {}).get("text", "")
-                if raw:
-                    if raw.startswith(stream_acc):
-                        delta = raw[len(stream_acc) :]
-                        stream_acc = raw
-                    else:
-                        delta = raw
-                        stream_acc = stream_acc + delta
-                    if delta:
-                        set_last_emitted_text(thread_id, delta)
-                        await q.put({"event": "token.delta", "data": {"text": delta}})
-                continue
-            if ev_name == "onboarding.status" and (event.get("data", {}) or {}).get("status") == "done":
-                await self._export_user_context(current_state, thread_id)
-            await q.put(event)
-            final_state = current_state
-
-        if not (final_state.last_agent_response or ""):
-            text_out, ensured_state = await agent.process_message(state.user_id, user_text, final_state)
-            final_state = ensured_state
-            if text_out and text_out != prev_text:
-                await q.put({"event": "message.completed", "data": {"text": text_out}})
-                set_last_emitted_text(thread_id, text_out)
-
-        set_thread_state(thread_id, final_state)
-
-        return {"status": "accepted"}
 
     async def finalize(self, *, thread_id: str) -> None:
         state = get_thread_state(thread_id)
         if state is None:
             raise HTTPException(status_code=404, detail="Thread not found")
 
-        # Ensure state is an OnboardingState object, not a dict
         if isinstance(state, dict):
             from app.agents.onboarding.state import OnboardingState
+
             state = OnboardingState(**state)
 
         state.ready_for_completion = True
