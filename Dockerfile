@@ -16,7 +16,11 @@ WORKDIR /app
 
 # Copy dependency files (poetry.lock is optional)
 COPY pyproject.toml ./
+
 COPY poetry.lock* ./
+
+# Recreate poetry.lock
+RUN poetry lock
 
 # Install deps (if lock file is present, it will be used)
 RUN poetry install --no-interaction --no-ansi
