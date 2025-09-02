@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
+from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from app.api.schemas.cron import KbCronSyncResponse
+from app.api.schemas.cron import BackgroundSyncStartedResponse
 from app.knowledge.orchestrator import KnowledgeBaseOrchestrator
 
 logger = logging.getLogger(__name__)
@@ -12,26 +14,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/cron", tags=["Cron"])
 
 
-@router.post("/knowledge-base", response_model=KbCronSyncResponse)
-async def sync_all_sources() -> KbCronSyncResponse:
-    """Trigger synchronization of all knowledge base sources."""
+@router.post("/knowledge-base", response_model=BackgroundSyncStartedResponse)
+async def sync_all_sources(background_tasks: BackgroundTasks) -> BackgroundSyncStartedResponse:
+    """Trigger synchronization of all knowledge base sources in background."""
     try:
-        orchestrator = KnowledgeBaseOrchestrator()
-        result = await orchestrator.sync_all()
+        job_id = str(uuid4())
+        started_at = datetime.utcnow().isoformat()
 
-        return KbCronSyncResponse(
-            success=result["success"],
-            message=result.get("message", "Sync operation completed"),
-            sources_created=result.get("sources_created", 0),
-            sources_updated=result.get("sources_updated", 0),
-            sources_deleted=result.get("sources_deleted", 0),
-            sources_synced=result.get("sources_synced", []),
-            sync_failures=result.get("sync_failures", []),
-            deletion_failures=result.get("deletion_failures")
+        orchestrator = KnowledgeBaseOrchestrator()
+        background_tasks.add_task(orchestrator.run_background_sync, job_id)
+
+        return BackgroundSyncStartedResponse(
+            job_id=job_id,
+            message="Knowledge base sync started in background",
+            started_at=started_at
         )
     except Exception as e:
-        logger.error(f"Failed to sync all sources: {str(e)}")
+        logger.error(f"Failed to start background sync: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail=f"Sync operation failed: {str(e)}"
+            detail=f"Failed to start sync operation: {str(e)}"
         ) from e

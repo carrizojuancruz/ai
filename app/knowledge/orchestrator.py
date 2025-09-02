@@ -1,5 +1,6 @@
 import hashlib
 import logging
+from datetime import datetime
 from typing import Any, Dict
 
 from app.knowledge.models import Source
@@ -32,33 +33,43 @@ class KnowledgeBaseOrchestrator:
             deleted_count = 0
             deletion_failures = []
 
-            for local_source in local_sources:
-                if local_source.url not in external_by_url:
-                    deletion_result = await self._delete_source(local_source)
-                    if deletion_result["success"]:
-                        deleted_count += 1
-                    else:
-                        deletion_failures.append(deletion_result["error"])
+            sources_to_delete = [s for s in local_sources if s.url not in external_by_url]
+            for i, local_source in enumerate(sources_to_delete, 1):
+                logger.info(f"Deleting source {i}/{len(sources_to_delete)}: {local_source.url}")
+                deletion_result = await self._delete_source(local_source)
+                if deletion_result["success"]:
+                    deleted_count += 1
+                    logger.info(f"Successfully deleted source: {local_source.url}")
+                else:
+                    deletion_failures.append(deletion_result["error"])
+                    logger.error(f"Failed to delete source {local_source.url}: {deletion_result['error']}")
 
-            for ext_source in external_sources:
+            for i, ext_source in enumerate(external_sources, 1):
+                logger.info(f"Processing source {i}/{len(external_sources)}: {ext_source.url}")
+
                 if ext_source.url in local_by_url:
                     await self._update_source(local_by_url[ext_source.url], ext_source)
                     updated_count += 1
+                    logger.info(f"Updated source: {ext_source.url}")
                 else:
                     await self._create_source(ext_source)
                     created_count += 1
+                    logger.info(f"Created source: {ext_source.url}")
 
+            logger.info("Starting document synchronization for all sources")
             kb_results = await self.sync_service.sync_sources()
             synced_urls = []
             failed_urls = []
 
-            for result in kb_results:
+            for i, result in enumerate(kb_results, 1):
                 source = self.local_repo.find_by_id(result.source_id)
                 if source:
+                    logger.info(f"Sync result {i}/{len(kb_results)}: {source.url} - {'SUCCESS' if result.success else 'FAILED'}")
                     if result.success:
                         synced_urls.append(source.url)
                     else:
                         failed_urls.append(source.url)
+                        logger.error(f"Document sync failed for {source.url}: {result.message}")
 
             result = {
                 "success": True,
@@ -134,3 +145,36 @@ class KnowledgeBaseOrchestrator:
             recursion_depth=str(ext_source.recursion_depth) if ext_source.recursion_depth else ""
         )
         self.local_repo.update(updated_source)
+
+    async def run_background_sync(self, job_id: str) -> None:
+        """Execute the knowledge base sync with detailed progress logging."""
+        start_time = datetime.utcnow()
+
+        try:
+            logger.info(f"Starting knowledge sync job {job_id}")
+
+            external_sources = await self.external_repo.get_all()
+            logger.info(f"Job {job_id}: Starting sync with {len(external_sources)} sources")
+
+            result = await self.sync_all()
+            duration = (datetime.utcnow() - start_time).total_seconds()
+
+            sync_failures = result.get('sync_failures', [])
+            deletion_failures = result.get('deletion_failures', [])
+            sync_failure_info = [f"{url}: sync failed" for url in sync_failures] if sync_failures else []
+            deletion_failure_info = [f"{fail['url']}: {fail['message']}" for fail in deletion_failures] if deletion_failures else []
+            all_failures = sync_failure_info + deletion_failure_info
+
+            logger.info(
+                f"Job {job_id} completed successfully in {duration:.2f}s: "
+                f"Created: {result.get('sources_created', 0)}, "
+                f"Updated: {result.get('sources_updated', 0)}, "
+                f"Deleted: {result.get('sources_deleted', 0)}, "
+                f"Synced: {result.get('sources_synced', [])}, "
+                f"Failures: {all_failures}"
+            )
+
+        except Exception as e:
+            duration = (datetime.utcnow() - start_time).total_seconds()
+            logger.error(f"Job {job_id} failed after {duration:.2f}s: {str(e)}")
+            raise
