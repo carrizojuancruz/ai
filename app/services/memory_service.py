@@ -9,15 +9,45 @@ from app.services.memory.store_factory import create_s3_vectors_store_from_env
 class MemoryService:
     """Service for handling memory operations with S3 Vectors."""
 
+    # Query constants for different memory types
+    SEMANTIC_QUERY = "profile"
+    EPISODIC_QUERY = "recent conversation"
+
+    # S3 Vectors limits and configuration
+    MAX_TOPK = 30  # S3 Vectors maximum topK limit
+
+    # Valid memory types
+    VALID_MEMORY_TYPES = ["semantic", "episodic"]
+
     def __init__(self) -> None:
         """Initialize the memory service."""
         self._validate_config()
+        self._store = None
 
     def _validate_config(self) -> None:
         """Validate S3 configuration."""
         missing = config.validate_required_s3_vars()
         if missing:
             raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
+
+    def _validate_memory_type(self, memory_type: str) -> None:
+        """Validate memory type is supported."""
+        if memory_type not in self.VALID_MEMORY_TYPES:
+            raise ValueError(f"memory_type must be one of: {', '.join(self.VALID_MEMORY_TYPES)}")
+
+    def _get_store(self):
+        """Get or create S3 store instance (lazy loading)."""
+        if self._store is None:
+            self._store = create_s3_vectors_store_from_env()
+        return self._store
+
+    def _get_namespace(self, user_id: str, memory_type: str) -> tuple[str, str]:
+        """Create namespace tuple for user and memory type."""
+        return (user_id, memory_type)
+
+    def _get_query_for_type(self, memory_type: str) -> str:
+        """Get the appropriate query string for memory type."""
+        return self.SEMANTIC_QUERY if memory_type == "semantic" else self.EPISODIC_QUERY
 
     def get_memories(
         self,
@@ -42,21 +72,19 @@ class MemoryService:
             Dictionary with ok status, count, and items list
 
         """
-        if memory_type not in ["semantic", "episodic"]:
-            raise ValueError("memory_type must be 'semantic' or 'episodic'")
+        self._validate_memory_type(memory_type)
 
-        store = create_s3_vectors_store_from_env()
-        namespace = (user_id, memory_type)
-
-        broad_query = "profile" if memory_type == "semantic" else "recent conversation"
+        store = self._get_store()
+        namespace = self._get_namespace(user_id, memory_type)
+        broad_query = self._get_query_for_type(memory_type)
 
         user_filter = {"category": category} if category else None
 
         # Collect all memories using batching approach
-        # S3 Vectors limits topK to maximum of 30, so we batch accordingly
+        # S3 Vectors limits topK to maximum of MAX_TOPK, so we batch accordingly
         all_items = []
         batch_offset = offset
-        batch_limit = min(30, limit)  # S3 Vectors max topK is 30
+        batch_limit = min(self.MAX_TOPK, limit)
 
         while len(all_items) < limit:
             remaining_needed = limit - len(all_items)
@@ -127,13 +155,11 @@ class MemoryService:
             RuntimeError: If memory not found
 
         """
-        if memory_type not in ["semantic", "episodic"]:
-            raise ValueError("memory_type must be 'semantic' or 'episodic'")
+        self._validate_memory_type(memory_type)
 
-        store = create_s3_vectors_store_from_env()
-        namespace = (user_id, memory_type)
-
-        broad_query = "profile" if memory_type == "semantic" else "recent conversation"
+        store = self._get_store()
+        namespace = self._get_namespace(user_id, memory_type)
+        broad_query = self._get_query_for_type(memory_type)
         user_filter = {"doc_key": memory_key}
 
         items = store.search(
@@ -173,11 +199,10 @@ class MemoryService:
             Dictionary with deletion result
 
         """
-        if memory_type not in ["semantic", "episodic"]:
-            raise ValueError("memory_type must be 'semantic' or 'episodic'")
+        self._validate_memory_type(memory_type)
 
-        store = create_s3_vectors_store_from_env()
-        namespace = (user_id, memory_type)
+        store = self._get_store()
+        namespace = self._get_namespace(user_id, memory_type)
 
         try:
             store.delete(namespace, memory_key)
@@ -208,17 +233,16 @@ class MemoryService:
             Dictionary with deletion statistics
 
         """
-        if memory_type not in ["semantic", "episodic"]:
-            raise ValueError("memory_type must be 'semantic' or 'episodic'")
+        self._validate_memory_type(memory_type)
 
-        store = create_s3_vectors_store_from_env()
-        namespace = (user_id, memory_type)
+        store = self._get_store()
+        namespace = self._get_namespace(user_id, memory_type)
 
         all_keys = []
         offset = 0
-        batch_limit = 30  # S3 Vectors max topK is 30
+        batch_limit = self.MAX_TOPK
 
-        query = "profile" if memory_type == "semantic" else "recent conversation"
+        query = self._get_query_for_type(memory_type)
 
         while True:
             items = store.search(namespace, query=query, filter=None, limit=batch_limit, offset=offset)
