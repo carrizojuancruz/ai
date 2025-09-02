@@ -1,9 +1,8 @@
 from __future__ import annotations
-
 import logging
 import os
 from typing import Any, Dict
-
+from app.core.config import config
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -13,8 +12,8 @@ class FOSHttpClient:
     """HTTP client for FOS service."""
 
     def __init__(self):
-        self.base_url = (os.getenv("FOS_SERVICE_URL") or "").rstrip('/')
-        self.api_key = os.getenv("FOS_API_KEY")
+        self.base_url = (config.FOS_SERVICE_URL).rstrip('/')
+        self.api_key = config.FOS_API_KEY
 
         if not self.base_url:
             logger.info("FOS_SERVICE_URL not set; FOS API calls will be skipped")

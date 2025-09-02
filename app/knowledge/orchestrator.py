@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict
 
+from app.core.config import config
 from app.knowledge.models import Source
 from app.knowledge.sources.repository import SourceRepository
 from app.knowledge.sync.service import SyncService
@@ -32,6 +33,8 @@ class KnowledgeBaseOrchestrator:
             updated_count = 0
             deleted_count = 0
             deletion_failures = []
+            synced_urls = []
+            failed_urls = []
 
             sources_to_delete = [s for s in local_sources if s.url not in external_by_url]
             for i, local_source in enumerate(sources_to_delete, 1):
@@ -47,29 +50,37 @@ class KnowledgeBaseOrchestrator:
             for i, ext_source in enumerate(external_sources, 1):
                 logger.info(f"Processing source {i}/{len(external_sources)}: {ext_source.url}")
 
-                if ext_source.url in local_by_url:
-                    await self._update_source(local_by_url[ext_source.url], ext_source)
-                    updated_count += 1
-                    logger.info(f"Updated source: {ext_source.url}")
-                else:
-                    await self._create_source(ext_source)
-                    created_count += 1
-                    logger.info(f"Created source: {ext_source.url}")
+                if ext_source.enable:
 
-            logger.info("Starting document synchronization for all sources")
-            kb_results = await self.sync_service.sync_sources()
-            synced_urls = []
-            failed_urls = []
+                    source = Source(
+                        id=self._generate_source_id(ext_source.url),
+                        name=ext_source.name,
+                        url=ext_source.url,
+                        enabled=ext_source.enable,
+                        type=ext_source.type or "",
+                        category=ext_source.category or "",
+                        description=ext_source.description or "",
+                        include_path_patterns=ext_source.include_path_patterns or "",
+                        exclude_path_patterns=ext_source.exclude_path_patterns or "",
+                        total_max_pages=str(ext_source.total_max_pages) if ext_source.total_max_pages else str(config.CRAWL_MAX_PAGES),
+                        recursion_depth=str(ext_source.recursion_depth) if ext_source.recursion_depth else str(config.CRAWL_MAX_DEPTH)
+                    )
 
-            for i, result in enumerate(kb_results, 1):
-                source = self.local_repo.find_by_id(result.source_id)
-                if source:
-                    logger.info(f"Sync result {i}/{len(kb_results)}: {source.url} - {'SUCCESS' if result.success else 'FAILED'}")
-                    if result.success:
+                    sync_result = await self.sync_service.sync_source(source)
+
+                    if sync_result.success:
+
+                        if ext_source.url in local_by_url:
+                            await self._update_source(local_by_url[ext_source.url], ext_source)
+                            updated_count += 1
+                        else:
+                            await self._create_source(ext_source)
+                            created_count += 1
                         synced_urls.append(source.url)
+                        logger.info(f"Successfully synced: {ext_source.url}")
                     else:
                         failed_urls.append(source.url)
-                        logger.error(f"Document sync failed for {source.url}: {result.message}")
+                        logger.error(f"Sync failed for {ext_source.url}: {sync_result.message}")
 
             result = {
                 "success": True,
@@ -124,8 +135,8 @@ class KnowledgeBaseOrchestrator:
             description=ext_source.description or "",
             include_path_patterns=ext_source.include_path_patterns or "",
             exclude_path_patterns=ext_source.exclude_path_patterns or "",
-            total_max_pages=str(ext_source.total_max_pages) if ext_source.total_max_pages else "",
-            recursion_depth=str(ext_source.recursion_depth) if ext_source.recursion_depth else ""
+            total_max_pages=str(ext_source.total_max_pages) if ext_source.total_max_pages else str(config.CRAWL_MAX_PAGES),
+            recursion_depth=str(ext_source.recursion_depth) if ext_source.recursion_depth else str(config.CRAWL_MAX_DEPTH)
         )
         self.local_repo.add(source)
 
@@ -141,8 +152,8 @@ class KnowledgeBaseOrchestrator:
             description=ext_source.description or "",
             include_path_patterns=ext_source.include_path_patterns or "",
             exclude_path_patterns=ext_source.exclude_path_patterns or "",
-            total_max_pages=str(ext_source.total_max_pages) if ext_source.total_max_pages else "",
-            recursion_depth=str(ext_source.recursion_depth) if ext_source.recursion_depth else ""
+            total_max_pages=str(ext_source.total_max_pages) if ext_source.total_max_pages else str(config.CRAWL_MAX_PAGES),
+            recursion_depth=str(ext_source.recursion_depth) if ext_source.recursion_depth else str(config.CRAWL_MAX_DEPTH)
         )
         self.local_repo.update(updated_source)
 
