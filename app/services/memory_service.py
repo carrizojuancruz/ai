@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from botocore.exceptions import ClientError
 from app.core.config import config
 from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
@@ -211,10 +212,22 @@ class MemoryService:
                 "message": f"Memory {memory_key} deleted successfully",
                 "key": memory_key
             }
+        except ClientError as e:
+            return {
+                "ok": False,
+                "message": f"Failed to delete memory due to AWS service error: {str(e)}",
+                "key": memory_key
+            }
+        except AttributeError as e:
+            return {
+                "ok": False,
+                "message": f"Failed to delete memory due to client configuration error: {str(e)}",
+                "key": memory_key
+            }
         except Exception as e:
             return {
                 "ok": False,
-                "message": f"Failed to delete memory: {str(e)}",
+                "message": f"Failed to delete memory due to unexpected error: {str(e)}",
                 "key": memory_key
             }
 
@@ -272,7 +285,7 @@ class MemoryService:
             try:
                 store.delete(namespace, key)
                 deleted_count += 1
-            except Exception:
+            except (ClientError, AttributeError):
                 failed_count += 1
 
         return {
