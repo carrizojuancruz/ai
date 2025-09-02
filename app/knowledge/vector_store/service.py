@@ -21,8 +21,7 @@ class S3VectorStoreService:
             content_hash = doc.metadata.get('content_hash', '')
             source_id = doc.metadata.get('source_id', '')
 
-            content_hash = doc.metadata['content_hash']
-            key = f"doc_{content_hash}"
+            key = f"doc_{source_id[:16]}_{content_hash[:16]}_{i}"
 
             vectors.append({
                 'key': key,
@@ -31,7 +30,7 @@ class S3VectorStoreService:
                     'source': doc.metadata.get('source', ''),
                     'source_id': source_id,
                     'chunk_index': i,
-                    'chunk_content': doc.page_content,
+                    'content': doc.page_content,
                     'content_hash': content_hash,
                     'source_type': doc.metadata.get('source_type', ''),
                     'source_category': doc.metadata.get('source_category', ''),
@@ -46,7 +45,7 @@ class S3VectorStoreService:
         )
 
     def delete_documents_by_source_id(self, source_id: str) -> dict[str, any]:
-        """Delete all documents for a given source_id. Returns detailed results."""
+        """Delete all documents for a given source_id."""
         try:
             vector_keys = self._get_vector_keys_by_source_id(source_id)
 
@@ -151,7 +150,7 @@ class S3VectorStoreService:
         for v in response.get('vectors', []):
             metadata = v.get('metadata', {})
             results.append({
-                'content': metadata.get('chunk_content', ''),
+                'content': metadata.get('content', ''),
                 'metadata': {
                     'source': metadata.get('source', ''),
                     'source_id': metadata.get('source_id', ''),

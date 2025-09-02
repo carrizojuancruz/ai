@@ -72,7 +72,10 @@ class KnowledgeService:
                 meta = r.get('metadata', {})
                 out.append({
                     'content': r.get('content', ''),
-                    'source': meta.get('source', '')
+                    'source': meta.get('source', ''),
+                    'source_type': meta.get('source_type', ''),
+                    'source_category': meta.get('source_category', ''),
+                    'source_description': meta.get('source_description', '')
                 })
             return out
         except Exception:

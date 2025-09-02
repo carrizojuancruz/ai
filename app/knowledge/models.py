@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, List
 
 from pydantic import BaseModel, Field
 
@@ -39,10 +39,11 @@ class Source(BaseModel):
 class KBSearchResult(BaseModel):
     """Knowledge base search result."""
 
-    text: str
+    content: str
     source: str
-    score: float | None = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    source_type: str = ""
+    source_category: str = ""
+    source_description: str = ""
 
 
 class CrawlResult(BaseModel):
