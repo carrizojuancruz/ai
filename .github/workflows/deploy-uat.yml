@@ -55,6 +55,7 @@ jobs:
       - name: Deploy application
         run: |
           echo "🚀 Starting UAT deployment for ${{ needs.validate-release.outputs.release_version }}"
+          echo "Region: ${{ vars.AWS_REGION }}"
           # Add your deployment logic here
           # This could include:
           # - Building Docker images
