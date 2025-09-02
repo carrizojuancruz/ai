@@ -16,7 +16,6 @@ WORKDIR /app
 
 # Copy dependency files (poetry.lock is optional)
 COPY pyproject.toml ./
-
 COPY poetry.lock* ./
 
 # Recreate poetry.lock
