@@ -3,15 +3,13 @@ name: Build and Push to ECR
 on:
   push:
     branches:
-      - prod  # Change if needed
       - dev  # Change if needed
-      - uat  # Change if needed
     paths-ignore:
       - '.github/workflows/**'  # Ignore changes in workflow folder
   workflow_dispatch:
 env:
   ECR_REPOSITORY: "${{ github.event.repository.name }}-${{ github.ref_name }}"
-  AWS_REGION: us-east-1
+  AWS_REGION: ${{ vars.AWS_REGION }}
   AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
   ROLE_NAME: ${{ vars.ROLE_NAME }}
   ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
