@@ -15,11 +15,6 @@ on:
         description: 'Release notes'
         required: false
         default: ''
-  release:
-    types: [created]
-  push:
-    tags:
-      - 'v*'
 
 permissions:
   contents: write
@@ -50,40 +45,28 @@ jobs:
       - name: Determine release version
         id: version
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # Manual workflow dispatch - use input parameters
-            cd release
-            if [[ "${{ github.event.inputs.release_type }}" == "patch" ]]; then
-              NEW_VERSION=$(python scripts/version_bump.py --patch | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-            elif [[ "${{ github.event.inputs.release_type }}" == "minor" ]]; then
-              CURRENT=$(python scripts/version_bump.py --current)
-              IFS='.' read -ra PARTS <<< "$CURRENT"
-              python scripts/version_bump.py --major ${PARTS[0]} --minor $((${PARTS[1]} + 1))
-              NEW_VERSION="${PARTS[0]}.$((${PARTS[1]} + 1)).0"
-            else
-              CURRENT=$(python scripts/version_bump.py --current)
-              IFS='.' read -ra PARTS <<< "$CURRENT"
-              python scripts/version_bump.py --major $((${PARTS[0]} + 1)) --minor 0
-              NEW_VERSION="$((${PARTS[0]} + 1)).0.0"
-            fi
-            echo "release_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "release" ]]; then
-            # Release created - use release tag
-            echo "release_version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
-            # Tag pushed - use tag name
-            TAG_NAME=${GITHUB_REF#refs/tags/}
-            echo "release_version=$TAG_NAME" >> $GITHUB_OUTPUT
+          cd release
+          if [[ "${{ github.event.inputs.release_type }}" == "patch" ]]; then
+            NEW_VERSION=$(python3 scripts/version_bump.py --patch | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          elif [[ "${{ github.event.inputs.release_type }}" == "minor" ]]; then
+            CURRENT=$(python3 scripts/version_bump.py --current)
+            IFS='.' read -ra PARTS <<< "$CURRENT"
+            python3 scripts/version_bump.py --major ${PARTS[0]} --minor $((${PARTS[1]} + 1))
+            NEW_VERSION="${PARTS[0]}.$((${PARTS[1]} + 1)).0"
+          else
+            CURRENT=$(python3 scripts/version_bump.py --current)
+            IFS='.' read -ra PARTS <<< "$CURRENT"
+            python3 scripts/version_bump.py --major $((${PARTS[0]} + 1)) --minor 0
+            NEW_VERSION="$((${PARTS[0]} + 1)).0.0"
           fi
+          echo "release_version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
       - name: Commit version changes
-        if: github.event_name == 'workflow_dispatch'
         run: |
           git add version.json
           git commit -m "chore: bump version to ${{ steps.version.outputs.release_version }}"
 
       - name: Create and push tag
-        if: github.event_name == 'workflow_dispatch'
         run: |
           git tag -a "${{ steps.version.outputs.release_version }}" -m "Release ${{ steps.version.outputs.release_version }}"
           git push origin dev
@@ -104,7 +87,7 @@ jobs:
           NOTES="## Release ${{ steps.version.outputs.release_version }}"
           NOTES="${NOTES}\n\n### Changes"
           NOTES="${NOTES}\n${COMMITS}"
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.release_notes }}" ]]; then
+          if [[ -n "${{ github.event.inputs.release_notes }}" ]]; then
             NOTES="${NOTES}\n\n### Custom Notes"
             NOTES="${NOTES}\n${{ github.event.inputs.release_notes }}"
           fi
@@ -113,7 +96,6 @@ jobs:
           echo -e "${NOTES}" > release_notes.md
 
       - name: Create GitHub Release
-        if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.version.outputs.release_version }}
