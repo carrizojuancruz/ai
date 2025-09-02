@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from botocore.exceptions import ClientError
+
 from app.core.config import config
 from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
