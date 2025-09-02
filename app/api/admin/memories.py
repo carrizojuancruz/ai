@@ -56,10 +56,6 @@ class MemoryDeleteResponse(BaseModel):
     failed_count: Optional[int] = None
     total_found: Optional[int] = None
 
-
-
-
-
 @router.get("/{user_id}")
 async def get_memories(
     user_id: str,
