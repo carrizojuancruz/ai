@@ -31,6 +31,8 @@ class GoalStatus(str, Enum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
+    PAUSED = "paused"
+    OFF_TRACK = "off_track"
     ERROR = "error"
     DELETED = "deleted"
 
@@ -233,8 +235,6 @@ class Goal(BaseModel):
     Complete Goals System V1 specification.
     Enables users to define, track, and achieve financial objectives.
     """
-    model_config = ConfigDict(populate_by_name=True)
-
     # Core identification
     goal_id: Optional[UUID] = Field(default=None, description="Unique goal identifier")
     user_id: UUID = Field(..., description="User identifier")
@@ -262,6 +262,16 @@ class Goal(BaseModel):
 
     # Audit trail
     audit: Optional[Audit] = Field(None, description="Creation and update timestamps")
+
+    # Model configuration for proper serialization
+    model_config = ConfigDict(
+        populate_by_name=True,
+        use_enum_values=True,
+        json_encoders={
+            UUID: lambda v: str(v),
+            datetime: lambda v: v.isoformat()
+        }
+    )
 
     @model_validator(mode="after")
     def _validate_goal_configuration(self) -> "Goal":

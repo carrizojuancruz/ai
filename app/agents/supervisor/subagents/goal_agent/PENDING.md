@@ -186,7 +186,7 @@ StateTransitionRequest:
 ## Validations
 - Valid categories: saving, spending, debt, income, investment, net_worth, other.
 - Valid natures: increase, reduce.
-- Valid statuses: pending, in_progress, completed, error, deleted.
+- Valid statuses: pending, in_progress, off_track, paused, completed, error, deleted.
 - Frequency validation: specific requires date, recurrent requires unit/every/start_date.
 - Amount validation: absolute requires target, percentage requires target_pct and basis.
 - State transitions: follow defined rules (pending → in_progress, etc.).

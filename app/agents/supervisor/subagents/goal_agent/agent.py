@@ -12,8 +12,8 @@ from app.observability.logging_config import configure_logging  # ensure logging
 
 from app.agents.supervisor.subagents.goal_agent.prompts import GOAL_AGENT_PROMPT
 from app.agents.supervisor.subagents.goal_agent.tools import (
-    create_goal, update_goal, list_goals, get_goal, delete_goal,
-    calculate_progress, handle_binary_choice, get_goals_by_status
+    create_goal, update_goal, get_in_progress_goal,
+    get_goal_requirements, list_goals
 )
 
 logger = logging.getLogger(__name__)
@@ -42,16 +42,19 @@ def compile_goal_agent_graph() -> CompiledStateGraph:
     goal_agent = create_react_agent(
         model=chat_bedrock,
         tools=[
-            create_goal, update_goal, list_goals, get_goal, delete_goal,
-            calculate_progress, handle_binary_choice, get_goals_by_status
+            create_goal, update_goal, get_in_progress_goal,
+            get_goal_requirements, list_goals
         ],
         prompt=GOAL_AGENT_PROMPT,
         name="goal_agent",
     )
 
     builder = StateGraph(MessagesState)
-
-    builder.add_node(goal_agent)
+    
+    # Agregar el nodo del agente
+    builder.add_node("goal_agent", goal_agent)
+    
+    # Definir el flujo
     builder.add_edge(START, "goal_agent")
     builder.add_edge("goal_agent", END)
 
