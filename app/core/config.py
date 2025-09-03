@@ -99,6 +99,7 @@ class Config:
     CRAWL_MAX_DEPTH: int = int(os.getenv("CRAWL_MAX_DEPTH", "2"))
     CRAWL_MAX_PAGES: int = int(os.getenv("CRAWL_MAX_PAGES", "20"))
     CRAWL_TIMEOUT: int = int(os.getenv("CRAWL_TIMEOUT", "30"))
+    MAX_DOCUMENTS_PER_SOURCE: int = int(os.getenv("MAX_DOCUMENTS_PER_SOURCE", "20"))
 
     # Search Configuration
     TOP_K_SEARCH: int = int(os.getenv("TOP_K_SEARCH", "10"))

@@ -80,7 +80,9 @@ class KnowledgeBaseSyncService:
 
                 if result["is_new_source"]:
                     created_count += 1
-                    logger.info(f"Created new source: {external_source.url}")
+                    chunks_added = result.get("documents_added", 0)
+                    total_chunks_created += chunks_added
+                    logger.info(f"Created new source: {external_source.url} (+{chunks_added} chunks)")
                 elif result.get("documents_added", 0) > 0:
                     updated_count += 1
                     chunks_added = result.get("documents_added", 0)
@@ -94,7 +96,7 @@ class KnowledgeBaseSyncService:
 
                 source_end_time = time.time()
                 processing_time = source_end_time - source_start_time
-                logger.info(f"Successfully synced: {external_source.url} in {processing_time:.2f}s")
+                logger.debug(f"Sync completed for {external_source.url} in {processing_time:.2f}s")
 
             except Exception as e:
                 failed_urls.append(external_source.url)

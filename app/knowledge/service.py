@@ -35,11 +35,29 @@ class KnowledgeService:
             logger.error(f"Failed to delete vectors for source {source.id}: {deletion_result['message']}")
             return {"success": False, "error": error_info}
 
+    def _limit_documents_per_source(self, documents: List, source_url: str) -> List:
+        """Limit documents per source to configured maximum.
+
+        Args:
+            documents: List of documents to potentially limit
+            source_url: Source URL for logging
+
+        Returns:
+            Limited list of documents
+
+        """
+        original_count = len(documents)
+        max_docs = config.MAX_DOCUMENTS_PER_SOURCE
+
+        if original_count > max_docs:
+            documents = documents[:max_docs]
+            logger.info(f"Limited documents from {original_count} to {max_docs} per source limit: {source_url}")
+
+        return documents
+
     async def upsert_source(self, source: Source) -> Dict[str, Any]:
         import time
         start_time = time.time()
-
-        logger.info(f"Starting upsert for source: {source.url}")
 
         crawl_result = await self.crawler_service.crawl_source(source)
         documents = crawl_result.get("documents", [])
@@ -49,13 +67,16 @@ class KnowledgeService:
             return {
                 "source_url": source.url,
                 "success": False,
-                "message": "No documents found during crawl"
+                "message": "No documents found during crawl",
+                "is_new_source": False,
+                "documents_added": 0
             }
 
-        logger.info(f"Crawled {len(documents)} documents from {source.url}")
+        documents = self._limit_documents_per_source(documents, source.url)
+        logger.debug(f"Processing {len(documents)} documents from {source.url}")
 
         chunks = self.document_service.split_documents(documents, source)
-        logger.info(f"Split into {len(chunks)} chunks for {source.url}")
+        logger.debug(f"Split into {len(chunks)} chunks for {source.url}")
 
         new_hashes = {doc.metadata.get("content_hash") for doc in chunks}
 
@@ -80,7 +101,9 @@ class KnowledgeService:
                 return {
                     "source_url": source.url,
                     "success": False,
-                    "message": f"Failed to delete existing documents: {delete_result['error']['message']}"
+                    "message": f"Failed to delete existing documents: {delete_result['error']['message']}",
+                    "is_new_source": False,
+                    "documents_added": 0
                 }
 
         logger.info(f"Generating embeddings for {len(chunks)} chunks from {source.url}")
@@ -102,7 +125,7 @@ class KnowledgeService:
             "processing_time_seconds": round(processing_time, 2)
         }
 
-        logger.info(f"Successfully upserted {source.url}: {len(chunks)} chunks in {processing_time:.2f}s")
+        logger.debug(f"Successfully upserted {source.url}: {len(chunks)} chunks in {processing_time:.2f}s")
 
         return result
 
