@@ -96,8 +96,8 @@ class Config:
 
     # Crawling Configuration
     CRAWL_TYPE: str = os.getenv("CRAWL_TYPE", "recursive")
-    CRAWL_MAX_DEPTH: int = int(os.getenv("CRAWL_MAX_DEPTH", "3"))
-    CRAWL_MAX_PAGES: int = int(os.getenv("CRAWL_MAX_PAGES", "50"))
+    CRAWL_MAX_DEPTH: int = int(os.getenv("CRAWL_MAX_DEPTH", "2"))
+    CRAWL_MAX_PAGES: int = int(os.getenv("CRAWL_MAX_PAGES", "20"))
     CRAWL_TIMEOUT: int = int(os.getenv("CRAWL_TIMEOUT", "30"))
 
     # Search Configuration

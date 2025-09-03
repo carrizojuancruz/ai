@@ -16,6 +16,8 @@ class S3VectorStoreService:
         self.client = boto3.client('s3vectors', region_name=config.AWS_REGION)
 
     def add_documents(self, documents: List[Document], embeddings: List[List[float]]):
+        logger.info(f"Adding {len(documents)} documents to vector store")
+
         vectors = []
         for i, (doc, embedding) in enumerate(zip(documents, embeddings, strict=False)):
             content_hash = doc.metadata.get('content_hash', '')
@@ -40,24 +42,34 @@ class S3VectorStoreService:
                 }
             })
 
-        self.client.put_vectors(
-            vectorBucketName=self.bucket_name,
-            indexName=self.index_name,
-            vectors=vectors
-        )
+        try:
+            self.client.put_vectors(
+                vectorBucketName=self.bucket_name,
+                indexName=self.index_name,
+                vectors=vectors
+            )
+            logger.info(f"Successfully stored {len(vectors)} vectors in {self.index_name}")
+        except Exception as e:
+            logger.error(f"Failed to store vectors: {str(e)}")
+            raise
 
     def delete_documents_by_source_id(self, source_id: str) -> dict[str, any]:
         """Delete all documents for a given source_id."""
+        logger.info(f"Starting deletion of vectors for source {source_id}")
+
         try:
             vector_keys = self._get_vector_keys_by_source_id(source_id)
 
             if not vector_keys:
+                logger.info(f"No vectors found for source {source_id}")
                 return {
                     "success": True,
                     "vectors_found": 0,
                     "vectors_deleted": 0,
                     "message": "No vectors found to delete"
                 }
+
+            logger.info(f"Found {len(vector_keys)} vectors to delete for source {source_id}")
 
             batch_size = 100
             deleted_count = 0
@@ -72,6 +84,7 @@ class S3VectorStoreService:
                         keys=batch_keys
                     )
                     deleted_count += len(batch_keys)
+                    logger.debug(f"Deleted batch {i//batch_size + 1}: {len(batch_keys)} vectors")
                 except Exception as batch_error:
                     logger.error(f"Failed to delete batch {i//batch_size + 1}: {str(batch_error)}")
                     failed_keys.extend(batch_keys)
@@ -88,12 +101,16 @@ class S3VectorStoreService:
 
             if success:
                 result["message"] = f"Successfully deleted all {deleted_count} vectors"
+                logger.info(f"Successfully deleted all {deleted_count} vectors for source {source_id}")
             elif deleted_count > 0:
                 result["message"] = f"Partially successful: deleted {deleted_count}/{total_found} vectors"
                 result["failed_keys"] = failed_keys
+                logger.warning(f"Partially deleted vectors for source {source_id}: {deleted_count}/{total_found}")
             else:
                 result["message"] = "Failed to delete any vectors"
                 result["failed_keys"] = failed_keys
+                logger.error(f"Failed to delete any vectors for source {source_id}")
+
             return result
         except Exception as e:
             logger.error(f"Failed to delete documents for source {source_id}: {str(e)}")
@@ -137,7 +154,7 @@ class S3VectorStoreService:
             content_hash = vector.get('metadata', {}).get('content_hash')
             if content_hash:
                 hashes.add(content_hash)
-        
+
         logger.info(f"Found {len(hashes)} existing chunks for source_id: {source_id}")
         return hashes
 

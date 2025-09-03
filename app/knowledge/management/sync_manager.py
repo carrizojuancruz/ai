@@ -3,19 +3,19 @@ import asyncio
 import logging
 import sys
 
-from app.knowledge.service import KnowledgeService
 from app.knowledge.sync_service import KnowledgeBaseSyncService
+
 logger = logging.getLogger(__name__)
 
 
 class KbSyncManager:
-    """Manages knowledge base sync"""
+    """Manages knowledge base sync."""
 
     def __init__(self):
         self.sync_service = KnowledgeBaseSyncService()
 
     async def sync_all(self):
-        """Sync all sources"""
+        """Sync all sources."""
         results = await self.sync_service.sync_all()
         logger.info(f"Synced {len(results)} sources")
         return results

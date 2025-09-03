@@ -36,16 +36,27 @@ class KnowledgeService:
             return {"success": False, "error": error_info}
 
     async def upsert_source(self, source: Source) -> Dict[str, Any]:
+        import time
+        start_time = time.time()
+
+        logger.info(f"Starting upsert for source: {source.url}")
+
         crawl_result = await self.crawler_service.crawl_source(source)
         documents = crawl_result.get("documents", [])
+
         if not documents:
+            logger.warning(f"No documents found during crawl for {source.url}")
             return {
                 "source_url": source.url,
                 "success": False,
                 "message": "No documents found during crawl"
             }
 
+        logger.info(f"Crawled {len(documents)} documents from {source.url}")
+
         chunks = self.document_service.split_documents(documents, source)
+        logger.info(f"Split into {len(chunks)} chunks for {source.url}")
+
         new_hashes = {doc.metadata.get("content_hash") for doc in chunks}
 
         existing_source = self.source_repository.find_by_url(source.url)
@@ -58,7 +69,8 @@ class KnowledgeService:
                     "source_url": source.url,
                     "success": True,
                     "message": "No changes detected",
-                    "is_new_source": False
+                    "is_new_source": False,
+                    "documents_added": 0
                 }
 
             logger.info(f"Source {source.url} needs reindexing - deleting old documents")
@@ -71,19 +83,29 @@ class KnowledgeService:
                     "message": f"Failed to delete existing documents: {delete_result['error']['message']}"
                 }
 
+        logger.info(f"Generating embeddings for {len(chunks)} chunks from {source.url}")
         chunk_texts = [doc.page_content for doc in chunks]
         chunk_embeddings = self.document_service.generate_embeddings(chunk_texts)
 
+        logger.info(f"Storing {len(chunks)} vectors for {source.url}")
         self.vector_store_service.add_documents(chunks, chunk_embeddings)
 
         self.source_repository.upsert(source)
 
-        return {
-                "success": True,
-                "documents_added": len(chunks),
-                "source_url": source.url,
-                "is_new_source": not is_update
-            }
+        end_time = time.time()
+        processing_time = end_time - start_time
+
+        result = {
+            "success": True,
+            "documents_added": len(chunks),
+            "source_url": source.url,
+            "is_new_source": not is_update,
+            "processing_time_seconds": round(processing_time, 2)
+        }
+
+        logger.info(f"Successfully upserted {source.url}: {len(chunks)} chunks in {processing_time:.2f}s")
+
+        return result
 
     async def search(self, query: str) -> List[Dict[str, Any]]:
         try:
@@ -119,6 +141,95 @@ class KnowledgeService:
             logger.info(f"Changes detected for source_id {source_id}: {len(old_hashes)} → {len(new_hashes)} chunks")
 
         return needs_reindex
+
+    def get_source_details(self, source_id: str, include_all_chunks: bool = False) -> Dict[str, Any]:
+        """Get detailed information about a source including chunk count and metadata.
+
+        Args:
+            source_id: The source ID to get details for
+            include_all_chunks: Whether to include full content of all chunks (can be large)
+
+        """
+        sources = self.get_sources()
+        source = next((s for s in sources if s.id == source_id), None)
+        if not source:
+            return {"error": f"Source with id {source_id} not found"}
+        chunk_hashes = self.vector_store_service.get_source_chunk_hashes(source_id)
+
+        all_chunks = []
+        sample_chunks = []
+        vector_count = 0
+
+        try:
+            for vector in self.vector_store_service._iterate_vectors_by_source_id(source_id):
+                vector_count += 1
+                metadata = vector.get('metadata', {})
+                content = metadata.get('content', '')
+
+                chunk_data = {
+                    'content_preview': content[:200] + '...' if len(content) > 200 else content,
+                    'content_length': len(content),
+                    'estimated_tokens': len(content) // 4,  # ~4 chars per token estimation
+                    'section_url': metadata.get('section_url', ''),
+                    'chunk_index': metadata.get('chunk_index', 0),
+                    'content_hash': metadata.get('content_hash', ''),
+                    'vector_key': vector.get('key', '')
+                }
+
+                # Add full content only if requested
+                if include_all_chunks:
+                    chunk_data['content'] = content
+                    all_chunks.append(chunk_data)
+
+                # Always keep first 3 for sample
+                if len(sample_chunks) < 3:
+                    sample_data = chunk_data.copy()
+                    if not include_all_chunks:  # Add content to sample even if not including all
+                        sample_data['content'] = content
+                    sample_chunks.append(sample_data)
+
+        except Exception as e:
+            logger.error(f"Error retrieving chunk metadata: {str(e)}")
+
+        # Calculate total tokens for all chunks
+        total_chars = sum(chunk.get('content_length', 0) for chunk in (all_chunks if include_all_chunks else sample_chunks))
+        if not include_all_chunks and vector_count > 3:
+            # Estimate total chars based on average chunk size
+            avg_chunk_size = total_chars / len(sample_chunks) if sample_chunks else 0
+            total_chars = int(avg_chunk_size * vector_count)
+
+        total_estimated_tokens = total_chars // 4
+
+        result = {
+            "source": {
+                "id": source.id,
+                "name": source.name,
+                "url": source.url,
+                "type": source.type,
+                "category": source.category,
+                "description": source.description,
+                "total_max_pages": source.total_max_pages,
+                "recursion_depth": source.recursion_depth,
+                "last_sync": source.last_sync
+            },
+            "chunks": {
+                "total_chunks": vector_count,
+                "unique_content_hashes": len(chunk_hashes),
+                "total_characters": total_chars,
+                "total_estimated_tokens": total_estimated_tokens,
+                "estimated_embedding_cost": total_estimated_tokens * 0.00002 / 1000,  # Amazon Titan pricing
+                "sample_chunks": sample_chunks
+            }
+        }
+
+        # Only include all_chunks if requested and we have data
+        if include_all_chunks and all_chunks:
+            result["chunks"]["all_chunks"] = all_chunks
+            logger.info(f"Returning {len(all_chunks)} chunks for source {source_id}")
+        else:
+            logger.info(f"Returning sample of {len(sample_chunks)} chunks for source {source_id}")
+
+        return result
 
 
 _knowledge_service: KnowledgeService | None = None

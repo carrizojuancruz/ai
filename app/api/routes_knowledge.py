@@ -56,3 +56,23 @@ async def get_sources() -> SourcesResponse:
             status_code=500,
             detail=f"Failed to retrieve sources: {str(e)}"
         ) from e
+
+
+@router.get("/sources/{source_id}/details")
+async def get_source_details(source_id: str):
+    """Get basic details about a source and its chunks."""
+    try:
+        knowledge_service = KnowledgeService()
+        details = knowledge_service.get_source_details(source_id, include_all_chunks=True)
+
+        if "error" in details:
+            raise HTTPException(status_code=404, detail=details["error"])
+
+        return {
+            "source": details["source"],
+            "chunks": details["chunks"]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get details: {str(e)}") from e

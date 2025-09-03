@@ -9,22 +9,8 @@
     "description": "Information and referrals for social services",
     "include_path_patterns": "",
     "exclude_path_patterns": "",
-    "total_max_pages": "50",
-    "recursion_depth": "3",
-    "last_sync": "2025-09-03T13:38:39"
-  },
-  {
-    "id": "8535605d22f01cf3",
-    "name": "988 Suicide & Crisis Lifeline",
-    "url": "https://988lifeline.org",
-    "enabled": true,
-    "type": "Government Crisis Service",
-    "category": "Mental Health",
-    "description": "Nationwide three-digit number for crisis support",
-    "include_path_patterns": "",
-    "exclude_path_patterns": "",
-    "total_max_pages": "50",
-    "recursion_depth": "3",
-    "last_sync": "2025-09-03T13:40:09"
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-03T16:29:53"
   }
 ]

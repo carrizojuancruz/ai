@@ -63,36 +63,6 @@ class ExternalSourcesRepository(ExternalSourcesRepositoryInterface):
                         "created_at": "2025-08-31T18:27:06.867504Z",
                         "updated_at": "2025-08-31T18:27:06.867504Z"
                     }
-                },
-                {
-                    "id": "23f1fda0-a2bb-4aed-9447-7ab606ac4982",
-                    "name": "988 Suicide & Crisis Lifeline",
-                    "type_id": "7604838a-0212-4dde-a8df-6ff08b748241",
-                    "category_id": "8850ddfd-7b7b-44df-9aaa-f9c7f5207345",
-                    "url": "https://988lifeline.org",
-                    "description": "Nationwide three-digit number for crisis support",
-                    "include_path_patterns": None,
-                    "exclude_path_patterns": None,
-                    "total_max_pages": None,
-                    "recursion_depth": None,
-                    "enabled": True,
-                    "meta_data": {},
-                    "created_by": "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8",
-                    "updated_by": "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8",
-                    "created_at": "2025-08-31T22:05:30.141437Z",
-                    "updated_at": "2025-08-31T22:05:30.141437Z",
-                    "source_type_ref": {
-                        "name": "Government Crisis Service",
-                        "id": "7604838a-0212-4dde-a8df-6ff08b748241",
-                        "created_at": "2025-08-31T22:05:30.141437Z",
-                        "updated_at": "2025-08-31T22:05:30.141437Z"
-                    },
-                    "category_ref": {
-                        "name": "Mental Health",
-                        "id": "8850ddfd-7b7b-44df-9aaa-f9c7f5207345",
-                        "created_at": "2025-08-31T22:05:30.141437Z",
-                        "updated_at": "2025-08-31T22:05:30.141437Z"
-                    }
                 }
             ]
         }
