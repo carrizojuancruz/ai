@@ -1,14 +1,18 @@
 import logging
 import re
 import ssl
+import warnings
 from typing import Any, Dict, List, Set
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 from langchain_community.document_loaders import RecursiveUrlLoader, SitemapLoader
 from langchain_core.documents import Document
 
 from app.core.config import config
 from app.knowledge.models import Source
+
+# Suppress XML parser warnings
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +46,20 @@ class CrawlerService:
     WHITESPACE_PATTERN = re.compile(r'\n\n+')
 
     DEFAULT_HEADERS = {
-        'User-Agent': 'Verde-AI Knowledge Crawler 1.0 (Educational/Research Purpose)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': '*',
-        'Accept-Encoding': 'gzip, deflate'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1'
     }
 
     def __init__(self):
@@ -176,6 +190,9 @@ class CrawlerService:
         try:
             exclude_dirs = self._build_exclude_dirs(source)
 
+            # Apply document limit at crawler level to save time
+            max_docs_to_crawl = min(max_pages, config.MAX_DOCUMENTS_PER_SOURCE)
+            
             loader = RecursiveUrlLoader(
                 url=source.url,
                 max_depth=max_depth,
@@ -189,7 +206,7 @@ class CrawlerService:
                 ssl=False
             )
 
-            documents = loader.load()[:max_pages]
+            documents = loader.load()[:max_docs_to_crawl]
 
             filtered_documents = self._filter_documents(documents)
 

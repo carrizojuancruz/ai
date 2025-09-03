@@ -63,20 +63,19 @@ class KnowledgeService:
         documents = crawl_result.get("documents", [])
 
         if not documents:
-            logger.warning(f"No documents found during crawl for {source.url}")
+            logger.info(f"No documents found during crawl for {source.url}")
             return {
                 "source_url": source.url,
-                "success": False,
+                "success": True,
                 "message": "No documents found during crawl",
                 "is_new_source": False,
                 "documents_added": 0
             }
 
-        documents = self._limit_documents_per_source(documents, source.url)
-        logger.debug(f"Processing {len(documents)} documents from {source.url}")
+        logger.info(f"Processing {len(documents)} documents from {source.url}")
 
         chunks = self.document_service.split_documents(documents, source)
-        logger.debug(f"Split into {len(chunks)} chunks for {source.url}")
+        logger.info(f"Split into {len(chunks)} chunks for {source.url}")
 
         new_hashes = {doc.metadata.get("content_hash") for doc in chunks}
 
@@ -112,6 +111,7 @@ class KnowledgeService:
 
         self.vector_store_service.add_documents(chunks, chunk_embeddings)
 
+        source.total_chunks = len(chunks)
         self.source_repository.upsert(source)
 
         end_time = time.time()

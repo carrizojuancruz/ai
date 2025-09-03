@@ -18,3 +18,4 @@ class Source(BaseModel):
     total_max_pages: int | None = None
     recursion_depth: int | None = None
     last_sync: datetime | None = None
+    total_chunks: int = 0

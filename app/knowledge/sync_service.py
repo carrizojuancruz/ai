@@ -27,34 +27,32 @@ class KnowledgeBaseSyncService:
         external_sources_by_url = {s.url: s for s in external_sources}
         kb_sources_by_url = {s.url: s for s in kb_sources}
 
-        created_count = 0
-        updated_count = 0
-        deleted_count = 0
-        total_documents_processed = 0
+        sources_created = 0
+        sources_updated = 0
+        sources_deleted = 0
+        sources_no_changes = 0
+        sources_errors = 0
+        sync_failures = []
         total_chunks_created = 0
-        deletion_failures = []
-        synced_urls = []
-        failed_urls = []
-
 
         sources_to_delete = [source for url, source in kb_sources_by_url.items() if url not in external_sources_by_url]
 
         for source in sources_to_delete:
             deletion_result = self.kb_service.delete_source(source)
             if deletion_result["success"]:
-                deleted_count += 1
+                sources_deleted += 1
+                logger.info(f"Deleted source: {source.url}")
             else:
-                deletion_failures.append(deletion_result["error"])
+                sources_errors += 1
+                sync_failures.append({
+                    "url": source.url,
+                    "cause": f"Deletion failed: {deletion_result['error']['message']}"
+                })
                 logger.error(f"Failed to delete source {source.url}: {deletion_result['error']}")
 
         enabled_sources = [s for s in external_sources if s.enable]
 
-        for external_source in external_sources:
-            if not external_source.enable:
-                logger.debug(f"Skipping disabled source: {external_source.url}")
-                continue
-
-            source_start_time = time.time()
+        for external_source in enabled_sources:
             logger.info(f"Processing source {external_source.url}")
 
             try:
@@ -78,50 +76,78 @@ class KnowledgeBaseSyncService:
 
                 result = await self.kb_service.upsert_source(internal_source)
 
+                if not result["success"]:
+                    sources_errors += 1
+                    sync_failures.append({
+                        "url": external_source.url,
+                        "cause": result.get("message", "Unknown sync failure")
+                    })
+                    logger.error(f"Sync failed for {external_source.url}: {result.get('message', 'Unknown error')}")
+                    continue
+
+                chunks_added = result.get("documents_added", 0)
+
                 if result["is_new_source"]:
-                    created_count += 1
-                    chunks_added = result.get("documents_added", 0)
+                    sources_created += 1
                     total_chunks_created += chunks_added
                     logger.info(f"Created new source: {external_source.url} (+{chunks_added} chunks)")
-                elif result.get("documents_added", 0) > 0:
-                    updated_count += 1
-                    chunks_added = result.get("documents_added", 0)
+                elif chunks_added > 0:
+                    sources_updated += 1
                     total_chunks_created += chunks_added
                     logger.info(f"Updated source: {external_source.url} (+{chunks_added} chunks)")
                 else:
+                    sources_no_changes += 1
                     logger.info(f"No changes for source: {external_source.url}")
 
-                total_documents_processed += 1
-                synced_urls.append(external_source.url)
-
-                source_end_time = time.time()
-                processing_time = source_end_time - source_start_time
-                logger.debug(f"Sync completed for {external_source.url} in {processing_time:.2f}s")
-
             except Exception as e:
-                failed_urls.append(external_source.url)
-                logger.error(f"Sync failed for {external_source.url}: {str(e)}")
+                sources_errors += 1
+                error_msg = str(e)
+                if "ssl" in error_msg.lower() or "certificate" in error_msg.lower():
+                    cause = f"SSL certificate error: {error_msg}"
+                elif "timeout" in error_msg.lower() or "connection" in error_msg.lower():
+                    cause = f"Connection timeout: {error_msg}"
+                elif "403" in error_msg or "forbidden" in error_msg.lower():
+                    cause = f"Access forbidden: {error_msg}"
+                elif "404" in error_msg or "not found" in error_msg.lower():
+                    cause = f"Page not found: {error_msg}"
+                else:
+                    cause = f"Crawling error: {error_msg}"
+
+                sync_failures.append({
+                    "url": external_source.url,
+                    "cause": cause
+                })
+                logger.error(f"Sync failed for {external_source.url}: {error_msg}")
 
         end_time = time.time()
         total_time = end_time - start_time
 
         result = {
             "success": True,
-            "sources_created": created_count,
-            "sources_updated": updated_count,
-            "sources_deleted": deleted_count,
-            "sources_processed": total_documents_processed,
+            "sources_created": sources_created,
+            "sources_updated": sources_updated,
+            "sources_deleted": sources_deleted,
+            "sources_no_changes": sources_no_changes,
+            "sources_errors": sources_errors,
             "total_chunks_created": total_chunks_created,
-            "sources_synced": synced_urls,
-            "sync_failures": failed_urls,
+            "sync_failures": sync_failures,
             "total_sync_time_seconds": round(total_time, 2),
             "average_time_per_source": round(total_time / max(len(enabled_sources), 1), 2)
         }
 
-        if deletion_failures:
-            result["deletion_failures"] = deletion_failures
+        failure_count = len(sync_failures)
 
-        logger.info(f"Knowledge base sync completed in {total_time:.2f}s: {created_count} created, {updated_count} updated, {deleted_count} deleted, {len(failed_urls)} failed")
+        logger.info(
+            f"Knowledge base sync completed in {total_time:.2f}s: "
+            f"Created: {sources_created}, Updated: {sources_updated}, "
+            f"No changes: {sources_no_changes}, Deleted: {sources_deleted}, "
+            f"Errors: {sources_errors}, Total chunks: {total_chunks_created}"
+        )
+
+        if sync_failures:
+            logger.warning(f"Sync failures ({failure_count}):")
+            for failure in sync_failures:
+                logger.warning(f"  - {failure['url']}: {failure['cause']}")
 
         return result
 

@@ -46,19 +46,14 @@ async def run_background_sync(job_id: str):
         result = await sync_service.sync_all()
         duration = (datetime.utcnow() - start_time).total_seconds()
 
-        sync_failures = result.get('sync_failures', [])
-        deletion_failures = result.get('deletion_failures', [])
-        sync_failure_info = [f"{url}: sync failed" for url in sync_failures] if sync_failures else []
-        deletion_failure_info = [f"{fail['url']}: {fail['message']}" for fail in deletion_failures] if deletion_failures else []
-        all_failures = sync_failure_info + deletion_failure_info
-
         logger.info(
             f"Job {job_id} completed successfully in {duration:.2f}s: "
             f"Created: {result.get('sources_created', 0)}, "
             f"Updated: {result.get('sources_updated', 0)}, "
+            f"No changes: {result.get('sources_no_changes', 0)}, "
             f"Deleted: {result.get('sources_deleted', 0)}, "
-            f"Synced: {result.get('sources_synced', [])}, "
-            f"Failures: {all_failures}"
+            f"Errors: {result.get('sources_errors', 0)}, "
+            f"Total chunks: {result.get('total_chunks_created', 0)}"
         )
 
     except Exception as e:
