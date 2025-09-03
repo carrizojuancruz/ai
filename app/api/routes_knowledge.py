@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.knowledge.service import KnowledgeService
 
-from .schemas.knowledge import SearchRequest, SearchResponse, SourceResponse, SourcesResponse
+from .schemas.knowledge import SearchRequest, SearchResponse, SourceDetailsResponse, SourceResponse, SourcesResponse
 
 router = APIRouter(prefix="/knowledge", tags=["Knowledge Base"])
 
@@ -58,20 +58,21 @@ async def get_sources() -> SourcesResponse:
         ) from e
 
 
-@router.get("/sources/{source_id}/details")
-async def get_source_details(source_id: str):
+@router.get("/sources/{source_id}/details", response_model=SourceDetailsResponse)
+async def get_source_details(source_id: str) -> SourceDetailsResponse:
     """Get basic details about a source and its chunks."""
     try:
         knowledge_service = KnowledgeService()
-        details = knowledge_service.get_source_details(source_id, include_all_chunks=True)
+        details = knowledge_service.get_source_details(source_id)
 
         if "error" in details:
             raise HTTPException(status_code=404, detail=details["error"])
 
-        return {
-            "source": details["source"],
-            "chunks": details["chunks"]
-        }
+        return SourceDetailsResponse(
+            source=details["source"],
+            total_chunks=details["total_chunks"],
+            chunks=details["chunks"]
+        )
     except HTTPException:
         raise
     except Exception as e:

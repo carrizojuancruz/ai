@@ -29,8 +29,6 @@ class DocumentService:
 
     def split_documents(self, documents: List[Document], source: Source) -> List[Document]:
         """Split documents into chunks with source metadata."""
-        logger.info(f"Splitting {len(documents)} documents into chunks for source {source.url}")
-
         all_chunks = []
 
         for doc in documents:
@@ -56,12 +54,10 @@ class DocumentService:
                 chunk.metadata["content_hash"] = hashlib.sha256(chunk.page_content.encode()).hexdigest()
             all_chunks.extend(chunks)
 
-        logger.info(f"Created {len(all_chunks)} chunks from {len(documents)} documents")
         return all_chunks
 
     def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for a list of texts."""
-        logger.info(f"Starting embedding generation for {len(texts)} chunks")
         start_time = time.time()
         embeddings = self.embeddings.embed_documents(texts)
         end_time = time.time()

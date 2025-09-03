@@ -16,7 +16,6 @@ class S3VectorStoreService:
         self.client = boto3.client('s3vectors', region_name=config.AWS_REGION)
 
     def add_documents(self, documents: List[Document], embeddings: List[List[float]]):
-        logger.info(f"Adding {len(documents)} documents to vector store")
 
         vectors = []
         for i, (doc, embedding) in enumerate(zip(documents, embeddings, strict=False)):
@@ -48,15 +47,12 @@ class S3VectorStoreService:
                 indexName=self.index_name,
                 vectors=vectors
             )
-            logger.info(f"Successfully stored {len(vectors)} vectors in {self.index_name}")
         except Exception as e:
             logger.error(f"Failed to store vectors: {str(e)}")
             raise
 
     def delete_documents_by_source_id(self, source_id: str) -> dict[str, any]:
         """Delete all documents for a given source_id."""
-        logger.info(f"Starting deletion of vectors for source {source_id}")
-
         try:
             vector_keys = self._get_vector_keys_by_source_id(source_id)
 
@@ -68,8 +64,6 @@ class S3VectorStoreService:
                     "vectors_deleted": 0,
                     "message": "No vectors found to delete"
                 }
-
-            logger.info(f"Found {len(vector_keys)} vectors to delete for source {source_id}")
 
             batch_size = 100
             deleted_count = 0
@@ -84,7 +78,6 @@ class S3VectorStoreService:
                         keys=batch_keys
                     )
                     deleted_count += len(batch_keys)
-                    logger.debug(f"Deleted batch {i//batch_size + 1}: {len(batch_keys)} vectors")
                 except Exception as batch_error:
                     logger.error(f"Failed to delete batch {i//batch_size + 1}: {str(batch_error)}")
                     failed_keys.extend(batch_keys)
@@ -155,7 +148,6 @@ class S3VectorStoreService:
             if content_hash:
                 hashes.add(content_hash)
 
-        logger.info(f"Found {len(hashes)} existing chunks for source_id: {source_id}")
         return hashes
 
     def similarity_search(self, query_embedding: List[float], k: int) -> List[Dict[str, Any]]:

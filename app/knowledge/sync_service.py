@@ -36,32 +36,18 @@ class KnowledgeBaseSyncService:
         synced_urls = []
         failed_urls = []
 
-        logger.info(f"Starting knowledge base sync: {len(external_sources)} external sources, {len(kb_sources)} existing sources")
 
         sources_to_delete = [source for url, source in kb_sources_by_url.items() if url not in external_sources_by_url]
 
-        if sources_to_delete:
-            logger.info(f"Found {len(sources_to_delete)} sources to delete")
-        else:
-            logger.info("No sources to delete")
-
         for source in sources_to_delete:
-            logger.info(f"Deleting source {source.url}")
             deletion_result = self.kb_service.delete_source(source)
             if deletion_result["success"]:
                 deleted_count += 1
-                logger.info(f"Successfully deleted source: {source.url}")
             else:
                 deletion_failures.append(deletion_result["error"])
                 logger.error(f"Failed to delete source {source.url}: {deletion_result['error']}")
 
         enabled_sources = [s for s in external_sources if s.enable]
-        disabled_sources = [s for s in external_sources if not s.enable]
-
-        if disabled_sources:
-            logger.info(f"Skipping {len(disabled_sources)} disabled sources")
-        if enabled_sources:
-            logger.info(f"Processing {len(enabled_sources)} enabled sources")
 
         for external_source in external_sources:
             if not external_source.enable:

@@ -173,11 +173,9 @@ class CrawlerService:
                 continue_on_failure=True
             )
 
-            logger.info(f"Starting recursive crawl of {source.url} (max_depth={max_depth}, max_pages={max_pages})")
             documents = loader.load()[:max_pages]
 
             filtered_documents = self._filter_documents(documents)
-            logger.info(f"Recursive crawl completed: {len(filtered_documents)} documents loaded")
 
             return filtered_documents
 
@@ -188,8 +186,6 @@ class CrawlerService:
     async def _load_sitemap(self, url: str, max_pages: int) -> List[Document]:
 
         try:
-            logger.info(f"Loading sitemap from {url}")
-
             def sitemap_filter(url: str) -> bool:
                 return not self._should_exclude_url(url)
 
@@ -199,7 +195,6 @@ class CrawlerService:
             )
 
             documents = loader.load()[:max_pages]
-            logger.info(f"Sitemap crawl completed: {len(documents)} documents loaded")
 
             return documents
 
@@ -210,8 +205,6 @@ class CrawlerService:
     async def _load_single_page(self, url: str) -> List[Document]:
 
         try:
-            logger.info(f"Loading single page: {url}")
-
             loader = RecursiveUrlLoader(
                 url=url,
                 max_depth=0,
@@ -221,7 +214,6 @@ class CrawlerService:
             )
 
             documents = loader.load()
-            logger.info(f"Single page loaded: {len(documents)} document(s)")
 
             return documents
 

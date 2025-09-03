@@ -87,7 +87,6 @@ class KnowledgeService:
         chunk_texts = [doc.page_content for doc in chunks]
         chunk_embeddings = self.document_service.generate_embeddings(chunk_texts)
 
-        logger.info(f"Storing {len(chunks)} vectors for {source.url}")
         self.vector_store_service.add_documents(chunks, chunk_embeddings)
 
         self.source_repository.upsert(source)
@@ -142,63 +141,33 @@ class KnowledgeService:
 
         return needs_reindex
 
-    def get_source_details(self, source_id: str, include_all_chunks: bool = False) -> Dict[str, Any]:
-        """Get detailed information about a source including chunk count and metadata.
+    def get_source_details(self, source_id: str) -> Dict[str, Any]:
+        """Get detailed information about a source including chunk count and content.
 
         Args:
             source_id: The source ID to get details for
-            include_all_chunks: Whether to include full content of all chunks (can be large)
 
         """
         sources = self.get_sources()
         source = next((s for s in sources if s.id == source_id), None)
         if not source:
             return {"error": f"Source with id {source_id} not found"}
-        chunk_hashes = self.vector_store_service.get_source_chunk_hashes(source_id)
 
-        all_chunks = []
-        sample_chunks = []
-        vector_count = 0
+        chunks = []
+        total_chunks = 0
 
         try:
             for vector in self.vector_store_service._iterate_vectors_by_source_id(source_id):
-                vector_count += 1
+                total_chunks += 1
                 metadata = vector.get('metadata', {})
-                content = metadata.get('content', '')
 
-                chunk_data = {
-                    'content_preview': content[:200] + '...' if len(content) > 200 else content,
-                    'content_length': len(content),
-                    'estimated_tokens': len(content) // 4,  # ~4 chars per token estimation
+                chunks.append({
                     'section_url': metadata.get('section_url', ''),
-                    'chunk_index': metadata.get('chunk_index', 0),
-                    'content_hash': metadata.get('content_hash', ''),
-                    'vector_key': vector.get('key', '')
-                }
-
-                # Add full content only if requested
-                if include_all_chunks:
-                    chunk_data['content'] = content
-                    all_chunks.append(chunk_data)
-
-                # Always keep first 3 for sample
-                if len(sample_chunks) < 3:
-                    sample_data = chunk_data.copy()
-                    if not include_all_chunks:  # Add content to sample even if not including all
-                        sample_data['content'] = content
-                    sample_chunks.append(sample_data)
+                    'content': metadata.get('content', '')
+                })
 
         except Exception as e:
             logger.error(f"Error retrieving chunk metadata: {str(e)}")
-
-        # Calculate total tokens for all chunks
-        total_chars = sum(chunk.get('content_length', 0) for chunk in (all_chunks if include_all_chunks else sample_chunks))
-        if not include_all_chunks and vector_count > 3:
-            # Estimate total chars based on average chunk size
-            avg_chunk_size = total_chars / len(sample_chunks) if sample_chunks else 0
-            total_chars = int(avg_chunk_size * vector_count)
-
-        total_estimated_tokens = total_chars // 4
 
         result = {
             "source": {
@@ -212,23 +181,11 @@ class KnowledgeService:
                 "recursion_depth": source.recursion_depth,
                 "last_sync": source.last_sync
             },
-            "chunks": {
-                "total_chunks": vector_count,
-                "unique_content_hashes": len(chunk_hashes),
-                "total_characters": total_chars,
-                "total_estimated_tokens": total_estimated_tokens,
-                "estimated_embedding_cost": total_estimated_tokens * 0.00002 / 1000,  # Amazon Titan pricing
-                "sample_chunks": sample_chunks
-            }
+            "total_chunks": total_chunks,
+            "chunks": chunks
         }
 
-        # Only include all_chunks if requested and we have data
-        if include_all_chunks and all_chunks:
-            result["chunks"]["all_chunks"] = all_chunks
-            logger.info(f"Returning {len(all_chunks)} chunks for source {source_id}")
-        else:
-            logger.info(f"Returning sample of {len(sample_chunks)} chunks for source {source_id}")
-
+        logger.info(f"Returning {len(chunks)} chunks for source {source_id}")
         return result
 
 

@@ -35,33 +35,16 @@ class SourcesResponse(BaseModel):
     total_sources: int
 
 
-class ChunkMetadata(BaseModel):
-    """Metadata for a single chunk."""
+class ChunkData(BaseModel):
+    """Simple chunk data with just section_url and content."""
 
-    content_preview: str
-    content_length: Optional[int] = None
-    estimated_tokens: Optional[int] = None
     section_url: str
-    chunk_index: int
-    content_hash: str
-    vector_key: str
-    content: Optional[str] = None  # Full content when available
-
-
-class ChunkInfo(BaseModel):
-    """Information about chunks for a source."""
-
-    total_chunks: int
-    unique_content_hashes: int
-    total_characters: Optional[int] = None
-    total_estimated_tokens: Optional[int] = None
-    estimated_embedding_cost: Optional[float] = None
-    sample_chunks: list[ChunkMetadata]
-    all_chunks: Optional[list[ChunkMetadata]] = None
+    content: str
 
 
 class SourceDetailsResponse(BaseModel):
     """Detailed response model for a single source with chunk information."""
 
     source: SourceResponse
-    chunks: ChunkInfo
+    total_chunks: int
+    chunks: list[ChunkData]
