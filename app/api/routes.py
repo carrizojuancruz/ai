@@ -3,12 +3,14 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncGenerator
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.core.app_state import (
+    get_onboarding_status_for_user,
     get_sse_queue,
     get_thread_state,
 )
@@ -19,7 +21,35 @@ router = APIRouter(prefix="/onboarding", tags=["Onboarding"])
 
 @router.get("/status/{user_id}")
 async def get_onboarding_status(user_id: str) -> dict:
-    return {"error": "User session tracking not implemented"}
+    try:
+        uid = UUID(user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="Invalid user_id") from e
+
+    status = get_onboarding_status_for_user(uid)
+
+    if not status.get("active") and not status.get("onboarding_done"):
+        try:
+            from app.models import UserContext
+            from app.services.external_context.user.mapping import map_ai_context_to_user_context
+            from app.services.external_context.user.repository import ExternalUserRepository
+
+            repo = ExternalUserRepository()
+            data = await repo.get_by_id(uid)
+            if data:
+                ctx = UserContext(user_id=uid)
+                map_ai_context_to_user_context(data, ctx)
+                if ctx.ready_for_orchestrator:
+                    status = {
+                        "active": False,
+                        "onboarding_done": True,
+                        "thread_id": None,
+                        "current_step": None,
+                    }
+        except Exception:
+            pass
+
+    return status
 
 
 class InitializePayload(BaseModel):

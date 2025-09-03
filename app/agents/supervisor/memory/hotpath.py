@@ -4,7 +4,6 @@ import asyncio
 import contextlib
 import json
 import logging
-import os
 import re
 import unicodedata
 from json import JSONDecodeError
@@ -19,24 +18,26 @@ from langgraph.config import get_store
 from langgraph.graph import MessagesState
 
 from app.core.app_state import get_sse_queue
+from app.core.config import config
 
+from .profile_sync import _profile_sync_from_memory
 from .utils import _build_profile_line, _parse_iso, _utc_now_iso
 
 logger = logging.getLogger(__name__)
 
-# Environment variables
-MODEL_ID = os.getenv("MEMORY_TINY_LLM_MODEL_ID", "amazon.nova-micro-v1:0")
-REGION = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
-MERGE_TOPK = int(os.getenv("MEMORY_MERGE_TOPK", "5"))
-AUTO_UPDATE = float(os.getenv("MEMORY_MERGE_AUTO_UPDATE", "0.85"))
-CHECK_LOW = float(os.getenv("MEMORY_MERGE_CHECK_LOW", "0.60"))
-MERGE_MODE = (os.getenv("MEMORY_MERGE_MODE", "recreate") or "recreate").lower()
-SEMANTIC_MIN_IMPORTANCE = int(os.getenv("MEMORY_SEMANTIC_MIN_IMPORTANCE", "1"))
-FALLBACK_ENABLED = (os.getenv("MEMORY_MERGE_FALLBACK_ENABLED", "true").lower() == "true")
-FALLBACK_LOW = float(os.getenv("MEMORY_MERGE_FALLBACK_LOW", "0.30"))
-FALLBACK_TOPK = int(os.getenv("MEMORY_MERGE_FALLBACK_TOPK", "3"))
-FALLBACK_RECENCY_DAYS = int(os.getenv("MEMORY_MERGE_FALLBACK_RECENCY_DAYS", "90"))
-FALLBACK_CATEGORIES_RAW = os.getenv("MEMORY_MERGE_FALLBACK_CATEGORIES", "Personal,Goals")
+
+MODEL_ID = config.MEMORY_TINY_LLM_MODEL_ID
+REGION = config.AWS_REGION
+MERGE_TOPK = config.MEMORY_MERGE_TOPK
+AUTO_UPDATE = config.MEMORY_MERGE_AUTO_UPDATE
+CHECK_LOW = config.MEMORY_MERGE_CHECK_LOW
+MERGE_MODE = config.MEMORY_MERGE_MODE.lower()
+SEMANTIC_MIN_IMPORTANCE = config.MEMORY_SEMANTIC_MIN_IMPORTANCE
+FALLBACK_ENABLED = config.MEMORY_MERGE_FALLBACK_ENABLED
+FALLBACK_LOW = config.MEMORY_MERGE_FALLBACK_LOW
+FALLBACK_TOPK = config.MEMORY_MERGE_FALLBACK_TOPK
+FALLBACK_RECENCY_DAYS = config.MEMORY_MERGE_FALLBACK_RECENCY_DAYS
+FALLBACK_CATEGORIES_RAW = config.MEMORY_MERGE_FALLBACK_CATEGORIES
 FALLBACK_CATEGORIES = {c.strip() for c in FALLBACK_CATEGORIES_RAW.split(",") if c.strip()}
 
 
@@ -76,15 +77,17 @@ def _trigger_decide(text: str) -> dict[str, Any]:
         "- DO NOT create here for time-bound events/experiences or one-off actions (episodic handled later).\n"
         "- DO NOT create for meta/capability questions such as 'what do you know about me', 'do you remember me',\n"
         "  'what's in my profile', 'what have you saved about me'.\n"
+        "- For the summary: NEVER include absolute dates or relative-time words (today, yesterday, this morning/afternoon/evening/tonight, last/next week/month/year, recently, soon).\n"
+        "- If the input mixes time-bound details with a durable fact, EXTRACT ONLY the durable fact and DROP time phrasing.\n"
         "- Choose category from: [" + allowed_categories + "].\n"
         "- summary must be 1–2 sentences, concise and neutral (third person).\n"
         "- Output ONLY strict JSON: {\"should_create\": bool, \"type\": \"semantic\", \"category\": string, \"summary\": string, \"importance\": 1..5}.\n"
         "\n"
         "Examples (create):\n"
         "- Input: 'Please remember my name is Ana' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Personal\", \"summary\": \"User's preferred name is Ana.\", \"importance\": 2}\n"
-        "- Input: 'My cat just turned 4' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Personal\", \"summary\": \"User's cat is 4 years old.\", \"importance\": 3}\n"
+        "- Input: 'My cat just turned 4 today' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Personal\", \"summary\": \"User's cat is 4 years old.\", \"importance\": 3}\n"
         "- Input: 'I prefer email over phone calls' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Personal\", \"summary\": \"User prefers email communication over calls.\", \"importance\": 2}\n"
-        "- Input: 'We're saving for a house down payment this year' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Finance\", \"summary\": \"User is saving for a house down payment this year.\", \"importance\": 3}\n"
+        "- Input: 'We're saving for a house down payment this year' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Finance\", \"summary\": \"User is saving for a house down payment.\", \"importance\": 3}\n"
         "\n"
         "Examples (do not create here):\n"
         "- Input: 'We celebrated at the park today' -> {\"should_create\": false}\n"
@@ -129,24 +132,6 @@ def _trigger_decide(text: str) -> dict[str, Any]:
     except (BotoCoreError, ClientError, JSONDecodeError, UnicodeDecodeError):
         logger.exception("trigger.error")
         return {"should_create": False}
-
-
-def _build_candidate_value(user_id: str, summary: str, category: str, importance: int) -> dict[str, Any]:
-    now = _utc_now_iso()
-    candidate_id = uuid4().hex
-    return {
-        "id": candidate_id,
-        "user_id": user_id,
-        "type": "semantic",
-        "summary": summary,
-        "category": category,
-        "tags": [],
-        "source": "chat",
-        "importance": importance,
-        "pinned": False,
-        "created_at": now,
-        "last_accessed": now,
-    }
 
 
 def _search_neighbors(store: Any, namespace: tuple[str, ...], summary: str, category: str) -> list[Any]:
@@ -244,9 +229,19 @@ async def _write_semantic_memory(
                     _do_update(store, namespace, best.key, summary, best)
                     did_update = True
                     logger.info("memory.update: mode=auto id=%s into=%s score=%.3f", candidate_id, best.key, score_val)
-                if queue:
+                updated_memory = store.get(namespace, best.key)
+                if queue and updated_memory:
                     with contextlib.suppress(Exception):
-                        await queue.put({"event": "memory.updated", "data": {"id": getattr(best, "key", None), "type": mem_type, "category": (getattr(best, "value", {}) or {}).get("category")}})
+                        await queue.put({"event": "memory.updated", "data": {
+                            "id": updated_memory.key,
+                            "type": mem_type,
+                            "category": (updated_memory.value or {}).get("category"),
+                            "summary": (updated_memory.value or {}).get("summary"),
+                            "importance": (updated_memory.value or {}).get("importance"),
+                            "created_at": updated_memory.created_at,
+                            "updated_at": updated_memory.updated_at,
+                            "value": updated_memory.value
+                        }})
             else:
                 for n in sorted_neigh:
                     s = float(getattr(n, "score", 0.0) or 0.0)
@@ -266,9 +261,19 @@ async def _write_semantic_memory(
                             _do_update(store, namespace, getattr(n, "key", ""), summary, n)
                             logger.info("memory.update: mode=classified id=%s into=%s", candidate_id, getattr(n, "key", ""))
                         did_update = True
-                        if queue:
+                        updated_memory = store.get(namespace, getattr(n, "key", ""))
+                        if queue and updated_memory:
                             with contextlib.suppress(Exception):
-                                await queue.put({"event": "memory.updated", "data": {"id": getattr(n, "key", ""), "type": mem_type, "category": (getattr(n, "value", {}) or {}).get("category")}})
+                                await queue.put({"event": "memory.updated", "data": {
+                                    "id": updated_memory.key,
+                                    "type": mem_type,
+                                    "category": (updated_memory.value or {}).get("category"),
+                                    "summary": (updated_memory.value or {}).get("summary"),
+                                    "importance": (updated_memory.value or {}).get("importance"),
+                                    "created_at": updated_memory.created_at,
+                                    "updated_at": updated_memory.updated_at,
+                                    "value": updated_memory.value
+                                }})
                         break
         if not did_update and FALLBACK_ENABLED and (not FALLBACK_CATEGORIES or category in FALLBACK_CATEGORIES):
             checked = 0
@@ -316,13 +321,19 @@ async def _write_semantic_memory(
                         _do_update(store, namespace, getattr(n, "key", ""), summary, n)
                         logger.info("memory.update: mode=fallback id=%s into=%s", candidate_id, getattr(n, "key", ""))
                     did_update = True
-                    if queue:
-
+                    updated_memory = store.get(namespace, getattr(n, "key", ""))
+                    if queue and updated_memory:
                         with contextlib.suppress(Exception):
-                            await queue.put({
-                                "event": "memory.updated",
-                                "data": {"id": getattr(n, "key", ""), "type": mem_type, "category": (getattr(n, "value", {}) or {}).get("category")},
-                            })
+                            await queue.put({"event": "memory.updated", "data": {
+                                "id": updated_memory.key,
+                                "type": mem_type,
+                                "category": (updated_memory.value or {}).get("category"),
+                                "summary": (updated_memory.value or {}).get("summary"),
+                                "importance": (updated_memory.value or {}).get("importance"),
+                                "created_at": updated_memory.created_at,
+                                "updated_at": updated_memory.updated_at,
+                                "value": updated_memory.value
+                            }})
                     break
         if not did_update:
             if int(candidate_value.get("importance") or 1) < SEMANTIC_MIN_IMPORTANCE:
@@ -330,11 +341,20 @@ async def _write_semantic_memory(
             else:
                 store.put(namespace, candidate_value["id"], candidate_value, index=["summary"])  # async context
                 logger.info("memory.create: id=%s type=%s category=%s", candidate_value["id"], "semantic", category)
-                from .profile_sync import _profile_sync_from_memory  # type: ignore
+
                 asyncio.create_task(_profile_sync_from_memory(user_id, thread_id, candidate_value))
                 if queue:
                     with contextlib.suppress(Exception):
-                        await queue.put({"event": "memory.created", "data": {"id": candidate_value["id"], "type": mem_type, "category": category}})
+                        await queue.put({"event": "memory.created", "data": {
+                            "id": candidate_value["id"],
+                            "type": mem_type,
+                            "category": category,
+                            "summary": candidate_value.get("summary"),
+                            "importance": candidate_value.get("importance"),
+                            "created_at": candidate_value.get("created_at"),
+                            "updated_at": candidate_value.get("updated_at"),
+                            "value": candidate_value
+                        }})
     except Exception:
         logger.exception("memory_hotpath.error: id=%s", candidate_value.get("id"))
         if thread_id:
@@ -418,6 +438,8 @@ def _compose_summaries(existing_summary: str, candidate_summary: str, category: 
         "Task: Combine two short summaries about the SAME user fact into one concise statement.\n"
         "- Keep it neutral, third person, and include both details without redundancy.\n"
         "- 1–2 sentences, max 280 characters.\n"
+        "- Do NOT include absolute dates or relative-time words (today, yesterday, this morning/afternoon/evening/tonight, last/next week/month/year, recently, soon).\n"
+        "- Express the timeless fact only.\n"
         "Output ONLY the composed text.\n"
         f"Category: {category[:64]}\n"
         f"Existing: {existing_summary[:500]}\n"
@@ -475,6 +497,38 @@ def _normalize_summary_text(text: str) -> str:
     )
     return t
 
+
+# Combined regex pattern for time sanitization (single pass)
+_TIME_SANITIZATION_PATTERN = re.compile(
+    r"\b(today|yesterday|tomorrow|this\s+(morning|afternoon|evening|tonight)|"
+    r"(last|next)\s+(week|month|year)|recently|soon|earlier|later|now)\b|"
+    r"\bon\s+\d{4}-\d{2}-\d{2}\b|\bthis\s+year\b",
+    re.IGNORECASE
+)
+
+# Cleanup patterns for whitespace and punctuation
+_CLEANUP_PATTERNS = [
+    (re.compile(r"\s{2,}"), " "),
+    (re.compile(r"\s+,"), ","),
+    (re.compile(r"\(\s*\)"), ""),
+]
+
+
+def _sanitize_semantic_time_phrases(text: str) -> str:
+    """Sanitize semantic time phrases from text for better memory storage.
+
+    Uses a single-pass regex pattern to remove time-related phrases efficiently,
+    minimizing intermediate string creation for optimal performance.
+    """
+    if not isinstance(text, str):
+        return ""
+
+    sanitized = _TIME_SANITIZATION_PATTERN.sub("", text)
+
+    for pattern, repl in _CLEANUP_PATTERNS:
+        sanitized = pattern.sub(repl, sanitized)
+
+    return sanitized.strip()
 
 def _has_min_token_overlap(a: str, b: str) -> bool:
     # Very light lexical guard: share at least one non-stopword token (len>=3)
@@ -543,6 +597,7 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
         category = "Other"
     summary_raw = str(trigger.get("summary") or recent_user_texts[0] or combined_text).strip()[:280]
     summary = _normalize_summary_text(summary_raw)
+    summary = _sanitize_semantic_time_phrases(summary)
 
     if mem_type != "semantic":
         logger.info("memory.skip: entry node only writes semantic; type=%s", mem_type)
@@ -573,13 +628,12 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
         (summary[:80] + ("…" if len(summary) > 80 else "")),
     )
 
-    if thread_id:
+    if int(candidate_value.get("importance") or 1) >= SEMANTIC_MIN_IMPORTANCE and thread_id:
         try:
             queue = get_sse_queue(thread_id)
-            await queue.put({"event": "memory.candidate", "data": {"id": candidate_id, "type": mem_type, "category": category, "summary": summary}})
+            await queue.put({"event": "memory.created", "data": {"id": candidate_id, "type": mem_type, "category": category, "summary": summary}})
         except Exception:
             pass
-
 
     asyncio.create_task(_write_semantic_memory(
         user_id=user_id,

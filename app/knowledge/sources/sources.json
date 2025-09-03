@@ -1,8 +1,28 @@
 [
   {
-    "id": "775c3012-e9e4-4428-a16c-a1cecfe1c069",
-    "name": "Documentación de promtior",
-    "url": "https://www.promtior.ai/",
-    "enabled": true
+    "id": "5d6ddad221f4930efd3b7499095ae46b60f6ddc2b191641e468288897f40f3f7",
+    "name": "211.org",
+    "url": "http://211.org",
+    "enabled": true,
+    "type": "Information Service",
+    "category": "Personal Finance",
+    "description": "Information and referrals for social services",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": "",
+    "recursion_depth": ""
+  },
+  {
+    "id": "8535605d22f01cf33436623c0c301044354aa357279dede8ea0d1b3725e966f1",
+    "name": "988 Suicide & Crisis Lifeline",
+    "url": "https://988lifeline.org",
+    "enabled": true,
+    "type": "Government Crisis Service",
+    "category": "Mental Health",
+    "description": "Nationwide three-digit number for crisis support",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": "",
+    "recursion_depth": ""
   }
 ]

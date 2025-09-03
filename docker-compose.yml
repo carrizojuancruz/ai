@@ -11,28 +11,10 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./:/app
-      - venv_cache:/app/.venv
-    environment:
-      - PYTHONDONTWRITEBYTECODE=1
-      - POETRY_VIRTUALENVS_CREATE=true
-      - POETRY_VIRTUALENVS_IN_PROJECT=true
-      - DATABASE_ASYNC_URL=postgresql+asyncpg://verde:verde@postgres:5432/verde
-    depends_on:
-      - postgres
-  postgres:
-    image: postgres:16-alpine
-    container_name: verde-ai-postgres
-    environment:
-      POSTGRES_DB: verde
-      POSTGRES_USER: verde
-      POSTGRES_PASSWORD: verde
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Map source code for development (hot reload)
+      - .:/app
+      # Exclude .venv to avoid host OS dependency conflicts
+      - /app/.venv
 
 volumes:
-  venv_cache:
   postgres_data:
-

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -19,14 +18,15 @@ from app.core.app_state import (
     set_last_emitted_text,
     set_thread_state,
 )
+from app.core.config import config
 from app.repositories.session_store import get_session_store
 
 logger = logging.getLogger(__name__)
 
 langfuse_handler = CallbackHandler(
-    public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
-    secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
-    host=os.getenv("LANGFUSE_HOST"),
+    public_key=config.LANGFUSE_PUBLIC_KEY,
+    secret_key=config.LANGFUSE_SECRET_KEY,
+    host=config.LANGFUSE_HOST,
 )
 
 
@@ -38,8 +38,8 @@ class OnboardingService:
             if session_ctx.get("fos_exported"):
                 return
 
-            from app.services.external_context.client import ExternalUserRepository
-            from app.services.external_context.mapping import map_user_context_to_ai_context
+            from app.services.external_context.user.mapping import map_user_context_to_ai_context
+            from app.services.external_context.user.repository import ExternalUserRepository
 
             repo = ExternalUserRepository()
             body = map_user_context_to_ai_context(state.user_context)
@@ -70,8 +70,8 @@ class OnboardingService:
         state = OnboardingState(user_id=user_uuid)
 
         try:
-            from app.services.external_context.client import ExternalUserRepository
-            from app.services.external_context.mapping import map_ai_context_to_user_context
+            from app.services.external_context.user.mapping import map_ai_context_to_user_context
+            from app.services.external_context.user.repository import ExternalUserRepository
 
             repo = ExternalUserRepository()
             external_ctx = await repo.get_by_id(user_uuid)
@@ -146,6 +146,11 @@ class OnboardingService:
         state = get_thread_state(thread_id)
         if state is None:
             raise HTTPException(status_code=404, detail="Thread not found")
+
+        # Ensure state is an OnboardingState object, not a dict
+        if isinstance(state, dict):
+            from app.agents.onboarding.state import OnboardingState
+            state = OnboardingState(**state)
 
         user_text = ""
         if type == "text" and text is not None:
@@ -222,6 +227,15 @@ class OnboardingService:
         state = get_thread_state(thread_id)
         if state is None:
             raise HTTPException(status_code=404, detail="Thread not found")
+
+        # Ensure state is an OnboardingState object, not a dict
+        if isinstance(state, dict):
+            from app.agents.onboarding.state import OnboardingState
+            state = OnboardingState(**state)
+
+        state.ready_for_completion = True
+        state.user_context.ready_for_orchestrator = True
+        set_thread_state(thread_id, state)
         await self._export_user_context(state, thread_id)
 
 

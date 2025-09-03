@@ -1,13 +1,12 @@
+import hashlib
 import logging
 from typing import Any, Dict, List
 from urllib.parse import urlparse
-from uuid import uuid4
 
 from app.knowledge.crawler.service import CrawlerService
 from app.knowledge.models import BulkSourceRequest, Source, SourceRequest
 from app.knowledge.service import get_knowledge_service
-
-from .repository import SourceRepository
+from app.knowledge.sources.repository import SourceRepository
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +17,9 @@ class SourceService:
         self.source_repo = SourceRepository()
         self.crawler_service = CrawlerService()
         self.knowledge_service = get_knowledge_service()
+
+    def _generate_source_id(self, url: str) -> str:
+        return hashlib.sha256(url.encode()).hexdigest()
 
     async def get_all_sources(self) -> List[Source]:
         return self.source_repo.load_all()
@@ -32,10 +34,13 @@ class SourceService:
 
         existing = self.source_repo.find_by_url(request.url)
         if existing:
-            self.knowledge_service.delete_source_documents(existing.id)
-            self.source_repo.delete_by_id(existing.id)
+            return {
+                "success": False,
+                "message": f"Source already exists with URL: {request.url}",
+                "existing_source": existing
+            }
 
-        source = Source(id=str(uuid4()), name=request.name, url=request.url)
+        source = Source(id=self._generate_source_id(request.url), name=request.name, url=request.url)
 
         self.source_repo.add(source)
         logger.info(f"Source created: {source.id}")
@@ -45,7 +50,7 @@ class SourceService:
             documents = crawl_result.get("documents", [])
 
             if documents:
-                index_result = await self.knowledge_service.add_documents(documents, source.id)
+                index_result = await self.knowledge_service.add_documents(documents, source)
                 documents_indexed = index_result.get("documents_added", 0)
                 return {
                     "source": source,

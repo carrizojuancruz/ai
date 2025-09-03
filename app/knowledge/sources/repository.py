@@ -3,17 +3,16 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
-from app.knowledge import config
+from app.core.config import config as appConfig
 from app.knowledge.models import Source
-
-from .base_repository import SourceRepositoryInterface
+from app.knowledge.sources.base_repository import SourceRepositoryInterface
 
 
 class SourceRepository(SourceRepositoryInterface):
     """JSON file-based implementation of SourceRepositoryInterface."""
 
     def __init__(self):
-        self.file_path = str(Path(config.SOURCES_FILE_PATH).resolve())
+        self.file_path = str(Path(appConfig.SOURCES_FILE_PATH).resolve())
         self._ensure_file_exists()
 
     def load_all(self) -> List[Source]:
@@ -46,12 +45,16 @@ class SourceRepository(SourceRepositoryInterface):
 
     def add(self, source: Source) -> None:
         sources = self.load_all()
-        existing = self.find_by_id(source.id)
+        existing = next((s for s in sources if s.id == source.id), None)
         if existing:
-            self.update(source)
+            for i, s in enumerate(sources):
+                if s.id == source.id:
+                    sources[i] = source
+                    break
         else:
             sources.append(source)
-            self.save_all(sources)
+
+        self.save_all(sources)
 
     def update(self, source: Source) -> bool:
         sources = self.load_all()

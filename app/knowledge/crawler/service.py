@@ -6,7 +6,8 @@ from bs4 import BeautifulSoup
 from langchain_community.document_loaders import RecursiveUrlLoader, SitemapLoader
 from langchain_core.documents import Document
 
-from app.knowledge import config
+from app.core.config import config
+from app.knowledge.models import Source
 
 logger = logging.getLogger(__name__)
 
@@ -18,50 +19,53 @@ class CrawlerService:
     max_depth = config.CRAWL_MAX_DEPTH
     timeout = config.CRAWL_TIMEOUT
 
-    async def crawl_source(self, source_url: str) -> Dict[str, Any]:
-        """Crawl a source URL and return documents."""
-        documents = await self._load_documents(source_url)
+    async def crawl_source(self, source: Source) -> Dict[str, Any]:
+        """Crawl a source using its configuration."""
+        documents = await self._load_documents(source)
 
         return {
             "documents": documents,
             "documents_loaded": len(documents),
-            "source_url": source_url,
+            "source_url": source.url,
             "message": f"Successfully loaded {len(documents)} documents"
         }
 
-    async def _load_documents(self, url: str) -> List[Document]:
+    async def _load_documents(self, source: Source) -> List[Document]:
         """Load documents based on crawl type configuration."""
-        if self.crawl_type == "single":
-            return await self._load_single_page(url)
-        elif self.crawl_type == "sitemap":
-            return await self._load_sitemap(url)
-        else:
-            return await self._load_recursive(url)
+        max_pages = int(source.total_max_pages or self.max_pages)
+        max_depth = int(source.recursion_depth or self.max_depth)
 
-    async def _load_sitemap(self, url: str) -> List[Document]:
+        if self.crawl_type == "single":
+            return await self._load_single_page(source.url)
+        elif self.crawl_type == "sitemap":
+            return await self._load_sitemap(source.url, max_pages)
+        else:
+            return await self._load_recursive(source, max_pages, max_depth)
+
+    async def _load_sitemap(self, url: str, max_pages: int) -> List[Document]:
         """Load documents from sitemap."""
         try:
             loader = SitemapLoader(web_path=url)
-            documents = loader.load()[:self.max_pages]
+            documents = loader.load()[:max_pages]
             return self._process_documents(documents, url)
         except Exception as e:
             logger.error(f"Sitemap load error for {url}: {e}")
             return []
 
-    async def _load_recursive(self, url: str) -> List[Document]:
+    async def _load_recursive(self, source: Source, max_pages: int, max_depth: int) -> List[Document]:
         """Load documents recursively following links."""
         try:
             loader = RecursiveUrlLoader(
-                url=url,
-                max_depth=self.max_depth,
+                url=source.url,
+                max_depth=max_depth,
                 prevent_outside=True,
                 timeout=self.timeout
             )
             documents = loader.load()
-            limited_documents = documents[:self.max_pages]
-            return self._process_documents(limited_documents, url)
+            limited_documents = documents[:max_pages]
+            return self._process_documents(limited_documents, source.url)
         except Exception as e:
-            logger.error(f"Recursive load error for {url}: {e}")
+            logger.error(f"Recursive load error for {source.url}: {e}")
             return []
 
     async def _load_single_page(self, url: str) -> List[Document]:

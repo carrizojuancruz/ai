@@ -13,7 +13,7 @@ from .onboarding_reasoning import onboarding_reasoning_service
 class StepHandlerService:
     def __init__(self) -> None:
         self._missing_fields_by_step: dict[OnboardingStep, list[str] | Callable] = {
-            OnboardingStep.WARMUP: lambda state: [],
+            OnboardingStep.WARMUP: lambda state: ["warmup_choice"],
             OnboardingStep.IDENTITY: self._get_identity_missing_fields,
             OnboardingStep.INCOME_MONEY: self._get_income_money_missing_fields,
             OnboardingStep.ASSETS_EXPENSES: lambda state: ["assets_types", "fixed_expenses"],
@@ -26,7 +26,7 @@ class StepHandlerService:
         }
 
         self._completion_checks: dict[OnboardingStep, Callable[[OnboardingState], bool]] = {
-            OnboardingStep.WARMUP: lambda state: True,
+            OnboardingStep.WARMUP: self._is_warmup_complete,
             OnboardingStep.IDENTITY: self._is_identity_complete,
             OnboardingStep.INCOME_MONEY: self._is_income_money_complete,
             OnboardingStep.ASSETS_EXPENSES: lambda state: True,
@@ -41,6 +41,12 @@ class StepHandlerService:
     async def handle_step(self, state: OnboardingState, step: OnboardingStep) -> OnboardingState:
         state.current_step = step
 
+        state.current_interaction_type = "free_text"
+        state.current_choices = []
+        state.current_binary_choices = None
+        state.multi_min = None
+        state.multi_max = None
+
         if step in [OnboardingStep.HOME, OnboardingStep.FAMILY_UNIT, OnboardingStep.HEALTH_COVERAGE] and not state.should_show_conditional_node(step):
             state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
             return state
@@ -52,6 +58,7 @@ class StepHandlerService:
             age_range = state.user_context.age_range
             if (age and int(age) < 18) or age_range == "under_18":
                 state.ready_for_completion = True
+                state.user_context.ready_for_orchestrator = True
                 response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
                 state.add_conversation_turn(state.last_user_message or "", response)
                 return state
@@ -60,7 +67,24 @@ class StepHandlerService:
 
         context_patching_service.apply_context_patch(state, step, decision.get("patch") or {})
 
+        if step == OnboardingStep.IDENTITY:
+            try:
+                age = state.user_context.age
+                age_range = state.user_context.age_range
+                if (age and int(age) < 18) or age_range == "under_18":
+                    state.ready_for_completion = True
+                    state.user_context.ready_for_orchestrator = True
+                    response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
+                    state.add_conversation_turn(state.last_user_message or "", response)
+                    return state
+            except Exception:
+                pass
+
         response = decision.get("assistant_text") or DEFAULT_RESPONSE_BY_STEP.get(step, "")
+
+        if (decision.get("interaction_type") in ["single_choice", "multi_choice", "binary_choice"] and response and any(prefix in response for prefix in ["- ", "• ", "* ", "1.", "2.", "3."])):
+            lines = [ln for ln in response.splitlines() if not ln.strip().startswith(("-", "•", "*", "1.", "2.", "3."))]
+            response = "\n".join(lines).strip()
 
         state.current_interaction_type = decision.get("interaction_type", "free_text")
         state.current_choices = decision.get("choices", [])
@@ -108,6 +132,12 @@ class StepHandlerService:
     ) -> AsyncGenerator[tuple[str, OnboardingState], None]:
         state.current_step = step
 
+        state.current_interaction_type = "free_text"
+        state.current_choices = []
+        state.current_binary_choices = None
+        state.multi_min = None
+        state.multi_max = None
+
         if step in [OnboardingStep.HOME, OnboardingStep.FAMILY_UNIT, OnboardingStep.HEALTH_COVERAGE] and not state.should_show_conditional_node(step):
             state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
             yield ("", state)
@@ -120,6 +150,7 @@ class StepHandlerService:
             age_range = state.user_context.age_range
             if (age and int(age) < 18) or age_range == "under_18":
                 state.ready_for_completion = True
+                state.user_context.ready_for_orchestrator = True
                 response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
                 state.add_conversation_turn(state.last_user_message or "", response)
                 yield (response, state)
@@ -140,6 +171,20 @@ class StepHandlerService:
 
         if final_decision:
             context_patching_service.apply_context_patch(state, step, final_decision.get("patch") or {})
+
+            if step == OnboardingStep.IDENTITY:
+                try:
+                    age = state.user_context.age
+                    age_range = state.user_context.age_range
+                    if (age and int(age) < 18) or age_range == "under_18":
+                        state.ready_for_completion = True
+                        state.user_context.ready_for_orchestrator = True
+                        response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
+                        state.add_conversation_turn(state.last_user_message or "", response)
+                        yield (response, state)
+                        return
+                except Exception:
+                    pass
 
             state.current_interaction_type = final_decision.get("interaction_type", "free_text")
             state.current_choices = final_decision.get("choices", [])
@@ -166,6 +211,9 @@ class StepHandlerService:
             ):
                 state = self._handle_skip(state, step)
 
+            if (final_decision.get("interaction_type") in ["single_choice", "multi_choice", "binary_choice"] and any(tok in (accumulated_response or "") for tok in ["18-", "66+", "-24", "-34", "-44", "-54", "-64"])):
+                accumulated_response = ""
+
             if step == OnboardingStep.WARMUP:
                 if state.last_user_message and any(
                     skip_word in state.last_user_message.lower()
@@ -178,10 +226,21 @@ class StepHandlerService:
                 state.user_context.ready_for_orchestrator = True
                 state.ready_for_completion = True
 
+            if final_decision and final_decision.get("interaction_type") in ["single_choice", "multi_choice", "binary_choice"]:
+                accumulated_response = final_decision.get("assistant_text") or ""
+
             if not accumulated_response:
                 accumulated_response = (
                     final_decision.get("assistant_text") if final_decision else ""
                 ) or DEFAULT_RESPONSE_BY_STEP.get(step, "")
+
+            if (final_decision and final_decision.get("interaction_type") in ["single_choice", "multi_choice", "binary_choice"] and accumulated_response and any(prefix in accumulated_response for prefix in ["- ", "• ", "* ", "1.", "2.", "3."])):
+                lines = [
+                    ln
+                    for ln in accumulated_response.splitlines()
+                    if not ln.strip().startswith(("-", "•", "*", "1.", "2.", "3."))
+                ]
+                accumulated_response = "\n".join(lines).strip()
 
             state.add_conversation_turn(state.last_user_message or "", accumulated_response)
 
@@ -230,6 +289,9 @@ class StepHandlerService:
 
     def _is_income_money_complete(self, state: OnboardingState) -> bool:
         return hasattr(state.user_context, "money_feelings") or state.user_context.income is not None
+
+    def _is_warmup_complete(self, state: OnboardingState) -> bool:
+        return bool(state.last_user_message and state.last_user_message.strip() and len(state.conversation_history) > 0)
 
     def _get_default_next_step(self, current_step: OnboardingStep) -> OnboardingStep:
         return OnboardingStep.CHECKOUT_EXIT

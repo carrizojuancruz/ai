@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from typing import Any, Optional
 
+from app.core.config import config
 from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
 
@@ -31,7 +31,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # Sanity: ensure env
-    missing = [name for name in ("S3V_BUCKET", "S3V_INDEX", "AWS_REGION") if not os.getenv(name)]
+    missing = config.validate_required_s3_vars()
     if missing:
         _eprint(f"Missing required env vars: {', '.join(missing)}")
         sys.exit(2)

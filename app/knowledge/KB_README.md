@@ -1,159 +1,102 @@
-# Knowledge Component
+# Knowledge Base Module
 
-Web crawler and document processing system that converts web content into searchable knowledge vectors using AWS Bedrock embeddings and S3 Vector Store.
+Web content processing system that converts website content into searchable vector embeddings using AWS Bedrock and S3 Vector Store.
 
-## Overview
+## Core Features
 
-The Knowledge component ingests website URLs, extracts content through configurable crawling, processes HTML into clean text, splits documents into semantic chunks, generates embeddings via AWS Bedrock, and stores vectors in S3 Vector Store for similarity-based retrieval.
+- **Web Crawling**: Extract content from websites
+- **Vector Storage**: Store embeddings in S3 Vector Store  
+- **Change Detection**: Hash-based content monitoring
+- **Search**: Semantic similarity search
+- **Sync**: External source synchronization
 
-## Core Components
+## Architecture
 
-### KnowledgeService
-Orchestrates the document processing pipeline:
-- Coordinates crawler, embedding generation, and vector storage operations
-- Manages document chunking using RecursiveCharacterTextSplitter
-- Handles embedding generation through AWS Bedrock integration
-- Provides similarity search interface with configurable result limits
-- Manages source document lifecycle including deletion
+Six core services work together:
 
-### SourceService  
-Entry point for source management and bulk operations:
-- Validates URLs and creates source definitions
-- Orchestrates crawler and knowledge service integration
-- Handles source creation, updates, and deletion
-- Manages bulk source processing workflows
-- Provides source lookup and listing capabilities
+- **KnowledgeBaseOrchestrator**: External source sync coordination
+- **KnowledgeService**: Document processing and vector operations
+- **SourceService**: Source management and validation
+- **CrawlerService**: Web content extraction
+- **S3VectorStoreService**: Vector storage and search
+- **SyncService**: Content synchronization and change detection
 
-### CrawlerService  
-Executes web content extraction strategies:
-- **Recursive**: Follows internal links within domain boundaries up to specified depth
-- **Single**: Processes only the target URL without link traversal
-- **Sitemap**: Parses XML sitemaps for systematic page discovery
-- Implements HTML cleaning to remove scripts, styles, and non-content elements
-- Enforces page limits, depth constraints, and timeout controls
+## Document Operations
 
-### S3VectorStoreService
-Manages vector operations in AWS S3 Vector Store:
-- Stores document embeddings with metadata preservation
-- Executes similarity search queries with cosine distance ranking
-- Handles vector addition and deletion operations by source
-- Maintains document metadata including source URLs and chunk indices
-- Generates unique vector keys for document identification
+### How Documents Work
+All operations use **source IDs** to group related content:
 
-## Processing Pipeline
+**Adding Documents:**
+1. Register source → Crawl content → Generate vectors → Store in S3
 
+**Updating Documents:**  
+1. Detect changes via content hashes → Delete old vectors → Store new vectors
+
+**Deleting Documents:**
+1. Find all vectors for source ID → Delete in batches of 100 → Remove source config
+
+### Key Points
+- Vector keys use format: `doc_{content_hash}`
+- Batch processing: 100 vectors per operation
+- Two-phase deletion: vectors first, then config
+- Change detection prevents unnecessary reprocessing
+
+## Synchronization System
+
+### How Synchronization Works
+
+The system maintains content freshness through two types of synchronization:
+
+**External Source Sync:**
+- Fetches source configurations from external repositories
+- Compares external sources with local configuration
+- Creates, updates, or deletes sources based on differences
+- Ensures local knowledge base reflects external changes
+
+**Content Sync:**
+- Crawls websites to extract current content
+- Generates SHA-256 hashes for each content chunk
+- Compares new hashes with stored hashes to detect changes
+- Only reprocesses content that has actually changed
+- Preserves unchanged vectors to save processing time
+
+### Sync Process Flow
+
+1. **Discovery Phase**: Find all sources that need processing
+2. **Change Detection**: Compare current content with stored content using hashes
+3. **Cleanup Phase**: Remove vectors for deleted or changed content
+4. **Processing Phase**: Generate new vectors for new or modified content
+5. **Storage Phase**: Save new vectors and update metadata
+6. **Reporting Phase**: Provide detailed results of sync operation
+
+### Sync Types
+
+**Full Sync**: Process all enabled sources regardless of changes
+**Selective Sync**: Process only sources with detected changes
+**Individual Sync**: Process a specific source by ID
+**External Sync**: Synchronize source configurations from external systems
+
+### Change Detection Strategy
+
+The system uses content hashing to minimize unnecessary work:
+- Each content chunk generates a unique SHA-256 hash
+- Hashes are compared between sync runs
+- Only changed content triggers reprocessing
+- Unchanged content vectors remain untouched
+- Entire source is reindexed if any chunk changes (ensures consistency)
+
+## API Usage
+
+```python
+# Sync external sources
+result = await orchestrator.sync_external_sources()
+
+# Process individual source  
+result = await knowledge_service.sync_source(source_id)
+
+# Search content
+results = await knowledge_service.search("query text", limit=10)
+
+# Delete source vectors
+result = await vector_store.delete_source_vectors(source_id)
 ```
-URL Input → Content Crawling → HTML Cleaning → Document Chunking → Embedding Generation → Vector Storage → Search Interface
-```
-
-### Workflow Steps:
-
-1. **Source Registration**: URL validation and source creation with duplicate handling
-2. **Content Extraction**: Web crawling using selected strategy with domain boundary enforcement
-3. **HTML Processing**: Tag removal, script elimination, and text extraction using BeautifulSoup
-4. **Document Segmentation**: Text splitting with configurable chunk sizes and overlap preservation
-5. **Vector Generation**: Embedding creation using AWS Bedrock Titan Text model
-6. **Index Storage**: Vector persistence in S3 with comprehensive metadata
-7. **Search Operations**: Similarity queries with ranked result retrieval
-
-## Content Processing
-
-HTML processing pipeline ensures text quality:
-
-- **Tag Filtering**: Removes `script`, `style`, `noscript`, `meta`, `link`, `head`, `nav`, `header`, `footer` elements
-- **Parser Integration**: Uses BeautifulSoup with lxml parser for HTML/XML processing
-- **Text Extraction**: Extracts visible text content while preserving semantic structure
-- **Whitespace Normalization**: Consolidates spacing and removes formatting artifacts
-
-## Crawling Strategies
-
-### Recursive Crawling
-- Traverses internal links within same domain
-- Respects maximum depth and page count limitations
-- Maintains crawl boundary enforcement
-- Implements timeout controls for request management
-
-### Single Page Processing
-- Extracts content from specified URL only
-- No link following or additional page discovery
-- Suitable for targeted content extraction
-
-### Sitemap Processing
-- Parses XML sitemap files for page enumeration
-- Processes discovered URLs within configured limits
-- Provides systematic coverage for structured websites
-
-## Document Chunking
-
-Text segmentation maintains semantic coherence:
-
-- **RecursiveCharacterTextSplitter**: Preserves document structure during splitting
-- **Overlap Configuration**: Maintains context continuity between adjacent chunks
-- **Boundary Respect**: Attempts to split at natural text boundaries
-- **Metadata Preservation**: Maintains source attribution for each chunk
-
-## Configuration Management
-
-### Crawler Parameters
-- Crawling strategy selection (recursive/single/sitemap)
-- Maximum crawl depth for recursive operations
-- Page count limits per source
-- Request timeout configuration
-
-### Processing Settings
-- Document chunk size and overlap configuration
-- Search result count limits
-- Embedding model selection
-- Vector index configuration
-
-### AWS Integration
-- S3 Vector Store bucket and index specification
-- AWS region configuration
-- Bedrock model selection
-- Service authentication setup
-
-### Storage Configuration
-- Source persistence file location
-- Vector metadata storage settings
-
-## Integration Points
-
-- **AWS Bedrock**: Embedding model integration for vector generation
-- **S3 Vector Store**: Vector persistence and similarity search operations
-- **LangChain**: Document processing and text splitting utilities
-- **BeautifulSoup**: HTML parsing and content extraction
-
-## TODO: Content Synchronization
-
-### Hash-based Change Detection
-- Compute hash for each chunk after content extraction
-- Use Set data structures for O(1) lookup of existing chunk hashes
-- Compare new content hashes against stored hashes to identify changes
-- Skip embedding computation for unchanged content chunks
-
-### Parent-Child Chunking Model
-- Generate source identifiers based on source name/URL instead of random UUIDs
-- Source is parent, chunks are children
-- When any chunk changes, delete entire parent source and reindex all chunks
-- Chunk boundary changes affect neighboring chunks
-
-### Synchronization Workflow
-
-```
-Cron Job → Crawl Content → Compute Hashes → Compare with DB → Reindex Changed Sources
-```
-
-1. Implement cron-based synchronization
-2. Crawl content from source URLs
-3. Compute hashes for new content chunks
-4. Query database for existing chunk hashes using Set operations
-5. Identify changed chunks
-6. Delete all chunks for changed sources and reprocess
-
-### Implementation Requirements
-
-- Store chunk hashes alongside vector embeddings
-- Implement bulk hash lookup operations in vector store
-- Atomic deletion and reindexing operations
-- Cron job configuration
-- Synchronization logging
