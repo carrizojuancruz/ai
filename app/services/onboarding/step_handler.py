@@ -64,6 +64,11 @@ class StepHandlerService:
         state.user_context.ready_for_orchestrator = True
         state.add_conversation_turn(state.last_user_message or "", format_brief(UNDER_18_MESSAGE))
 
+    def _mark_ready_if_checkout_exit(self, state: OnboardingState) -> None:
+        if state.current_step == OnboardingStep.CHECKOUT_EXIT:
+            state.user_context.ready_for_orchestrator = True
+            state.ready_for_completion = True
+
     async def handle_step(self, state: OnboardingState, step: OnboardingStep) -> OnboardingState:
         state.current_step = step
 
@@ -79,6 +84,7 @@ class StepHandlerService:
             OnboardingStep.HEALTH_COVERAGE,
         ] and not state.should_show_conditional_node(step):
             state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
+            self._mark_ready_if_checkout_exit(state)
             return state
 
         missing_fields = self._get_missing_fields(state, step)
@@ -132,11 +138,13 @@ class StepHandlerService:
         if decision.get("complete") or self.is_step_complete(state, step):
             state.mark_step_completed(step)
             state.current_step = state.get_next_step() or OnboardingStep.CHECKOUT_EXIT
+            self._mark_ready_if_checkout_exit(state)
 
         if decision.get("declined") or (
             state.last_user_message and any(skip_word in state.last_user_message.lower() for skip_word in SKIP_WORDS)
         ):
             state = self._handle_skip(state, step)
+            self._mark_ready_if_checkout_exit(state)
 
         if step == OnboardingStep.WARMUP:
             if state.last_user_message and any(
@@ -145,6 +153,7 @@ class StepHandlerService:
             ):
                 state.current_step = OnboardingStep.CHECKOUT_EXIT
                 response = "No problem! Let's get your account set up."
+                self._mark_ready_if_checkout_exit(state)
 
         elif step == OnboardingStep.CHECKOUT_EXIT:
             state.user_context.ready_for_orchestrator = True
@@ -172,6 +181,7 @@ class StepHandlerService:
                 OnboardingStep.HEALTH_COVERAGE,
             ] and not state.should_show_conditional_node(step):
                 state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
+                self._mark_ready_if_checkout_exit(state)
                 yield ("", state)
                 return
 
@@ -230,12 +240,13 @@ class StepHandlerService:
                 if final_decision.get("complete") or self.is_step_complete(state, step):
                     state.mark_step_completed(step)
                     state.current_step = state.get_next_step() or OnboardingStep.CHECKOUT_EXIT
+                    self._mark_ready_if_checkout_exit(state)
 
                 if final_decision.get("declined") or (
-                    state.last_user_message
-                    and any(skip_word in state.last_user_message.lower() for skip_word in SKIP_WORDS)
+                    state.last_user_message and any(skip_word in state.last_user_message.lower() for skip_word in SKIP_WORDS)
                 ):
                     state = self._handle_skip(state, step)
+                    self._mark_ready_if_checkout_exit(state)
 
                 if final_decision.get("interaction_type") in ["single_choice", "multi_choice", "binary_choice"] and any(
                     tok in (accumulated_response or "") for tok in ["18-", "66+", "-24", "-34", "-44", "-54", "-64"]
@@ -249,6 +260,7 @@ class StepHandlerService:
                     ):
                         state.current_step = OnboardingStep.CHECKOUT_EXIT
                         accumulated_response = "No problem! Let's get your account set up."
+                        self._mark_ready_if_checkout_exit(state)
 
                 elif step == OnboardingStep.CHECKOUT_EXIT:
                     state.user_context.ready_for_orchestrator = True
