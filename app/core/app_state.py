@@ -38,10 +38,6 @@ def get_supervisor_graph() -> CompiledStateGraph:
     return _supervisor_graph
 
 
-def get_user_sessions() -> dict[UUID, OnboardingState]:
-    return _user_sessions
-
-
 def register_thread(thread_id: str, state: OnboardingState) -> None:
     _onboarding_threads[thread_id] = state
 
