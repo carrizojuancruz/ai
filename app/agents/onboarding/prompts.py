@@ -109,10 +109,11 @@ DEFAULT_RESPONSE_BY_STEP: Final[dict[OnboardingStep, str]] = {
     OnboardingStep.CHECKOUT_EXIT: "Thanks for sharing all that with me! Now I can help you better. What feels right to you - should we keep chatting for a bit, or dive right into setting things up?",
 }
 
-_all_steps = set(OnboardingStep)
-_missing_guidance = _all_steps - set(STEP_GUIDANCE.keys())
-_missing_defaults = _all_steps - set(DEFAULT_RESPONSE_BY_STEP.keys())
-if _missing_guidance:
-    raise RuntimeError(f"STEP_GUIDANCE missing entries for: {sorted(s.value for s in _missing_guidance)}")
-if _missing_defaults:
-    raise RuntimeError(f"DEFAULT_RESPONSE_BY_STEP missing entries for: {sorted(s.value for s in _missing_defaults)}")
+def validate_onboarding_prompts() -> None:
+    _all_steps = set(OnboardingStep)
+    _missing_guidance = _all_steps - set(STEP_GUIDANCE.keys())
+    _missing_defaults = _all_steps - set(DEFAULT_RESPONSE_BY_STEP.keys())
+    if _missing_guidance:
+        raise RuntimeError(f"STEP_GUIDANCE missing entries for: {sorted(s.value for s in _missing_guidance)}")
+    if _missing_defaults:
+        raise RuntimeError(f"DEFAULT_RESPONSE_BY_STEP missing entries for: {sorted(s.value for s in _missing_defaults)}")

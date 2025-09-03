@@ -16,6 +16,7 @@ from .events import (
     emit_step_update,
     emit_token_delta,
 )
+from .prompts import validate_onboarding_prompts
 from .state import OnboardingState, OnboardingStep
 from .types import InteractionType
 
@@ -26,6 +27,12 @@ class OnboardingAgent:
     def __init__(
         self, *, step_handler_service: Any | None = None, langfuse_handler: CallbackHandler | None = None
     ) -> None:
+        try:
+            validate_onboarding_prompts()
+        except Exception as e:
+            logger.error("Onboarding prompts validation failed: %s", e)
+            raise
+
         if step_handler_service is None:
             from app.services.onboarding.step_handler import step_handler_service as _default_handler
 
