@@ -27,14 +27,16 @@ class S3VectorStoreService:
                 'key': key,
                 'data': {'float32': [float(x) for x in embedding]},
                 'metadata': {
-                    'source': doc.metadata.get('source', ''),
+                    'section_url': doc.metadata.get('section_url', ''),
+                    'source_url': doc.metadata.get('source_url', ''),
+                    'name': doc.metadata.get('name', ''),
                     'source_id': source_id,
                     'chunk_index': i,
                     'content': doc.page_content,
                     'content_hash': content_hash,
-                    'source_type': doc.metadata.get('source_type', ''),
-                    'source_category': doc.metadata.get('source_category', ''),
-                    'source_description': doc.metadata.get('source_description', '')
+                    'type': doc.metadata.get('type', ''),
+                    'category': doc.metadata.get('category', ''),
+                    'description': doc.metadata.get('description', '')
                 }
             })
 
@@ -94,7 +96,7 @@ class S3VectorStoreService:
                 result["failed_keys"] = failed_keys
             return result
         except Exception as e:
-            logger.error(f"Failed to delete documents for source_id {source_id}: {str(e)}")
+            logger.error(f"Failed to delete documents for source {source_id}: {str(e)}")
             return {
                 "success": False,
                 "vectors_found": 0,
@@ -122,18 +124,21 @@ class S3VectorStoreService:
         except Exception as e:
             logger.error(f"Failed to iterate vectors for source_id {source_id}: {str(e)}")
 
+
     def _get_vector_keys_by_source_id(self, source_id: str) -> list[str]:
         """Get all vector keys for a specific source_id."""
         return [v.get('key') for v in self._iterate_vectors_by_source_id(source_id) if v.get('key')]
 
 
     def get_source_chunk_hashes(self, source_id: str) -> set[str]:
-        """Get all content hashes for a specific source."""
+        """Get all content hashes for a specific source_id."""
         hashes = set()
         for vector in self._iterate_vectors_by_source_id(source_id):
             content_hash = vector.get('metadata', {}).get('content_hash')
             if content_hash:
                 hashes.add(content_hash)
+        
+        logger.info(f"Found {len(hashes)} existing chunks for source_id: {source_id}")
         return hashes
 
     def similarity_search(self, query_embedding: List[float], k: int) -> List[Dict[str, Any]]:
@@ -152,14 +157,15 @@ class S3VectorStoreService:
             results.append({
                 'content': metadata.get('content', ''),
                 'metadata': {
-                    'source': metadata.get('source', ''),
+                    'section_url': metadata.get('section_url', ''),
+                    'source_url': metadata.get('source_url', ''),
                     'source_id': metadata.get('source_id', ''),
                     'chunk_index': metadata.get('chunk_index', 0),
                     'content_hash': metadata.get('content_hash', ''),
-                    'source_type': metadata.get('source_type', ''),
-                    'source_category': metadata.get('source_category', ''),
-                    'source_description': metadata.get('source_description', ''),
-                    **metadata
+                    'name': metadata.get('name', ''),
+                    'type': metadata.get('type', ''),
+                    'category': metadata.get('category', ''),
+                    'description': metadata.get('description', '')
                 },
                 'score': 1 - v.get('distance', 0),
                 'vector_key': v.get('key', '')

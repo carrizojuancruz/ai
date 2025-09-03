@@ -1,6 +1,6 @@
 [
   {
-    "id": "5d6ddad221f4930efd3b7499095ae46b60f6ddc2b191641e468288897f40f3f7",
+    "id": "5d6ddad221f4930e",
     "name": "211.org",
     "url": "http://211.org",
     "enabled": true,
@@ -9,11 +9,12 @@
     "description": "Information and referrals for social services",
     "include_path_patterns": "",
     "exclude_path_patterns": "",
-    "total_max_pages": "",
-    "recursion_depth": ""
+    "total_max_pages": "50",
+    "recursion_depth": "3",
+    "last_sync": "2025-09-03T13:38:39"
   },
   {
-    "id": "8535605d22f01cf33436623c0c301044354aa357279dede8ea0d1b3725e966f1",
+    "id": "8535605d22f01cf3",
     "name": "988 Suicide & Crisis Lifeline",
     "url": "https://988lifeline.org",
     "enabled": true,
@@ -22,7 +23,8 @@
     "description": "Nationwide three-digit number for crisis support",
     "include_path_patterns": "",
     "exclude_path_patterns": "",
-    "total_max_pages": "",
-    "recursion_depth": ""
+    "total_max_pages": "50",
+    "recursion_depth": "3",
+    "last_sync": "2025-09-03T13:40:09"
   }
 ]

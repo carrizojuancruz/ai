@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
@@ -31,7 +32,7 @@ class SourceRepository(SourceRepositoryInterface):
 
     def save_all(self, sources: List[Source]) -> None:
         os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
-        data = [source.model_dump() for source in sources]
+        data = [source.model_dump(mode='json') for source in sources]
         with open(self.file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
@@ -45,30 +46,32 @@ class SourceRepository(SourceRepositoryInterface):
 
     def add(self, source: Source) -> None:
         sources = self.load_all()
-        existing = next((s for s in sources if s.id == source.id), None)
-        if existing:
-            for i, s in enumerate(sources):
-                if s.id == source.id:
-                    sources[i] = source
-                    break
-        else:
-            sources.append(source)
-
+        sources.append(source)
         self.save_all(sources)
 
     def update(self, source: Source) -> bool:
         sources = self.load_all()
         for i, s in enumerate(sources):
-            if s.id == source.id:
+            if s.url == source.url:
                 sources[i] = source
                 self.save_all(sources)
                 return True
         return False
 
-    def delete_by_id(self, source_id: str) -> bool:
+    def upsert(self, source: Source) -> None:
+        """Insert or update a source."""
+        source.last_sync = datetime.utcnow().replace(microsecond=0)
+
+        existing = self.find_by_url(source.url)
+        if existing:
+            self.update(source)
+        else:
+            self.add(source)
+
+    def delete_by_url(self, url: str) -> bool:
         sources = self.load_all()
         for i, source in enumerate(sources):
-            if source.id == source_id:
+            if source.url == url:
                 del sources[i]
                 self.save_all(sources)
                 return True
