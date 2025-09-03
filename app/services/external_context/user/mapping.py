@@ -69,6 +69,15 @@ def map_ai_context_to_user_context(ai_context: dict[str, Any], user_ctx: UserCon
                 if isinstance(topic, str) and topic and topic not in user_ctx.learning_interests:
                     user_ctx.learning_interests.append(topic)
 
+    summary = ai_context.get("user_context_summary")
+    if isinstance(summary, dict):
+        if not user_ctx.preferred_name and isinstance(summary.get("preferred_name"), str):
+            user_ctx.preferred_name = summary.get("preferred_name")
+        if not user_ctx.location.city and isinstance(summary.get("location"), dict):
+            city = summary.get("location", {}).get("city")
+            if isinstance(city, str):
+                user_ctx.location.city = city
+
     user_ctx.sync_flat_to_nested()
     return user_ctx
 
@@ -80,6 +89,7 @@ def map_user_context_to_ai_context(user_ctx: UserContext) -> dict[str, Any]:
 
     if user_ctx.preferred_name or user_ctx.identity.preferred_name:
         out["preferred_name"] = user_ctx.identity.preferred_name or user_ctx.preferred_name
+
     if user_ctx.style.formality:
         out.setdefault("display_preferences", {})["formality"] = user_ctx.style.formality
 
@@ -98,5 +108,26 @@ def map_user_context_to_ai_context(user_ctx: UserContext) -> dict[str, Any]:
 
     if user_ctx.income or user_ctx.income_band:
         out.setdefault("financial_context", {})["income_range"] = user_ctx.income or user_ctx.income_band
+
+    out["user_context_summary"] = user_ctx.model_dump(mode="json")
+
+    for key in [
+        "display_preferences",
+        "financial_context",
+        "conversation_context",
+        "communication_style",
+        "restrictions",
+        "financial_insights",
+        "behavioral_insights",
+        "collected_information",
+        "goals_tracking",
+        "decision_patterns",
+        "personalization_data",
+        "learning_data",
+    ]:
+        out.setdefault(key, {})
+
+    out["onboarding_completed"] = bool(getattr(user_ctx, "ready_for_orchestrator", False)) or True
+    out["is_active"] = True
 
     return out

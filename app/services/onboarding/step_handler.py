@@ -14,6 +14,7 @@ from app.agents.onboarding.types import (
     choice_from_dict,
     choices_from_list,
 )
+from app.services.onboarding.interaction_choices import get_choices_for_field
 
 from .context_patching import context_patching_service
 from .onboarding_reasoning import onboarding_reasoning_service
@@ -42,11 +43,15 @@ class StepHandlerService:
             OnboardingStep.IDENTITY: self._is_identity_complete,
             OnboardingStep.INCOME_MONEY: self._is_income_money_complete,
             OnboardingStep.ASSETS_EXPENSES: lambda state: True,
-            OnboardingStep.HOME: lambda state: True,
-            OnboardingStep.FAMILY_UNIT: lambda state: True,
-            OnboardingStep.HEALTH_COVERAGE: lambda state: True,
+            OnboardingStep.HOME: lambda state: len(self._get_missing_fields(state, OnboardingStep.HOME)) == 0,
+            OnboardingStep.FAMILY_UNIT: lambda state: len(self._get_missing_fields(state, OnboardingStep.FAMILY_UNIT))
+            == 0,
+            OnboardingStep.HEALTH_COVERAGE: lambda state: len(
+                self._get_missing_fields(state, OnboardingStep.HEALTH_COVERAGE)
+            )
+            == 0,
             OnboardingStep.LEARNING_PATH: lambda state: True,
-            OnboardingStep.PLAID_INTEGRATION: lambda state: True,
+            OnboardingStep.PLAID_INTEGRATION: lambda state: False,
             OnboardingStep.CHECKOUT_EXIT: lambda state: True,
         }
 
@@ -72,6 +77,21 @@ class StepHandlerService:
             state.user_context.ready_for_orchestrator = True
             state.ready_for_completion = True
 
+    def _ensure_warmup_choices(self, state: OnboardingState) -> None:
+        if state.current_step == OnboardingStep.WARMUP and state.current_interaction_type == InteractionType.FREE_TEXT:
+            choice_info = get_choices_for_field("warmup_choice", OnboardingStep.WARMUP)
+            if choice_info and choice_info.get("choices"):
+                state.current_interaction_type = InteractionType(choice_info["type"])
+                state.current_choices = choices_from_list(choice_info.get("choices"))
+
+
+    def _ensure_plaid_choices(self, state: OnboardingState) -> None:
+        if state.current_step == OnboardingStep.PLAID_INTEGRATION and state.current_interaction_type == InteractionType.FREE_TEXT:
+            choice_info = get_choices_for_field("plaid_connect", OnboardingStep.PLAID_INTEGRATION)
+            if choice_info and choice_info.get("choices"):
+                state.current_interaction_type = InteractionType(choice_info["type"])
+                state.current_choices = choices_from_list(choice_info.get("choices"))
+
     async def handle_step(self, state: OnboardingState, step: OnboardingStep) -> OnboardingState:
         state.current_step = step
 
@@ -81,15 +101,6 @@ class StepHandlerService:
         state.multi_min = None
         state.multi_max = None
 
-        if step in [
-            OnboardingStep.HOME,
-            OnboardingStep.FAMILY_UNIT,
-            OnboardingStep.HEALTH_COVERAGE,
-        ] and not state.should_show_conditional_node(step):
-            state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
-            self._mark_ready_if_checkout_exit(state)
-            return state
-
         missing_fields = self._get_missing_fields(state, step)
 
         if step == OnboardingStep.IDENTITY and self._message_indicates_under_18(state):
@@ -98,6 +109,16 @@ class StepHandlerService:
 
         if step == OnboardingStep.IDENTITY and self._context_indicates_under_18(state):
             self._terminate_for_under_18(state)
+            return state
+
+        if step == OnboardingStep.PLAID_INTEGRATION:
+            self._ensure_plaid_choices(state)
+            response = "Ready to connect your accounts securely?"
+            state.add_conversation_turn(state.last_user_message or "", format_brief(response))
+            if (state.last_user_message or "").strip().lower() in {"connect_now", "later"}:
+                state.mark_step_completed(step)
+                state.user_context.ready_for_orchestrator = True
+                state.ready_for_completion = True
             return state
 
         decision = onboarding_reasoning_service.reason_step(state, step, missing_fields)
@@ -137,6 +158,8 @@ class StepHandlerService:
         ):
             state.current_interaction_type = InteractionType.FREE_TEXT
             state.current_binary_choices = None
+
+        self._ensure_warmup_choices(state)
 
         if decision.get("complete") or self.is_step_complete(state, step):
             state.mark_step_completed(step)
@@ -178,16 +201,6 @@ class StepHandlerService:
             state.multi_min = None
             state.multi_max = None
 
-            if step in [
-                OnboardingStep.HOME,
-                OnboardingStep.FAMILY_UNIT,
-                OnboardingStep.HEALTH_COVERAGE,
-            ] and not state.should_show_conditional_node(step):
-                state.current_step = state.get_next_step() or OnboardingStep.PLAID_INTEGRATION
-                self._mark_ready_if_checkout_exit(state)
-                yield ("", state)
-                return
-
             if step == OnboardingStep.IDENTITY and self._message_indicates_under_18(state):
                 self._terminate_for_under_18(state)
                 yield (UNDER_18_MESSAGE, state)
@@ -196,6 +209,17 @@ class StepHandlerService:
             if step == OnboardingStep.IDENTITY and self._context_indicates_under_18(state):
                 self._terminate_for_under_18(state)
                 yield (UNDER_18_MESSAGE, state)
+                return
+
+            if step == OnboardingStep.PLAID_INTEGRATION:
+                self._ensure_plaid_choices(state)
+                response = "Ready to connect your accounts securely?"
+                state.add_conversation_turn(state.last_user_message or "", format_brief(response))
+                yield (format_brief(response), state)
+                if (state.last_user_message or "").strip().lower() in {"connect_now", "later"}:
+                    state.mark_step_completed(step)
+                    state.user_context.ready_for_orchestrator = True
+                    state.ready_for_completion = True
                 return
 
             missing_fields = self._get_missing_fields(state, step)
@@ -240,13 +264,16 @@ class StepHandlerService:
                     state.current_interaction_type = InteractionType.FREE_TEXT
                     state.current_binary_choices = None
 
+                self._ensure_warmup_choices(state)
+
                 if final_decision.get("complete") or self.is_step_complete(state, step):
                     state.mark_step_completed(step)
                     state.current_step = state.get_next_step() or OnboardingStep.CHECKOUT_EXIT
                     self._mark_ready_if_checkout_exit(state)
 
                 if final_decision.get("declined") or (
-                    state.last_user_message and any(skip_word in state.last_user_message.lower() for skip_word in SKIP_WORDS)
+                    state.last_user_message
+                    and any(skip_word in state.last_user_message.lower() for skip_word in SKIP_WORDS)
                 ):
                     state = self._handle_skip(state, step)
                     self._mark_ready_if_checkout_exit(state)
