@@ -50,8 +50,8 @@ class CrawlerService:
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
+        'Cache-Control': 'max-age=0',
+        'Connection': 'keep-alive',
         'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
         'Sec-Ch-Ua-Mobile': '?0',
         'Sec-Ch-Ua-Platform': '"Windows"',
@@ -59,7 +59,8 @@ class CrawlerService:
         'Sec-Fetch-Mode': 'navigate',
         'Sec-Fetch-Site': 'none',
         'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1'
+        'Upgrade-Insecure-Requests': '1',
+        'DNT': '1'
     }
 
     def __init__(self):
@@ -74,6 +75,38 @@ class CrawlerService:
 
         ssl._create_default_https_context = ssl._create_unverified_context
 
+    def _get_enhanced_headers(self) -> Dict[str, str]:
+        """Get enhanced headers for Cloudflare-protected sites."""
+        import os
+        
+        # Use environment variable if set, otherwise fallback to default
+        user_agent = os.getenv('USER_AGENT', self.DEFAULT_HEADERS['User-Agent'])
+        
+        headers = self.DEFAULT_HEADERS.copy()
+        headers['User-Agent'] = user_agent
+        
+        # Add referer for some sites that require it
+        headers['Referer'] = 'https://www.google.com/'
+        
+        return headers
+
+    @classmethod
+    def _is_cloudflare_blocked(cls, html: str) -> bool:
+        """Check if the response is a Cloudflare challenge page."""
+        if not html:
+            return False
+        
+        cloudflare_indicators = [
+            'Just a moment...',
+            'Enable JavaScript and cookies to continue',
+            'cf-browser-verification',
+            'cloudflare',
+            'DDoS protection by Cloudflare'
+        ]
+        
+        html_lower = html.lower()
+        return any(indicator.lower() in html_lower for indicator in cloudflare_indicators)
+
     @classmethod
     def _extract_clean_text(cls, html: str) -> str:
         """Extract and clean text content from HTML.
@@ -85,6 +118,12 @@ class CrawlerService:
             Cleaned text content with normalized whitespace
 
         """
+        # Check if this is a Cloudflare challenge page
+        if cls._is_cloudflare_blocked(html):
+            logger.warning("Cloudflare challenge detected. Content may be blocked.")
+            # Return empty string to avoid processing challenge page
+            return ""
+        
         soup = BeautifulSoup(html, "lxml")
         text = soup.get_text()
         return cls.WHITESPACE_PATTERN.sub('\n\n', text).strip()
@@ -202,7 +241,7 @@ class CrawlerService:
                 extractor=self._extract_clean_text,
                 check_response_status=False,
                 continue_on_failure=True,
-                headers=self.DEFAULT_HEADERS,
+                headers=self._get_enhanced_headers(),
                 ssl=False
             )
 
@@ -244,7 +283,7 @@ class CrawlerService:
                 extractor=self._extract_clean_text,
                 timeout=self.timeout,
                 check_response_status=False,
-                headers=self.DEFAULT_HEADERS,
+                headers=self._get_enhanced_headers(),
                 ssl=False
             )
 
