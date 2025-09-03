@@ -6,6 +6,7 @@ from typing import Callable
 from app.agents.onboarding.constants import SKIP_WORDS, UNDER_18_TOKENS
 from app.agents.onboarding.formatter import format_brief
 from app.agents.onboarding.prompts import DEFAULT_RESPONSE_BY_STEP
+from app.agents.onboarding.prompts import UNDER_18_TERMINATION_MESSAGE as UNDER_18_MESSAGE
 from app.agents.onboarding.state import OnboardingState, OnboardingStep
 from app.agents.onboarding.types import (
     BinaryChoices,
@@ -46,6 +47,23 @@ class StepHandlerService:
             OnboardingStep.CHECKOUT_EXIT: lambda state: True,
         }
 
+    def _message_indicates_under_18(self, state: OnboardingState) -> bool:
+        msg = (state.last_user_message or "").strip().lower()
+        return msg in UNDER_18_TOKENS
+
+    def _context_indicates_under_18(self, state: OnboardingState) -> bool:
+        try:
+            age = getattr(state.user_context, "age", None)
+            age_range = getattr(state.user_context, "age_range", None)
+            return bool((age and int(age) < 18) or age_range == "under_18")
+        except Exception:
+            return False
+
+    def _terminate_for_under_18(self, state: OnboardingState) -> None:
+        state.ready_for_completion = True
+        state.user_context.ready_for_orchestrator = True
+        state.add_conversation_turn(state.last_user_message or "", format_brief(UNDER_18_MESSAGE))
+
     async def handle_step(self, state: OnboardingState, step: OnboardingStep) -> OnboardingState:
         state.current_step = step
 
@@ -65,43 +83,21 @@ class StepHandlerService:
 
         missing_fields = self._get_missing_fields(state, step)
 
-        if step == OnboardingStep.IDENTITY:
-            msg = (state.last_user_message or "").strip().lower()
-            if msg in UNDER_18_TOKENS:
-                state.ready_for_completion = True
-                state.user_context.ready_for_orchestrator = True
-                response = (
-                    "I appreciate your interest, but I'm designed to help adults (18+) with their finances. "
-                    "Please come back when you're 18 or older!"
-                )
-                state.add_conversation_turn(state.last_user_message or "", format_brief(response))
-                return state
+        if step == OnboardingStep.IDENTITY and self._message_indicates_under_18(state):
+            self._terminate_for_under_18(state)
+            return state
 
-            age = state.user_context.age
-            age_range = state.user_context.age_range
-            if (age and int(age) < 18) or age_range == "under_18":
-                state.ready_for_completion = True
-                state.user_context.ready_for_orchestrator = True
-                response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
-                state.add_conversation_turn(state.last_user_message or "", format_brief(response))
-                return state
+        if step == OnboardingStep.IDENTITY and self._context_indicates_under_18(state):
+            self._terminate_for_under_18(state)
+            return state
 
         decision = onboarding_reasoning_service.reason_step(state, step, missing_fields)
 
         context_patching_service.apply_context_patch(state, step, decision.get("patch") or {})
 
-        if step == OnboardingStep.IDENTITY:
-            try:
-                age = state.user_context.age
-                age_range = state.user_context.age_range
-                if (age and int(age) < 18) or age_range == "under_18":
-                    state.ready_for_completion = True
-                    state.user_context.ready_for_orchestrator = True
-                    response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
-                    state.add_conversation_turn(state.last_user_message or "", format_brief(response))
-                    return state
-            except Exception:
-                pass
+        if step == OnboardingStep.IDENTITY and self._context_indicates_under_18(state):
+            self._terminate_for_under_18(state)
+            return state
 
         response = decision.get("assistant_text") or DEFAULT_RESPONSE_BY_STEP.get(step, "")
 
@@ -127,9 +123,8 @@ class StepHandlerService:
         state.multi_max = decision.get("multi_max")
 
         if itype == InteractionType.BINARY_CHOICE and not (
-            state.current_binary_choices and (
-                state.current_binary_choices.primary_choice or state.current_binary_choices.secondary_choice
-            )
+            state.current_binary_choices
+            and (state.current_binary_choices.primary_choice or state.current_binary_choices.secondary_choice)
         ):
             state.current_interaction_type = InteractionType.FREE_TEXT
             state.current_binary_choices = None
@@ -139,8 +134,7 @@ class StepHandlerService:
             state.current_step = state.get_next_step() or OnboardingStep.CHECKOUT_EXIT
 
         if decision.get("declined") or (
-            state.last_user_message
-            and any(skip_word in state.last_user_message.lower() for skip_word in SKIP_WORDS)
+            state.last_user_message and any(skip_word in state.last_user_message.lower() for skip_word in SKIP_WORDS)
         ):
             state = self._handle_skip(state, step)
 
@@ -181,31 +175,17 @@ class StepHandlerService:
                 yield ("", state)
                 return
 
-            if step == OnboardingStep.IDENTITY:
-                msg = (state.last_user_message or "").strip().lower()
-                if msg in UNDER_18_TOKENS:
-                    state.ready_for_completion = True
-                    state.user_context.ready_for_orchestrator = True
-                    response = (
-                        "I appreciate your interest, but I'm designed to help adults (18+) with their finances. "
-                        "Please come back when you're 18 or older!"
-                    )
-                    state.add_conversation_turn(state.last_user_message or "", format_brief(response))
-                    yield (format_brief(response), state)
-                    return
+            if step == OnboardingStep.IDENTITY and self._message_indicates_under_18(state):
+                self._terminate_for_under_18(state)
+                yield (UNDER_18_MESSAGE, state)
+                return
+
+            if step == OnboardingStep.IDENTITY and self._context_indicates_under_18(state):
+                self._terminate_for_under_18(state)
+                yield (UNDER_18_MESSAGE, state)
+                return
 
             missing_fields = self._get_missing_fields(state, step)
-
-            if step == OnboardingStep.IDENTITY:
-                age = state.user_context.age
-                age_range = state.user_context.age_range
-                if (age and int(age) < 18) or age_range == "under_18":
-                    state.ready_for_completion = True
-                    state.user_context.ready_for_orchestrator = True
-                    response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
-                    state.add_conversation_turn(state.last_user_message or "", format_brief(response))
-                    yield (format_brief(response), state)
-                    return
 
             accumulated_response = ""
             final_decision = None
@@ -223,19 +203,10 @@ class StepHandlerService:
             if final_decision:
                 context_patching_service.apply_context_patch(state, step, final_decision.get("patch") or {})
 
-                if step == OnboardingStep.IDENTITY:
-                    try:
-                        age = state.user_context.age
-                        age_range = state.user_context.age_range
-                        if (age and int(age) < 18) or age_range == "under_18":
-                            state.ready_for_completion = True
-                            state.user_context.ready_for_orchestrator = True
-                            response = "I appreciate your interest, but I'm designed to help adults (18+) with their finances. Please come back when you're 18 or older!"
-                            state.add_conversation_turn(state.last_user_message or "", format_brief(response))
-                            yield (format_brief(response), state)
-                            return
-                    except Exception:
-                        pass
+                if step == OnboardingStep.IDENTITY and self._context_indicates_under_18(state):
+                    self._terminate_for_under_18(state)
+                    yield (UNDER_18_MESSAGE, state)
+                    return
 
                 state.current_interaction_type = InteractionType(final_decision.get("interaction_type", "free_text"))
                 state.current_choices = choices_from_list(final_decision.get("choices"))
@@ -249,14 +220,9 @@ class StepHandlerService:
                 state.multi_min = final_decision.get("multi_min")
                 state.multi_max = final_decision.get("multi_max")
 
-                if (
-                    state.current_interaction_type == InteractionType.BINARY_CHOICE
-                    and not (
-                        state.current_binary_choices
-                        and (
-                            state.current_binary_choices.primary_choice or state.current_binary_choices.secondary_choice
-                        )
-                    )
+                if state.current_interaction_type == InteractionType.BINARY_CHOICE and not (
+                    state.current_binary_choices
+                    and (state.current_binary_choices.primary_choice or state.current_binary_choices.secondary_choice)
                 ):
                     state.current_interaction_type = InteractionType.FREE_TEXT
                     state.current_binary_choices = None
@@ -317,9 +283,7 @@ class StepHandlerService:
 
             yield ("", state)
         except Exception:
-            safe_text = format_brief(
-                "Sorry, I had trouble processing that. Let's continue and try again."
-            )
+            safe_text = format_brief("Sorry, I had trouble processing that. Let's continue and try again.")
             state.add_conversation_turn(state.last_user_message or "", safe_text)
             yield (safe_text, state)
 

@@ -43,6 +43,10 @@ You are Vera, a trusted AI personal assistant, conducting an onboarding conversa
 - Don't make up, invent, or fabricate any financial data or information
 """
 
+UNDER_18_TERMINATION_MESSAGE: Final[str] = (
+    "I’m really sorry, but you need to be at least 18 to chat with me. It’s for safety and privacy reasons.I hope we can talk in the future!"
+)
+
 STEP_GUIDANCE: Final[dict[OnboardingStep, str]] = {
     OnboardingStep.WARMUP: """
 Focus on building initial rapport and explaining the process. This is about creating a warm welcome
