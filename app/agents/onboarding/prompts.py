@@ -44,20 +44,21 @@ You are Vera, a trusted AI personal assistant, conducting an onboarding conversa
 """
 
 UNDER_18_TERMINATION_MESSAGE: Final[str] = (
-    "I’m really sorry, but you need to be at least 18 to chat with me. It’s for safety and privacy reasons.I hope we can talk in the future!"
+    "I’m really sorry, but you need to be at least 18 to chat with me. It’s for safety and privacy reasons. I hope we can talk in the future!"
 )
 
 STEP_GUIDANCE: Final[dict[OnboardingStep, str]] = {
     OnboardingStep.WARMUP: """
 Focus on building initial rapport and explaining the process. This is about creating a warm welcome
 and setting expectations. If the user wants to skip onboarding, respect that choice immediately.
+If no preferred name is known, politely ask what they like to be called and remember it.
 """,
     OnboardingStep.IDENTITY: """
 IMPORTANT: Start by asking about their age. This is required information for the identity step.
 Gather basic information about age, location, and personal goals. For age, start with an open-ended
 question, then offer ranges if they're hesitant. If under 18, politely explain that the service is
-for adults and end the conversation. After age, ask about their location (city/state). If they mention
-wanting to learn, note this for routing to the learning path.
+for adults and end the conversation. After age, ask about their location (city/state). If no
+preferred name is known yet, confirm or ask for it here before moving on.
 """,
     OnboardingStep.INCOME_MONEY: """
 Explore their emotional relationship with money and income information. Start by understanding their

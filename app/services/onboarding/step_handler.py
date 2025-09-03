@@ -22,7 +22,10 @@ from .onboarding_reasoning import onboarding_reasoning_service
 class StepHandlerService:
     def __init__(self) -> None:
         self._missing_fields_by_step: dict[OnboardingStep, list[str] | Callable] = {
-            OnboardingStep.WARMUP: lambda state: ["warmup_choice"],
+            OnboardingStep.WARMUP: lambda state: (
+                (["preferred_name"] if not getattr(state.user_context, "preferred_name", None) else [])
+                + ["warmup_choice"]
+            ),
             OnboardingStep.IDENTITY: self._get_identity_missing_fields,
             OnboardingStep.INCOME_MONEY: self._get_income_money_missing_fields,
             OnboardingStep.ASSETS_EXPENSES: lambda state: ["assets_types", "fixed_expenses"],
@@ -316,6 +319,8 @@ class StepHandlerService:
 
     def _get_identity_missing_fields(self, state: OnboardingState) -> list[str]:
         missing: list[str] = []
+        if not getattr(state.user_context, "preferred_name", None):
+            missing.append("preferred_name")
         has_age = bool(getattr(state.user_context, "age", None))
         has_age_range = bool(getattr(state.user_context, "age_range", None))
         if not has_age and not has_age_range:

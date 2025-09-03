@@ -30,8 +30,16 @@ langfuse_handler = CallbackHandler(
 )
 
 ALLOWED_FIELDS_BY_STEP: dict[OnboardingStep, list[str]] = {
-    OnboardingStep.WARMUP: ["warmup_choice"],
-    OnboardingStep.IDENTITY: ["age", "age_range", "location", "city", "region", "personal_goals"],
+    OnboardingStep.WARMUP: ["warmup_choice", "preferred_name"],
+    OnboardingStep.IDENTITY: [
+        "preferred_name",
+        "age",
+        "age_range",
+        "location",
+        "city",
+        "region",
+        "personal_goals",
+    ],
     OnboardingStep.INCOME_MONEY: ["money_feelings", "annual_income", "annual_income_range", "income", "income_range"],
     OnboardingStep.ASSETS_EXPENSES: ["assets_types", "fixed_expenses"],
     OnboardingStep.HOME: ["housing_type", "housing_satisfaction", "monthly_housing_cost"],
