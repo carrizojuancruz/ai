@@ -25,10 +25,30 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Application startup complete")
+    logger.info("Application startup - initializing services")
+
+    # Initialize database connection on startup
+    try:
+        from app.db.session import _get_engine
+        _get_engine()  # This will create the engine and start health checks
+        logger.info("Database connection initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize database connection: {e}")
+        # Continue startup even if DB fails (for resilience)
+
     try:
         yield
     finally:
+        logger.info("Application shutdown - cleaning up resources")
+
+        # Dispose database connections on shutdown
+        try:
+            from app.db.session import dispose_engine
+            await dispose_engine()
+            logger.info("Database connections disposed successfully")
+        except Exception as e:
+            logger.error(f"Error disposing database connections: {e}")
+
         logger.info("Application shutdown complete")
 
 
@@ -47,6 +67,38 @@ async def log_requests(request: Request, call_next: Callable[[Request], Response
 async def health_check() -> dict[str, str]:
     logger.info("Health check requested")
     return {"message": "Verde AI - Vera Agent System", "status": "healthy"}
+
+
+@app.get("/health/database")
+async def database_health_check() -> dict:
+    """Comprehensive database health check."""
+    try:
+        from app.db.session import get_connection_stats, _health_check_connection, _get_engine
+
+        engine = _get_engine()
+        is_healthy = await _health_check_connection(engine)
+        stats = get_connection_stats()
+
+        response = {
+            "status": "healthy" if is_healthy else "unhealthy",
+            "database": {
+                "connection_healthy": is_healthy,
+                "pool_stats": stats,
+            }
+        }
+
+        logger.info(f"Database health check: {response['status']}")
+        return response
+
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        return {
+            "status": "error",
+            "database": {
+                "connection_healthy": False,
+                "error": str(e)
+            }
+        }
 
 @app.get("/actual_config")
 async def actual_config() -> dict[str, Any]:

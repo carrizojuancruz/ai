@@ -16,6 +16,7 @@ from app.core.app_state import (
 )
 from app.core.config import config
 from app.models.user import UserContext
+from app.repositories.database_service import get_database_service
 from app.repositories.session_store import InMemorySessionStore, get_session_store
 from app.utils.mapping import get_source_name
 from app.utils.tools import check_repeated_sources
@@ -85,10 +86,20 @@ class SupervisorService:
             else:
                 logger.warning(f"[SUPERVISOR] External API returned no body or 404 for user {user_context.user_id}")
                 return False
-
         except Exception as e:
-            logger.warning(f"[SUPERVISOR] Failed to export user context: {e}")
+            logger.error(f"[SUPERVISOR] Failed to export user context: {e}")
             return False
+
+    async def _get_user_context_from_db(self, user_id: UUID) -> UserContext | None:
+        """Get user context from database using the centralized database service."""
+        try:
+            db_service = get_database_service()
+            async with db_service.get_session() as session:
+                repo = db_service.get_user_repository(session)
+                return await repo.get_by_id(user_id)
+        except Exception as e:
+            logger.error(f"[SUPERVISOR] Failed to load user context from database: {e}")
+            return None
 
     def _is_guardrail_intervention(self, text: str) -> bool:
         if not isinstance(text, str):
@@ -395,11 +406,21 @@ class SupervisorService:
             stream_mode="values",
             subgraphs=True,
         ):
+            # Write all events to a txt file for debugging/audit
+            with open("all_events_log.txt", "a", encoding="utf-8") as f:
+                f.write(f"{event}\n")
+
             name = event.get("name")
             etype = event.get("event")
             data = event.get("data") or {}
 
             if etype == "on_chat_model_stream":
+                # Only stream tokens from supervisor level, not from sub-agents
+                metadata = event.get("metadata", {})
+                checkpoint_ns = metadata.get("checkpoint_ns", "")
+                if not checkpoint_ns.startswith("supervisor:"):
+                    continue
+
                 chunk = data.get("chunk")
                 out = self._content_to_text(chunk)
                 if out:
@@ -419,6 +440,12 @@ class SupervisorService:
                 if name:
                     await q.put({"event": "tool.end", "data": {"tool": name}})
             elif etype == "on_chain_end":
+                # Only stream tokens from supervisor level, not from sub-agents
+                metadata = event.get("metadata", {})
+                checkpoint_ns = metadata.get("checkpoint_ns", "")
+                if not checkpoint_ns.startswith("supervisor:"):
+                    continue
+
                 try:
                     output = data.get("output", {})
                     if isinstance(output, dict):
