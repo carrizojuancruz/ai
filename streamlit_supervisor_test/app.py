@@ -16,6 +16,8 @@ if "user_id" not in st.session_state:
     st.session_state.user_id = str(uuid.uuid4())
 if "base_url" not in st.session_state:
     st.session_state.base_url = "http://localhost:8000"
+if "info_messages" not in st.session_state:
+    st.session_state.info_messages = []
 
 st.title("Supervisor Test UI")
 
@@ -54,6 +56,11 @@ else:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
+    # Display info messages if they exist
+    if "info_messages" in st.session_state and st.session_state.info_messages:
+        for info_msg in st.session_state.info_messages:
+            st.info(info_msg)
+
     # Chat input
     if prompt := st.chat_input("What is up?"):
         st.session_state.messages.append({"role": "user", "content": prompt})
@@ -80,12 +87,15 @@ else:
                 client = SSEClient(response)
 
                 is_first_delta = True
+                sources = []
                 welcome_message = st.session_state.messages[0]['content']
 
                 for event in client.events():
                     if event.event == "token.delta":
                         data = json.loads(event.data)
                         text_delta = data.get("text", "")
+                        sources = data.get("sources", [])
+                        print(f"Sources: {sources}")
 
                         # The first token.delta is the welcome message, which we already have.
                         # We consume it from the stream and discard it.
@@ -110,14 +120,10 @@ else:
                             full_response += text_delta
 
                         message_placeholder.markdown(full_response + "▌")
-                    elif event.event == "tool.start":
+                    elif event.event == "tool.start" or event.event == "tool.end":
                         data = json.loads(event.data)
                         tool_name = data.get("tool")
-                        st.info(f"Tool started: `{tool_name}`")
-                    elif event.event == "tool.end":
-                        data = json.loads(event.data)
-                        tool_name = data.get("tool")
-                        st.info(f"Tool ended: `{tool_name}`")
+                        # st.info(f"Tool ended: `{tool_name}`")
                     elif event.event == "step.update":
                         data = json.loads(event.data)
                         if data.get("status") == "presented":
@@ -125,7 +131,12 @@ else:
 
                 message_placeholder.markdown(full_response)
 
+
+
+
             st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+            st.session_state.info_messages.append(f"Sources: {sources}")
 
         except requests.exceptions.RequestException as e:
             st.error(f"Failed to send message: {e}")
@@ -133,4 +144,5 @@ else:
             st.error(f"An unexpected error occurred: {e}")
 
         st.rerun()
+
 

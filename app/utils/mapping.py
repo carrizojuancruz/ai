@@ -1,6 +1,4 @@
-'''
-This module provides a mapping of tool names to their descriptions.
-'''
+"""Mapping of tool names to their descriptions."""
 
 SOURCE_MAPPING = {
     "query_knowledge_base": "Knowledge base",

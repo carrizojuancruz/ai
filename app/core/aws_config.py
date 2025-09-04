@@ -3,25 +3,23 @@ from __future__ import annotations
 import json
 import logging
 import os
+from typing import Any
+
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
 class AWSConfig:
-    """
-    AWSConfig class for managing AWS configuration and secrets.
-    """
+    """AWSConfig class for managing AWS configuration and secrets."""
+
     def __init__(self, region: str, secrets_arn: str):
         self.session = boto3.session.Session()
         self.region = region
         self.secrets_arn = secrets_arn
-    
+
     def get_secrets_manager_values(self) -> dict[str, Any]:
-        """
-        Get secrets from AWS Secrets Manager.
-        """
+        """Get secrets from AWS Secrets Manager."""
         if not self.secrets_arn:
             logger.info("No FOS_SECRETS_ID provided, using local environment variables")
             return
@@ -42,9 +40,7 @@ class AWSConfig:
         return secret_data
 
 def load_aws_secrets() -> None:
-    """
-    Load AWS secrets from AWS Secrets Manager.
-    """
+    """Load AWS secrets from AWS Secrets Manager."""
     secret_id = os.getenv("FOS_SECRETS_ID")
     if not secret_id:
         logger.info("No FOS_SECRETS_ID provided, using local environment variables")

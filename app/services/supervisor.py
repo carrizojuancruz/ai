@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-import json
-from typing import Any, Optional, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
 from langfuse.callback import CallbackHandler
@@ -315,9 +314,7 @@ class SupervisorService:
             return None
 
     async def initialize(self, *, user_id: UUID) -> dict[str, Any]:
-        """
-        Initialize the supervisor service
-        """
+        """Initialize the supervisor service."""
         thread_id = str(uuid4())
         queue = get_sse_queue(thread_id)
 
