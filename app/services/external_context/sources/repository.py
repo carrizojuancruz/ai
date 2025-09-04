@@ -45,7 +45,7 @@ class ExternalSourcesRepository(ExternalSourcesRepositoryInterface):
             api_response = APIResponse(**response_data)
             external_sources = [
                 self._map_api_to_external_source(api_source)
-                for api_source in api_response.items[:20]
+                for api_source in api_response.items
             ]
 
             logger.info(f"Retrieved {len(external_sources)} sources from external API")
