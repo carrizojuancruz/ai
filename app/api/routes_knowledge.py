@@ -58,7 +58,7 @@ async def get_sources() -> SourcesResponse:
         ) from e
 
 
-@router.get("/sources/{source_id}/details", response_model=SourceDetailsResponse)
+@router.get("/sources/{source_id}", response_model=SourceDetailsResponse)
 async def get_source_details(source_id: str) -> SourceDetailsResponse:
     """Get basic details about a source and its chunks."""
     try:

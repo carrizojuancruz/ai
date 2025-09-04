@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -19,3 +20,4 @@ class Source(BaseModel):
     recursion_depth: int | None = None
     last_sync: datetime | None = None
     total_chunks: int = 0
+    section_urls: Optional[List[str]] = None

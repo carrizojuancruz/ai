@@ -9,6 +9,7 @@ from langchain_core.documents import Document
 
 from app.core.config import config
 from app.knowledge.models import Source
+
 from .content_utils import ContentProcessor, UrlFilter
 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
@@ -83,7 +84,7 @@ class CrawlerService:
     def _create_loader(self, url: str, loader_type: str, **kwargs):
         """Create appropriate loader based on type."""
         headers = ContentProcessor.get_headers()
-        
+
         if loader_type == "recursive":
             return RecursiveUrlLoader(
                 url=url,

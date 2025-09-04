@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -26,6 +26,7 @@ class SourceResponse(BaseModel):
     total_max_pages: Optional[int] = None
     recursion_depth: Optional[int] = None
     last_sync: Optional[datetime] = None
+    section_urls: Optional[List[str]] = None
 
 
 class SourcesResponse(BaseModel):

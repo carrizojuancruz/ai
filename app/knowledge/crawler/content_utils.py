@@ -6,9 +6,9 @@ from bs4 import BeautifulSoup
 
 class ContentProcessor:
     """Handles HTML content processing and text extraction."""
-    
+
     WHITESPACE_PATTERN = re.compile(r'\n\n+')
-    
+
     DEFAULT_HEADERS = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -45,10 +45,10 @@ class ContentProcessor:
 
 class UrlFilter:
     """Handles URL filtering and exclusion logic."""
-    
+
     EXCLUDED_EXTENSIONS: Set[str] = {
         '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico',
-        '.woff', '.woff2', '.ttf', '.eot', '.pdf', '.zip', '.exe', '.dmg',
+        '.woff', '.woff2', '.ttf', '.eot', '.zip', '.exe', '.dmg',
         '.mp4', '.mp3', '.avi', '.mov', '.webm', '.ogg', '.wav'
     }
 
@@ -74,10 +74,10 @@ class UrlFilter:
         """Determine if URL should be excluded."""
         url_lower = url.lower()
         url_path = url.split('?')[0].split('#')[0]
-        
+
         if any(url_path.endswith(ext) for ext in cls.EXCLUDED_EXTENSIONS):
             return True
-        
+
         return any(pattern in url_lower for pattern in cls.EXCLUDED_PATH_PATTERNS)
 
     @classmethod

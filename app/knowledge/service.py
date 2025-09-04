@@ -94,6 +94,15 @@ class KnowledgeService:
         chunk_texts = [doc.page_content for doc in chunks]
         chunk_embeddings = self.document_service.generate_embeddings(chunk_texts)
 
+        section_urls = set()
+        for chunk in chunks:
+            section_url = chunk.metadata.get("section_url")
+            if section_url:
+                section_urls.add(section_url)
+
+        source.section_urls = list(section_urls) if section_urls else []
+        logger.info(f"Collected {len(source.section_urls)} unique section URLs for {source.url}")
+
         self.vector_store_service.add_documents(chunks, chunk_embeddings)
 
         source.total_chunks = len(chunks)
