@@ -32,7 +32,7 @@ class FinanceRepository:
                 return []
 
             # Convert to list of dictionaries
-            formatted_rows = [dict(row) for row in rows]
+            formatted_rows = [dict(row._mapping) for row in rows]
             logger.info(f"Successfully formatted {len(formatted_rows)} rows for user {user_id}")
             return formatted_rows
 
