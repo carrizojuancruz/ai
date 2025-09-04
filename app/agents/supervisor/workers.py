@@ -4,6 +4,7 @@ from typing import Any
 
 from langchain_core.messages import HumanMessage
 from langgraph.graph import MessagesState
+from langchain_core.runnables import RunnableConfig
 
 from app.utils.welcome import call_llm
 
@@ -49,4 +50,28 @@ async def math_agent(state: MessagesState) -> dict[str, Any]:
     content = content or "I could not compute that right now."
     return {"messages": [{"role": "assistant", "content": content, "name": "math_agent"}]}
 
-
+async def goal_agent(state: MessagesState, config: RunnableConfig) -> str:
+    """
+    Goal agent worker that handles financial goals management.
+    """
+    try:
+        # Get the goal_agent graph
+        from .subagents.goal_agent.agent import compile_goal_agent_graph
+        
+        goal_graph = compile_goal_agent_graph()
+        
+        # Proccess message through the goal_agent graph
+        result = await goal_graph.ainvoke(state, config=config)
+        
+        # Return the result in the expected format by MessagesState
+        return result
+        
+    except Exception as e:
+        print(f"Error in goal_agent: {e}")
+        return {
+            "messages": [{
+                "role": "assistant", 
+                "content": f"I'm sorry, I had a problem processing your goal request: {str(e)}", 
+                "name": "goal_agent"
+            }]
+        }
