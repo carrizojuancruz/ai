@@ -31,6 +31,13 @@ def _save_user_goals(goals: List[Goal]) -> None:
     """Save goals for a user."""
     _GOALS.extend(goals)
 
+def _update_user_goal(goal: Goal) -> None:
+    """Update a goal for a user."""
+    for i, g in enumerate(_GOALS):
+        if g.goal_id == goal.goal_id:
+            _GOALS[i] = goal
+            break
+
 def _get_in_progress_goal(user_id: str) -> List[Goal]:
     """Get the in progress goal for a user."""
     return [g for g in _get_user_goals(user_id) if g.status.value == GoalStatus.IN_PROGRESS]
@@ -151,7 +158,7 @@ def update_goal(data: Goal, config: RunnableConfig) -> str:
         # Update fields
         updated_goal = Goal(
             goal_id=existing_goal.goal_id,
-            user_id=UUID(user_key),
+            user_id=existing_goal.user_id,
             version=existing_goal.version + 1,
             goal=data.goal or existing_goal.goal,
             category=data.category or existing_goal.category,
@@ -161,18 +168,16 @@ def update_goal(data: Goal, config: RunnableConfig) -> str:
             evaluation=data.evaluation or existing_goal.evaluation,
             thresholds=data.thresholds or existing_goal.thresholds,
             reminders=data.reminders or existing_goal.reminders,
-            status=existing_goal.status,
-            progress=existing_goal.progress,
+            status= data.status or existing_goal.status,
+            progress=data.progress or existing_goal.progress,
             metadata=data.metadata or existing_goal.metadata,
-            idempotency_key=existing_goal.idempotency_key,
+            idempotency_key=data.idempotency_key or existing_goal.idempotency_key,
             audit=Audit(
                 created_at=existing_goal.audit.created_at if existing_goal.audit else _now(),
                 updated_at=_now()
             )
         )
-        
-        user_goals[goal_index] = updated_goal
-        _save_user_goals(user_goals)
+        _update_user_goal(updated_goal)
         
         # Use model_dump_json() for correct serialization
         goal_json = updated_goal.model_dump_json()
@@ -296,8 +301,7 @@ def delete_goal(config: RunnableConfig) -> str:
                 else:
                     goal.audit = Audit(created_at=_now(), updated_at=_now())
                 
-                user_goals[i] = goal
-                _save_user_goals(user_goals)
+                _update_user_goal(goal)
                 
                 # Use model_dump_json() for correct serialization
                 goal_json = goal.model_dump_json()

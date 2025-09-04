@@ -49,7 +49,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
             assign_to_research_agent_with_description,
             assign_to_math_agent_with_description,
             assign_to_goal_agent_with_description,
-            knowledge_search_tool,
+            # knowledge_search_tool,
         ],
         prompt=SUPERVISOR_PROMPT,
         name="supervisor",
