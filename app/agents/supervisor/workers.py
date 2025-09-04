@@ -7,6 +7,8 @@ from langgraph.graph import MessagesState
 
 from app.utils.welcome import call_llm
 
+from .subagents.wealth_agent.agent import compile_wealth_agent_graph
+
 
 def _extract_text_from_content(content: str | list[dict[str, Any]] | dict[str, Any] | None) -> str:
     if isinstance(content, str):
@@ -49,4 +51,10 @@ async def math_agent(state: MessagesState) -> dict[str, Any]:
     content = content or "I could not compute that right now."
     return {"messages": [{"role": "assistant", "content": content, "name": "math_agent"}]}
 
-
+async def wealth_agent(state: MessagesState) -> dict[str, Any]:
+    try:
+        wealth_agent = compile_wealth_agent_graph()
+        result = await wealth_agent.ainvoke(state)
+        return result
+    except Exception as e:
+        print(e)
