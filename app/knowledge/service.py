@@ -35,26 +35,6 @@ class KnowledgeService:
             logger.error(f"Failed to delete vectors for source {source.id}: {deletion_result['message']}")
             return {"success": False, "error": error_info}
 
-    def _limit_documents_per_source(self, documents: List, source_url: str) -> List:
-        """Limit documents per source to configured maximum.
-
-        Args:
-            documents: List of documents to potentially limit
-            source_url: Source URL for logging
-
-        Returns:
-            Limited list of documents
-
-        """
-        original_count = len(documents)
-        max_docs = config.MAX_DOCUMENTS_PER_SOURCE
-
-        if original_count > max_docs:
-            documents = documents[:max_docs]
-            logger.info(f"Limited documents from {original_count} to {max_docs} per source limit: {source_url}")
-
-        return documents
-
     async def upsert_source(self, source: Source) -> Dict[str, Any]:
         import time
         start_time = time.time()
@@ -76,6 +56,11 @@ class KnowledgeService:
 
         chunks = self.document_service.split_documents(documents, source)
         logger.info(f"Split into {len(chunks)} chunks for {source.url}")
+
+        original_chunk_count = len(chunks)
+        if len(chunks) > config.MAX_CHUNKS_PER_SOURCE:
+            chunks = chunks[:config.MAX_CHUNKS_PER_SOURCE]
+            logger.info(f"Limited chunks from {original_chunk_count} to {config.MAX_CHUNKS_PER_SOURCE} for {source.url}")
 
         new_hashes = {doc.metadata.get("content_hash") for doc in chunks}
 

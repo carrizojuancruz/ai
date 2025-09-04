@@ -108,7 +108,7 @@ class CrawlerService:
         try:
             exclude_dirs = UrlFilter.build_exclude_dirs(source)
             max_docs_to_crawl = min(max_pages, config.MAX_DOCUMENTS_PER_SOURCE)
-            
+
             loader = self._create_loader(
                 source.url,
                 "recursive",

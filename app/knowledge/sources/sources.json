@@ -1,20 +1,5 @@
 [
   {
-    "id": "89f913cf9456f154",
-    "name": "Anxiety and Depression Association (ADAA)",
-    "url": "https://adaa.org/",
-    "enabled": true,
-    "type": "Non-Profit Organization",
-    "category": "Mental Health",
-    "description": "Resources for anxiety and depression",
-    "include_path_patterns": "",
-    "exclude_path_patterns": "",
-    "total_max_pages": 20,
-    "recursion_depth": 2,
-    "last_sync": "2025-09-03T20:22:27",
-    "total_chunks": 0
-  },
-  {
     "id": "b62627382a899705",
     "name": "Arizona Department of Economic Security",
     "url": "https://des.az.gov",
@@ -28,81 +13,6 @@
     "recursion_depth": 2,
     "last_sync": "2025-09-03T20:22:28",
     "total_chunks": 0
-  },
-  {
-    "id": "5d6ddad221f4930e",
-    "name": "211.org",
-    "url": "http://211.org",
-    "enabled": true,
-    "type": "Information Service",
-    "category": "Personal Finance",
-    "description": "Information and referrals for social services",
-    "include_path_patterns": "",
-    "exclude_path_patterns": "",
-    "total_max_pages": 20,
-    "recursion_depth": 2,
-    "last_sync": "2025-09-03T21:00:31",
-    "total_chunks": 108
-  },
-  {
-    "id": "8535605d22f01cf3",
-    "name": "988 Suicide & Crisis Lifeline",
-    "url": "https://988lifeline.org",
-    "enabled": true,
-    "type": "Government Crisis Service",
-    "category": "Mental Health",
-    "description": "Nationwide three-digit number for crisis support",
-    "include_path_patterns": "",
-    "exclude_path_patterns": "",
-    "total_max_pages": 20,
-    "recursion_depth": 2,
-    "last_sync": "2025-09-03T21:03:28",
-    "total_chunks": 112
-  },
-  {
-    "id": "8973a61b53d85cdb",
-    "name": "Alabama Housing Finance Authority",
-    "url": "https://www.ahfa.com",
-    "enabled": true,
-    "type": "State Government",
-    "category": "State Services",
-    "description": "Alabama housing finance and assistance",
-    "include_path_patterns": "",
-    "exclude_path_patterns": "",
-    "total_max_pages": 20,
-    "recursion_depth": 2,
-    "last_sync": "2025-09-03T21:03:55",
-    "total_chunks": 1
-  },
-  {
-    "id": "da8c24274206b8f7",
-    "name": "Alaska Department of Family and Community Services",
-    "url": "https://dfcs.alaska.gov",
-    "enabled": true,
-    "type": "State Government",
-    "category": "State Services",
-    "description": "Alaska social services and family support",
-    "include_path_patterns": "",
-    "exclude_path_patterns": "",
-    "total_max_pages": 20,
-    "recursion_depth": 2,
-    "last_sync": "2025-09-03T21:06:36",
-    "total_chunks": 169
-  },
-  {
-    "id": "a8de4c733c865794",
-    "name": "AnnualCreditReport.com",
-    "url": "https://www.annualcreditreport.com/index.action",
-    "enabled": true,
-    "type": "Government Tool",
-    "category": "Credit & Debt",
-    "description": "Request Equifax, Experian, and TransUnion reports",
-    "include_path_patterns": "",
-    "exclude_path_patterns": "",
-    "total_max_pages": 20,
-    "recursion_depth": 2,
-    "last_sync": "2025-09-03T21:07:49",
-    "total_chunks": 88
   },
   {
     "id": "5fd63b08c4f856e9",
@@ -120,6 +30,111 @@
     "total_chunks": 1
   },
   {
+    "id": "5d6ddad221f4930e",
+    "name": "211.org",
+    "url": "http://211.org",
+    "enabled": true,
+    "type": "Information Service",
+    "category": "Personal Finance",
+    "description": "Information and referrals for social services",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-04T04:16:26",
+    "total_chunks": 79
+  },
+  {
+    "id": "8535605d22f01cf3",
+    "name": "988 Suicide & Crisis Lifeline",
+    "url": "https://988lifeline.org",
+    "enabled": true,
+    "type": "Government Crisis Service",
+    "category": "Mental Health",
+    "description": "Nationwide three-digit number for crisis support",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-04T04:16:40",
+    "total_chunks": 26
+  },
+  {
+    "id": "8973a61b53d85cdb",
+    "name": "Alabama Housing Finance Authority",
+    "url": "https://www.ahfa.com",
+    "enabled": true,
+    "type": "State Government",
+    "category": "State Services",
+    "description": "Alabama housing finance and assistance",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-04T04:17:07",
+    "total_chunks": 1
+  },
+  {
+    "id": "da8c24274206b8f7",
+    "name": "Alaska Department of Family and Community Services",
+    "url": "https://dfcs.alaska.gov",
+    "enabled": true,
+    "type": "State Government",
+    "category": "State Services",
+    "description": "Alaska social services and family support",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-04T04:19:04",
+    "total_chunks": 161
+  },
+  {
+    "id": "a8de4c733c865794",
+    "name": "AnnualCreditReport.com",
+    "url": "https://www.annualcreditreport.com/index.action",
+    "enabled": true,
+    "type": "Government Tool",
+    "category": "Credit & Debt",
+    "description": "Request Equifax, Experian, and TransUnion reports",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-04T04:19:59",
+    "total_chunks": 88
+  },
+  {
+    "id": "89f913cf9456f154",
+    "name": "Anxiety and Depression Association (ADAA)",
+    "url": "https://adaa.org/",
+    "enabled": true,
+    "type": "Non-Profit Organization",
+    "category": "Mental Health",
+    "description": "Resources for anxiety and depression",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-04T04:20:05",
+    "total_chunks": 2
+  },
+  {
+    "id": "bd299cad30c2cb3c",
+    "name": "Arkansas Department of Human Services",
+    "url": "https://humanservices.arkansas.gov",
+    "enabled": true,
+    "type": "State Government",
+    "category": "State Services",
+    "description": "Arkansas social services and human resources",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-04T04:20:21",
+    "total_chunks": 32
+  },
+  {
     "id": "14ded1ee0a733de8",
     "name": "Arkansas Development Finance Authority",
     "url": "https://www.arkansas.gov/adfa",
@@ -131,8 +146,8 @@
     "exclude_path_patterns": "",
     "total_max_pages": 20,
     "recursion_depth": 2,
-    "last_sync": "2025-09-03T21:26:20",
-    "total_chunks": 37
+    "last_sync": "2025-09-04T04:20:34",
+    "total_chunks": 10
   },
   {
     "id": "77b884b7b3399fb0",
@@ -146,8 +161,8 @@
     "exclude_path_patterns": "",
     "total_max_pages": 20,
     "recursion_depth": 2,
-    "last_sync": "2025-09-03T21:27:32",
-    "total_chunks": 54
+    "last_sync": "2025-09-04T04:20:42",
+    "total_chunks": 6
   },
   {
     "id": "9b2b94e7614d0bf8",
@@ -161,8 +176,8 @@
     "exclude_path_patterns": "",
     "total_max_pages": 20,
     "recursion_depth": 2,
-    "last_sync": "2025-09-03T21:32:21",
-    "total_chunks": 72
+    "last_sync": "2025-09-04T04:24:21",
+    "total_chunks": 53
   },
   {
     "id": "7218b1f2e91f33e1",
@@ -176,7 +191,7 @@
     "exclude_path_patterns": "",
     "total_max_pages": 20,
     "recursion_depth": 2,
-    "last_sync": "2025-09-03T21:32:46",
+    "last_sync": "2025-09-04T04:24:48",
     "total_chunks": 1
   },
   {
@@ -191,8 +206,8 @@
     "exclude_path_patterns": "",
     "total_max_pages": 20,
     "recursion_depth": 2,
-    "last_sync": "2025-09-03T21:36:37",
-    "total_chunks": 210
+    "last_sync": "2025-09-04T04:28:17",
+    "total_chunks": 234
   },
   {
     "id": "9a99b7bdd3cbe3b2",
@@ -206,7 +221,7 @@
     "exclude_path_patterns": "",
     "total_max_pages": 20,
     "recursion_depth": 2,
-    "last_sync": "2025-09-03T21:41:03",
-    "total_chunks": 208
+    "last_sync": "2025-09-04T04:31:43",
+    "total_chunks": 234
   }
 ]

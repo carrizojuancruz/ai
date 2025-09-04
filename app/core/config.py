@@ -105,6 +105,7 @@ class Config:
     TOP_K_SEARCH: int = int(os.getenv("TOP_K_SEARCH", "10"))
     CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "1500"))
     CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "200"))
+    MAX_CHUNKS_PER_SOURCE: int = int(os.getenv("MAX_CHUNKS_PER_SOURCE", "150"))
 
     # Guest Agent Configuration
     GUEST_MAX_MESSAGES: int = int(os.getenv("GUEST_MAX_MESSAGES", "5"))
