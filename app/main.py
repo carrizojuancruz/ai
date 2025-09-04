@@ -10,7 +10,6 @@ from typing import Any
 from fastapi import FastAPI, Request, Response
 
 from .api.admin.memories import router as memories_router
-from .api.admin.sources import router as admin_router
 from .api.routes import router as api_router
 from .api.routes_cron import router as cron_router
 from .api.routes_guest import router as guest_router
@@ -57,7 +56,6 @@ async def actual_config() -> dict[str, Any]:
 
 app.include_router(api_router)
 app.include_router(supervisor_router)
-app.include_router(admin_router)
 app.include_router(memories_router)
 app.include_router(guest_router)
 app.include_router(cron_router)
