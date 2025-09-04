@@ -1,177 +1,34 @@
 import logging
-import re
 import ssl
 import warnings
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List
 
-from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
+from bs4 import XMLParsedAsHTMLWarning
 from langchain_community.document_loaders import RecursiveUrlLoader, SitemapLoader
 from langchain_core.documents import Document
 
 from app.core.config import config
 from app.knowledge.models import Source
+from .content_utils import ContentProcessor, UrlFilter
 
-# Suppress XML parser warnings
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 logger = logging.getLogger(__name__)
 
 
 class CrawlerService:
-    """Professional web crawler service with advanced filtering and content extraction."""
-
-    EXCLUDED_EXTENSIONS: Set[str] = {
-        '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico',
-        '.woff', '.woff2', '.ttf', '.eot', '.pdf', '.zip', '.exe', '.dmg',
-        '.mp4', '.mp3', '.avi', '.mov', '.webm', '.ogg', '.wav'
-    }
-
-    EXCLUDED_PATH_PATTERNS: Set[str] = {
-        '/css/', '/js/', '/javascript/', '/static/', '/assets/', '/media/',
-        '/images/', '/img/', '/fonts/', '/api/', '/wp-json/', '/wp-content/',
-        '/wp-includes/', '/admin/', '/wp-admin/', '/oembed/', '/feed/',
-        '/rss/', '/atom/', '/sitemap.xml', '/robots.txt',
-        'sites/default/files/css', 'sites/default/files/js',
-        'files/css', 'files/js'
-    }
-
-    DEFAULT_EXCLUDE_DIRS: List[str] = [
-        'css', 'js', 'javascript', 'static', 'assets', 'media',
-        'images', 'img', 'fonts', 'api', 'wp-json', 'wp-content',
-        'wp-includes', 'admin', 'wp-admin', 'oembed', 'feed', 'rss',
-        'sites/default/files/css', 'sites/default/files/js',
-        'files/css', 'files/js'
-    ]
-
-    WHITESPACE_PATTERN = re.compile(r'\n\n+')
-
-    DEFAULT_HEADERS = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'max-age=0',
-        'Connection': 'keep-alive',
-        'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1',
-        'DNT': '1'
-    }
+    """Web crawler service with advanced filtering and content extraction."""
 
     def __init__(self):
-        """Initialize the crawler service with configuration.
-
-        Note: We respect robots.txt and rate limits for ethical crawling.
-        SSL bypass is only for technical certificate issues, not security bypass.
-        """
+        """Initialize the crawler service with configuration."""
         self._config = config
         self.crawl_type = config.CRAWL_TYPE
         self.timeout = config.CRAWL_TIMEOUT
 
         ssl._create_default_https_context = ssl._create_unverified_context
 
-    def _get_enhanced_headers(self) -> Dict[str, str]:
-        """Get enhanced headers for Cloudflare-protected sites."""
-        import os
-        
-        # Use environment variable if set, otherwise fallback to default
-        user_agent = os.getenv('USER_AGENT', self.DEFAULT_HEADERS['User-Agent'])
-        
-        headers = self.DEFAULT_HEADERS.copy()
-        headers['User-Agent'] = user_agent
-        
-        # Add referer for some sites that require it
-        headers['Referer'] = 'https://www.google.com/'
-        
-        return headers
-
-    @classmethod
-    def _is_cloudflare_blocked(cls, html: str) -> bool:
-        """Check if the response is a Cloudflare challenge page."""
-        if not html:
-            return False
-        
-        cloudflare_indicators = [
-            'Just a moment...',
-            'Enable JavaScript and cookies to continue',
-            'cf-browser-verification',
-            'cloudflare',
-            'DDoS protection by Cloudflare'
-        ]
-        
-        html_lower = html.lower()
-        return any(indicator.lower() in html_lower for indicator in cloudflare_indicators)
-
-    @classmethod
-    def _extract_clean_text(cls, html: str) -> str:
-        """Extract and clean text content from HTML.
-
-        Args:
-            html: Raw HTML content
-
-        Returns:
-            Cleaned text content with normalized whitespace
-
-        """
-        # Check if this is a Cloudflare challenge page
-        if cls._is_cloudflare_blocked(html):
-            logger.warning("Cloudflare challenge detected. Content may be blocked.")
-            # Return empty string to avoid processing challenge page
-            return ""
-        
-        soup = BeautifulSoup(html, "lxml")
-        text = soup.get_text()
-        return cls.WHITESPACE_PATTERN.sub('\n\n', text).strip()
-
-    @classmethod
-    def _should_exclude_url(cls, url: str) -> bool:
-        """Determine if URL should be excluded based on extension and path patterns.
-
-        Args:
-            url: URL to check
-
-        Returns:
-            True if URL should be excluded, False otherwise
-
-        """
-        url_lower = url.lower()
-
-        url_path = url.split('?')[0].split('#')[0]
-        if any(url_path.endswith(ext) for ext in cls.EXCLUDED_EXTENSIONS):
-            return True
-
-        return any(pattern in url_lower for pattern in cls.EXCLUDED_PATH_PATTERNS)
-
-    @classmethod
-    def _build_exclude_dirs(cls, source: Source) -> List[str]:
-        """Build comprehensive list of directories to exclude during crawling.
-
-        Args:
-            source: Source configuration with optional custom exclude patterns
-
-        Returns:
-            List of directory patterns to exclude
-
-        """
-        exclude_dirs = cls.DEFAULT_EXCLUDE_DIRS.copy()
-
-        if source.exclude_path_patterns:
-            custom_patterns = [
-                pattern.strip()
-                for pattern in source.exclude_path_patterns.split(',')
-                if pattern.strip()
-            ]
-            exclude_dirs.extend(custom_patterns)
-
-        return exclude_dirs
-
     def _filter_documents(self, documents: List[Document]) -> List[Document]:
-
+        """Filter out unwanted documents based on URL patterns."""
         filtered_documents = []
 
         for doc in documents:
@@ -180,7 +37,7 @@ class CrawlerService:
                 continue
 
             source_url = doc.metadata['source']
-            if self._should_exclude_url(source_url):
+            if UrlFilter.should_exclude_url(source_url):
                 logger.debug(f"Filtered out asset URL: {source_url}")
                 continue
 
@@ -214,7 +71,6 @@ class CrawlerService:
             }
 
     async def _load_documents(self, source: Source) -> List[Document]:
-
         crawl_type = self.crawl_type.lower()
 
         if crawl_type == "single":
@@ -224,50 +80,57 @@ class CrawlerService:
         else:
             return await self._load_recursive(source, source.total_max_pages, source.recursion_depth)
 
-    async def _load_recursive(self, source: Source, max_pages: int, max_depth: int) -> List[Document]:
-
-        try:
-            exclude_dirs = self._build_exclude_dirs(source)
-
-            # Apply document limit at crawler level to save time
-            max_docs_to_crawl = min(max_pages, config.MAX_DOCUMENTS_PER_SOURCE)
-            
-            loader = RecursiveUrlLoader(
-                url=source.url,
-                max_depth=max_depth,
-                prevent_outside=True,
+    def _create_loader(self, url: str, loader_type: str, **kwargs):
+        """Create appropriate loader based on type."""
+        headers = ContentProcessor.get_headers()
+        
+        if loader_type == "recursive":
+            return RecursiveUrlLoader(
+                url=url,
+                max_depth=kwargs.get('max_depth', 0),
+                prevent_outside=kwargs.get('prevent_outside', True),
                 timeout=self.timeout,
-                exclude_dirs=exclude_dirs,
-                extractor=self._extract_clean_text,
+                exclude_dirs=kwargs.get('exclude_dirs', []),
+                extractor=ContentProcessor.extract_clean_text,
                 check_response_status=False,
                 continue_on_failure=True,
-                headers=self._get_enhanced_headers(),
+                headers=headers,
                 ssl=False
+            )
+        elif loader_type == "sitemap":
+            return SitemapLoader(
+                web_path=url,
+                filter_urls=kwargs.get('filter_urls')
+            )
+
+    async def _load_recursive(self, source: Source, max_pages: int, max_depth: int) -> List[Document]:
+        """Load documents recursively from a source."""
+        try:
+            exclude_dirs = UrlFilter.build_exclude_dirs(source)
+            max_docs_to_crawl = min(max_pages, config.MAX_DOCUMENTS_PER_SOURCE)
+            
+            loader = self._create_loader(
+                source.url,
+                "recursive",
+                max_depth=max_depth,
+                exclude_dirs=exclude_dirs
             )
 
             documents = loader.load()[:max_docs_to_crawl]
-
-            filtered_documents = self._filter_documents(documents)
-
-            return filtered_documents
+            return self._filter_documents(documents)
 
         except Exception as e:
             logger.error(f"Recursive load error for {source.url}: {e}")
             return []
 
     async def _load_sitemap(self, url: str, max_pages: int) -> List[Document]:
-
+        """Load documents from sitemap."""
         try:
             def sitemap_filter(url: str) -> bool:
-                return not self._should_exclude_url(url)
+                return not UrlFilter.should_exclude_url(url)
 
-            loader = SitemapLoader(
-                web_path=url,
-                filter_urls=sitemap_filter
-            )
-
+            loader = self._create_loader(url, "sitemap", filter_urls=sitemap_filter)
             documents = loader.load()[:max_pages]
-
             return documents
 
         except Exception as e:
@@ -275,21 +138,10 @@ class CrawlerService:
             return []
 
     async def _load_single_page(self, url: str) -> List[Document]:
-
+        """Load a single page."""
         try:
-            loader = RecursiveUrlLoader(
-                url=url,
-                max_depth=0,
-                extractor=self._extract_clean_text,
-                timeout=self.timeout,
-                check_response_status=False,
-                headers=self._get_enhanced_headers(),
-                ssl=False
-            )
-
-            documents = loader.load()
-
-            return documents
+            loader = self._create_loader(url, "recursive", max_depth=0)
+            return loader.load()
 
         except Exception as e:
             logger.error(f"Single page load error for {url}: {e}")
