@@ -96,14 +96,16 @@ class Config:
 
     # Crawling Configuration
     CRAWL_TYPE: str = os.getenv("CRAWL_TYPE", "recursive")
-    CRAWL_MAX_DEPTH: int = int(os.getenv("CRAWL_MAX_DEPTH", "3"))
-    CRAWL_MAX_PAGES: int = int(os.getenv("CRAWL_MAX_PAGES", "50"))
+    CRAWL_MAX_DEPTH: int = int(os.getenv("CRAWL_MAX_DEPTH", "2"))
+    CRAWL_MAX_PAGES: int = int(os.getenv("CRAWL_MAX_PAGES", "20"))
     CRAWL_TIMEOUT: int = int(os.getenv("CRAWL_TIMEOUT", "30"))
+    MAX_DOCUMENTS_PER_SOURCE: int = int(os.getenv("MAX_DOCUMENTS_PER_SOURCE", "20"))
 
     # Search Configuration
     TOP_K_SEARCH: int = int(os.getenv("TOP_K_SEARCH", "10"))
     CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "1500"))
     CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "200"))
+    MAX_CHUNKS_PER_SOURCE: int = int(os.getenv("MAX_CHUNKS_PER_SOURCE", "150"))
 
     # Guest Agent Configuration
     GUEST_MAX_MESSAGES: int = int(os.getenv("GUEST_MAX_MESSAGES", "5"))
