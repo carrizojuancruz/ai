@@ -148,7 +148,7 @@ Can be null or object with warning configurations:
 #### Status and Progress
 - **status.value**: Current goal status
   - Observed values: "pending", "deleted"
-  - Likely values: "pending", "in_progress", "completed", "paused", "deleted"
+  - Likely values: "pending", "in_progress", "completed", "paused", "off-track", "deleted"
 
 - **progress**: Progress tracking (null initially)
   ```json
@@ -174,7 +174,9 @@ Based on observed data, goals follow this lifecycle:
 2. **Updated**: version increments, updated_at changes
 3. **Activated**: status changes from "pending" to "in_progress" 
 4. **Progress Calculated**: progress object populated
-5. **Deleted**: status = "deleted" (soft delete)
+5. **Off-track**: status = "off-track" when goal exceeds thresholds or negative progress
+6. **Completed**: status = "completed" when goal target is reached
+7. **Deleted**: status = "deleted" (soft delete)
 
 ### Validation Rules
 
