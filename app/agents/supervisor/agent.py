@@ -56,7 +56,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
 
     # --- Main supervisor node and destinations ---
     builder.add_node(
-        supervisor_agent_with_description, destinations=("math_agent", "episodic_capture")
+        supervisor_agent_with_description, destinations=("math_agent", "wealth_agent", "episodic_capture")
     )
 
     # --- Specialist agent nodes ---
@@ -69,6 +69,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     builder.add_edge("memory_hotpath", "memory_context")
     builder.add_edge("memory_context", "supervisor")
     builder.add_edge("math_agent", "supervisor")
+    builder.add_edge("wealth_agent", "supervisor")
     builder.add_edge("supervisor", "episodic_capture")
     builder.add_edge("episodic_capture", END)
 

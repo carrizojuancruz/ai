@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from langchain_core.messages import HumanMessage
@@ -8,6 +9,8 @@ from langgraph.graph import MessagesState
 from app.utils.welcome import call_llm
 
 from .subagents.wealth_agent.agent import compile_wealth_agent_graph
+
+logger = logging.getLogger(__name__)
 
 
 def _extract_text_from_content(content: str | list[dict[str, Any]] | dict[str, Any] | None) -> str:
@@ -48,4 +51,6 @@ async def wealth_agent(state: MessagesState) -> dict[str, Any]:
         result = await wealth_agent.ainvoke(state)
         return result
     except Exception as e:
-        print(e)
+        logger.error(f"Wealth agent failed: {e}")
+        content = "I'm having trouble accessing financial information right now. Please try again later."
+        return {"messages": [{"role": "assistant", "content": content, "name": "wealth_agent"}]}

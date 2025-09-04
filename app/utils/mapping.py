@@ -34,7 +34,6 @@ def get_source_name(tool_name: str) -> str:
 def get_all_source_key_names() -> list[str]:
     """Get the key names of all sources."""
     return list(SOURCE_MAPPING.keys())
-"""Utility functions for mapping and source management."""
 
 
 
