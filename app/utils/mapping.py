@@ -10,21 +10,34 @@ SOURCE_MAPPING = {
     "supervisor": "Supervisor",
 }
 
-
 def get_source_name(tool_name: str) -> str:
-    '''
-    Get the name of the source for a given tool name.
+    """Map tool names to readable source names.
 
     Args:
-        tool_name: The name of the tool.
+        tool_name: The name of the tool/agent used
 
     Returns:
-        The name of the source.
-    '''
-    return SOURCE_MAPPING.get(tool_name, tool_name)
+        A user-friendly source name
+
+    """
+    source_mapping = {
+        "knowledge_search": "Knowledge Base",
+        "kb_search": "Knowledge Base",
+        "search_kb": "Knowledge Base",
+        "search_knowledge": "Knowledge Base",
+        "query_knowledge_base": "Knowledge Base",
+        "web_search": "Web Search",
+        "document_search": "Documents",
+        "memory_search": "Memory",
+        "context_search": "Context",
+    }
+
+    return source_mapping.get(tool_name, tool_name.replace("_", " ").title())
 
 def get_all_source_key_names() -> list[str]:
-    """
-    Get the key names of all sources.
-    """
+    """Get the key names of all sources."""
     return list(SOURCE_MAPPING.keys())
+"""Utility functions for mapping and source management."""
+
+
+

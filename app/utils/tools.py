@@ -1,26 +1,36 @@
-"""
-This module provides tools for the app.
-"""
-from typing import Any
+"""Utility functions for handling tools and sources."""
 
-def include_in_array(sources: list[str], item: str) -> bool:
-    """
-    Check if the item should be included in the array
-    """
-    return item in sources
+from typing import Any, Dict, List
 
 
+def check_repeated_sources(sources: List[Dict[str, Any]], new_source: Dict[str, Any]) -> bool:
+    """Check if a source is not already present in the sources list.
 
-def check_repeated_sources(sources: list[dict[str, Any]], source: dict[str, Any]) -> bool:
+    Args:
+        sources: List of existing sources
+        new_source: New source to check for duplication
+
+    Returns:
+        True if source is not repeated (should be added), False if already exists
+
     """
-    Check if the sources are repeated
-    """
-    # Get source name
-    source_name = source.get("name")
-    source_text = source.get("source", "")
-    
-    # Check if the source is already in the list using the source name and source text
-    for s in sources:
-        if s.get("name") == source_name and s.get("source") == source_text:
+    new_source_content = new_source.get("source", "")
+    new_source_name = new_source.get("name", "")
+
+    for existing_source in sources:
+        existing_content = existing_source.get("source", "")
+        existing_name = existing_source.get("name", "")
+
+        # Check for exact match on both name and content
+        if existing_name == new_source_name and existing_content == new_source_content:
             return False
+
+        # Check for substantial content overlap (avoid near-duplicates)
+        if existing_content and new_source_content:
+            # Simple overlap check - you might want to implement more sophisticated logic
+            if len(new_source_content) > 50 and new_source_content in existing_content:
+                return False
+            if len(existing_content) > 50 and existing_content in new_source_content:
+                return False
+
     return True
