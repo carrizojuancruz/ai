@@ -31,7 +31,8 @@ async def search_kb(query: str) -> str:
                         "section_url": section_url,
                         "name": result.get("name", ""),
                         "type": result.get("type", ""),
-                        "category": result.get("category", "")
+                        "category": result.get("category", ""),
+                        "description": result.get("description", "")
                     }
                 })
         return json.dumps(formatted_results, ensure_ascii=False)

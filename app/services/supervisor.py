@@ -160,7 +160,7 @@ class SupervisorService:
                 content = json.loads(content)
             except json.JSONDecodeError:
                 if content.strip():
-                    new_source = {"name": get_source_name(name), "source": content}
+                    new_source = {"name": get_source_name(name), "url": content}
                     if check_repeated_sources(sources, new_source):
                         sources.append(new_source)
                 return sources
@@ -176,11 +176,19 @@ class SupervisorService:
             if not source_content or not isinstance(source_content, str) or 'coroutine' in str(type(source_content)).lower():
                 continue
 
-            new_source = {"name": get_source_name(name), "source": source_content}
+            new_source = {
+                "name": get_source_name(name),
+                "url": source_content
+            }
 
             metadata = item.get("metadata", {})
             if isinstance(metadata, dict):
-                for key, meta_key in [("name", "document_name"), ("type", "type"), ("category", "category")]:
+                for key, meta_key in [
+                    ("name", "source_name"),
+                    ("type", "type"),
+                    ("category", "category"),
+                    ("description", "description")
+                ]:
                     if metadata.get(key):
                         new_source[meta_key] = metadata[key]
 

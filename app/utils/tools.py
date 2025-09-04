@@ -14,11 +14,11 @@ def check_repeated_sources(sources: List[Dict[str, Any]], new_source: Dict[str, 
         True if source is not repeated (should be added), False if already exists
 
     """
-    new_source_content = new_source.get("source", "")
+    new_source_content = new_source.get("url", "")
     new_source_name = new_source.get("name", "")
 
     for existing_source in sources:
-        existing_content = existing_source.get("source", "")
+        existing_content = existing_source.get("url", "")
         existing_name = existing_source.get("name", "")
 
         # Check for exact match on both name and content
