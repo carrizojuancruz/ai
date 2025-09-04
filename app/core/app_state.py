@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from langgraph.graph.state import CompiledStateGraph
@@ -18,6 +18,11 @@ _sse_queues: dict[str, asyncio.Queue] = {}
 _thread_locks: dict[str, asyncio.Lock] = {}
 
 _last_emitted_text: dict[str, str] = {}
+
+# AWS Clients - Singleton pattern
+_bedrock_runtime_client: Any | None = None
+_s3vectors_client: Any | None = None
+_s3_client: Any | None = None
 
 
 def get_onboarding_agent() -> OnboardingAgent:
@@ -109,3 +114,119 @@ def get_onboarding_status_for_user(user_id: UUID) -> dict:
         "thread_id": latest_tid if not done else None,
         "current_step": getattr(latest_st.current_step, "value", None) if not done else None,
     }
+
+
+def get_bedrock_runtime_client() -> Any:
+    """Get AWS Bedrock Runtime client with connection pooling (singleton pattern)."""
+    global _bedrock_runtime_client
+    if _bedrock_runtime_client is None:
+        import boto3
+        from botocore.config import Config
+        from app.core.config import config
+
+        region = config.AWS_REGION
+        client_config = Config(
+            region_name=region,
+            retries={'max_attempts': 3, 'mode': 'standard'},
+            max_pool_connections=20,  # Connection pool size
+            connect_timeout=10,
+            read_timeout=60,
+        )
+
+        _bedrock_runtime_client = boto3.client(
+            'bedrock-runtime',
+            config=client_config
+        )
+
+    return _bedrock_runtime_client
+
+
+def get_s3vectors_client() -> Any:
+    """Get AWS S3Vectors client with connection pooling (singleton pattern)."""
+    global _s3vectors_client
+    if _s3vectors_client is None:
+        import boto3
+        from botocore.config import Config
+        from app.core.config import config
+
+        region = config.AWS_REGION
+        client_config = Config(
+            region_name=region,
+            retries={'max_attempts': 3, 'mode': 'standard'},
+            max_pool_connections=20,  # Connection pool size
+            connect_timeout=10,
+            read_timeout=60,
+        )
+
+        _s3vectors_client = boto3.client(
+            's3vectors',
+            config=client_config
+        )
+
+    return _s3vectors_client
+
+
+def get_s3_client() -> Any:
+    """Get AWS S3 client with connection pooling (singleton pattern)."""
+    global _s3_client
+    if _s3_client is None:
+        import boto3
+        from botocore.config import Config
+        from app.core.config import config
+
+        region = config.AWS_REGION
+        client_config = Config(
+            region_name=region,
+            retries={'max_attempts': 3, 'mode': 'standard'},
+            max_pool_connections=20,  # Connection pool size
+            connect_timeout=10,
+            read_timeout=60,
+        )
+
+        _s3_client = boto3.client(
+            's3',
+            config=client_config
+        )
+
+    return _s3_client
+
+
+async def warmup_aws_clients() -> None:
+    """Warm up AWS clients during app startup to avoid first-request latency."""
+    try:
+        # Initialize clients in parallel
+        import asyncio
+        await asyncio.gather(
+            asyncio.get_event_loop().run_in_executor(None, get_bedrock_runtime_client),
+            asyncio.get_event_loop().run_in_executor(None, get_s3vectors_client),
+            asyncio.get_event_loop().run_in_executor(None, get_s3_client)
+        )
+    except Exception as e:
+        # Don't fail app startup if warmup fails
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"AWS client warmup failed: {e}")
+
+
+def dispose_aws_clients() -> None:
+    """Dispose of AWS clients for cleanup (call during app shutdown)."""
+    global _bedrock_runtime_client, _s3vectors_client, _s3_client
+
+    try:
+        if _bedrock_runtime_client:
+            # boto3 clients don't have explicit dispose, but we can clear reference
+            _bedrock_runtime_client = None
+    except Exception:
+        pass
+
+    try:
+        if _s3vectors_client:
+            _s3vectors_client = None
+    except Exception:
+        pass
+
+    try:
+        if _s3_client:
+            _s3_client = None
+    except Exception:
+        pass

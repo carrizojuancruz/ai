@@ -128,9 +128,30 @@ class FinanceAgent:
                 tx_rows = await repo.execute_query(tx_query, user_id)
                 acct_rows = await repo.execute_query(acct_query, user_id)
 
+                # Convert PostgreSQL/SQLAlchemy types to JSON-serializable types
+                def serialize_row(row):
+                    if isinstance(row, dict):
+                        serialized = {}
+                        for k, v in row.items():
+                            if hasattr(v, 'is_finite'):  # Decimal
+                                serialized[k] = float(v)
+                            elif isinstance(v, datetime.date):  # date/datetime
+                                serialized[k] = v.isoformat()
+                            elif isinstance(v, UUID):  # UUID objects
+                                serialized[k] = str(v)
+                            elif hasattr(v, '__class__') and 'UUID' in str(type(v)):  # Alternative UUID check
+                                serialized[k] = str(v)
+                            else:
+                                serialized[k] = v
+                        return serialized
+                    return row
+
+                tx_rows_serialized = [serialize_row(r) for r in (tx_rows or [])]
+                acct_rows_serialized = [serialize_row(r) for r in (acct_rows or [])]
+
                 import json
-                tx_json = json.dumps(tx_rows or [], ensure_ascii=False, separators=(',', ':'))
-                acct_json = json.dumps(acct_rows or [], ensure_ascii=False, separators=(',', ':'))
+                tx_json = json.dumps(tx_rows_serialized, ensure_ascii=False, separators=(',', ':'))
+                acct_json = json.dumps(acct_rows_serialized, ensure_ascii=False, separators=(',', ':'))
 
                 # Cache
                 self._sample_cache[cache_key] = {
@@ -148,8 +169,8 @@ class FinanceAgent:
         tx_samples, acct_samples = await self._fetch_shallow_samples(user_id)
         return f"""You are an AI text-to-SQL agent over the user's Plaid-mirrored PostgreSQL database. Your goal is to generate correct SQL, execute it via tools, and present a concise, curated answer.
 
-        🚨 AGENT PERSISTENCE & CONTROL 🚨
-        You are an agent - please keep going until the user's query is completely resolved, before ending your turn and yielding back to the user. Only terminate your turn when you are sure that all required SQL queries have been executed successfully and you have provided comprehensive insights based on the results.
+        🚨 AGENT BEHAVIOR & CONTROL 🚨
+        You are a DIRECT agent - provide ONE clear answer per user query. If a query returns 0 results, state this clearly and stop. Do NOT retry, explore, or modify queries unless the user explicitly asks you to (e.g., "try a different date range" or "search broader"). Keep responses fast and focused.
 
         🛠️ TOOL USAGE MANDATE 🛠️
         If you are not sure about tables/columns, use tools to verify schema. Do NOT guess or invent SQL.
@@ -263,7 +284,7 @@ class FinanceAgent:
         ✅ Design aggregation and grouping strategy
         ✅ Verify security filtering (user_id)
 
-        1. **Default Date Range:** If no period specified, use data for the last 30 days (filter on tx_date). If no data is found, ASK whether to expand the window before doing so.
+        1. **Default Date Range:** If no period specified, use data for the last 30 days (filter on tx_date). If no data is found for that period, state this clearly without expanding the search.
         2. **Table Aliases:** Use short, intuitive aliases (e.g., `d` for deduped tx, `a` for accounts)
         3. **Select Relevant Columns:** Only select columns needed to answer the question
         4. **Aggregation Level:** Group by appropriate dimensions (date, category, merchant, etc.)
@@ -281,12 +302,13 @@ class FinanceAgent:
         4. **Formulate Query:** Generate syntactically correct SQL with proper security filtering
         5. **Verify Query:** Double-check syntax, logic, and security requirements
         6. **Execute Query:** Execute using sql_db_query tool
-        7. **Error Handling:** If queries fail, analyze error, rewrite systematically, retry
-        8. **Analyze Results & Formulate Insightful Answer:**
+        7. **Error Handling:** If queries fail due to syntax errors, fix them. If network/database errors, report clearly.
+        8. **Analyze Results & Formulate Direct Answer:**
            * Provide a concise, curated answer (2–6 sentences) and, if helpful, a small table
            * Do NOT include plans/process narration
            * Do NOT echo raw tool responses or JSON. Summarize them instead
-           * If empty results, say so briefly and propose a targeted next step (e.g., expand dates)
+           * **CRITICAL: If query returns 0 results, say so directly without retrying or exploring**
+           * **Only retry/re-explore if user explicitly asks (e.g., "try a different date" or "expand search")**
         9. **Privacy Protection:** Do not return raw queries or internal information
         10. **Data Validation:** State clearly if you don't have sufficient data
 

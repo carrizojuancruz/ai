@@ -19,7 +19,7 @@ class FinanceRepository:
     async def execute_query(self, query: str, user_id: UUID) -> Optional[list[dict]]:
         """Execute a SQL query with user isolation."""
         try:
-            logger.info(f"FinanceRepository executing SQL for user {user_id}: {query[:100]}...")
+            logger.info(f"FinanceRepository executing SQL for user {user_id}: {query}...")
 
             # Execute the query with user_id parameter
             logger.info(f"Sending query to database for user {user_id}")

@@ -12,7 +12,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_store
 from langgraph.graph import MessagesState
 
-from app.core.app_state import get_sse_queue
+from app.core.app_state import get_sse_queue, get_bedrock_runtime_client
 from app.core.config import config as app_config
 from app.repositories.session_store import get_session_store
 
@@ -97,8 +97,7 @@ def _collect_recent_messages(state: MessagesState, max_messages: int) -> list[tu
 def _summarize_with_bedrock(msgs: list[tuple[str, str]]) -> tuple[str, str, int]:
     """Call Bedrock to generate a JSON summary; return (summary, category, importance)."""
     model_id = MEMORY_TINY_LLM_MODEL_ID
-    region = AWS_REGION
-    bedrock = boto3.client("bedrock-runtime", region_name=region)
+    bedrock = get_bedrock_runtime_client()
     convo = "\n".join([f"{r.title()}: {t}" for r, t in msgs])[:2000]
     prompt = (
         "Summarize the interaction in 1–2 sentences focusing on what was discussed/decided/done. "

@@ -34,7 +34,6 @@ async def execute_financial_query(query: str, user_id: UUID) -> str:
         async with db_service.get_session() as session:
             try:
                 logger.info(f"Database session established, executing SQL for user {user_id}")
-                logger.debug(f"Executing SQL for user {user_id}: {query}")
 
                 # Parse and validate the query to ensure user_id filtering
                 if ":user_id" not in query and "user_id =" not in query:

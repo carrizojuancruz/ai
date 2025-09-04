@@ -17,7 +17,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_store
 from langgraph.graph import MessagesState
 
-from app.core.app_state import get_sse_queue
+from app.core.app_state import get_sse_queue, get_bedrock_runtime_client
 from app.core.config import config
 
 from .profile_sync import _profile_sync_from_memory
@@ -55,7 +55,7 @@ def _collect_recent_user_texts(messages: list[Any], max_messages: int = 3) -> li
 
 
 def _trigger_decide(text: str) -> dict[str, Any]:
-    bedrock = boto3.client("bedrock-runtime", region_name=REGION)
+    bedrock = get_bedrock_runtime_client()
     allowed_categories = (
         "Finance, Budget, Goals, Personal, Education, Conversation_Summary, Other"
     )
@@ -364,7 +364,7 @@ async def _write_semantic_memory(
             except Exception:
                 pass
 def _same_fact_classify(existing_summary: str, candidate_summary: str, category: str) -> bool:
-    bedrock = boto3.client("bedrock-runtime", region_name=REGION)
+    bedrock = get_bedrock_runtime_client()
     prompt = (
         "Same-Fact Classifier (language-agnostic)\n"
         "Your job: Return whether two short summaries express the SAME underlying fact about the user.\n"
@@ -433,7 +433,7 @@ def _same_fact_classify(existing_summary: str, candidate_summary: str, category:
 
 
 def _compose_summaries(existing_summary: str, candidate_summary: str, category: str) -> str:
-    bedrock = boto3.client("bedrock-runtime", region_name=REGION)
+    bedrock = get_bedrock_runtime_client()
     prompt = (
         "Task: Combine two short summaries about the SAME user fact into one concise statement.\n"
         "- Keep it neutral, third person, and include both details without redundancy.\n"

@@ -36,18 +36,32 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to initialize database connection: {e}")
         # Continue startup even if DB fails (for resilience)
 
+    # Warm up AWS clients to avoid first-request latency
+    try:
+        from app.core.app_state import warmup_aws_clients
+        await warmup_aws_clients()
+        logger.info("AWS clients warmed up successfully")
+    except Exception as e:
+        logger.error(f"Failed to warm up AWS clients: {e}")
+
     try:
         yield
     finally:
         logger.info("Application shutdown - cleaning up resources")
 
-        # Dispose database connections on shutdown
         try:
             from app.db.session import dispose_engine
             await dispose_engine()
             logger.info("Database connections disposed successfully")
         except Exception as e:
             logger.error(f"Error disposing database connections: {e}")
+
+        try:
+            from app.core.app_state import dispose_aws_clients
+            dispose_aws_clients()
+            logger.info("AWS clients disposed successfully")
+        except Exception as e:
+            logger.error(f"Error disposing AWS clients: {e}")
 
         logger.info("Application shutdown complete")
 

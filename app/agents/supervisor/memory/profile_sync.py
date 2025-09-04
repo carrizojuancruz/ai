@@ -4,9 +4,8 @@ import json
 import logging
 from typing import Any, Optional
 
-import boto3
-
 from app.agents.onboarding.state import OnboardingState, OnboardingStep
+from app.core.app_state import get_bedrock_runtime_client
 from app.core.config import config
 from app.models.user import UserContext
 from app.services.external_context.user.mapping import map_ai_context_to_user_context, map_user_context_to_ai_context
@@ -20,8 +19,7 @@ async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], valu
 
     try:
         model_id = config.MEMORY_TINY_LLM_MODEL_ID
-        region = config.AWS_REGION
-        bedrock = boto3.client("bedrock-runtime", region_name=region)
+        bedrock = get_bedrock_runtime_client()
         summary = str(value.get("summary") or "")[:500]
         category = str(value.get("category") or "")[:64]
         prompt = (

@@ -406,10 +406,7 @@ class SupervisorService:
             stream_mode="values",
             subgraphs=True,
         ):
-            # Write all events to a txt file for debugging/audit
-            with open("all_events_log.txt", "a", encoding="utf-8") as f:
-                f.write(f"{event}\n")
-
+   
             name = event.get("name")
             etype = event.get("event")
             data = event.get("data") or {}
