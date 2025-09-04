@@ -10,14 +10,13 @@ from json import JSONDecodeError
 from typing import Any
 from uuid import uuid4
 
-import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_store
 from langgraph.graph import MessagesState
 
-from app.core.app_state import get_sse_queue, get_bedrock_runtime_client
+from app.core.app_state import get_bedrock_runtime_client, get_sse_queue
 from app.core.config import config
 
 from .profile_sync import _profile_sync_from_memory

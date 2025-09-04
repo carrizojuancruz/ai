@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import asynccontextmanager, suppress
 from typing import AsyncGenerator, Optional
-from contextlib import asynccontextmanager
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy import text
-from sqlalchemy.exc import OperationalError, DisconnectionError
+from sqlalchemy.exc import DisconnectionError, OperationalError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import config
 
@@ -229,10 +229,8 @@ async def dispose_engine():
     try:
         if _connection_health_check_task and not _connection_health_check_task.done():
             _connection_health_check_task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await _connection_health_check_task
-            except asyncio.CancelledError:
-                pass
             logger.info("Database health check task cancelled")
 
         if _engine:

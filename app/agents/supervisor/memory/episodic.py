@@ -7,12 +7,11 @@ from datetime import datetime, timedelta, timezone, tzinfo
 from typing import Any
 from uuid import uuid4
 
-import boto3
 from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_store
 from langgraph.graph import MessagesState
 
-from app.core.app_state import get_sse_queue, get_bedrock_runtime_client
+from app.core.app_state import get_bedrock_runtime_client, get_sse_queue
 from app.core.config import config as app_config
 from app.repositories.session_store import get_session_store
 

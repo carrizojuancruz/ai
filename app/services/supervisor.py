@@ -406,7 +406,7 @@ class SupervisorService:
             stream_mode="values",
             subgraphs=True,
         ):
-   
+
             name = event.get("name")
             etype = event.get("event")
             data = event.get("data") or {}

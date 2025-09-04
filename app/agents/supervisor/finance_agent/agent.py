@@ -11,8 +11,8 @@ from langgraph.graph import MessagesState
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import RunnableConfig
 
-from app.core.config import config
 from app.agents.supervisor.finance_agent.tools import execute_financial_query
+from app.core.config import config
 from app.repositories.database_service import get_database_service
 
 logger = logging.getLogger(__name__)
@@ -88,6 +88,7 @@ class FinanceAgent:
 
     async def _fetch_shallow_samples(self, user_id: UUID) -> tuple[str, str]:
         """Fetch sample data for transactions and accounts.
+
         Returns compact JSON arrays as strings for embedding in the prompt.
         """
         try:
@@ -137,9 +138,7 @@ class FinanceAgent:
                                 serialized[k] = float(v)
                             elif isinstance(v, datetime.date):  # date/datetime
                                 serialized[k] = v.isoformat()
-                            elif isinstance(v, UUID):  # UUID objects
-                                serialized[k] = str(v)
-                            elif hasattr(v, '__class__') and 'UUID' in str(type(v)):  # Alternative UUID check
+                            elif isinstance(v, UUID) or hasattr(v, '__class__') and 'UUID' in str(type(v)):  # UUID objects
                                 serialized[k] = str(v)
                             else:
                                 serialized[k] = v
@@ -349,7 +348,7 @@ class FinanceAgent:
         return agent
 
     async def process_query(self, query: str, user_id: UUID) -> str:
-        """Main entry point for processing financial queries using tools."""
+        """Process financial queries using tools."""
         try:
             logger.info(f"Processing finance query for user {user_id}: {query}")
 

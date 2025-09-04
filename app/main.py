@@ -87,7 +87,7 @@ async def health_check() -> dict[str, str]:
 async def database_health_check() -> dict:
     """Comprehensive database health check."""
     try:
-        from app.db.session import get_connection_stats, _health_check_connection, _get_engine
+        from app.db.session import _get_engine, _health_check_connection, get_connection_stats
 
         engine = _get_engine()
         is_healthy = await _health_check_connection(engine)

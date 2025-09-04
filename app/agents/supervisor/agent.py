@@ -12,6 +12,7 @@ from app.agents.supervisor.memory import episodic_capture, memory_context, memor
 from app.core.config import config
 from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
+from .finance_agent.agent import finance_agent
 from .handoff import create_task_description_handoff_tool
 from .prompts import SUPERVISOR_PROMPT
 from .workers import goal_agent, wealth_agent

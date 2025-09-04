@@ -1,5 +1,4 @@
-"""
-Database service for managing PostgreSQL connections and repositories.
+"""Database service for managing PostgreSQL connections and repositories.
 
 This service provides a centralized way to manage database connections and repository instances,
 following the singleton pattern used throughout the application.
@@ -10,12 +9,10 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional
-from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_async_session_factory
-from app.models.user import UserContext
 from app.repositories.interfaces.user_repository import UserRepository
 from app.repositories.postgres.finance_repository import FinanceRepository
 from app.repositories.postgres.user_repository import PostgresUserRepository

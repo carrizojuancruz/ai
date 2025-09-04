@@ -122,6 +122,7 @@ def get_bedrock_runtime_client() -> Any:
     if _bedrock_runtime_client is None:
         import boto3
         from botocore.config import Config
+
         from app.core.config import config
 
         region = config.AWS_REGION
@@ -147,6 +148,7 @@ def get_s3vectors_client() -> Any:
     if _s3vectors_client is None:
         import boto3
         from botocore.config import Config
+
         from app.core.config import config
 
         region = config.AWS_REGION
@@ -172,6 +174,7 @@ def get_s3_client() -> Any:
     if _s3_client is None:
         import boto3
         from botocore.config import Config
+
         from app.core.config import config
 
         region = config.AWS_REGION

@@ -1,5 +1,5 @@
-"""
-Business rules for transaction categories.
+"""Business rules for transaction categories.
+
 Provides category context for the finance agent without embedding all values in prompts.
 """
 
@@ -50,7 +50,6 @@ CATEGORY_GROUPS = {
 
 def get_business_rules_context_str() -> str:
     """Generate smart context string for prompts without listing all categories."""
-
     # Primary Plaid categories (most important)
     primary_info = f"Plaid PRIMARY Categories: {', '.join(PLAID_PRIMARY_CATEGORIES[:8])}... and {len(PLAID_PRIMARY_CATEGORIES)-8} more"
 
