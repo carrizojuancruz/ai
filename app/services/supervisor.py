@@ -17,6 +17,8 @@ from app.core.app_state import (
 from app.core.config import config
 from app.models.user import UserContext
 from app.repositories.session_store import InMemorySessionStore, get_session_store
+from app.utils.mapping import get_source_name
+from app.utils.tools import check_repeated_sources
 from app.utils.welcome import call_llm, generate_personalized_welcome
 
 langfuse_handler = CallbackHandler(
@@ -134,6 +136,67 @@ class SupervisorService:
                         parts.append(part_text)
             return "".join(parts)
         return ""
+
+    def _add_source_from_tool_end(self, sources: list[dict[str, Any]], name: str, data: dict[str, Any]) -> list[dict[str, Any]]:
+        """Add the source to the sources list from the tool end event."""
+        if "output" not in data:
+            return sources
+
+        output = data["output"]
+
+        # Skip if output is a coroutine object (not properly awaited)
+        if hasattr(output, '__class__') and 'coroutine' in str(output.__class__).lower():
+            logger.warning(f"[SUPERVISOR] Tool {name} returned unawaited coroutine: {output}")
+            return sources
+
+        # Extract content from output
+        content = output.content if hasattr(output, "content") else output.get("content", output) if isinstance(output, dict) else output
+
+        # Skip if content is also a coroutine
+        if hasattr(content, '__class__') and 'coroutine' in str(content.__class__).lower():
+            logger.warning(f"[SUPERVISOR] Tool {name} content is unawaited coroutine: {content}")
+            return sources
+
+        # Parse JSON string content
+        if isinstance(content, str):
+            try:
+                content = json.loads(content)
+            except json.JSONDecodeError:
+                if content.strip():
+                    new_source = {"name": get_source_name(name), "source": content}
+                    if check_repeated_sources(sources, new_source):
+                        sources.append(new_source)
+                return sources
+
+        # Process items (list or single dict with "source")
+        items = content if isinstance(content, list) else [content] if isinstance(content, dict) and "source" in content else []
+
+        sources_added = 0
+        for item in items:
+            if not isinstance(item, dict) or "source" not in item:
+                continue
+
+            source_content = item["source"]
+            if not source_content or not isinstance(source_content, str) or 'coroutine' in str(type(source_content)).lower():
+                continue
+
+            new_source = {"name": get_source_name(name), "source": source_content}
+
+            # Add metadata
+            metadata = item.get("metadata", {})
+            if isinstance(metadata, dict):
+                for key, meta_key in [("name", "document_name"), ("type", "type"), ("category", "category")]:
+                    if metadata.get(key):
+                        new_source[meta_key] = metadata[key]
+
+            if check_repeated_sources(sources, new_source):
+                sources.append(new_source)
+                sources_added += 1
+
+        if sources_added > 0:
+            logger.info(f"[SUPERVISOR] Added {sources_added} sources from tool '{name}'")
+
+        return sources
 
     # Conversation summary helper methods
     async def _find_latest_prior_thread(self, session_store: InMemorySessionStore, user_id: str, exclude_thread_id: str) -> Optional[str]:
@@ -300,14 +363,14 @@ class SupervisorService:
         graph: CompiledStateGraph = get_supervisor_graph()
         session_store: InMemorySessionStore = get_session_store()
         session_ctx = await session_store.get_session(thread_id) or {}
+        sources = []
 
-        # Store the user message
         conversation_messages = session_ctx.get("conversation_messages", [])
         conversation_messages.append({
             "role": "user",
-            "content": text.strip()
+            "content": text.strip(),
+            "sources": sources
         })
-        # Collect assistant response
         assistant_response_parts = []
 
         # Refresh UserContext from external FOS service each turn to avoid stale profile
@@ -324,7 +387,7 @@ class SupervisorService:
         }
 
         async for event in graph.astream_events(
-            {"messages": [{"role": "user", "content": text}]},
+            {"messages": [{"role": "user", "content": text}], "sources": sources},
             version="v2",
             config={
                 "callbacks": [langfuse_handler],
@@ -344,14 +407,15 @@ class SupervisorService:
                 if out and not self._is_injected_context(out):
                     last = get_last_emitted_text(thread_id)
                     if out != last:
-                        await q.put({"event": "token.delta", "data": {"text": out}})
-                        set_last_emitted_text(thread_id, out)
-                        # Collect assistant response parts
+                        if name not in ["tools"]:
+                            await q.put({"event": "token.delta", "data": {"text": out, "sources": sources}})
+                            set_last_emitted_text(thread_id, out)
                         assistant_response_parts.append(out)
             elif etype == "on_tool_start":
                 if name:
                     await q.put({"event": "tool.start", "data": {"tool": name}})
             elif etype == "on_tool_end":
+                sources = self._add_source_from_tool_end(sources, name, data)
                 if name:
                     await q.put({"event": "tool.end", "data": {"tool": name}})
             elif etype == "on_chain_end":
@@ -370,27 +434,26 @@ class SupervisorService:
                             if text and not self._is_injected_context(text):
                                 last = get_last_emitted_text(thread_id)
                                 if text != last:
-                                    await q.put({"event": "token.delta", "data": {"text": text}})
-                                    set_last_emitted_text(thread_id, text)
-                                    # Collect final assistant response
+                                    if name not in ["tools"]:
+                                        await q.put({"event": "token.delta", "data": {"text": text, "sources": sources}})
+                                        set_last_emitted_text(thread_id, text)
                                     assistant_response_parts.append(text)
                 except Exception:
                     pass
 
         await q.put({"event": "step.update", "data": {"status": "presented"}})
 
-        # Store the complete conversation (user + assistant messages)
+        # Store the complete conversation
         try:
             if assistant_response_parts:
-                # Combine all assistant response parts
                 assistant_response = "".join(assistant_response_parts).strip()
                 if assistant_response:
                     conversation_messages.append({
                         "role": "assistant",
-                        "content": assistant_response
+                        "content": assistant_response,
+                        "sources": sources
                     })
 
-            # Update session with complete conversation
             session_ctx["conversation_messages"] = conversation_messages
             await session_store.set_session(thread_id, session_ctx)
             logger.info(f"Stored conversation for thread {thread_id}: {len(conversation_messages)} messages")
