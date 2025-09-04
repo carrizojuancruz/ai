@@ -3,6 +3,8 @@ from dotenv import load_dotenv
 load_dotenv(".env", override=False)
 load_dotenv(".env.local", override=True)
 
+from .core.config import config
+
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from typing import Any
@@ -15,7 +17,6 @@ from .api.routes_cron import router as cron_router
 from .api.routes_guest import router as guest_router
 from .api.routes_knowledge import router as knowledge_router
 from .api.routes_supervisor import router as supervisor_router
-from .core.config import config
 from .observability.logging_config import configure_logging, get_logger
 
 configure_logging()

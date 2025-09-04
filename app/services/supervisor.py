@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+import json
+from typing import Any, Optional, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
 from langfuse.callback import CallbackHandler
@@ -17,6 +18,8 @@ from app.core.app_state import (
 from app.core.config import config
 from app.models.user import UserContext
 from app.repositories.session_store import InMemorySessionStore, get_session_store
+from app.utils.mapping import get_source_name
+from app.utils.tools import check_repeated_sources
 from app.utils.welcome import call_llm, generate_personalized_welcome
 
 langfuse_handler = CallbackHandler(
@@ -134,7 +137,27 @@ class SupervisorService:
                         parts.append(part_text)
             return "".join(parts)
         return ""
-
+    
+    def _add_source_from_tool_end(self, sources: list[dict[str, Any]], name: str, data: dict[str, Any]) -> list[dict[str, Any]]:
+        """
+        Add the source to the sources list from the tool end event
+        """
+        if "output" in data:
+            output = data["output"]
+            if hasattr(output, "content"):
+                content = output.content
+            elif isinstance(output, dict) and "content" in output:
+                content = output["content"]
+            else:
+                content = output
+            if isinstance(content, str):
+                content = json.loads(content)
+            for item in content if isinstance(content, list) else []:
+                if "source" in item and len(item["source"]) > 0:
+                    if check_repeated_sources(sources, {"name": get_source_name(name), "source": item["source"]}):
+                        sources.append({"name": get_source_name(name), "source": item["source"]})
+        return sources
+    
     # Conversation summary helper methods
     async def _find_latest_prior_thread(self, session_store: InMemorySessionStore, user_id: str, exclude_thread_id: str) -> Optional[str]:
         """Find the most recent previous thread for this user (excluding current thread)."""
@@ -254,6 +277,9 @@ class SupervisorService:
             return None
 
     async def initialize(self, *, user_id: UUID) -> dict[str, Any]:
+        """
+        Initialize the supervisor service
+        """
         thread_id = str(uuid4())
         queue = get_sse_queue(thread_id)
 
@@ -300,12 +326,14 @@ class SupervisorService:
         graph: CompiledStateGraph = get_supervisor_graph()
         session_store: InMemorySessionStore = get_session_store()
         session_ctx = await session_store.get_session(thread_id) or {}
+        sources = []
 
         # Store the user message
         conversation_messages = session_ctx.get("conversation_messages", [])
         conversation_messages.append({
             "role": "user",
-            "content": text.strip()
+            "content": text.strip(),
+            "sources": sources
         })
         # Collect assistant response
         assistant_response_parts = []
@@ -324,7 +352,7 @@ class SupervisorService:
         }
 
         async for event in graph.astream_events(
-            {"messages": [{"role": "user", "content": text}]},
+            {"messages": [{"role": "user", "content": text}], "sources": sources},
             version="v2",
             config={
                 "callbacks": [langfuse_handler],
@@ -344,14 +372,16 @@ class SupervisorService:
                 if out and not self._is_injected_context(out):
                     last = get_last_emitted_text(thread_id)
                     if out != last:
-                        await q.put({"event": "token.delta", "data": {"text": out}})
-                        set_last_emitted_text(thread_id, out)
+                        if name not in ["tools"]:
+                            await q.put({"event": "token.delta", "data": {"text": out}})
+                            set_last_emitted_text(thread_id, out)
                         # Collect assistant response parts
                         assistant_response_parts.append(out)
             elif etype == "on_tool_start":
                 if name:
                     await q.put({"event": "tool.start", "data": {"tool": name}})
             elif etype == "on_tool_end":
+                sources = self._add_source_from_tool_end(sources, name, data)
                 if name:
                     await q.put({"event": "tool.end", "data": {"tool": name}})
             elif etype == "on_chain_end":
@@ -370,8 +400,9 @@ class SupervisorService:
                             if text and not self._is_injected_context(text):
                                 last = get_last_emitted_text(thread_id)
                                 if text != last:
-                                    await q.put({"event": "token.delta", "data": {"text": text}})
-                                    set_last_emitted_text(thread_id, text)
+                                    if name not in ["tools"]:
+                                        await q.put({"event": "token.delta", "data": {"text": text}})
+                                        set_last_emitted_text(thread_id, text)
                                     # Collect final assistant response
                                     assistant_response_parts.append(text)
                 except Exception:
@@ -387,7 +418,8 @@ class SupervisorService:
                 if assistant_response:
                     conversation_messages.append({
                         "role": "assistant",
-                        "content": assistant_response
+                        "content": assistant_response,
+                        "sources": sources
                     })
 
             # Update session with complete conversation
@@ -408,5 +440,3 @@ class SupervisorService:
 
 
 supervisor_service = SupervisorService()
-
-
