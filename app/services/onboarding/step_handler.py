@@ -25,10 +25,7 @@ PLAID_VALID_RESPONSES = {"connect_now", "later"}
 class StepHandlerService:
     def __init__(self) -> None:
         self._missing_fields_by_step: dict[OnboardingStep, list[str] | Callable] = {
-            OnboardingStep.WARMUP: lambda state: (
-                (["preferred_name"] if not getattr(state.user_context, "preferred_name", None) else [])
-                + ["warmup_choice"]
-            ),
+            OnboardingStep.WARMUP: lambda state: ["warmup_choice"],
             OnboardingStep.IDENTITY: self._get_identity_missing_fields,
             OnboardingStep.INCOME_MONEY: self._get_income_money_missing_fields,
             OnboardingStep.ASSETS_EXPENSES: lambda state: ["assets_types", "fixed_expenses"],

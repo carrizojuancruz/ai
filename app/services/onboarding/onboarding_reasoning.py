@@ -30,7 +30,7 @@ langfuse_handler = CallbackHandler(
 )
 
 ALLOWED_FIELDS_BY_STEP: dict[OnboardingStep, list[str]] = {
-    OnboardingStep.WARMUP: ["warmup_choice", "preferred_name"],
+    OnboardingStep.WARMUP: ["warmup_choice"],
     OnboardingStep.IDENTITY: [
         "preferred_name",
         "age",
@@ -181,6 +181,7 @@ class OnboardingReasoningService:
             if step == OnboardingStep.WARMUP:
                 choice_info = get_choices_for_field("warmup_choice", step)
                 if choice_info:
+                    result["assistant_text"] = "Want to do a quick onboarding now or skip it?"
                     result["interaction_type"] = choice_info["type"]
                     result["choices"] = choice_info.get("choices", [])
                     result.pop("primary_choice", None)
