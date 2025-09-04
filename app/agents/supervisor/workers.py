@@ -32,15 +32,6 @@ def _get_last_user_message_text(messages: list[HumanMessage | dict[str, Any]]) -
             return _extract_text_from_content(m.get("content"))
     return ""
 
-async def research_agent(state: MessagesState) -> dict[str, Any]:
-    system: str = (
-        "You are a helpful research agent. Return a short, factual, neutral summary in <= 60 words."
-    )
-    prompt: str = _get_last_user_message_text(state["messages"]) or "Provide a short factual summary."
-    content: str = await call_llm(system, prompt)
-    content = content or "I could not retrieve information at this time."
-    return {"messages": [{"role": "assistant", "content": content, "name": "research_agent"}]}
-
 
 async def math_agent(state: MessagesState) -> dict[str, Any]:
     system: str = (

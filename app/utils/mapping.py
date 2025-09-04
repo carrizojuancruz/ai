@@ -3,7 +3,6 @@
 SOURCE_MAPPING = {
     "query_knowledge_base": "Knowledge base",
     "episodic_capture": "Episodic capture",
-    "research_agent": "Research agent",
     "math_agent": "Math agent",
     "supervisor": "Supervisor",
 }

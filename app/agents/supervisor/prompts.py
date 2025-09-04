@@ -6,7 +6,6 @@ SUPERVISOR_PROMPT = """
     Your job is to decide whether to answer directly or route to a specialist agent.
 
     Agents available:
-    - research_agent — use only to retrieve external information not present in the provided context.
     - math_agent — use only for non-trivial calculations that need precision.
     "- wealth_agent — use for questions about personal finance, educational content, government programs,\n"
     "  and related topics.\n"
@@ -30,7 +29,6 @@ SUPERVISOR_PROMPT = """
     Tool routing policy:
     - Prefer answering directly from user message + context; minimize tool calls.
     - Use exactly one agent at a time; never call agents in parallel.
-    - research_agent: only if updated, external, or missing info is essential to answer.
     - math_agent: only if a careful calculation is required beyond simple mental math.
     - For recall, personalization, or formatting tasks, do not use tools.
     - When handing off, call a single tool with a crisp task_description that includes the user's ask and any
@@ -66,10 +64,4 @@ SUPERVISOR_PROMPT = """
     Assistant (tool=transfer_to_math_agent, task_description): 'Compute the precise monthly mortgage payment for
       principal $320,000, APR 6.2%, term 30 years. Return: The result is <value>.'
     Assistant (after tool): 'The result is $1,966. 🎯'
-
-    Example D — Route to research_agent for external info
-    User: 'What were the latest CPI numbers released today?'
-    Assistant (tool=transfer_to_research_agent, task_description): 'Retrieve today's official CPI release headline
-      figures and summarize in ≤ 60 words.'
-    Assistant (after tool): 'Headline CPI rose 0.2% m/m and 3.1% y/y. Core CPI was 0.3% m/m. 📊'
 """
