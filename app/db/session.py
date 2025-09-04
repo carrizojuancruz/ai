@@ -24,10 +24,12 @@ async def _health_check_connection(engine) -> bool:
     """Perform a health check on the database connection."""
     try:
         async with engine.begin() as conn:
-            await conn.execute(text("SELECT 1"))
+            await conn.execute(text("SELECT 1 as health_check"))
+            logger.debug("Database health check passed")
         return True
     except Exception as e:
         logger.warning(f"Database health check failed: {e}")
+        logger.debug(f"Health check error details: {type(e).__name__}: {str(e)}")
         return False
 
 
@@ -35,16 +37,24 @@ async def _periodic_health_check():
     """Periodic health check for database connections."""
     while True:
         try:
-            await asyncio.sleep(300)  # Check every 5 minutes
+            await asyncio.sleep(600)  # Check every 10 minutes (more reasonable)
             if _engine is not None:
+                logger.debug("Running periodic database health check")
                 is_healthy = await _health_check_connection(_engine)
                 if not is_healthy:
                     logger.warning("Database connection unhealthy, attempting to reconnect...")
-                    await _reconnect_engine()
+                    try:
+                        await _reconnect_engine()
+                    except Exception as reconnect_error:
+                        logger.error(f"Database reconnection failed: {reconnect_error}")
+                else:
+                    logger.debug("Database connection is healthy")
         except asyncio.CancelledError:
+            logger.info("Database health check task cancelled")
             break
         except Exception as e:
-            logger.error(f"Health check error: {e}")
+            logger.error(f"Health check task error: {e}")
+            # Continue the loop even if there's an error
 
 
 async def _reconnect_engine():
@@ -67,14 +77,14 @@ async def _reconnect_engine():
             pool_timeout=30,                 # Connection timeout (seconds)
             pool_recycle=1800,               # Recycle connections every 30 min
             pool_pre_ping=True,              # Health check before using connection
-            # Connection Configuration
+            # Connection Configuration for asyncpg
             connect_args={
-                "connect_timeout": 10,       # Connection timeout
-                "application_name": "verde-ai",  # Application name for monitoring
-                "keepalives": 1,             # Enable keepalives
-                "keepalives_idle": 30,       # Keepalive idle time
-                "keepalives_interval": 10,   # Keepalive interval
-                "keepalives_count": 5,       # Keepalive count
+                "server_settings": {
+                    "application_name": "verde-ai",
+                    "timezone": "UTC"
+                },
+                "timeout": 10.0,             # Connection timeout for asyncpg
+                "command_timeout": 60.0,     # Query timeout for asyncpg
             }
         )
 
@@ -112,14 +122,14 @@ def _get_engine():
                 pool_timeout=30,                 # Connection timeout (seconds)
                 pool_recycle=1800,               # Recycle connections every 30 min
                 pool_pre_ping=True,              # Health check before using connection
-                # Connection Configuration
+                # Connection Configuration for asyncpg
                 connect_args={
-                    "connect_timeout": 10,       # Connection timeout
-                    "application_name": "verde-ai",  # Application name for monitoring
-                    "keepalives": 1,             # Enable keepalives
-                    "keepalives_idle": 30,       # Keepalive idle time
-                    "keepalives_interval": 10,   # Keepalive interval
-                    "keepalives_count": 5,       # Keepalive count
+                    "server_settings": {
+                        "application_name": "verde-ai",
+                        "timezone": "UTC"
+                    },
+                    "timeout": 10.0,             # Connection timeout for asyncpg
+                    "command_timeout": 60.0,     # Query timeout for asyncpg
                 }
             )
 
@@ -128,7 +138,7 @@ def _get_engine():
                 _connection_health_check_task = asyncio.create_task(_periodic_health_check())
                 logger.info("Database health check task started")
 
-            logger.info("Database engine created successfully with robust configuration")
+            logger.info("Database engine created successfully with asyncpg configuration")
 
         except Exception as e:
             logger.error(f"Database engine creation failed: {e}")

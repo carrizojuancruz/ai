@@ -12,7 +12,8 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.types import RunnableConfig
 
 from app.core.config import config
-from app.agents.supervisor.finance_agent.tools import sql_db_schema, execute_financial_query
+from app.agents.supervisor.finance_agent.tools import execute_financial_query
+from app.repositories.database_service import get_database_service
 
 logger = logging.getLogger(__name__)
 
@@ -81,9 +82,70 @@ class FinanceAgent:
         )
 
         logger.info("FinanceAgent initialization completed")
+        # Lightweight per-user cache for prompt grounding samples
+        self._sample_cache: dict[str, dict[str, Any]] = {}
+        self._sample_cache_ttl_seconds: int = 600
 
-    def _create_system_prompt(self, user_id: UUID) -> str:
+    async def _fetch_shallow_samples(self, user_id: UUID) -> tuple[str, str]:
+        """Fetch sample data for transactions and accounts.
+        Returns compact JSON arrays as strings for embedding in the prompt.
+        """
+        try:
+            # Serve from cache if fresh
+            now = datetime.datetime.utcnow().timestamp()
+            cache_key = str(user_id)
+            cached = self._sample_cache.get(cache_key)
+            if cached and (now - cached.get("cached_at", 0) < self._sample_cache_ttl_seconds):
+                return cached.get("tx_samples", "[]"), cached.get("acct_samples", "[]")
+
+            db_service = get_database_service()
+            async with db_service.get_session() as session:
+                repo = db_service.get_finance_repository(session)
+
+                # Transaction sample
+                tx_query = (
+                    "SELECT "
+                    "  t.external_transaction_id AS dedupe_id, "
+                    "  t.amount, "
+                    "  COALESCE(t.transaction_date::date, t.authorized_date::date) AS tx_date, "
+                    "  COALESCE(NULLIF(t.merchant_name,''), NULLIF(t.name,'')) AS merchant, "
+                    "  COALESCE(t.provider_tx_category_detailed, t.category_detailed, t.provider_tx_category, t.category, 'Uncategorized') AS category, "
+                    "  t.pending, "
+                    "  t.created_at "
+                    "FROM public.unified_transactions t "
+                    "WHERE t.user_id = :user_id "
+                    "ORDER BY t.created_at DESC LIMIT 2"
+                )
+
+                # Account sample
+                acct_query = (
+                    "SELECT a.id, a.name, a.account_type, a.account_subtype, a.institution_name, a.created_at "
+                    "FROM public.unified_accounts a "
+                    "WHERE a.user_id = :user_id "
+                    "ORDER BY a.created_at DESC LIMIT 1"
+                )
+
+                tx_rows = await repo.execute_query(tx_query, user_id)
+                acct_rows = await repo.execute_query(acct_query, user_id)
+
+                import json
+                tx_json = json.dumps(tx_rows or [], ensure_ascii=False, separators=(',', ':'))
+                acct_json = json.dumps(acct_rows or [], ensure_ascii=False, separators=(',', ':'))
+
+                # Cache
+                self._sample_cache[cache_key] = {
+                    "tx_samples": tx_json,
+                    "acct_samples": acct_json,
+                    "cached_at": now,
+                }
+                return tx_json, acct_json
+        except Exception as e:
+            logger.warning(f"Error fetching samples: {e}")
+            return "[]", "[]"
+
+    async def _create_system_prompt(self, user_id: UUID) -> str:
         """Create the system prompt for the finance agent."""
+        tx_samples, acct_samples = await self._fetch_shallow_samples(user_id)
         return f"""You are an AI text-to-SQL agent over the user's Plaid-mirrored PostgreSQL database. Your goal is to generate correct SQL, execute it via tools, and present a concise, curated answer.
 
         🚨 AGENT PERSISTENCE & CONTROL 🚨
@@ -129,39 +191,68 @@ class FinanceAgent:
         2. **Never Skip**: **NEVER** allow queries without user_id filter for security
         3. **Multiple Conditions**: If using joins, ensure user_id filter is applied to the appropriate table
 
-        ## 📋 TABLE SCHEMAS
+        ## 📋 TABLE SCHEMAS (Typed; shallow as source of truth)
 
-        **public.unified_accounts:**
-        - id (UUID): Primary key
-        - user_id (UUID): User identifier (ALWAYS filter by this)
-        - name (VARCHAR): Account name
-        - account_type (VARCHAR): Type (depository, credit, investment, loan)
-        - account_subtype (VARCHAR): Subtype (checking, savings, credit_card, etc.)
-        - current_balance (NUMERIC): Current balance
-        - available_balance (NUMERIC): Available balance
-        - total_value (NUMERIC): Total value
-        - credit_limit (NUMERIC): Credit limit
-        - available_credit (NUMERIC): Available credit
-        - institution_name (VARCHAR): Bank/financial institution
-        - currency_code (VARCHAR): Currency
-        - is_active (BOOLEAN): Account is active
-        - is_closed (BOOLEAN): Account is closed
-        - created_at (TIMESTAMP): Creation date
+        **public.unified_transactions**
+        - id (UUID)
+        - user_id (UUID)
+        - account_id (UUID)
+        - amount (NUMERIC)
+        - transaction_date (TIMESTAMPTZ)
+        - authorized_date (TIMESTAMPTZ)
+        - name (TEXT)
+        - merchant_name (VARCHAR)
+        - category (VARCHAR)
+        - category_detailed (VARCHAR)
+        - provider_tx_category (VARCHAR)
+        - provider_tx_category_detailed (VARCHAR)
+        - payment_channel (VARCHAR)
+        - pending (BOOLEAN)
+        - external_transaction_id (VARCHAR)
+        - created_at (TIMESTAMPTZ), updated_at (TIMESTAMPTZ)
 
-        **public.unified_transactions:**
-        - id (UUID): Primary key
-        - user_id (UUID): User identifier (ALWAYS filter by this)
-        - account_id (UUID): Reference to unified_accounts.id
-        - amount (NUMERIC): Transaction amount (negative = spending, positive = income)
-        - transaction_date (TIMESTAMP): Transaction date
-        - name (VARCHAR): Transaction name
-        - description (VARCHAR): Transaction description
-        - merchant_name (VARCHAR): Merchant name
-        - category (VARCHAR): Transaction category
-        - category_detailed (VARCHAR): Detailed category
-        - payment_channel (VARCHAR): Payment method
-        - pending (BOOLEAN): Transaction is pending
-        - created_at (TIMESTAMP): Record creation date
+        **public.unified_accounts**
+        - id (UUID)
+        - user_id (UUID)
+        - name (VARCHAR)
+        - account_type (VARCHAR)
+        - account_subtype (VARCHAR)
+        - current_balance (NUMERIC)
+        - available_balance (NUMERIC)
+        - institution_name (VARCHAR)
+        - created_at (TIMESTAMPTZ)
+
+        ## 🧪 LIVE SAMPLE ROWS (internal; not shown to user)
+        transactions_samples = {tx_samples}
+        accounts_samples = {acct_samples}
+
+        ## 🔧 NORMALIZATION CTE (reuse in queries; shallow-only)
+        WITH base AS (
+          SELECT
+            t.user_id,
+            t.account_id,
+            t.external_transaction_id AS dedupe_id,
+            t.amount,
+            COALESCE(t.transaction_date::date, t.authorized_date::date) AS tx_date,
+            COALESCE(NULLIF(t.merchant_name,''), NULLIF(t.name,'')) AS merchant,
+            -- Enhanced category normalization with fallback chain
+            CASE
+              WHEN COALESCE(t.provider_tx_category_detailed, t.category_detailed, t.provider_tx_category, t.category) IS NOT NULL
+              THEN COALESCE(t.provider_tx_category_detailed, t.category_detailed, t.provider_tx_category, t.category)
+              ELSE 'Uncategorized'
+            END AS category,
+            t.pending,
+            t.created_at
+          FROM public.unified_transactions t
+          WHERE t.user_id = '{user_id}'
+        ),
+        dedup AS (
+          SELECT *, ROW_NUMBER() OVER (
+            PARTITION BY dedupe_id ORDER BY tx_date DESC, created_at DESC
+          ) AS rn
+          FROM base
+        )
+        SELECT * FROM dedup WHERE rn = 1
 
         ## ⚙️ Query Generation Rules
 
@@ -172,11 +263,13 @@ class FinanceAgent:
         ✅ Design aggregation and grouping strategy
         ✅ Verify security filtering (user_id)
 
-        1. **Default Date Range:** If no period specified, use data for the last 30 days. If no data is found, ASK whether to expand the window before doing so.
-        2. **Table Aliases:** Use short, intuitive aliases (e.g., `t` for transactions, `a` for accounts)
+        1. **Default Date Range:** If no period specified, use data for the last 30 days (filter on tx_date). If no data is found, ASK whether to expand the window before doing so.
+        2. **Table Aliases:** Use short, intuitive aliases (e.g., `d` for deduped tx, `a` for accounts)
         3. **Select Relevant Columns:** Only select columns needed to answer the question
         4. **Aggregation Level:** Group by appropriate dimensions (date, category, merchant, etc.)
-        5. **Default Ordering:** Order by date DESC unless another ordering is more relevant
+        5. **Default Ordering:** Order by tx_date DESC unless another ordering is more relevant
+        6. **Spending vs Income:** Spending amount < 0; Income amount > 0 (use shallow `amount`).
+        7. **De-duplication:** Always use the `dedup` CTE and filter `rn = 1`.
 
         ## 🛠️ Standard Operating Procedure (SOP) & Response
 
@@ -220,13 +313,14 @@ class FinanceAgent:
             return await execute_financial_query(query, user_id)
 
         # Create agent with tools
-        tools = [sql_db_query, sql_db_schema]
+        tools = [sql_db_query]
         logger.info(f"Initializing LangGraph agent with tools for user {user_id}")
 
+        system_prompt = await self._create_system_prompt(user_id)
         agent = create_react_agent(
             model=self.sql_generator,
             tools=tools,
-            prompt=self._create_system_prompt(user_id)
+            prompt=system_prompt
         )
 
         logger.info(f"LangGraph agent created successfully for user {user_id}")

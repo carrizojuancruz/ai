@@ -24,52 +24,6 @@ async def sql_db_query(query: str) -> str:
         return f"Error: {str(e)}"
 
 
-@tool
-async def sql_db_schema(table_name: str) -> str:
-    """Get schema information for a financial table."""
-    try:
-        if table_name == "unified_accounts":
-            return """
-public.unified_accounts:
-- id (UUID): Primary key
-- user_id (UUID): User identifier (CRITICAL: always filter by this)
-- name (VARCHAR): Account name
-- account_type (VARCHAR): Type (depository, credit, investment, loan)
-- account_subtype (VARCHAR): Subtype (checking, savings, credit_card, etc.)
-- current_balance (NUMERIC): Current balance
-- available_balance (NUMERIC): Available balance
-- total_value (NUMERIC): Total value
-- credit_limit (NUMERIC): Credit limit
-- available_credit (NUMERIC): Available credit
-- institution_name (VARCHAR): Bank/financial institution
-- currency_code (VARCHAR): Currency
-- is_active (BOOLEAN): Account is active
-- is_closed (BOOLEAN): Account is closed
-- created_at (TIMESTAMP): Creation date
-"""
-        elif table_name == "unified_transactions":
-            return """
-public.unified_transactions:
-- id (UUID): Primary key
-- user_id (UUID): User identifier (CRITICAL: always filter by this)
-- account_id (UUID): Reference to unified_accounts.id
-- amount (NUMERIC): Transaction amount (negative = spending, positive = income)
-- transaction_date (TIMESTAMP): Transaction date
-- name (VARCHAR): Transaction name
-- description (VARCHAR): Transaction description
-- merchant_name (VARCHAR): Merchant name
-- category (VARCHAR): Transaction category
-- category_detailed (VARCHAR): Detailed category
-- payment_channel (VARCHAR): Payment method
-- pending (BOOLEAN): Transaction is pending
-- created_at (TIMESTAMP): Record creation date
-"""
-        else:
-            return f"Unknown table: {table_name}"
-    except Exception as e:
-        logger.error(f"Schema query error: {e}")
-        return f"Error getting schema: {str(e)}"
-
 
 async def execute_financial_query(query: str, user_id: UUID) -> str:
     """Execute SQL query against the financial database with user isolation."""

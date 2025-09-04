@@ -415,12 +415,6 @@ class SupervisorService:
             data = event.get("data") or {}
 
             if etype == "on_chat_model_stream":
-                # Only stream tokens from supervisor level, not from sub-agents
-                metadata = event.get("metadata", {})
-                checkpoint_ns = metadata.get("checkpoint_ns", "")
-                if not checkpoint_ns.startswith("supervisor:"):
-                    continue
-
                 chunk = data.get("chunk")
                 out = self._content_to_text(chunk)
                 if out:
@@ -440,11 +434,6 @@ class SupervisorService:
                 if name:
                     await q.put({"event": "tool.end", "data": {"tool": name}})
             elif etype == "on_chain_end":
-                # Only stream tokens from supervisor level, not from sub-agents
-                metadata = event.get("metadata", {})
-                checkpoint_ns = metadata.get("checkpoint_ns", "")
-                if not checkpoint_ns.startswith("supervisor:"):
-                    continue
 
                 try:
                     output = data.get("output", {})
