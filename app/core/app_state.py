@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any
+import time
+from typing import TYPE_CHECKING, Any, Optional, Tuple
 from uuid import UUID
 
 from langgraph.graph.state import CompiledStateGraph
@@ -18,6 +19,10 @@ _sse_queues: dict[str, asyncio.Queue] = {}
 _thread_locks: dict[str, asyncio.Lock] = {}
 
 _last_emitted_text: dict[str, str] = {}
+
+# Finance samples cache (per-user) - stores compact JSON strings and timestamps
+FINANCE_SAMPLES_CACHE_TTL_SECONDS: int = 600
+_finance_samples_cache: dict[str, dict[str, Any]] = {}
 
 # AWS Clients - Singleton pattern
 _bedrock_runtime_client: Any | None = None
@@ -81,6 +86,38 @@ def set_last_emitted_text(thread_id: str, text: str) -> None:
     if text is None:
         text = ""
     _last_emitted_text[thread_id] = text
+
+
+def get_finance_samples(user_id: UUID) -> Optional[Tuple[str, str]]:
+    """Return cached (tx_samples_json, acct_samples_json) if fresh, else None."""
+    try:
+        entry = _finance_samples_cache.get(str(user_id))
+        if not entry:
+            return None
+        cached_at = entry.get("cached_at", 0)
+        if (time.time() - float(cached_at)) > FINANCE_SAMPLES_CACHE_TTL_SECONDS:
+            return None
+        tx_samples = entry.get("tx_samples") or "[]"
+        acct_samples = entry.get("acct_samples") or "[]"
+        if isinstance(tx_samples, str) and isinstance(acct_samples, str):
+            return tx_samples, acct_samples
+        return None
+    except Exception:
+        return None
+
+
+def set_finance_samples(user_id: UUID, tx_samples_json: str, acct_samples_json: str) -> None:
+    """Cache finance samples for a user (compact JSON strings)."""
+    _finance_samples_cache[str(user_id)] = {
+        "tx_samples": tx_samples_json or "[]",
+        "acct_samples": acct_samples_json or "[]",
+        "cached_at": time.time(),
+    }
+
+
+def invalidate_finance_samples(user_id: UUID) -> None:
+    """Invalidate cached finance samples for a user."""
+    _finance_samples_cache.pop(str(user_id), None)
 
 
 def find_user_threads(user_id: UUID) -> list[tuple[str, "OnboardingState"]]:

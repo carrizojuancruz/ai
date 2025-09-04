@@ -83,9 +83,8 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     builder.add_edge("goal_agent", "supervisor")
     builder.add_edge("supervisor", "episodic_capture")
     builder.add_edge("episodic_capture", END)
-
-    # --- Store configuration for tools ---
     store = create_s3_vectors_store_from_env()
+    checkpointer = MemorySaver()
     return builder.compile(store=store, checkpointer=checkpointer)
 
 

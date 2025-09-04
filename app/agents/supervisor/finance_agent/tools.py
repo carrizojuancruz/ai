@@ -49,13 +49,8 @@ async def execute_financial_query(query: str, user_id: UUID) -> str:
                 if not result:
                     return "No data found for your query."
 
-                # Format results as readable text
-                logger.info(f"Query executed successfully for user {user_id}, formatting {len(result)} results")
-                formatted_result = f"Found {len(result)} results:\n" + "\n".join([
-                    str(row) for row in result[:10]  # Limit to first 10 results
-                ])
-                logger.info(f"Query completed for user {user_id}, returning results")
-                return formatted_result
+                logger.info(f"Query executed successfully for user {user_id}, returning {len(result)} results to agent")
+                return result
 
             except Exception as exec_error:
                 logger.error(f"SQL execution error for user {user_id}: {exec_error}")

@@ -92,7 +92,12 @@ class FinanceAgent:
         Returns compact JSON arrays as strings for embedding in the prompt.
         """
         try:
-            # Serve from cache if fresh
+            from app.core.app_state import get_finance_samples, set_finance_samples
+
+            cached_pair = get_finance_samples(user_id)
+            if cached_pair:
+                return cached_pair
+
             now = datetime.datetime.utcnow().timestamp()
             cache_key = str(user_id)
             cached = self._sample_cache.get(cache_key)
@@ -158,6 +163,9 @@ class FinanceAgent:
                     "acct_samples": acct_json,
                     "cached_at": now,
                 }
+                from contextlib import suppress
+                with suppress(Exception):
+                    set_finance_samples(user_id, tx_json, acct_json)
                 return tx_json, acct_json
         except Exception as e:
             logger.warning(f"Error fetching samples: {e}")
@@ -288,8 +296,9 @@ class FinanceAgent:
         3. **Select Relevant Columns:** Only select columns needed to answer the question
         4. **Aggregation Level:** Group by appropriate dimensions (date, category, merchant, etc.)
         5. **Default Ordering:** Order by tx_date DESC unless another ordering is more relevant
-        6. **Spending vs Income:** Spending amount < 0; Income amount > 0 (use shallow `amount`).
-        7. **De-duplication:** Always use the `dedup` CTE and filter `rn = 1`.
+        6. **Spending vs Income:** Spending amount > 0; Income amount < 0 (use shallow `amount`).
+        7. **Category Ranking:** Rank categories by SUM(amount) DESC (not by distinct presence).
+        8. **De-duplication:** Always use the `dedup` CTE and filter `rn = 1`.
 
         ## 🛠️ Standard Operating Procedure (SOP) & Response
 
@@ -318,6 +327,7 @@ class FinanceAgent:
         ✅ Date handling follows specification
         ✅ Aggregation and grouping logic is sound
         ✅ Column names match schema exactly
+        ✅ Amount sign convention verified (positive = spending)
 
         Today's date: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d')}"""
 

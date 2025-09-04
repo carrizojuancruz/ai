@@ -352,6 +352,14 @@ class SupervisorService:
 
         logger.info(f"Initialize complete for user {uid}: thread={thread_id}, has_prior_summary={bool(prior_summary)}")
 
+        try:
+            import asyncio
+
+            from app.agents.supervisor.finance_agent.agent import _finance_agent
+            asyncio.create_task(_finance_agent._fetch_shallow_samples(uid))
+        except Exception:
+            pass
+
         return {
             "thread_id": thread_id,
             "welcome": welcome,
