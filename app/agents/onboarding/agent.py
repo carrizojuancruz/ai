@@ -149,11 +149,6 @@ class OnboardingAgent:
         with contextlib.suppress(Exception):
             current_state.ensure_completion_consistency()
 
-        if current_state.ready_for_completion:
-            yield (emit_onboarding_done(), current_state)
-            yield (None, current_state)
-            return
-
         new_completed = set(s.value for s in current_state.completed_steps)
         for step_value in sorted(new_completed - prev_completed):
             yield (emit_step_update("completed", step_value), current_state)
@@ -193,5 +188,10 @@ class OnboardingAgent:
             interaction_event = build_interaction_update(current_state)
             if interaction_event:
                 yield (interaction_event, current_state)
+
+        if current_state.ready_for_completion:
+            yield (emit_onboarding_done(), current_state)
+            yield (None, current_state)
+            return
 
         yield (None, current_state)

@@ -30,7 +30,7 @@ langfuse_handler = CallbackHandler(
 )
 
 ALLOWED_FIELDS_BY_STEP: dict[OnboardingStep, list[str]] = {
-    OnboardingStep.WARMUP: ["warmup_choice", "preferred_name"],
+    OnboardingStep.WARMUP: ["warmup_choice"],
     OnboardingStep.IDENTITY: [
         "preferred_name",
         "age",
@@ -40,7 +40,14 @@ ALLOWED_FIELDS_BY_STEP: dict[OnboardingStep, list[str]] = {
         "region",
         "personal_goals",
     ],
-    OnboardingStep.INCOME_MONEY: ["money_feelings", "annual_income", "annual_income_range", "income", "income_range"],
+    OnboardingStep.INCOME_MONEY: [
+        "money_feelings",
+        "annual_income",
+        "annual_income_range",
+        "income",
+        "income_range",
+        "personal_goals",
+    ],
     OnboardingStep.ASSETS_EXPENSES: ["assets_types", "fixed_expenses"],
     OnboardingStep.HOME: ["housing_type", "housing_satisfaction", "monthly_housing_cost"],
     OnboardingStep.FAMILY_UNIT: ["dependents_under_18", "pets"],
@@ -174,6 +181,7 @@ class OnboardingReasoningService:
             if step == OnboardingStep.WARMUP:
                 choice_info = get_choices_for_field("warmup_choice", step)
                 if choice_info:
+                    result["assistant_text"] = "Want to do a quick onboarding now or skip it?"
                     result["interaction_type"] = choice_info["type"]
                     result["choices"] = choice_info.get("choices", [])
                     result.pop("primary_choice", None)
@@ -289,7 +297,12 @@ class OnboardingReasoningService:
                 msg_lower = state.last_user_message.lower()
                 wants_options = any(word in msg_lower for word in OPTIONS_WORDS)
                 age_hesitation = any(word in msg_lower for word in AGE_HESITATION_WORDS) or msg_lower.strip() in {"no"}
-                if step == OnboardingStep.IDENTITY and wants_options or step == OnboardingStep.IDENTITY and age_hesitation:
+                if (
+                    step == OnboardingStep.IDENTITY
+                    and wants_options
+                    or step == OnboardingStep.IDENTITY
+                    and age_hesitation
+                ):
                     if "age_range" in missing_fields or "age" in missing_fields:
                         result["interaction_type"] = "single_choice"
                         result["patch"]["age_range"] = None
@@ -309,14 +322,23 @@ class OnboardingReasoningService:
                     result["multi_min"] = 1
                     result["multi_max"] = 3
 
-            if step == OnboardingStep.WARMUP:
-                choice_info = get_choices_for_field("warmup_choice", step)
-                if choice_info:
-                    result["interaction_type"] = choice_info["type"]
-                    result["choices"] = choice_info.get("choices", [])
-                    result.pop("primary_choice", None)
-                    result.pop("secondary_choice", None)
-            elif result.get("interaction_type") != "free_text" and missing_fields:
+            if (result.get("interaction_type") == "free_text") and missing_fields:
+                for field in missing_fields:
+                    if should_always_offer_choices(step, field):
+                        choice_info = get_choices_for_field(field, step)
+                        if choice_info:
+                            result["interaction_type"] = choice_info["type"]
+                            if choice_info["type"] == "binary_choice":
+                                result["primary_choice"] = choice_info.get("primary_choice")
+                                result["secondary_choice"] = choice_info.get("secondary_choice")
+                            elif choice_info["type"] in ["single_choice", "multi_choice"]:
+                                result["choices"] = choice_info.get("choices", [])
+                                if choice_info["type"] == "multi_choice":
+                                    result["multi_min"] = choice_info.get("multi_min", 1)
+                                    result["multi_max"] = choice_info.get("multi_max", 3)
+                            break
+
+            if result.get("interaction_type") != "free_text" and missing_fields:
                 for field in missing_fields:
                     choice_info = get_choices_for_field(field, step)
                     if choice_info:

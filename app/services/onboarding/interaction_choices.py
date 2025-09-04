@@ -17,6 +17,34 @@ WARMUP_CHOICES = [
     },
 ]
 
+PLAID_CONNECT_CHOICES = [
+    {
+        "id": "connect_now",
+        "label": "Connect now",
+        "value": "connect_now",
+        "synonyms": [
+            "connect",
+            "connect now",
+            "link",
+            "link accounts",
+            "connect accounts",
+            "yes",
+        ],
+    },
+    {
+        "id": "later",
+        "label": "I prefer chatting",
+        "value": "later",
+        "synonyms": [
+            "not now",
+            "later",
+            "skip",
+            "do it later",
+            "no",
+        ],
+    },
+]
+
 AGE_RANGE_CHOICES = [
     {
         "id": "under_18",
@@ -244,6 +272,12 @@ def get_choices_for_field(field: str, step: OnboardingStep) -> dict[str, Any] | 
             "choices": WARMUP_CHOICES,
         }
 
+    if step == OnboardingStep.PLAID_INTEGRATION or field == "plaid_connect":
+        return {
+            "type": "single_choice",
+            "choices": PLAID_CONNECT_CHOICES,
+        }
+
     field_choices_map = {
         "age_range": AGE_RANGE_CHOICES,
         "income_range": INCOME_RANGE_CHOICES,
@@ -283,6 +317,9 @@ def should_always_offer_choices(step: OnboardingStep, field: str) -> bool:
         return True
 
     if step == OnboardingStep.CHECKOUT_EXIT and field == "final_choice":
+        return True
+
+    if step == OnboardingStep.PLAID_INTEGRATION and field == "plaid_connect":
         return True
 
     if step == OnboardingStep.LEARNING_PATH and field == "learning_interests":
