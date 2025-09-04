@@ -17,8 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def compile_wealth_agent_graph() -> CompiledStateGraph:
-    """Compile the wealth agent graph.
-    """
+    """Compile the wealth agent graph."""
     configure_logging()
 
     region = config.AWS_REGION

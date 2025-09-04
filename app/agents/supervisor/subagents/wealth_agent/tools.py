@@ -1,5 +1,4 @@
-"""Tools for the CRUD Budget Agent with in-memory temporary persistence.
-"""
+"""Tools for the CRUD Budget Agent with in-memory temporary persistence."""
 
 from langchain_core.tools import tool
 
@@ -11,8 +10,7 @@ def _error(code: str, message: str, cause: str | None = None) -> dict:
 
 @tool
 def search_kb(query: str) -> str:
-    """Search the knowledge base for a query.
-    """
+    """Search the knowledge base for a query."""
     try:
         kb_service = KnowledgeService()
         results = kb_service.search(query)
