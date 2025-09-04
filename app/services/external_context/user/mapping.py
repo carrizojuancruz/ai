@@ -127,7 +127,7 @@ def map_user_context_to_ai_context(user_ctx: UserContext) -> dict[str, Any]:
     ]:
         out.setdefault(key, {})
 
-    out["onboarding_completed"] = bool(getattr(user_ctx, "ready_for_orchestrator", False)) or True
+    out["onboarding_completed"] = bool(getattr(user_ctx, "ready_for_orchestrator", False))
     out["is_active"] = True
 
     return out

@@ -19,6 +19,8 @@ from app.services.onboarding.interaction_choices import get_choices_for_field
 from .context_patching import context_patching_service
 from .onboarding_reasoning import onboarding_reasoning_service
 
+PLAID_VALID_RESPONSES = {"connect_now", "later"}
+
 
 class StepHandlerService:
     def __init__(self) -> None:
@@ -42,17 +44,13 @@ class StepHandlerService:
             OnboardingStep.WARMUP: self._is_warmup_complete,
             OnboardingStep.IDENTITY: self._is_identity_complete,
             OnboardingStep.INCOME_MONEY: self._is_income_money_complete,
-            OnboardingStep.ASSETS_EXPENSES: lambda state: True,
-            OnboardingStep.HOME: lambda state: len(self._get_missing_fields(state, OnboardingStep.HOME)) == 0,
-            OnboardingStep.FAMILY_UNIT: lambda state: len(self._get_missing_fields(state, OnboardingStep.FAMILY_UNIT))
-            == 0,
-            OnboardingStep.HEALTH_COVERAGE: lambda state: len(
-                self._get_missing_fields(state, OnboardingStep.HEALTH_COVERAGE)
-            )
-            == 0,
-            OnboardingStep.LEARNING_PATH: lambda state: True,
-            OnboardingStep.PLAID_INTEGRATION: lambda state: False,
-            OnboardingStep.CHECKOUT_EXIT: lambda state: True,
+            OnboardingStep.ASSETS_EXPENSES: self._is_assets_expenses_complete,
+            OnboardingStep.HOME: self._is_home_complete,
+            OnboardingStep.FAMILY_UNIT: self._is_family_unit_complete,
+            OnboardingStep.HEALTH_COVERAGE: self._is_health_coverage_complete,
+            OnboardingStep.LEARNING_PATH: self._is_learning_path_complete,
+            OnboardingStep.PLAID_INTEGRATION: self._is_plaid_integration_complete,
+            OnboardingStep.CHECKOUT_EXIT: self._is_checkout_exit_complete,
         }
 
     def _message_indicates_under_18(self, state: OnboardingState) -> bool:
@@ -77,20 +75,18 @@ class StepHandlerService:
             state.user_context.ready_for_orchestrator = True
             state.ready_for_completion = True
 
-    def _ensure_warmup_choices(self, state: OnboardingState) -> None:
-        if state.current_step == OnboardingStep.WARMUP and state.current_interaction_type == InteractionType.FREE_TEXT:
-            choice_info = get_choices_for_field("warmup_choice", OnboardingStep.WARMUP)
+    def _ensure_single_choice_for_field(self, state: OnboardingState, target_step: OnboardingStep, field: str) -> None:
+        if state.current_step == target_step and state.current_interaction_type == InteractionType.FREE_TEXT:
+            choice_info = get_choices_for_field(field, target_step)
             if choice_info and choice_info.get("choices"):
                 state.current_interaction_type = InteractionType(choice_info["type"])
                 state.current_choices = choices_from_list(choice_info.get("choices"))
 
+    def _ensure_warmup_choices(self, state: OnboardingState) -> None:
+        self._ensure_single_choice_for_field(state, OnboardingStep.WARMUP, "warmup_choice")
 
     def _ensure_plaid_choices(self, state: OnboardingState) -> None:
-        if state.current_step == OnboardingStep.PLAID_INTEGRATION and state.current_interaction_type == InteractionType.FREE_TEXT:
-            choice_info = get_choices_for_field("plaid_connect", OnboardingStep.PLAID_INTEGRATION)
-            if choice_info and choice_info.get("choices"):
-                state.current_interaction_type = InteractionType(choice_info["type"])
-                state.current_choices = choices_from_list(choice_info.get("choices"))
+        self._ensure_single_choice_for_field(state, OnboardingStep.PLAID_INTEGRATION, "plaid_connect")
 
     async def handle_step(self, state: OnboardingState, step: OnboardingStep) -> OnboardingState:
         state.current_step = step
@@ -115,7 +111,7 @@ class StepHandlerService:
             self._ensure_plaid_choices(state)
             response = "Ready to connect your accounts securely?"
             state.add_conversation_turn(state.last_user_message or "", format_brief(response))
-            if (state.last_user_message or "").strip().lower() in {"connect_now", "later"}:
+            if (state.last_user_message or "").strip().lower() in PLAID_VALID_RESPONSES:
                 state.mark_step_completed(step)
                 state.user_context.ready_for_orchestrator = True
                 state.ready_for_completion = True
@@ -216,7 +212,7 @@ class StepHandlerService:
                 response = "Ready to connect your accounts securely?"
                 state.add_conversation_turn(state.last_user_message or "", format_brief(response))
                 yield (format_brief(response), state)
-                if (state.last_user_message or "").strip().lower() in {"connect_now", "later"}:
+                if (state.last_user_message or "").strip().lower() in PLAID_VALID_RESPONSES:
                     state.mark_step_completed(step)
                     state.user_context.ready_for_orchestrator = True
                     state.ready_for_completion = True
@@ -377,6 +373,27 @@ class StepHandlerService:
 
     def _is_warmup_complete(self, state: OnboardingState) -> bool:
         return bool(state.last_user_message and state.last_user_message.strip() and len(state.conversation_history) > 0)
+
+    def _is_assets_expenses_complete(self, state: OnboardingState) -> bool:
+        return True
+
+    def _is_home_complete(self, state: OnboardingState) -> bool:
+        return len(self._get_missing_fields(state, OnboardingStep.HOME)) == 0
+
+    def _is_family_unit_complete(self, state: OnboardingState) -> bool:
+        return len(self._get_missing_fields(state, OnboardingStep.FAMILY_UNIT)) == 0
+
+    def _is_health_coverage_complete(self, state: OnboardingState) -> bool:
+        return len(self._get_missing_fields(state, OnboardingStep.HEALTH_COVERAGE)) == 0
+
+    def _is_learning_path_complete(self, state: OnboardingState) -> bool:
+        return True
+
+    def _is_plaid_integration_complete(self, state: OnboardingState) -> bool:
+        return True
+
+    def _is_checkout_exit_complete(self, state: OnboardingState) -> bool:
+        return True
 
     def _get_default_next_step(self, current_step: OnboardingStep) -> OnboardingStep:
         return OnboardingStep.CHECKOUT_EXIT
