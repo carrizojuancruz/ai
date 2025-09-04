@@ -7,7 +7,7 @@ from typing import AsyncGenerator, Optional
 
 from sqlalchemy import text
 from sqlalchemy.exc import DisconnectionError, OperationalError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import config
 
@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 DATABASE_URL = config.get_database_url()
 
-_engine: Optional[object] = None
-_async_session_factory: Optional[object] = None
+_engine: Optional[AsyncEngine] = None
+_async_session_factory: Optional[async_sessionmaker[AsyncSession]] = None
 _connection_health_check_task: Optional[asyncio.Task] = None
 
 

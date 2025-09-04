@@ -32,21 +32,9 @@ class FinanceRepository:
                 return []
 
             # Convert to list of dictionaries
-            column_names = result.keys() if hasattr(result, 'keys') else None
-            if column_names:
-                logger.info(f"Formatting results with columns: {list(column_names)}")
-                formatted_rows = []
-                for row in rows:
-                    row_data = {col: getattr(row, col) for col in column_names}
-                    formatted_rows.append(row_data)
-
-                logger.info(f"Successfully formatted {len(formatted_rows)} rows for user {user_id}")
-                return formatted_rows
-            else:
-                logger.info(f"Formatting results without column names for user {user_id}")
-                formatted_rows = [dict(row) for row in rows]
-                logger.info(f"Successfully formatted {len(formatted_rows)} rows for user {user_id}")
-                return formatted_rows
+            formatted_rows = [dict(row) for row in rows]
+            logger.info(f"Successfully formatted {len(formatted_rows)} rows for user {user_id}")
+            return formatted_rows
 
         except Exception as exec_error:
             logger.error(f"SQL execution error for user {user_id}: {exec_error}")

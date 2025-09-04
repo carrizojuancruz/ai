@@ -319,7 +319,7 @@ class FinanceAgent:
         ✅ Aggregation and grouping logic is sound
         ✅ Column names match schema exactly
 
-        Today's date: {datetime.datetime.now().strftime('%Y-%m-%d')}"""
+        Today's date: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d')}"""
 
     async def _create_agent_with_tools(self, user_id: UUID):
         """Create a LangGraph agent with SQL tools for the given user."""
