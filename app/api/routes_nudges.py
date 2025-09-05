@@ -39,7 +39,7 @@ class NudgeInitResponse(BaseModel):
     preview_text: Optional[str] = None
 
 
-@router.post("/init", response_model=NudgeInitResponse)
+@router.post("/initialize", response_model=NudgeInitResponse)
 async def initialize_nudge(request: NudgeInitRequest) -> NudgeInitResponse:
     try:
         logger.info(
@@ -60,17 +60,54 @@ async def initialize_nudge(request: NudgeInitRequest) -> NudgeInitResponse:
         payload = None
         if request.type == "static_bill" and request.bill:
             payload = {"bill": request.bill.model_dump(), "channel": request.channel}
+            logger.info(
+                "nudge.init.bill_payload",
+                extra={
+                    "user_id": str(request.user_id),
+                    "bill_label": request.bill.label,
+                    "due_date": request.bill.due_date,
+                    "amount": request.bill.amount,
+                },
+            )
 
         user_context = None
         if request.type == "info_based":
             try:
                 ctx = await supervisor_service._load_user_context_from_external(request.user_id)
                 user_context = ctx.model_dump(mode="json") if ctx else {}
+                logger.info(
+                    "nudge.user_context.loaded",
+                    extra={
+                        "user_id": str(request.user_id),
+                        "has_context": bool(user_context),
+                        "budget_active": user_context.get("budget_posture", {}).get("active_budget", False),
+                        "timezone": user_context.get("locale_info", {}).get("time_zone", "UTC"),
+                        "preferred_name": user_context.get("identity", {}).get("preferred_name"),
+                        "context_keys": list(user_context.keys()) if user_context else [],
+                    },
+                )
             except Exception as e:
-                logger.warning(f"Failed to load user context for nudge: {e}")
+                logger.warning(
+                    "nudge.user_context.failed",
+                    extra={
+                        "user_id": str(request.user_id),
+                        "error": str(e),
+                    },
+                )
                 user_context = {}
 
         nudge_type = NudgeType(request.type)
+
+        logger.info(
+            "nudge.selection.starting",
+            extra={
+                "user_id": str(request.user_id),
+                "nudge_type": nudge_type.value,
+                "rule_id": request.rule_id,
+                "has_user_context": bool(user_context),
+            },
+        )
+
         selection = await selector.select_nudge(
             user_id=request.user_id,
             nudge_type=nudge_type,

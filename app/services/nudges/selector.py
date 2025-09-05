@@ -165,6 +165,14 @@ class NudgeSelector:
     ) -> Optional[NudgeSelection]:
         if not rule_id:
             templates = self.registry.get_by_type(NudgeType.INFO_BASED)
+            logger.info(
+                "nudge.info_based.all_templates",
+                extra={
+                    "user_id": str(user_id),
+                    "template_count": len(templates),
+                    "template_ids": [t.rule_id for t in templates],
+                },
+            )
         else:
             template = self.registry.get(rule_id)
             if not template:
@@ -174,8 +182,38 @@ class NudgeSelector:
 
         user_context = user_context or {}
 
+        logger.info(
+            "nudge.info_based.context_check",
+            extra={
+                "user_id": str(user_id),
+                "has_budget": user_context.get("budget_posture", {}).get("active_budget", False),
+                "timezone": user_context.get("locale_info", {}).get("time_zone", "UTC"),
+                "current_hour": now.hour,
+            },
+        )
+
         for template in templates:
+            logger.info(
+                "nudge.template.evaluating",
+                extra={
+                    "user_id": str(user_id),
+                    "template_id": template.rule_id,
+                    "topic_keys": template.topic_keys,
+                    "required_metadata": template.required_metadata_keys,
+                },
+            )
+
             if not self._check_quiet_hours(template, now, user_context):
+                logger.info(
+                    "nudge.template.quiet_hours",
+                    extra={
+                        "user_id": str(user_id),
+                        "template_id": template.rule_id,
+                        "current_hour": now.hour,
+                        "quiet_start": template.quiet_hours_start,
+                        "quiet_end": template.quiet_hours_end,
+                    },
+                )
                 continue
 
             filter_dict = {}
@@ -194,9 +232,25 @@ class NudgeSelector:
                     filter=filter_dict,
                     limit=50,
                 )
+                logger.info(
+                    "nudge.memory.search",
+                    extra={
+                        "user_id": str(user_id),
+                        "template_id": template.rule_id,
+                        "topic_key": topic_key,
+                        "candidates_found": len(candidates),
+                    },
+                )
                 all_candidates.extend(candidates)
 
             if not all_candidates:
+                logger.info(
+                    "nudge.template.no_candidates",
+                    extra={
+                        "user_id": str(user_id),
+                        "template_id": template.rule_id,
+                    },
+                )
                 continue
 
             eligible = []
@@ -208,19 +262,54 @@ class NudgeSelector:
                 if cooldown_until:
                     cooldown_date = datetime.fromisoformat(cooldown_until.replace("Z", "+00:00"))
                     if now < cooldown_date:
+                        logger.debug(
+                            "nudge.memory.cooldown",
+                            extra={
+                                "user_id": str(user_id),
+                                "memory_key": candidate.key,
+                                "cooldown_until": cooldown_until,
+                            },
+                        )
                         continue
 
                 if template.predicate:
                     try:
-                        if template.predicate(user_context, memory_value, memory_meta, now):
+                        predicate_result = template.predicate(user_context, memory_value, memory_meta, now)
+                        if predicate_result:
                             eligible.append(candidate)
+                            logger.info(
+                                "nudge.predicate.match",
+                                extra={
+                                    "user_id": str(user_id),
+                                    "template_id": template.rule_id,
+                                    "memory_key": candidate.key,
+                                    "memory_category": memory_value.get("category"),
+                                    "importance_bin": memory_meta.get("importance_bin"),
+                                },
+                            )
                     except Exception as e:
-                        logger.warning(f"Predicate evaluation error: {e}")
+                        logger.warning(
+                            "nudge.predicate.error",
+                            extra={
+                                "user_id": str(user_id),
+                                "template_id": template.rule_id,
+                                "memory_key": candidate.key,
+                                "error": str(e),
+                            },
+                        )
                         continue
                 else:
                     eligible.append(candidate)
 
             if not eligible:
+                logger.info(
+                    "nudge.template.no_eligible",
+                    extra={
+                        "user_id": str(user_id),
+                        "template_id": template.rule_id,
+                        "total_candidates": len(all_candidates),
+                    },
+                )
                 continue
 
             sorted_eligible = sorted(
@@ -230,6 +319,17 @@ class NudgeSelector:
             seed_str = f"{user_id}{now.strftime('%Y-%m-%d')}{template.rule_id}"
             seed = int(hashlib.sha256(seed_str.encode()).hexdigest(), 16)
             selected = sorted_eligible[seed % len(sorted_eligible)]
+
+            logger.info(
+                "nudge.template.selected",
+                extra={
+                    "user_id": str(user_id),
+                    "template_id": template.rule_id,
+                    "eligible_count": len(eligible),
+                    "selected_memory": selected.key,
+                    "selected_category": selected.value.get("category"),
+                },
+            )
 
             variables = self._extract_variables(selected.value, selected.metadata, template.required_metadata_keys)
 
@@ -245,13 +345,32 @@ class NudgeSelector:
                 rule_id=template.rule_id,
             )
 
+        logger.info(
+            "nudge.info_based.no_match",
+            extra={
+                "user_id": str(user_id),
+                "templates_tried": len(templates),
+            },
+        )
         return None
 
     def _check_quiet_hours(self, template, now: datetime, user_context: dict) -> bool:
         if not template.quiet_hours_start or not template.quiet_hours_end:
             return True
 
+        # Get user's timezone if available
+        timezone = user_context.get("locale_info", {}).get("time_zone", "UTC")
         current_hour = now.hour
+
+        logger.debug(
+            "nudge.quiet_hours.check",
+            extra={
+                "timezone": timezone,
+                "current_hour": current_hour,
+                "quiet_start": template.quiet_hours_start,
+                "quiet_end": template.quiet_hours_end,
+            },
+        )
 
         if template.quiet_hours_start > template.quiet_hours_end:
             if current_hour >= template.quiet_hours_start or current_hour < template.quiet_hours_end:
