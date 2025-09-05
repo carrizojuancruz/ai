@@ -123,7 +123,7 @@ def _trigger_decide(text: str) -> dict[str, Any]:
         except Exception:
             i, j = out_text.find("{"), out_text.rfind("}")
             if i != -1 and j != -1 and j > i:
-                out = json.loads(out_text[i:j+1])
+                out = json.loads(out_text[i : j + 1])
             else:
                 return {"should_create": False}
         if not isinstance(out, dict):
@@ -142,7 +142,9 @@ def _search_neighbors(store: Any, namespace: tuple[str, ...], summary: str, cate
     return neighbors
 
 
-def _do_update(store: Any, namespace: tuple[str, ...], existing_key: str, summary: str, existing_item: Any | None = None) -> None:
+def _do_update(
+    store: Any, namespace: tuple[str, ...], existing_key: str, summary: str, existing_item: Any | None = None
+) -> None:
     base_value: dict[str, Any] | None = None
     if existing_item is not None:
         try:
@@ -187,7 +189,9 @@ def _do_recreate(
         prev_tags = existing_value.get("tags") or []
         cand_tags = candidate_value.get("tags") or []
         if isinstance(prev_tags, list) and isinstance(cand_tags, list):
-            new_val["tags"] = list({*(t for t in prev_tags if isinstance(t, str)), *(t for t in cand_tags if isinstance(t, str))})
+            new_val["tags"] = list(
+                {*(t for t in prev_tags if isinstance(t, str)), *(t for t in cand_tags if isinstance(t, str))}
+            )
     except Exception:
         pass
     new_val["summary"] = composed
@@ -218,13 +222,23 @@ async def _write_semantic_memory(
         if best and isinstance(getattr(best, "score", None), (int, float)):
             score_val = float(best.score or 0.0)
             recency_ok = True
-            logger.info("memory.match: id=%s best_key=%s score=%.3f recency_ok=%s auto=%.2f low=%.2f", candidate_id, getattr(best, "key", ""), score_val, recency_ok, AUTO_UPDATE, CHECK_LOW)
+            logger.info(
+                "memory.match: id=%s best_key=%s score=%.3f recency_ok=%s auto=%.2f low=%.2f",
+                candidate_id,
+                getattr(best, "key", ""),
+                score_val,
+                recency_ok,
+                AUTO_UPDATE,
+                CHECK_LOW,
+            )
 
             if score_val >= AUTO_UPDATE and recency_ok:
                 if MERGE_MODE == "recreate":
                     _do_recreate(store, namespace, best.key, best, summary, category, candidate_value)
                     did_update = True
-                    logger.info("memory.recreate: mode=auto id=%s from=%s score=%.3f", candidate_id, best.key, score_val)
+                    logger.info(
+                        "memory.recreate: mode=auto id=%s from=%s score=%.3f", candidate_id, best.key, score_val
+                    )
                 else:
                     _do_update(store, namespace, best.key, summary, best)
                     did_update = True
@@ -232,16 +246,21 @@ async def _write_semantic_memory(
                 updated_memory = store.get(namespace, best.key)
                 if queue and updated_memory:
                     with contextlib.suppress(Exception):
-                        await queue.put({"event": "memory.updated", "data": {
-                            "id": updated_memory.key,
-                            "type": mem_type,
-                            "category": (updated_memory.value or {}).get("category"),
-                            "summary": (updated_memory.value or {}).get("summary"),
-                            "importance": (updated_memory.value or {}).get("importance"),
-                            "created_at": updated_memory.created_at,
-                            "updated_at": updated_memory.updated_at,
-                            "value": updated_memory.value
-                        }})
+                        await queue.put(
+                            {
+                                "event": "memory.updated",
+                                "data": {
+                                    "id": updated_memory.key,
+                                    "type": mem_type,
+                                    "category": (updated_memory.value or {}).get("category"),
+                                    "summary": (updated_memory.value or {}).get("summary"),
+                                    "importance": (updated_memory.value or {}).get("importance"),
+                                    "created_at": updated_memory.created_at,
+                                    "updated_at": updated_memory.updated_at,
+                                    "value": updated_memory.value,
+                                },
+                            }
+                        )
             else:
                 for n in sorted_neigh:
                     s = float(getattr(n, "score", 0.0) or 0.0)
@@ -252,28 +271,43 @@ async def _write_semantic_memory(
                         candidate_summary=summary,
                         category=category,
                     )
-                    logger.info("memory.classify: id=%s cand_into=%s score=%.3f result_same=%s", candidate_id, getattr(n, "key", ""), s, same)
+                    logger.info(
+                        "memory.classify: id=%s cand_into=%s score=%.3f result_same=%s",
+                        candidate_id,
+                        getattr(n, "key", ""),
+                        s,
+                        same,
+                    )
                     if same:
                         if MERGE_MODE == "recreate":
                             _do_recreate(store, namespace, getattr(n, "key", ""), n, summary, category, candidate_value)
-                            logger.info("memory.recreate: mode=classified id=%s from=%s", candidate_id, getattr(n, "key", ""))
+                            logger.info(
+                                "memory.recreate: mode=classified id=%s from=%s", candidate_id, getattr(n, "key", "")
+                            )
                         else:
                             _do_update(store, namespace, getattr(n, "key", ""), summary, n)
-                            logger.info("memory.update: mode=classified id=%s into=%s", candidate_id, getattr(n, "key", ""))
+                            logger.info(
+                                "memory.update: mode=classified id=%s into=%s", candidate_id, getattr(n, "key", "")
+                            )
                         did_update = True
                         updated_memory = store.get(namespace, getattr(n, "key", ""))
                         if queue and updated_memory:
                             with contextlib.suppress(Exception):
-                                await queue.put({"event": "memory.updated", "data": {
-                                    "id": updated_memory.key,
-                                    "type": mem_type,
-                                    "category": (updated_memory.value or {}).get("category"),
-                                    "summary": (updated_memory.value or {}).get("summary"),
-                                    "importance": (updated_memory.value or {}).get("importance"),
-                                    "created_at": updated_memory.created_at,
-                                    "updated_at": updated_memory.updated_at,
-                                    "value": updated_memory.value
-                                }})
+                                await queue.put(
+                                    {
+                                        "event": "memory.updated",
+                                        "data": {
+                                            "id": updated_memory.key,
+                                            "type": mem_type,
+                                            "category": (updated_memory.value or {}).get("category"),
+                                            "summary": (updated_memory.value or {}).get("summary"),
+                                            "importance": (updated_memory.value or {}).get("importance"),
+                                            "created_at": updated_memory.created_at,
+                                            "updated_at": updated_memory.updated_at,
+                                            "value": updated_memory.value,
+                                        },
+                                    }
+                                )
                         break
         if not did_update and FALLBACK_ENABLED and (not FALLBACK_CATEGORIES or category in FALLBACK_CATEGORIES):
             checked = 0
@@ -288,6 +322,7 @@ async def _write_semantic_memory(
                 try:
                     if ts is not None:
                         from datetime import datetime, timezone
+
                         age_days = (datetime.now(tz=timezone.utc) - ts).days
                         recent_ok = age_days <= max(1, FALLBACK_RECENCY_DAYS)
                 except Exception:
@@ -324,16 +359,21 @@ async def _write_semantic_memory(
                     updated_memory = store.get(namespace, getattr(n, "key", ""))
                     if queue and updated_memory:
                         with contextlib.suppress(Exception):
-                            await queue.put({"event": "memory.updated", "data": {
-                                "id": updated_memory.key,
-                                "type": mem_type,
-                                "category": (updated_memory.value or {}).get("category"),
-                                "summary": (updated_memory.value or {}).get("summary"),
-                                "importance": (updated_memory.value or {}).get("importance"),
-                                "created_at": updated_memory.created_at,
-                                "updated_at": updated_memory.updated_at,
-                                "value": updated_memory.value
-                            }})
+                            await queue.put(
+                                {
+                                    "event": "memory.updated",
+                                    "data": {
+                                        "id": updated_memory.key,
+                                        "type": mem_type,
+                                        "category": (updated_memory.value or {}).get("category"),
+                                        "summary": (updated_memory.value or {}).get("summary"),
+                                        "importance": (updated_memory.value or {}).get("importance"),
+                                        "created_at": updated_memory.created_at,
+                                        "updated_at": updated_memory.updated_at,
+                                        "value": updated_memory.value,
+                                    },
+                                }
+                            )
                     break
         if not did_update:
             if int(candidate_value.get("importance") or 1) < SEMANTIC_MIN_IMPORTANCE:
@@ -345,16 +385,21 @@ async def _write_semantic_memory(
                 asyncio.create_task(_profile_sync_from_memory(user_id, thread_id, candidate_value))
                 if queue:
                     with contextlib.suppress(Exception):
-                        await queue.put({"event": "memory.created", "data": {
-                            "id": candidate_value["id"],
-                            "type": mem_type,
-                            "category": category,
-                            "summary": candidate_value.get("summary"),
-                            "importance": candidate_value.get("importance"),
-                            "created_at": candidate_value.get("created_at"),
-                            "updated_at": candidate_value.get("updated_at"),
-                            "value": candidate_value
-                        }})
+                        await queue.put(
+                            {
+                                "event": "memory.created",
+                                "data": {
+                                    "id": candidate_value["id"],
+                                    "type": mem_type,
+                                    "category": category,
+                                    "summary": candidate_value.get("summary"),
+                                    "importance": candidate_value.get("importance"),
+                                    "created_at": candidate_value.get("created_at"),
+                                    "updated_at": candidate_value.get("updated_at"),
+                                    "value": candidate_value,
+                                },
+                            }
+                        )
     except Exception:
         logger.exception("memory_hotpath.error: id=%s", candidate_value.get("id"))
         if thread_id:
@@ -363,6 +408,8 @@ async def _write_semantic_memory(
                 await queue.put({"event": "memory.error", "data": {"id": candidate_value.get("id")}})
             except Exception:
                 pass
+
+
 def _same_fact_classify(existing_summary: str, candidate_summary: str, category: str) -> bool:
     bedrock = boto3.client("bedrock-runtime", region_name=REGION)
     prompt = (
@@ -397,9 +444,7 @@ def _same_fact_classify(existing_summary: str, candidate_summary: str, category:
     )
     try:
         body_payload = {
-            "messages": [
-                {"role": "user", "content": [{"text": prompt}]}
-            ],
+            "messages": [{"role": "user", "content": [{"text": prompt}]}],
             "inferenceConfig": {"temperature": 0.0, "topP": 0.1, "maxTokens": 128, "stopSequences": []},
         }
         res = bedrock.invoke_model(modelId=MODEL_ID, body=json.dumps(body_payload))
@@ -423,7 +468,7 @@ def _same_fact_classify(existing_summary: str, candidate_summary: str, category:
         except Exception:
             i, j = out_text.find("{"), out_text.rfind("}")
             if i != -1 and j != -1 and j > i:
-                out = json.loads(out_text[i:j+1])
+                out = json.loads(out_text[i : j + 1])
             else:
                 return False
         return bool(out.get("same_fact") is True)
@@ -447,9 +492,7 @@ def _compose_summaries(existing_summary: str, candidate_summary: str, category: 
     )
     try:
         body_payload = {
-            "messages": [
-                {"role": "user", "content": [{"text": prompt}]}
-            ],
+            "messages": [{"role": "user", "content": [{"text": prompt}]}],
             "inferenceConfig": {"temperature": 0.2, "topP": 0.5, "maxTokens": 160, "stopSequences": []},
         }
         res = bedrock.invoke_model(modelId=MODEL_ID, body=json.dumps(body_payload))
@@ -489,21 +532,80 @@ def _normalize_summary_text(text: str) -> str:
         return ""
     # Normalize Unicode and replace smart quotes to prevent mojibake (e.g., \u2019)
     t = unicodedata.normalize("NFC", text)
-    t = (
-        t.replace("\u2019", "'")
-         .replace("\u2018", "'")
-         .replace("\u201C", '"')
-         .replace("\u201D", '"')
-    )
+    t = t.replace("\u2019", "'").replace("\u2018", "'").replace("\u201c", '"').replace("\u201d", '"')
     return t
 
+
+def _derive_nudge_metadata(category: str, summary: str, importance: int) -> dict[str, Any]:
+    from datetime import datetime, timezone
+
+    metadata = {}
+    now = datetime.now(tz=timezone.utc)
+
+    topic_key = "general"
+    summary_lower = summary.lower()
+
+    if category == "Finance":
+        if any(word in summary_lower for word in ["subscription", "recurring", "monthly", "annual"]):
+            topic_key = "subscription"
+        elif any(word in summary_lower for word in ["spending", "expense", "purchase"]):
+            topic_key = "spending_pattern"
+        elif any(word in summary_lower for word in ["bill", "payment", "due"]):
+            topic_key = "bill"
+        else:
+            topic_key = "finance_general"
+    elif category == "Budget":
+        if any(word in summary_lower for word in ["budget", "limit", "allocation"]):
+            topic_key = "budget_status"
+        else:
+            topic_key = "budget_general"
+    elif category == "Goals":
+        if any(word in summary_lower for word in ["goal", "target", "achieve", "save", "saving"]):
+            topic_key = "goal_active"
+        elif any(word in summary_lower for word in ["milestone", "progress", "reached"]):
+            topic_key = "achievement"
+        else:
+            topic_key = "goals_general"
+    elif category == "Personal":
+        topic_key = "personal_info"
+    elif category == "Education":
+        topic_key = "education_interest"
+
+    metadata["topic_key"] = topic_key
+
+    if importance >= 4:
+        metadata["importance_bin"] = "high"
+    elif importance >= 2:
+        metadata["importance_bin"] = "med"
+    else:
+        metadata["importance_bin"] = "low"
+
+    metadata["bucket_week"] = now.strftime("%Y-%W")
+
+    numbers = re.findall(r"\d+(?:\.\d+)?", summary)
+    if numbers and topic_key in ["spending_pattern", "budget_status"]:
+        try:
+            amounts = [float(n) for n in numbers]
+            if amounts:
+                metadata["amount"] = max(amounts)
+                if topic_key == "spending_pattern":
+                    metadata["trailing_30d_spend"] = max(amounts)
+        except ValueError:
+            pass
+
+    percent_match = re.search(r"(\d+(?:\.\d+)?)\s*%", summary)
+    if percent_match and topic_key in ["goal_active", "budget_status"]:
+        with contextlib.suppress(ValueError):
+            metadata["progress_pct"] = float(percent_match.group(1))
+
+    return metadata
 
 # Combined regex pattern for time sanitization (single pass)
 _TIME_SANITIZATION_PATTERN = re.compile(
     r"\b(today|yesterday|tomorrow|this\s+(morning|afternoon|evening|tonight)|"
     r"(last|next)\s+(week|month|year)|recently|soon|earlier|later|now)\b|"
     r"\bon\s+\d{4}-\d{2}-\d{2}\b|\bthis\s+year\b",
-    re.IGNORECASE
+    re.IGNORECASE,
 )
 
 # Cleanup patterns for whitespace and punctuation
@@ -529,6 +631,7 @@ def _sanitize_semantic_time_phrases(text: str) -> str:
         sanitized = pattern.sub(repl, sanitized)
 
     return sanitized.strip()
+
 
 def _has_min_token_overlap(a: str, b: str) -> bool:
     # Very light lexical guard: share at least one non-stopword token (len>=3)
@@ -603,10 +706,14 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
         logger.info("memory.skip: entry node only writes semantic; type=%s", mem_type)
         ctx = config.get("configurable", {}).get("user_context") or {}
         prof = _build_profile_line(ctx) if isinstance(ctx, dict) else None
-        return ({"messages": [HumanMessage(content=prof)]} if prof else {})
+        return {"messages": [HumanMessage(content=prof)]} if prof else {}
 
     candidate_id = uuid4().hex
     now = _utc_now_iso()
+    importance = int(trigger.get("importance") or 1)
+
+    nudge_metadata = _derive_nudge_metadata(category, summary, importance)
+
     candidate_value: dict[str, Any] = {
         "id": candidate_id,
         "user_id": user_id,
@@ -615,37 +722,46 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
         "category": category,
         "tags": [],
         "source": "chat",
-        "importance": int(trigger.get("importance") or 1),
+        "importance": importance,
         "pinned": False,
         "created_at": now,
         "last_accessed": now,
+        **nudge_metadata,
     }
+
     logger.info(
-        "memory_hotpath.candidate: id=%s type=%s category=%s summary_preview=%s",
+        "memory_hotpath.candidate: id=%s type=%s category=%s topic_key=%s importance_bin=%s summary_preview=%s",
         candidate_id,
         mem_type,
         category,
+        nudge_metadata.get("topic_key"),
+        nudge_metadata.get("importance_bin"),
         (summary[:80] + ("…" if len(summary) > 80 else "")),
     )
 
     if int(candidate_value.get("importance") or 1) >= SEMANTIC_MIN_IMPORTANCE and thread_id:
         try:
             queue = get_sse_queue(thread_id)
-            await queue.put({"event": "memory.created", "data": {"id": candidate_id, "type": mem_type, "category": category, "summary": summary}})
+            await queue.put(
+                {
+                    "event": "memory.created",
+                    "data": {"id": candidate_id, "type": mem_type, "category": category, "summary": summary},
+                }
+            )
         except Exception:
             pass
 
-    asyncio.create_task(_write_semantic_memory(
-        user_id=user_id,
-        thread_id=thread_id,
-        category=category,
-        summary=summary,
-        candidate_value=candidate_value,
-        mem_type=mem_type,
-        candidate_id=candidate_id,
-    ))
+    asyncio.create_task(
+        _write_semantic_memory(
+            user_id=user_id,
+            thread_id=thread_id,
+            category=category,
+            summary=summary,
+            candidate_value=candidate_value,
+            mem_type=mem_type,
+            candidate_id=candidate_id,
+        )
+    )
     ctx = config.get("configurable", {}).get("user_context") or {}
     prof = _build_profile_line(ctx) if isinstance(ctx, dict) else None
-    return ({"messages": [HumanMessage(content=prof)]} if prof else {})
-
-
+    return {"messages": [HumanMessage(content=prof)]} if prof else {}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
@@ -35,12 +36,7 @@ logger.info(
 
 # Warn if Langfuse env is missing so callbacks would be disabled silently
 if not config.is_langfuse_supervisor_enabled():
-    logger.warning(
-        "Langfuse env vars missing or incomplete; callback tracing will be disabled"
-    )
-
-
-
+    logger.warning("Langfuse env vars missing or incomplete; callback tracing will be disabled")
 
 
 class SupervisorService:
@@ -105,14 +101,13 @@ class SupervisorService:
         if start != -1:
             return text[:start].rstrip()
         return text
+
     def _is_injected_context(self, text: str) -> bool:
         if not isinstance(text, str):
             return False
         t = text.strip()
-        return (
-            t.startswith("CONTEXT_PROFILE:")
-            or t.startswith("Relevant context for tailoring this turn:")
-        )
+        return t.startswith("CONTEXT_PROFILE:") or t.startswith("Relevant context for tailoring this turn:")
+
     def _content_to_text(self, value: Any) -> str:
         if value is None:
             return ""
@@ -136,7 +131,9 @@ class SupervisorService:
         return ""
 
     # Conversation summary helper methods
-    async def _find_latest_prior_thread(self, session_store: InMemorySessionStore, user_id: str, exclude_thread_id: str) -> Optional[str]:
+    async def _find_latest_prior_thread(
+        self, session_store: InMemorySessionStore, user_id: str, exclude_thread_id: str
+    ) -> Optional[str]:
         """Find the most recent previous thread for this user (excluding current thread)."""
         user_threads = await session_store.get_user_threads(user_id)
 
@@ -220,7 +217,9 @@ class SupervisorService:
 
         return None
 
-    async def _get_prior_conversation_summary(self, session_store: InMemorySessionStore, user_id: str, current_thread_id: str) -> Optional[str]:
+    async def _get_prior_conversation_summary(
+        self, session_store: InMemorySessionStore, user_id: str, current_thread_id: str
+    ) -> Optional[str]:
         """Get summary of the most recent prior conversation for this user."""
         try:
             # Find the latest previous thread for this user
@@ -287,7 +286,71 @@ class SupervisorService:
             "thread_id": thread_id,
             "welcome": welcome,
             "sse_url": f"/supervisor/sse/{thread_id}",
-            "prior_conversation_summary": prior_summary
+            "prior_conversation_summary": prior_summary,
+        }
+
+    async def initialize_nudge(
+        self, *, user_id: UUID, nudge_prompt_line: str, preview_text: str, channel: str = "push"
+    ) -> dict[str, Any]:
+        thread_id = str(uuid4())
+        queue = get_sse_queue(thread_id)
+
+        await queue.put({"event": "conversation.started", "data": {"thread_id": thread_id, "nudge": True}})
+
+        session_store = get_session_store()
+        uid: UUID = user_id
+        ctx = await self._load_user_context_from_external(uid)
+
+        prior_summary = await self._get_prior_conversation_summary(session_store, str(uid), thread_id)
+
+        user_context = ctx.model_dump(mode="json")
+
+        system_prompt = (
+            "You are Vera, a helpful and friendly AI assistant."
+            "You're starting a proactive conversation based on something you've noticed."
+            "Be warm, conversational, and supportive. Keep your opening concise and engaging."
+        )
+
+        prompt = f"Prior context: {prior_summary}\n\n{nudge_prompt_line}" if prior_summary else nudge_prompt_line
+
+        try:
+            nudge_message = await call_llm(system_prompt, prompt)
+
+            if not nudge_message:
+                nudge_message = f"Hi! {preview_text} Let me know if you'd like to discuss this."
+
+        except Exception as e:
+            logger.error(f"Failed to generate nudge message: {e}")
+            nudge_message = f"Hi! {preview_text} Let me know if you'd like to discuss this."
+
+        await session_store.set_session(
+            thread_id,
+            {
+                "user_id": str(uid),
+                "user_context": user_context,
+                "conversation_messages": [{"role": "assistant", "content": nudge_message}],
+                "nudge_metadata": {
+                    "preview_text": preview_text,
+                    "channel": channel,
+                    "initialized_at": datetime.now(timezone.utc).isoformat(),
+                },
+            },
+        )
+
+        await queue.put(
+            {
+                "event": "nudge.initialized",
+                "data": {"thread_id": thread_id, "message": nudge_message, "preview_text": preview_text},
+            }
+        )
+
+        logger.info(f"Nudge initialized for user {uid}: thread={thread_id}, channel={channel}")
+
+        return {
+            "thread_id": thread_id,
+            "message": nudge_message,
+            "preview_text": preview_text,
+            "sse_url": f"/supervisor/sse/{thread_id}",
         }
 
     async def process_message(self, *, thread_id: str, text: str) -> None:
@@ -303,10 +366,7 @@ class SupervisorService:
 
         # Store the user message
         conversation_messages = session_ctx.get("conversation_messages", [])
-        conversation_messages.append({
-            "role": "user",
-            "content": text.strip()
-        })
+        conversation_messages.append({"role": "user", "content": text.strip()})
         # Collect assistant response
         assistant_response_parts = []
 
@@ -385,10 +445,7 @@ class SupervisorService:
                 # Combine all assistant response parts
                 assistant_response = "".join(assistant_response_parts).strip()
                 if assistant_response:
-                    conversation_messages.append({
-                        "role": "assistant",
-                        "content": assistant_response
-                    })
+                    conversation_messages.append({"role": "assistant", "content": assistant_response})
 
             # Update session with complete conversation
             session_ctx["conversation_messages"] = conversation_messages
@@ -408,5 +465,3 @@ class SupervisorService:
 
 
 supervisor_service = SupervisorService()
-
-

@@ -14,6 +14,7 @@ from .api.routes import router as api_router
 from .api.routes_cron import router as cron_router
 from .api.routes_guest import router as guest_router
 from .api.routes_knowledge import router as knowledge_router
+from .api.routes_nudges import router as nudges_router
 from .api.routes_supervisor import router as supervisor_router
 from .core.config import config
 from .observability.logging_config import configure_logging, get_logger
@@ -60,3 +61,4 @@ app.include_router(memories_router)
 app.include_router(guest_router)
 app.include_router(cron_router)
 app.include_router(knowledge_router)
+app.include_router(nudges_router)

@@ -116,6 +116,8 @@ class Config:
     DATABASE_NAME: str = os.getenv("DATABASE_NAME")
     DATABASE_USER: str = os.getenv("DATABASE_USER")
     DATABASE_PASSWORD: str = os.getenv("DATABASE_PASSWORD")
+    DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL")
+    DATABASE_TYPE: str = os.getenv("DATABASE_TYPE", "postgresql")
 
     # External Services Configuration
     FOS_SERVICE_URL: Optional[str] = os.getenv("FOS_SERVICE_URL")
@@ -124,6 +126,20 @@ class Config:
 
     # Knowledge Base Configuration
     SOURCES_FILE_PATH: str = os.getenv("SOURCES_FILE_PATH", "./app/knowledge/sources/sources.json")
+
+    # Nudge System Configuration
+    NUDGES_ENABLED: bool = os.getenv("NUDGES_ENABLED", "true").lower() == "true"
+    NUDGES_TYPE2_ENABLED: bool = os.getenv("NUDGES_TYPE2_ENABLED", "true").lower() == "true"
+    NUDGES_TYPE3_ENABLED: bool = os.getenv("NUDGES_TYPE3_ENABLED", "true").lower() == "true"
+    NUDGE_MEMORY_COOLDOWN_DAYS: int = int(os.getenv("NUDGE_MEMORY_COOLDOWN_DAYS", "7"))
+    NUDGE_QUIET_HOURS_START: int = int(os.getenv("NUDGE_QUIET_HOURS_START", "22"))  # 10 PM
+    NUDGE_QUIET_HOURS_END: int = int(os.getenv("NUDGE_QUIET_HOURS_END", "8"))  # 8 AM
+    NUDGE_MAX_PER_DAY: int = int(os.getenv("NUDGE_MAX_PER_DAY", "2"))
+    NUDGE_MAX_PER_WEEK: int = int(os.getenv("NUDGE_MAX_PER_WEEK", "5"))
+    NUDGE_SPENDING_THRESHOLD: float = float(os.getenv("NUDGE_SPENDING_THRESHOLD", "200.0"))
+    NUDGE_SPENDING_INCREASE_PCT: float = float(os.getenv("NUDGE_SPENDING_INCREASE_PCT", "30.0"))
+    NUDGE_GOAL_PROGRESS_MIN: float = float(os.getenv("NUDGE_GOAL_PROGRESS_MIN", "80.0"))
+    NUDGE_GOAL_PROGRESS_MAX: float = float(os.getenv("NUDGE_GOAL_PROGRESS_MAX", "95.0"))
 
     @classmethod
     def get_aws_region(cls) -> str:
@@ -144,9 +160,7 @@ class Config:
     def is_langfuse_supervisor_enabled(cls) -> bool:
         """Check if Langfuse is properly configured for supervisor."""
         return bool(
-            cls.LANGFUSE_PUBLIC_SUPERVISOR_KEY
-            and cls.LANGFUSE_SECRET_SUPERVISOR_KEY
-            and cls.LANGFUSE_HOST_SUPERVISOR
+            cls.LANGFUSE_PUBLIC_SUPERVISOR_KEY and cls.LANGFUSE_SECRET_SUPERVISOR_KEY and cls.LANGFUSE_HOST_SUPERVISOR
         )
 
     @classmethod
@@ -176,17 +190,24 @@ class Config:
         """Get the actual configuration values."""
         config_dict = {}
 
-        # Get all class attributes that are configuration variables
         for attr_name in dir(cls):
-            # Skip private methods and built-in attributes
-            if (not attr_name.startswith('_') and
-                not callable(getattr(cls, attr_name)) and
-                attr_name not in ['get_aws_region', 'get_database_url', 'is_langfuse_enabled',
-                                'is_langfuse_supervisor_enabled', 'get_bedrock_config',
-                                'validate_required_s3_vars', 'get_actual_config']):
+            if (
+                not attr_name.startswith("_")
+                and not callable(getattr(cls, attr_name))
+                and attr_name
+                not in [
+                    "get_aws_region",
+                    "get_database_url",
+                    "is_langfuse_enabled",
+                    "is_langfuse_supervisor_enabled",
+                    "get_bedrock_config",
+                    "validate_required_s3_vars",
+                    "get_actual_config",
+                ]
+            ):
                 config_dict[attr_name] = getattr(cls, attr_name)
 
         return config_dict
 
-# Create a singleton instance for easy import
+
 config = Config()
