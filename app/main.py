@@ -45,6 +45,13 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to warm up AWS clients: {e}")
 
     try:
+        from app.core.app_state import start_finance_agent_cleanup_task
+        await start_finance_agent_cleanup_task()
+        logger.info("Finance agent cleanup task started successfully")
+    except Exception as e:
+        logger.error(f"Failed to start finance agent cleanup task: {e}")
+
+    try:
         yield
     finally:
         logger.info("Application shutdown - cleaning up resources")
@@ -62,6 +69,13 @@ async def lifespan(app: FastAPI):
             logger.info("AWS clients disposed successfully")
         except Exception as e:
             logger.error(f"Error disposing AWS clients: {e}")
+
+        try:
+            from app.core.app_state import dispose_finance_agent_cleanup_task
+            dispose_finance_agent_cleanup_task()
+            logger.info("Finance agent cleanup task disposed successfully")
+        except Exception as e:
+            logger.error(f"Error disposing finance agent cleanup task: {e}")
 
         logger.info("Application shutdown complete")
 

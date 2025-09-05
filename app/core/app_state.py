@@ -24,10 +24,19 @@ _last_emitted_text: dict[str, str] = {}
 FINANCE_SAMPLES_CACHE_TTL_SECONDS: int = 600
 _finance_samples_cache: dict[str, dict[str, Any]] = {}
 
+# Finance agent cache (per-user) - stores LangGraph agents with TTL
+FINANCE_AGENT_CACHE_TTL_SECONDS: int = 3600  # 1 hour
+_finance_agent_cache: dict[str, dict[str, Any]] = {}
+
+_finance_agent: "CompiledStateGraph | None" = None
+
 # AWS Clients - Singleton pattern
 _bedrock_runtime_client: Any | None = None
 _s3vectors_client: Any | None = None
 _s3_client: Any | None = None
+
+# Finance agent cleanup task
+_finance_agent_cleanup_task: Optional[asyncio.Task] = None
 
 
 def get_onboarding_agent() -> OnboardingAgent:
@@ -46,6 +55,16 @@ def get_supervisor_graph() -> CompiledStateGraph:
 
         _supervisor_graph = compile_supervisor_graph()
     return _supervisor_graph
+
+
+def get_finance_agent():
+    """Get the global finance agent instance (singleton pattern)."""
+    from app.agents.supervisor.finance_agent.agent import FinanceAgent
+
+    global _finance_agent
+    if _finance_agent is None:
+        _finance_agent = FinanceAgent()
+    return _finance_agent
 
 
 def register_thread(thread_id: str, state: OnboardingState) -> None:
@@ -118,6 +137,53 @@ def set_finance_samples(user_id: UUID, tx_samples_json: str, acct_samples_json: 
 def invalidate_finance_samples(user_id: UUID) -> None:
     """Invalidate cached finance samples for a user."""
     _finance_samples_cache.pop(str(user_id), None)
+
+
+def get_cached_finance_agent(user_id: UUID) -> "CompiledStateGraph | None":
+    """Get cached finance agent for a user if it exists and hasn't expired."""
+    cache_key = str(user_id)
+    entry = _finance_agent_cache.get(cache_key)
+
+    if not entry:
+        return None
+
+    # Check if cache entry has expired
+    cached_at = entry.get("cached_at", 0)
+    if (time.time() - cached_at) > FINANCE_AGENT_CACHE_TTL_SECONDS:
+        # Remove expired entry
+        _finance_agent_cache.pop(cache_key, None)
+        return None
+
+    return entry.get("agent")
+
+
+def set_cached_finance_agent(user_id: UUID, agent: "CompiledStateGraph") -> None:
+    """Cache a finance agent for a user with current timestamp."""
+    _finance_agent_cache[str(user_id)] = {
+        "agent": agent,
+        "cached_at": time.time()
+    }
+
+
+def cleanup_expired_finance_agents() -> int:
+    """Clean up expired finance agent cache entries. Returns number of entries removed."""
+    current_time = time.time()
+    expired_keys = []
+
+    for user_id, entry in _finance_agent_cache.items():
+        cached_at = entry.get("cached_at", 0)
+        if (current_time - cached_at) > FINANCE_AGENT_CACHE_TTL_SECONDS:
+            expired_keys.append(user_id)
+
+    for key in expired_keys:
+        _finance_agent_cache.pop(key, None)
+
+    return len(expired_keys)
+
+
+def invalidate_finance_agent(user_id: UUID) -> None:
+    """Invalidate cached finance agent for a user."""
+    _finance_agent_cache.pop(str(user_id), None)
 
 
 def find_user_threads(user_id: UUID) -> list[tuple[str, "OnboardingState"]]:
@@ -248,6 +314,32 @@ async def warmup_aws_clients() -> None:
         logger.warning(f"AWS client warmup failed: {e}")
 
 
+async def start_finance_agent_cleanup_task() -> None:
+    """Start periodic cleanup of expired finance agents."""
+    import asyncio
+
+    async def cleanup_task():
+        while True:
+            try:
+                await asyncio.sleep(1800)  # Clean up every 30 minutes
+                removed_count = cleanup_expired_finance_agents()
+                if removed_count > 0:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.info(f"Cleaned up {removed_count} expired finance agents")
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Finance agent cleanup error: {e}")
+
+    # Start the cleanup task
+    cleanup_task_instance = asyncio.create_task(cleanup_task())
+
+    # Store reference to prevent garbage collection
+    global _finance_agent_cleanup_task
+    _finance_agent_cleanup_task = cleanup_task_instance
+
+
 def dispose_aws_clients() -> None:
     """Dispose of AWS clients for cleanup (call during app shutdown)."""
     global _bedrock_runtime_client, _s3vectors_client, _s3_client
@@ -270,3 +362,21 @@ def dispose_aws_clients() -> None:
             _s3_client = None
     except Exception:
         pass
+
+
+def dispose_finance_agent_cleanup_task() -> None:
+    """Dispose of finance agent cleanup task (call during app shutdown)."""
+    global _finance_agent_cleanup_task
+
+    try:
+        if _finance_agent_cleanup_task and not _finance_agent_cleanup_task.done():
+            _finance_agent_cleanup_task.cancel()
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info("Finance agent cleanup task cancelled")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error cancelling finance agent cleanup task: {e}")
+    finally:
+        _finance_agent_cleanup_task = None

@@ -39,10 +39,13 @@ async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], valu
         data = json.loads(txt)
         out_text = ""
         try:
-            contents = data.get("output", {}).get("message", {}).get("content", [])
-            for part in contents:
-                if isinstance(part, dict) and part.get("text"):
-                    out_text += part.get("text", "")
+            contents = data.get("output", {}).get("message", {}).get("content", "")
+            if isinstance(contents, list):
+                for part in contents:
+                    if isinstance(part, dict) and part.get("text"):
+                        out_text += part.get("text", "")
+            elif isinstance(contents, str):
+                out_text = contents
         except Exception:
             out_text = data.get("outputText") or data.get("generation") or ""
         patch: dict[str, Any] = {}

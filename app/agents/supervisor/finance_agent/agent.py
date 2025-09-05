@@ -178,6 +178,7 @@ class FinanceAgent:
 
         🚨 AGENT BEHAVIOR & CONTROL 🚨
         You are a DIRECT agent - provide ONE clear answer per user query. If a query returns 0 results, state this clearly and stop. Do NOT retry, explore, or modify queries unless the user explicitly asks you to (e.g., "try a different date range" or "search broader"). Keep responses fast and focused.
+        You are receiving a query from a supervisor agent. You are not receiving a query from a user. Your role is to execute the query and provide an analizis of the results so that the supervisor agent can answer the user's query.
 
         🛠️ TOOL USAGE MANDATE 🛠️
         If you are not sure about tables/columns, use tools to verify schema. Do NOT guess or invent SQL.
@@ -358,13 +359,19 @@ class FinanceAgent:
         return agent
 
     async def process_query(self, query: str, user_id: UUID) -> str:
-        """Process financial queries using tools."""
+        """Process financial queries using cached agent per user."""
         try:
             logger.info(f"Processing finance query for user {user_id}: {query}")
 
-            # Create agent with tools for this user
-            agent = await self._create_agent_with_tools(user_id)
-            logger.info(f"Successfully created agent with tools for user {user_id}")
+            from app.core.app_state import get_cached_finance_agent, set_cached_finance_agent
+
+            agent = get_cached_finance_agent(user_id)
+            if agent is None:
+                logger.info(f"Creating new LangGraph agent for user {user_id}")
+                agent = await self._create_agent_with_tools(user_id)
+                set_cached_finance_agent(user_id, agent)
+            else:
+                logger.info(f"Using cached LangGraph agent for user {user_id}")
 
             # Prepare the conversation
             messages = [
@@ -388,8 +395,6 @@ class FinanceAgent:
             return "I encountered an error while processing your financial query. Please try again."
 
 
-# Global finance agent instance
-_finance_agent = FinanceAgent()
 
 
 async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
@@ -413,8 +418,10 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[st
             logger.warning("No query text found in finance agent request")
             return {"messages": [{"role": "assistant", "content": "What financial information would you like to know?", "name": "finance_agent"}]}
 
-        logger.info(f"Delegating to finance agent process_query for user {user_id}")
-        response = await _finance_agent.process_query(query, user_id)
+        # Use singleton finance agent from app_state
+        from app.core.app_state import get_finance_agent
+        finance_agent_instance = get_finance_agent()
+        response = await finance_agent_instance.process_query(query, user_id)
 
         return {"messages": [{"role": "assistant", "content": response, "name": "finance_agent"}]}
 
