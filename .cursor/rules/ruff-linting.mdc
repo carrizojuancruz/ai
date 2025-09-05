@@ -1,0 +1,59 @@
+---
+globs: *.py
+alwaysApply: false
+---
+# Ruff Linting Rule
+
+**ALWAYS run `ruff check` after finishing a whole feature or set of related changes.**
+
+## 🔧 Automatic Linting Workflow
+
+### Step 1: Run Ruff Check
+```bash
+ruff check . --fix
+```
+
+### Step 2: Verify No Issues Remain
+```bash
+ruff check .
+```
+
+## 📋 What Ruff Does
+
+### Ruff Check (Linting + Auto-fixes)
+- **Syntax errors** - Python syntax validation
+- **Import sorting** - Organizes imports alphabetically
+- **Unused imports** - Removes unused import statements
+- **Code style** - Enforces PEP 8 and other style guidelines
+- **Type checking** - Validates type hints and annotations
+- **Security issues** - Detects potential security vulnerabilities
+
+## 🚨 Critical Rules
+
+1. **Never commit without running ruff**
+2. **Fix all ruff errors before pushing**
+3. **Run ruff on all modified files**
+4. **Dont use `ruff format` unless the user tells you**
+
+## 📊 Common Ruff Errors to Watch For
+
+- `F401` - Unused imports
+- `E501` - Line too long
+- `F841` - Unused variables
+- `I001` - Import sorting issues
+- `S101` - Assert statements in production code
+
+## 🎯 Quick Commands
+
+```bash
+# Check and fix everything
+ruff check . --fix
+
+# Check specific file
+ruff check app/agents/supervisor/memory/hotpath.py --fix
+
+# Check only (no fixes)
+ruff check .
+```
+
+**Remember: Clean code is maintainable code! Always run ruff before committing.** 🎯
