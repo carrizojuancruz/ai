@@ -1,0 +1,111 @@
+---
+alwaysApply: true
+description: How to add new environment variables and configuration
+globs: app/core/config.py
+---
+
+# Configuration Management
+
+**When you need to add a new environment variable, follow this simple process:**
+
+## 📝 Step 1: Add to Config Class
+
+Add your new environment variable to the `Config` class in `app/core/config.py`:
+
+```python
+class Config:
+    # ✅ SENSITIVE DATA (goes to AWS Secrets Manager)
+    YOUR_API_KEY: Optional[str] = os.getenv("YOUR_API_KEY")
+
+    # ✅ NON-SENSITIVE DATA (environment variable)
+    YOUR_SETTING: str = os.getenv("YOUR_SETTING", "default_value")
+
+    # ✅ FEATURE FLAGS (environment variable)
+    YOUR_FEATURE_ENABLED: bool = os.getenv("YOUR_FEATURE_ENABLED", "false").lower() in {"true", "1", "yes", "on"}
+
+    # ✅ NUMERIC VALUES (environment variable)
+    YOUR_TIMEOUT: int = int(os.getenv("YOUR_TIMEOUT", "30"))
+```
+
+## 🔐 Step 2: Handle Secrets
+
+**If it's sensitive data (passwords, API keys, credentials):**
+- Add to AWS Secrets Manager as JSON: `{"YOUR_API_KEY": "your-secret-value"}`
+- The system automatically loads it into environment variables
+
+**If it's non-sensitive data:**
+- Set as regular environment variable in your deployment
+- Add a sensible default value
+
+## 📖 Step 3: Access Configuration
+
+**Always access through the config singleton:**
+
+```python
+from app.core.config import config
+
+# ✅ CORRECT - Use config singleton
+api_key = config.YOUR_API_KEY
+setting = config.YOUR_SETTING
+timeout = config.YOUR_TIMEOUT
+```
+
+```python
+# ❌ WRONG - Never access os.getenv directly
+import os
+api_key = os.getenv("YOUR_API_KEY")  # Bypasses secret loading
+```
+
+## 🎯 Type Patterns
+
+| Data Type | Pattern | Example |
+|-----------|---------|---------|
+| **String** | `VAR: str = os.getenv("VAR", "default")` | `NAME: str = os.getenv("NAME", "Unknown")` |
+| **Optional String** | `VAR: Optional[str] = os.getenv("VAR")` | `API_KEY: Optional[str] = os.getenv("API_KEY")` |
+| **Boolean** | `VAR: bool = os.getenv("VAR", "false").lower() in {"true", "1", "yes", "on"}` | `DEBUG: bool = os.getenv("DEBUG", "false").lower() in {"true", "1", "yes", "on"}` |
+| **Integer** | `VAR: int = int(os.getenv("VAR", "0"))` | `TIMEOUT: int = int(os.getenv("TIMEOUT", "30"))` |
+| **Float** | `VAR: float = float(os.getenv("VAR", "0.0"))` | `TEMPERATURE: float = float(os.getenv("TEMPERATURE", "0.3"))` |
+
+## 🚨 Critical Rules
+
+1. **Never use `os.getenv()` directly** - Always go through the `Config` class
+2. **Sensitive data goes to AWS Secrets Manager** - Never in environment variables
+3. **Always provide sensible defaults** for non-sensitive variables
+4. **Use type hints** - They prevent runtime errors
+5. **Test your configuration** - Use `/health` endpoint to verify
+
+## 🔧 Advanced Features
+
+### Computed Properties
+For complex configurations, add class methods:
+
+```python
+@classmethod
+def get_custom_url(cls) -> str:
+    """Generate complex configuration."""
+    return f"https://{cls.DOMAIN}:{cls.PORT}/api"
+```
+
+### Validation
+Add validation methods for required variables:
+
+```python
+@classmethod
+def validate_custom_vars(cls) -> list[str]:
+    """Return list of missing required variables."""
+    missing = []
+    if not cls.YOUR_API_KEY:
+        missing.append("YOUR_API_KEY")
+    return missing
+```
+
+## 📋 Checklist
+
+- [ ] Added variable to `Config` class with proper type hint
+- [ ] Used `os.getenv()` with appropriate default
+- [ ] Put sensitive data in AWS Secrets Manager (if applicable)
+- [ ] Set environment variable in deployment (if applicable)
+- [ ] Access through `config` singleton everywhere
+- [ ] Tested configuration loading
+
+**That's it!** Simple, secure, and consistent configuration management.

@@ -323,6 +323,8 @@ class SupervisorService:
             **session_ctx,
         }
 
+        final_text_candidate: Optional[str] = None
+
         async for event in graph.astream_events(
             {"messages": [{"role": "user", "content": text}]},
             version="v2",
@@ -368,27 +370,27 @@ class SupervisorService:
                             if text:
                                 text = self._strip_guardrail_marker(text)
                             if text and not self._is_injected_context(text):
-                                last = get_last_emitted_text(thread_id)
-                                if text != last:
-                                    await q.put({"event": "token.delta", "data": {"text": text}})
-                                    set_last_emitted_text(thread_id, text)
-                                    # Collect final assistant response
-                                    assistant_response_parts.append(text)
+                                final_text_candidate = text
                 except Exception:
                     pass
+
+        try:
+            final_text = "".join(assistant_response_parts).strip() if assistant_response_parts else (final_text_candidate or "")
+            if final_text:
+                await q.put({"event": "message.complete", "data": {"text": final_text}})
+        except Exception:
+            pass
 
         await q.put({"event": "step.update", "data": {"status": "presented"}})
 
         # Store the complete conversation (user + assistant messages)
         try:
-            if assistant_response_parts:
-                # Combine all assistant response parts
-                assistant_response = "".join(assistant_response_parts).strip()
-                if assistant_response:
-                    conversation_messages.append({
-                        "role": "assistant",
-                        "content": assistant_response
-                    })
+            final_text = "".join(assistant_response_parts).strip() if assistant_response_parts else (final_text_candidate or "")
+            if final_text:
+                conversation_messages.append({
+                    "role": "assistant",
+                    "content": final_text
+                })
 
             # Update session with complete conversation
             session_ctx["conversation_messages"] = conversation_messages
