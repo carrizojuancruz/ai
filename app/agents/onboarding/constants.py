@@ -71,7 +71,7 @@ KEYWORDS_BY_NODE: dict[OnboardingStep, list[str]] = {
     OnboardingStep.HEALTH_COVERAGE: HEALTH_COVERAGE_KEYWORDS,
 }
 
-OPTIONS_WORDS: list[str] = [
+OPTIONS_SIGNALS: list[str] = [
     "option",
     "options",
     "choice",
@@ -86,6 +86,9 @@ OPTIONS_WORDS: list[str] = [
     "give me",
     "show me",
     "list",
+    "help me choose",
+    "not sure",
+    "uncertain",
 ]
 
 AGE_HESITATION_WORDS: list[str] = [
