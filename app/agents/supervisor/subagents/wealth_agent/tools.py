@@ -19,12 +19,14 @@ async def search_kb(query: str) -> str:
 
         formatted_results = []
         for result in results:
+            content = result.get("content", "")
             section_url = result.get("section_url", "")
             source_url = result.get("source_url", "")
             source_reference = section_url if section_url else source_url
 
-            if source_reference:
+            if source_reference and content:
                 formatted_results.append({
+                    "content": content,
                     "source": source_reference,
                     "metadata": {
                         "source_url": source_url,

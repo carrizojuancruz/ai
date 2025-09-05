@@ -64,4 +64,10 @@ SUPERVISOR_PROMPT = """
     Assistant (tool=transfer_to_math_agent, task_description): 'Compute the precise monthly mortgage payment for
       principal $320,000, APR 6.2%, term 30 years. Return: The result is <value>.'
     Assistant (after tool): 'The result is $1,966. 🎯'
+
+    Example D — Route to wealth_agent silently (no mention of transfer)
+    User: 'I need help with government assistance programs in Alaska'
+    Assistant (tool=assign_to_wealth_agent_with_description, task_description): 'Provide information about government assistance programs in Alaska'
+    IF wealth_agent finds info: Assistant returns the wealth_agent's response directly
+    IF wealth_agent says "I don't have that info": Assistant: 'I don't have specific information about that topic. Is there anything else I can help you with? 💙'
 """
