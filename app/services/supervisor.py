@@ -279,7 +279,7 @@ class SupervisorService:
         # Generate welcome message with prior conversation context
         user_context = (await session_store.get_session(thread_id) or {}).get("user_context", {})
         welcome = await generate_personalized_welcome(user_context, prior_summary)
-        await queue.put({"event": "token.delta", "data": {"text": welcome}})
+        await queue.put({"event": "token.delta", "data": {"content": welcome}})
 
         logger.info(f"Initialize complete for user {uid}: thread={thread_id}, has_prior_summary={bool(prior_summary)}")
 
@@ -346,7 +346,7 @@ class SupervisorService:
                 if out and not self._is_injected_context(out):
                     last = get_last_emitted_text(thread_id)
                     if out != last:
-                        await q.put({"event": "token.delta", "data": {"text": out}})
+                        await q.put({"event": "token.delta", "data": {"content": out}})
                         set_last_emitted_text(thread_id, out)
                         # Collect assistant response parts
                         assistant_response_parts.append(out)
@@ -377,7 +377,7 @@ class SupervisorService:
         try:
             final_text = "".join(assistant_response_parts).strip() if assistant_response_parts else (final_text_candidate or "")
             if final_text:
-                await q.put({"event": "message.complete", "data": {"text": final_text}})
+                await q.put({"event": "message.completed", "data": {"content": final_text}})
         except Exception:
             pass
 
