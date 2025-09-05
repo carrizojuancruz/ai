@@ -59,6 +59,10 @@ def _get_user_id_from_messages(messages: list[HumanMessage | dict[str, Any]]) ->
 class FinanceAgent:
     """Finance agent for querying Plaid financial data using tools."""
 
+    SAMPLE_CACHE_TTL_SECONDS: int = 600
+    MAX_TRANSACTION_SAMPLES: int = 2
+    MAX_ACCOUNT_SAMPLES: int = 1
+
     def __init__(self):
         logger.info("Initializing FinanceAgent with Bedrock models")
 
@@ -84,7 +88,6 @@ class FinanceAgent:
         logger.info("FinanceAgent initialization completed")
         # Lightweight per-user cache for prompt grounding samples
         self._sample_cache: dict[str, dict[str, Any]] = {}
-        self._sample_cache_ttl_seconds: int = 600
 
     async def _fetch_shallow_samples(self, user_id: UUID) -> tuple[str, str]:
         """Fetch sample data for transactions and accounts.
@@ -101,7 +104,7 @@ class FinanceAgent:
             now = datetime.datetime.utcnow().timestamp()
             cache_key = str(user_id)
             cached = self._sample_cache.get(cache_key)
-            if cached and (now - cached.get("cached_at", 0) < self._sample_cache_ttl_seconds):
+            if cached and (now - cached.get("cached_at", 0) < self.SAMPLE_CACHE_TTL_SECONDS):
                 return cached.get("tx_samples", "[]"), cached.get("acct_samples", "[]")
 
             db_service = get_database_service()
@@ -120,7 +123,7 @@ class FinanceAgent:
                     "  t.created_at "
                     "FROM public.unified_transactions t "
                     "WHERE t.user_id = :user_id "
-                    "ORDER BY t.created_at DESC LIMIT 2"
+                    f"ORDER BY t.created_at DESC LIMIT {self.MAX_TRANSACTION_SAMPLES}"
                 )
 
                 # Account sample
@@ -128,34 +131,18 @@ class FinanceAgent:
                     "SELECT a.id, a.name, a.account_type, a.account_subtype, a.institution_name, a.created_at "
                     "FROM public.unified_accounts a "
                     "WHERE a.user_id = :user_id "
-                    "ORDER BY a.created_at DESC LIMIT 1"
+                    f"ORDER BY a.created_at DESC LIMIT {self.MAX_ACCOUNT_SAMPLES}"
                 )
 
                 tx_rows = await repo.execute_query(tx_query, user_id)
                 acct_rows = await repo.execute_query(acct_query, user_id)
 
                 # Convert PostgreSQL/SQLAlchemy types to JSON-serializable types
-                def serialize_row(row):
-                    if isinstance(row, dict):
-                        serialized = {}
-                        for k, v in row.items():
-                            if hasattr(v, 'is_finite'):  # Decimal
-                                serialized[k] = float(v)
-                            elif isinstance(v, datetime.date):  # date/datetime
-                                serialized[k] = v.isoformat()
-                            elif isinstance(v, UUID) or hasattr(v, '__class__') and 'UUID' in str(type(v)):  # UUID objects
-                                serialized[k] = str(v)
-                            else:
-                                serialized[k] = v
-                        return serialized
-                    return row
+                tx_rows_serialized = [self._serialize_sample_row(r) for r in (tx_rows or [])]
+                acct_rows_serialized = [self._serialize_sample_row(r) for r in (acct_rows or [])]
 
-                tx_rows_serialized = [serialize_row(r) for r in (tx_rows or [])]
-                acct_rows_serialized = [serialize_row(r) for r in (acct_rows or [])]
-
-                import json
-                tx_json = json.dumps(tx_rows_serialized, ensure_ascii=False, separators=(',', ':'))
-                acct_json = json.dumps(acct_rows_serialized, ensure_ascii=False, separators=(',', ':'))
+                tx_json = self._rows_to_json(tx_rows_serialized)
+                acct_json = self._rows_to_json(acct_rows_serialized)
 
                 # Cache
                 self._sample_cache[cache_key] = {
@@ -170,6 +157,28 @@ class FinanceAgent:
         except Exception as e:
             logger.warning(f"Error fetching samples: {e}")
             return "[]", "[]"
+
+    def _serialize_sample_row(self, row) -> dict[str, Any]:
+        """Serialize a database row to JSON-compatible format."""
+        if not isinstance(row, dict):
+            return row
+
+        serialized = {}
+        for k, v in row.items():
+            if hasattr(v, 'is_finite'):  # Decimal
+                serialized[k] = float(v)
+            elif isinstance(v, datetime.date):  # date/datetime
+                serialized[k] = v.isoformat()
+            elif isinstance(v, UUID) or hasattr(v, '__class__') and 'UUID' in str(type(v)):  # UUID objects
+                serialized[k] = str(v)
+            else:
+                serialized[k] = v
+        return serialized
+
+    def _rows_to_json(self, rows: list[dict[str, Any]]) -> str:
+        """Convert serialized rows to JSON string."""
+        import json
+        return json.dumps(rows, ensure_ascii=False, separators=(',', ':'))
 
     async def _create_system_prompt(self, user_id: UUID) -> str:
         """Create the system prompt for the finance agent."""

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import re
+from typing import Optional
 from uuid import UUID
 
 from langchain_core.tools import tool
@@ -8,6 +10,22 @@ from langchain_core.tools import tool
 from app.repositories.database_service import get_database_service
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_query_security(query: str, user_id: UUID) -> Optional[str]:
+    """Validate query contains proper user isolation."""
+    if ":user_id" in query:
+        return None
+
+    user_id_pattern = rf"user_id\s*=\s*['\"]?{re.escape(str(user_id))}['\"]?"
+    if re.search(user_id_pattern, query, re.IGNORECASE):
+        return None
+
+    where_pattern = r"WHERE.*user_id"
+    if re.search(where_pattern, query, re.IGNORECASE):
+        return None
+
+    return "Query must include user_id filter for security"
 
 
 @tool
@@ -34,9 +52,9 @@ async def execute_financial_query(query: str, user_id: UUID) -> str:
             try:
                 logger.info(f"Database session established, executing SQL for user {user_id}")
 
-                # Parse and validate the query to ensure user_id filtering
-                if ":user_id" not in query and "user_id =" not in query:
-                    return "ERROR: Query must include user_id filter for security"
+                security_error = _validate_query_security(query, user_id)
+                if security_error:
+                    return f"ERROR: {security_error}"
 
                 # Create repository instance with the session
                 logger.info(f"Creating FinanceRepository for user {user_id}")
