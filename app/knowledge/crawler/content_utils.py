@@ -76,21 +76,34 @@ class PlaceholderDetector:
 
     @classmethod
     def is_blocked_content(cls, content: str) -> bool:
-        """Detect if content indicates JavaScript protection or blocking.
+        """Detect if content indicates protection, blocking, or corruption.
 
         Args:
             content: Text content to analyze
 
         Returns:
-            bool: True if content appears to be blocked/placeholder
-
+            bool: True if content appears blocked, protected, or corrupted
         """
         if not content or len(content.strip()) < cls.MIN_CONTENT_LENGTH:
             return True
 
-        content_lower = content.lower()
+        # Simple corruption check: if content has obvious encoding issues
+        if cls._has_encoding_issues(content):
+            return True
 
+        content_lower = content.lower()
         return any(indicator.lower() in content_lower for indicator in cls.BLOCKED_INDICATORS)
+
+    @classmethod
+    def _has_encoding_issues(cls, content: str) -> bool:
+        """Quick check for obvious encoding corruption."""
+        sample = content[:200]
+        
+        if '\x00' in sample or sample.count('�') > 3:
+            return True
+            
+        binary_chars = sum(1 for c in sample if ord(c) < 32 and c not in '\n\r\t ')
+        return binary_chars > len(sample) * 0.1
 
     @classmethod
     def is_cloudflare_challenge(cls, content: str) -> bool:
