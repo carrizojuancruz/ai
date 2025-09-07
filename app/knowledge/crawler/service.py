@@ -8,6 +8,7 @@ from langchain_core.documents import Document
 
 from app.core.config import config
 from app.knowledge.crawler.content_utils import PlaceholderDetector, UrlFilter
+from app.knowledge.crawler.loaders.pdf_loader import PDFLoader
 from app.knowledge.crawler.loaders.playwright_loader import PlaywrightLoader
 from app.knowledge.crawler.loaders.recursive_loader import RecursiveLoader
 from app.knowledge.crawler.loaders.single_page_loader import SinglePageLoader
@@ -84,7 +85,20 @@ class CrawlerService:
                 "error": str(e)
             }
 
+    def _is_pdf_url(self, url: str) -> bool:
+        """Check if the URL points to a PDF file."""
+        return url.lower().endswith('.pdf')
+
     async def _load_documents(self, source: Source) -> List[Document]:
+        if self._is_pdf_url(source.url):
+            loader = PDFLoader(source=source)
+            try:
+                documents = await loader.load_documents()
+                return self._filter_documents(documents)
+            except Exception as e:
+                logger.error(f"PDF load error for {source.url}: {e}")
+                return []
+
         crawl_type = self.crawl_type.lower()
 
         if crawl_type == "single":
