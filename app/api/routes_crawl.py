@@ -41,7 +41,7 @@ class CrawlResponse(BaseModel):
     message: str
 
 
-@router.post("/crawl", response_model=CrawlResponse)
+@router.post("", response_model=CrawlResponse)
 async def crawl_url(request: CrawlRequest) -> CrawlResponse:
     """Crawl a URL and return chunked content without embedding."""
     try:
@@ -65,7 +65,7 @@ async def crawl_url(request: CrawlRequest) -> CrawlResponse:
 
         # Crawl the source
         crawl_result = await crawler_service.crawl_source(temp_source)
-        
+
         if "error" in crawl_result:
             raise HTTPException(
                 status_code=400,
@@ -73,7 +73,7 @@ async def crawl_url(request: CrawlRequest) -> CrawlResponse:
             )
 
         documents = crawl_result.get("documents", [])
-        
+
         if not documents:
             return CrawlResponse(
                 url=request.url,

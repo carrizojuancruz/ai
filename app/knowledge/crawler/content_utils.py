@@ -43,6 +43,109 @@ class ContentProcessor:
         return cls.WHITESPACE_PATTERN.sub('\n\n', text).strip()
 
 
+class PlaceholderDetector:
+    """Single Responsibility: Identify blocked/placeholder content from anti-bot systems."""
+
+    BLOCKED_INDICATORS = [
+        "Just a moment",
+        "Enable JavaScript",
+        "Please wait",
+        "Checking your browser",
+        "This process is automatic",
+        "Please allow up to",
+        "Cloudflare",
+        "DDoS protection",
+        "Security check",
+        "Verifying you are human",
+        "Browser verification",
+        "Anti-bot protection",
+        "Ray ID:",
+        "CF-RAY",
+        "Please turn on JavaScript",
+        "JavaScript is required",
+        "Enable cookies",
+        "Your browser will redirect",
+        "Redirecting you to",
+        "Loading...",
+        "Access denied",
+        "Forbidden"
+    ]
+
+    # Minimum content length to consider valid (avoid empty or minimal responses)
+    MIN_CONTENT_LENGTH = 100
+
+    @classmethod
+    def is_blocked_content(cls, content: str) -> bool:
+        """Detect if content indicates JavaScript protection or blocking.
+
+        Args:
+            content: Text content to analyze
+
+        Returns:
+            bool: True if content appears to be blocked/placeholder
+
+        """
+        if not content or len(content.strip()) < cls.MIN_CONTENT_LENGTH:
+            return True
+
+        content_lower = content.lower()
+
+        return any(indicator.lower() in content_lower for indicator in cls.BLOCKED_INDICATORS)
+
+    @classmethod
+    def is_cloudflare_challenge(cls, content: str) -> bool:
+        """Specifically detect Cloudflare challenge pages.
+
+        Args:
+            content: Text content to analyze
+
+        Returns:
+            bool: True if content appears to be a Cloudflare challenge
+
+        """
+        if not content:
+            return False
+
+        cloudflare_indicators = [
+            "cloudflare",
+            "cf-ray",
+            "ray id:",
+            "just a moment",
+            "checking your browser",
+            "this process is automatic"
+        ]
+
+        content_lower = content.lower()
+        return any(indicator in content_lower for indicator in cloudflare_indicators)
+
+    @classmethod
+    def analyze_content_quality(cls, content: str) -> dict:
+        """Analyze content to determine if it's likely legitimate or blocked.
+
+        Args:
+            content: Text content to analyze
+
+        Returns:
+            dict: Analysis results with quality indicators
+
+        """
+        analysis = {
+            'is_blocked': cls.is_blocked_content(content),
+            'is_cloudflare': cls.is_cloudflare_challenge(content),
+            'content_length': len(content) if content else 0,
+            'word_count': len(content.split()) if content else 0,
+            'has_meaningful_content': False
+        }
+
+        # Determine if content appears meaningful
+        if content and len(content.strip()) > cls.MIN_CONTENT_LENGTH:
+            word_count = len(content.split())
+            # Meaningful content typically has reasonable word count and variety
+            analysis['has_meaningful_content'] = word_count > 20 and not analysis['is_blocked']
+
+        return analysis
+
+
 class UrlFilter:
     """Handles URL filtering and exclusion logic."""
 

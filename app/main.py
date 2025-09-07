@@ -11,6 +11,7 @@ from fastapi import FastAPI, Request, Response
 
 from .api.admin.memories import router as memories_router
 from .api.routes import router as api_router
+from .api.routes_crawl import router as crawl_router
 from .api.routes_cron import router as cron_router
 from .api.routes_guest import router as guest_router
 from .api.routes_knowledge import router as knowledge_router
@@ -60,3 +61,4 @@ app.include_router(memories_router)
 app.include_router(guest_router)
 app.include_router(cron_router)
 app.include_router(knowledge_router)
+app.include_router(crawl_router)
