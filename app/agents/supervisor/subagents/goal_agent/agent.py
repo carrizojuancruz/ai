@@ -57,7 +57,7 @@ def compile_goal_agent_graph() -> CompiledStateGraph:
     # Agregar el nodo del agente
     builder.add_node("goal_agent", goal_agent)
     
-    # Definir el flujo
+    # Define the flow
     builder.add_edge(START, "goal_agent")
     builder.add_edge("goal_agent", END)
 
