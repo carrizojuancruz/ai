@@ -84,7 +84,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Verde AI - Vera Agent System", version="0.1.0", lifespan=lifespan)
 
 # CORS configuration
-allowed_origins = [
+ALLOWED_ORIGINS = [
     # Frontend domains
     "https://fos-dev.tellvera.com",
     "https://fos-uat.tellvera.com",
@@ -106,10 +106,11 @@ allowed_origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],  # Expose all headers to the client
 )
 
 
