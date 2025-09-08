@@ -126,31 +126,31 @@ INCOME_RANGE_CHOICES = [
 MONEY_FEELINGS_CHOICES = [
     {
         "id": "confident",
-        "label": "💪 Confident and in control",
+        "label": "Confident and in control",
         "value": "confident",
         "synonyms": ["good", "secure", "comfortable", "in control"],
     },
     {
         "id": "learning",
-        "label": "📚 Learning and growing",
+        "label": "Learning and growing",
         "value": "learning",
         "synonyms": ["improving", "getting better", "figuring it out"],
     },
     {
         "id": "anxious",
-        "label": "😰 Anxious or worried",
+        "label": "Anxious or worried",
         "value": "anxious",
         "synonyms": ["stressed", "worried", "nervous", "uncertain"],
     },
     {
         "id": "overwhelmed",
-        "label": "😵 Overwhelmed",
+        "label": "Overwhelmed",
         "value": "overwhelmed",
         "synonyms": ["confused", "lost", "too much", "complicated"],
     },
     {
         "id": "motivated",
-        "label": "🎯 Motivated to improve",
+        "label": "Motivated to improve",
         "value": "motivated",
         "synonyms": ["ready", "excited", "determined", "optimistic"],
     },
@@ -159,37 +159,37 @@ MONEY_FEELINGS_CHOICES = [
 LEARNING_INTERESTS_CHOICES = [
     {
         "id": "budgeting",
-        "label": "💰 Budgeting basics",
+        "label": "Budgeting basics",
         "value": "budgeting",
         "synonyms": ["budget", "spending", "saving money"],
     },
     {
         "id": "investing",
-        "label": "📈 Investing fundamentals",
+        "label": "Investing fundamentals",
         "value": "investing",
         "synonyms": ["stocks", "investment", "portfolio", "retirement"],
     },
     {
         "id": "debt",
-        "label": "💳 Debt management",
+        "label": "Debt management",
         "value": "debt",
         "synonyms": ["loans", "credit cards", "paying off debt"],
     },
     {
         "id": "credit",
-        "label": "📊 Credit score improvement",
+        "label": "Credit score improvement",
         "value": "credit",
         "synonyms": ["credit score", "credit report", "credit history"],
     },
     {
         "id": "goals",
-        "label": "🎯 Financial goal setting",
+        "label": "Financial goal setting",
         "value": "goals",
         "synonyms": ["planning", "goals", "future", "dreams"],
     },
     {
         "id": "emergency",
-        "label": "🛡️ Emergency fund building",
+        "label": "Emergency fund building",
         "value": "emergency",
         "synonyms": ["emergency fund", "rainy day", "savings"],
     },
@@ -213,25 +213,25 @@ CHECKOUT_CHOICES = {
 HOUSING_TYPE_CHOICES = [
     {
         "id": "rent",
-        "label": "🏠 Renting",
+        "label": "Renting",
         "value": "rent",
         "synonyms": ["rental", "tenant", "lease", "apartment"],
     },
     {
         "id": "own",
-        "label": "🏡 Own my home",
+        "label": "Own my home",
         "value": "own",
         "synonyms": ["homeowner", "mortgage", "house", "property"],
     },
     {
         "id": "family",
-        "label": "👨‍👩‍👧 Living with family",
+        "label": "Living with family",
         "value": "family",
         "synonyms": ["parents", "relatives", "family home"],
     },
     {
         "id": "other",
-        "label": "🏘️ Other arrangement",
+        "label": "Other arrangement",
         "value": "other",
         "synonyms": ["roommates", "shared", "temporary", "unique"],
     },
@@ -240,27 +240,159 @@ HOUSING_TYPE_CHOICES = [
 HEALTH_INSURANCE_CHOICES = [
     {
         "id": "employer",
-        "label": "🏢 Through employer",
+        "label": "Through employer",
         "value": "employer",
         "synonyms": ["work", "job", "company", "employment"],
     },
     {
         "id": "self_paid",
-        "label": "💰 Self-paid",
+        "label": "Self-paid",
         "value": "self_paid",
         "synonyms": ["individual", "private", "personal", "marketplace"],
     },
     {
         "id": "public",
-        "label": "🏛️ Public program",
+        "label": "Public program",
         "value": "public",
         "synonyms": ["medicare", "medicaid", "government", "state"],
     },
     {
         "id": "none",
-        "label": "❌ No coverage",
+        "label": "No coverage",
         "value": "none",
         "synonyms": ["uninsured", "no insurance", "without"],
+    },
+]
+
+ASSETS_TYPES_CHOICES = [
+    {
+        "id": "savings",
+        "label": "Savings accounts",
+        "value": "savings",
+        "synonyms": ["savings", "emergency fund", "cash reserves"],
+    },
+    {
+        "id": "investments",
+        "label": "Investments",
+        "value": "investments",
+        "synonyms": ["stocks", "bonds", "mutual funds", "etf", "portfolio"],
+    },
+    {
+        "id": "retirement",
+        "label": "Retirement accounts",
+        "value": "retirement",
+        "synonyms": ["401k", "ira", "pension", "retirement"],
+    },
+    {
+        "id": "real_estate",
+        "label": "Real estate",
+        "value": "real_estate",
+        "synonyms": ["property", "house", "land", "rental property"],
+    },
+    {
+        "id": "crypto",
+        "label": "Cryptocurrency",
+        "value": "crypto",
+        "synonyms": ["bitcoin", "ethereum", "crypto", "digital assets"],
+    },
+    {
+        "id": "none",
+        "label": "None currently",
+        "value": "none",
+        "synonyms": ["no assets", "none", "nothing"],
+    },
+]
+
+FIXED_EXPENSES_RANGES = [
+    {
+        "id": "under_1000",
+        "label": "Under $1,000/month",
+        "value": "under_1000",
+        "synonyms": ["low expenses", "minimal", "under 1k"],
+    },
+    {
+        "id": "1000_2000",
+        "label": "$1,000 - $2,000/month",
+        "value": "1000_2000",
+        "synonyms": ["moderate expenses", "1-2k"],
+    },
+    {
+        "id": "2000_3000",
+        "label": "$2,000 - $3,000/month",
+        "value": "2000_3000",
+        "synonyms": ["average expenses", "2-3k"],
+    },
+    {
+        "id": "3000_5000",
+        "label": "$3,000 - $5,000/month",
+        "value": "3000_5000",
+        "synonyms": ["high expenses", "3-5k"],
+    },
+    {
+        "id": "over_5000",
+        "label": "Over $5,000/month",
+        "value": "over_5000",
+        "synonyms": ["very high expenses", "over 5k"],
+    },
+]
+
+HOUSING_SATISFACTION_CHOICES = [
+    {
+        "id": "very_satisfied",
+        "label": "Very satisfied",
+        "value": "very_satisfied",
+        "synonyms": ["love it", "perfect", "very happy"],
+    },
+    {
+        "id": "satisfied",
+        "label": "Satisfied",
+        "value": "satisfied",
+        "synonyms": ["good", "fine", "okay", "content"],
+    },
+    {
+        "id": "neutral",
+        "label": "Neutral",
+        "value": "neutral",
+        "synonyms": ["meh", "it's okay", "could be better"],
+    },
+    {
+        "id": "unsatisfied",
+        "label": "Unsatisfied",
+        "value": "unsatisfied",
+        "synonyms": ["not happy", "want to change", "looking to move"],
+    },
+    {
+        "id": "very_unsatisfied",
+        "label": "Very unsatisfied",
+        "value": "very_unsatisfied",
+        "synonyms": ["hate it", "need to move", "very unhappy"],
+    },
+]
+
+DEPENDENTS_CHOICES = [
+    {
+        "id": "none",
+        "label": "No dependents",
+        "value": "none",
+        "synonyms": ["no", "none", "no kids", "no children"],
+    },
+    {
+        "id": "one",
+        "label": "1 dependent",
+        "value": "one",
+        "synonyms": ["one", "1", "single child"],
+    },
+    {
+        "id": "two",
+        "label": "2 dependents",
+        "value": "two",
+        "synonyms": ["two", "2", "two children"],
+    },
+    {
+        "id": "three_plus",
+        "label": "3+ dependents",
+        "value": "three_plus",
+        "synonyms": ["three", "3", "multiple", "many"],
     },
 ]
 
@@ -285,11 +417,15 @@ def get_choices_for_field(field: str, step: OnboardingStep) -> dict[str, Any] | 
         "money_feelings": MONEY_FEELINGS_CHOICES,
         "learning_interests": LEARNING_INTERESTS_CHOICES,
         "housing_type": HOUSING_TYPE_CHOICES,
+        "housing_satisfaction": HOUSING_SATISFACTION_CHOICES,
         "health_insurance_status": HEALTH_INSURANCE_CHOICES,
+        "assets_types": ASSETS_TYPES_CHOICES,
+        "fixed_expenses": FIXED_EXPENSES_RANGES,
+        "dependents_under_18": DEPENDENTS_CHOICES,
     }
 
     if field in field_choices_map:
-        if field in ["money_feelings", "learning_interests"]:
+        if field in ["money_feelings", "learning_interests", "assets_types"]:
             return {
                 "type": "multi_choice",
                 "choices": field_choices_map[field],
@@ -322,13 +458,4 @@ def should_always_offer_choices(step: OnboardingStep, field: str) -> bool:
     if step == OnboardingStep.PLAID_INTEGRATION and field == "plaid_connect":
         return True
 
-    if step == OnboardingStep.LEARNING_PATH and field == "learning_interests":
-        return True
-
-    if step == OnboardingStep.INCOME_MONEY and field == "money_feelings":
-        return True
-
-    if step == OnboardingStep.HOME and field == "housing_type":
-        return True
-
-    return bool(step == OnboardingStep.HEALTH_COVERAGE and field == "health_insurance_status")
+    return field in ["learning_interests", "assets_types"]
