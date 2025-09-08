@@ -419,6 +419,10 @@ class SupervisorService:
             etype = event.get("event")
             data = event.get("data") or {}
 
+            # Only stream events from the supervisor node to avoid showing subagent activity
+            if name != "supervisor":
+                continue
+
             if etype == "on_chat_model_stream":
                 chunk = data.get("chunk")
                 out = self._content_to_text(chunk)

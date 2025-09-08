@@ -1,5 +1,4 @@
 import json
-import uuid
 
 import requests
 import streamlit as st
@@ -12,19 +11,11 @@ if "thread_id" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "user_id" not in st.session_state:
-    st.session_state.user_id = str(uuid.uuid4())
+    st.session_state.user_id = "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8"
 if "base_url" not in st.session_state:
     st.session_state.base_url = "http://localhost:8000"
 
 st.title("Supervisor Test UI")
-
-with st.sidebar:
-    st.header("Configuration")
-    st.session_state.base_url = st.text_input("API Base URL", st.session_state.base_url)
-    st.session_state.user_id = st.text_input("User ID", st.session_state.user_id)
-    if st.button("Generate New User ID"):
-        st.session_state.user_id = str(uuid.uuid4())
-        st.rerun()
 
 def start_conversation():
     """Initialize a new conversation thread with the supervisor."""
@@ -41,11 +32,12 @@ def start_conversation():
         st.error(f"Failed to start conversation: {e}")
         st.session_state.thread_id = None
 
+# Automatically start conversation if not already started
 if st.session_state.thread_id is None:
-    if st.button("Start Conversation"):
-        start_conversation()
-        st.rerun()
-else:
+    start_conversation()
+
+# Display messages if conversation is active
+if st.session_state.thread_id is not None:
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])

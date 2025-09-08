@@ -186,8 +186,14 @@ class FinanceAgent:
         return f"""You are an AI text-to-SQL agent over the user's Plaid-mirrored PostgreSQL database. Your goal is to generate correct SQL, execute it via tools, and present a concise, curated answer.
 
         🚨 AGENT BEHAVIOR & CONTROL 🚨
-        You are a DIRECT agent - provide ONE clear answer per user query. If a query returns 0 results, state this clearly and stop. Do NOT retry, explore, or modify queries unless the user explicitly asks you to (e.g., "try a different date range" or "search broader"). Keep responses fast and focused.
-        You are receiving a query from a supervisor agent. You are not receiving a query from a user. Your role is to execute the query and provide an analizis of the results so that the supervisor agent can answer the user's query.
+        You are a SPECIALIZED ANALYSIS agent working under a supervisor. You are NOT responding directly to users.
+        Your role is to:
+        1. Execute financial queries and provide comprehensive data analysis
+        2. Return detailed findings and insights to your supervisor
+        3. Focus on accuracy, completeness, and actionable insights
+        4. Your supervisor will format the final user-facing response
+
+        You are receiving this task from your supervisor agent. Provide thorough analysis so they can create the best response for the user.
 
         🛠️ TOOL USAGE MANDATE 🛠️
         If you are not sure about tables/columns, use tools to verify schema. Do NOT guess or invent SQL.
@@ -407,9 +413,8 @@ class FinanceAgent:
 
 
 async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
-    """LangGraph node for finance agent."""
+    """LangGraph node for finance agent that provides analysis to supervisor."""
     try:
-
         # Get user_id from configurable context
         user_id = config.get("configurable", {}).get("user_id")
         if not user_id:
@@ -417,23 +422,56 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[st
             user_id = _get_user_id_from_messages(state["messages"])
 
         query = _get_last_user_message_text(state["messages"])
-        logger.info(f"Extracted user_id: {user_id}, query: {query[:50]}...")
+        logger.info(f"Finance agent - user_id: {user_id}, task: {query[:100]}...")
 
         if not user_id:
             logger.warning("No user_id found in finance agent request")
-            return {"messages": [{"role": "assistant", "content": "I need to know which user you are to access financial data.", "name": "finance_agent"}]}
+            error_msg = "ERROR: Cannot access financial data without user identification."
+            return {"messages": [{"role": "assistant", "content": error_msg, "name": "finance_agent"}]}
 
         if not query:
-            logger.warning("No query text found in finance agent request")
-            return {"messages": [{"role": "assistant", "content": "What financial information would you like to know?", "name": "finance_agent"}]}
+            logger.warning("No task description found in finance agent request")
+            error_msg = "ERROR: No task description provided for analysis."
+            return {"messages": [{"role": "assistant", "content": error_msg, "name": "finance_agent"}]}
 
-        # Use singleton finance agent from app_state
+        # Process the financial analysis
         from app.core.app_state import get_finance_agent
         finance_agent_instance = get_finance_agent()
-        response = await finance_agent_instance.process_query(query, user_id)
+        analysis_result = await finance_agent_instance.process_query(query, user_id)
 
-        return {"messages": [{"role": "assistant", "content": response, "name": "finance_agent"}]}
+        analysis_response = f"""
+        FINANCIAL ANALYSIS COMPLETE:
+
+        Task Analyzed: {query[:200]}...
+
+        Analysis Results:
+        {analysis_result}
+
+        This analysis is provided to the supervisor for final user response formatting.
+        """
+
+        from app.agents.supervisor.handoff import create_handoff_back_messages
+        handoff_messages = create_handoff_back_messages("finance_agent", "supervisor")
+
+        return {
+            "messages": [
+                {"role": "assistant", "content": analysis_response, "name": "finance_agent"},
+                handoff_messages[0],  # AIMessage signaling completion
+                handoff_messages[1],  # ToolMessage confirming return
+            ]
+        }
 
     except Exception as e:
         logger.error(f"Finance agent critical error: {e}")
-        return {"messages": [{"role": "assistant", "content": "I encountered an error processing your financial query. Please try again.", "name": "finance_agent"}]}
+        error_analysis = f"FINANCIAL ANALYSIS ERROR: {str(e)}"
+
+        from app.agents.supervisor.handoff import create_handoff_back_messages
+        handoff_messages = create_handoff_back_messages("finance_agent", "supervisor")
+
+        return {
+            "messages": [
+                {"role": "assistant", "content": error_analysis, "name": "finance_agent"},
+                handoff_messages[0],
+                handoff_messages[1],
+            ]
+        }
