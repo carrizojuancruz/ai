@@ -1,0 +1,22 @@
+---
+description: Environment execution restrictions
+globs:
+alwaysApply: true
+---
+
+## Environment Execution Rule
+
+**NEVER** execute environment-related commands yourself.
+
+### Prohibited Commands:
+- `docker run`, `docker-compose up`, `docker build`
+- `python -m venv`, `pip install`, `npm install`
+- `npm start`, `npm run dev`, `yarn start`
+- Database startup commands (`postgresql start`, `redis-server`)
+- Service orchestration commands (`systemctl`, `brew services`)
+
+### Required Behavior:
+1. Always assume the environment is already running
+2. Ask for clarification when uncertain
+3. Focus on code analysis and development tasks
+4. Only proceed with environment operations after explicit user instruction

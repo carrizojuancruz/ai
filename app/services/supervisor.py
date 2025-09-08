@@ -337,7 +337,7 @@ class SupervisorService:
 
         user_context = (await session_store.get_session(thread_id) or {}).get("user_context", {})
         welcome = await generate_personalized_welcome(user_context, prior_summary)
-        await queue.put({"event": "token.delta", "data": {"text": welcome}})
+        await queue.put({"event": "token.delta", "data": {"content": welcome}})
 
         logger.info(f"Initialize complete for user {uid}: thread={thread_id}, has_prior_summary={bool(prior_summary)}")
 
@@ -381,6 +381,8 @@ class SupervisorService:
             **session_ctx,
             "user_id": user_id,
         }
+
+        final_text_candidate: Optional[str] = None
 
         async for event in graph.astream_events(
             {"messages": [{"role": "user", "content": text}], "sources": sources},
@@ -438,6 +440,13 @@ class SupervisorService:
                                     assistant_response_parts.append(text)
                 except Exception:
                     pass
+
+        try:
+            final_text = "".join(assistant_response_parts).strip() if assistant_response_parts else (final_text_candidate or "")
+            if final_text:
+                await q.put({"event": "message.completed", "data": {"content": final_text}})
+        except Exception:
+            pass
 
         await q.put({"event": "step.update", "data": {"status": "presented"}})
 
