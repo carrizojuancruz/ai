@@ -11,6 +11,38 @@ The Goals system is designed to be flexible and integrated with the memory and a
 - varied frequencies, absolute or percentage amounts, 
 - and a tracking and alerts system.
 
+## Feasibility with Cashflow-Only (No Robust Budgeting)
+
+The Goals System V1 can function using **only cashflow (money in, money out) from connected accounts and manual input**, without requiring a full budgeting engine.
+
+### What Works with Cashflow-Only
+
+- **Category-based goals**
+  Example: "Reduce entertainment spending by $200 this month."
+
+- **Savings goals (absolute or percentage)**
+  Example: "Save $500 this month." / "Save 20% of my income."
+
+- **Debt repayment goals**
+  Example: "Repay $1,000 on credit cards this month."
+
+- **Income increase goals**
+  Example: "Increase freelance income by 20% this year."
+
+- **Net worth targets (basic)**
+  Example: "Reach $1M net worth by my 35th birthday."
+
+### Limitations Without Budgeting
+
+- **Reactive only:** Tracks what happened, not forecasts.
+- **No envelopes/trade-offs:** Cannot simulate shifting allocations.
+- **No earmarking of funds:** Cashflow doesn't inherently mark money toward a goal.
+
+### Conclusion
+
+- **Feasible for V1:** All schema, state logic, and nudges can be supported with cashflow data.
+- **Budgeting adds value in V2:** Forecasting, earmarking, and proactive trade-offs can extend the system.
+
 ### Design Principles
 
 - **Temporal Flexibility:** Support for both specific objectives (single date) and recurring ones (daily, weekly, monthly, etc.)
@@ -294,12 +326,7 @@ In addition to automatic Plaid transactions, the system contemplates:
 }
 ```
 
-**Purpose:** Defines proactive engagement points. Integrates with the Heuristics Engine to generate intelligent nudges.
-
-**Alerts Flow:**
-1. `warn_progress_pct`: Gentle nudge when progress < threshold
-2. `alert_progress_pct`: More urgent alert when progress critically low
-3. `warn_days_remaining`: Time-based alerts independent of progress
+**Purpose:** Defines proactive engagement points that trigger nudges based on goal progress and timing.
 
 ---
 
@@ -310,7 +337,7 @@ In addition to automatic Plaid transactions, the system contemplates:
 {
   "items": [
     {
-      "type": "enum",         // push | email | sms
+      "type": "enum",         // push | in_app_message
       "when": "string"        // Temporal expression, e.g.: "monthly:day=27"
     }
   ]
@@ -332,7 +359,7 @@ In addition to automatic Plaid transactions, the system contemplates:
 ```json
 {
   "value": "enum",
-  "options": ["pending", "in_progress", "completed", "error", "deleted"]
+  "options": ["pending", "in_progress", "completed", "off_track", "deleted"]
 }
 ```
 
@@ -343,7 +370,7 @@ In addition to automatic Plaid transactions, the system contemplates:
 #### `pending`
 - **Description:** Goal with missing data or incomplete configuration
 - **Criteria:** Missing required fields, cannot evaluate progress, user has not finished setup
-- **Visual Badge:** ⏳ Yellow/orange badge with "Configuration Pending"
+- **Visual Badge:** Yellow/orange badge with "Configuration Pending"
 - **Conversational Flow:** While in `pending`, the goal is refined via natural language. Vera asks short, focused questions to polish fields (title, amount, frequency, categories) using free text and choices.
 - **Finalization Pattern:** At the end of polishing, a `binary_choice` confirmation activates the goal or keeps it in `pending` to continue editing later.
 - **Available Actions:** Edit, Complete configuration, Delete
@@ -351,26 +378,28 @@ In addition to automatic Plaid transactions, the system contemplates:
 #### `in_progress` 
 - **Description:** Active goal, validated and in continuous tracking (on-track)
 - **Criteria:** All data is complete, progress is being evaluated, within expected thresholds
-- **Visual Badge:** 🎯 Green badge with "In Progress" + completion percentage
+- **Visual Badge:** Blue badge with "In Progress" + completion percentage
 - **Available Actions:** View progress, Pause, Edit, Delete
 
 #### `completed`
 - **Description:** Goal successfully achieved within established deadlines
 - **Criteria:** Target achievement confirmed, within defined timeline
-- **Visual Badge:** ✅ Bright green badge with "Completed" + achievement date
-- **Available Actions:** View history, Archive, Create similar goal
+- **Visual Badge:** Bright green badge with "Completed" + achievement date
+- **Available Actions:** View history, Create similar goal, Delete
 
-#### `error`
-- **Description:** Goal with technical problems preventing tracking
-- **Criteria:** Loss of Plaid connection, synchronization errors, data source problems
-- **Visual Badge:** ⚠️ Red badge with "Connection Error" + last successful sync
-- **Available Actions:** Reconnect, Troubleshoot, Pause, Contact support
+#### `off_track`
+- **Description:** Goal that has exceeded its target threshold or timeline
+- **Criteria:** Spending exceeds budget by >10%, savings falls short by >15%, or timeline exceeded by >20%
+- **Visual Badge:** Red badge with "Off Track" + deviation percentage
+- **Available Actions:** Edit via natural language, Delete, Pause
+- **Conversational Flow:** Vera offers to help adjust the goal through natural language conversation, asking what changes the user wants to make
 
 #### `deleted`
-- **Description:** Goal archived by user action (soft delete)
+- **Description:** Goal archived by user action (logical delete)
 - **Criteria:** User decided to delete/archive the goal
-- **Visual Badge:** 🗃️ Not visible in main view, available in "Archived Goals"
-- **Available Actions:** Restore, Delete permanently
+- **Visual Badge:** Not visible in frontend (logical delete only)
+- **Available Actions:** Delete permanently
+- **Note:** This is an internal state for logical deletion. Goals in this state are not displayed to users in the main interface and cannot be restored.
 
 ### State Transitions
 
@@ -382,21 +411,22 @@ stateDiagram-v2
     pending --> in_progress : Activation confirmed (binary)
     pending --> deleted : Delete confirmed (binary)
     in_progress --> completed : Target reached
-    in_progress --> error : Technical problems
+    in_progress --> off_track : Exceeds threshold
     in_progress --> deleted : Archive confirmed (binary)
-    error --> in_progress : Problem resolved
-    error --> deleted : Abandon confirmed (binary)
+    off_track --> in_progress : Edited via conversation
+    off_track --> deleted : Delete confirmed (binary)
     completed --> deleted : Archive confirmed (binary)
-    deleted --> in_progress : Restore confirmed (binary)
 ```
 
 **Transition Rules:**
 - `pending` → `in_progress`: Only when all required fields are complete and data sources connected
 - `in_progress` → `completed`: Automatic when target is reached within timeline
-- `in_progress` → `error`: Automatic when there are synchronization failures > 48 hours
-- `error` → `in_progress`: Automatic when connectivity and data are restored
-- Any state → `deleted`: Manual, by user action
-- `deleted` → `in_progress`: Manual, requires data re-validation
+- `in_progress` → `off_track`: Automatic when spending exceeds budget by >10%, savings falls short by >15%, or timeline exceeded by >20%
+- `off_track` → `in_progress`: Manual, after user edits goal via natural language conversation
+- `off_track` → `deleted`: Manual, by user action
+- Any state → `deleted`: Manual, by user action (logical delete)
+
+**Note:** Technical errors (connection issues, sync failures) are handled transparently by the backend without changing the goal status. Goals remain in their current state while technical issues are resolved automatically.
 
 #### progress (optional)
 ```json
@@ -535,26 +565,13 @@ def handle_goal_binary_transition(goal: Dict, choice: str) -> Dict:
     return transitions.get(choice, lambda g: g)(goal)
 ```
 
-#### Nudges Integration (from `nudges.md`)
-- Goals that remain `pending` can trigger an in-app or push nudge with a `binary_choice` to activate or keep refining.
-- Example (push, binary choice):
-```json
-{
-  "id": "nudge_push_goal_pending",
-  "type": "nudge_push",
-  "preview_text": "You have a pending goal. Activate it?",
-  "target_key": "nudge.goal_pending_confirmation",
-  "welcome_message": {
-    "type": "binary_choice",
-    "message": "Do you want to activate your goal now?",
-    "choices": [
-      { "id": "accept", "label": "Yes, activate", "user_message": "Yes, activate my goal", "action": "continue_conversation" },
-      { "id": "decline", "label": "Keep refining", "user_message": "I prefer to keep refining", "action": "close_chat" }
-    ]
-  },
-  "manifestation": { "channel": "push_notification", "timing": "immediate" }
-}
-```
+#### Nudges Integration
+
+Goals integrate with the Nudge System for user engagement. See NUDGES_DOCUMENT for complete specification.
+
+**Integration Points:**
+- Thresholds and goal state changes trigger nudge evaluation
+- Nudge variables: `{user-name}`, `{goal-name}`, `{goal_category}`, `{progress_pct}`, `{days_remaining}`, `{deviation_pct}`
 
 ---
 
@@ -596,12 +613,7 @@ all categories → Education & Wealth Coach (guidance)
 
 ### Proactive Engagement
 
-Thresholds and reminders feed the Heuristics Engine for:
-
-- Automatic progress nudges
-- Achievement celebrations
-- Course correction suggestions
-- Educational content delivery
+Goals integrate with the Nudge Engine for user engagement. Thresholds and reminders feed the nudge system for progress tracking, achievement celebrations, and course correction suggestions.
 
 ### Data Persistence
 
@@ -763,42 +775,6 @@ CREATE TABLE goals (
 }
 ```
 
-### 5. Example of Goal in Error State
-```json
-{
-  "goal": {
-    "title": "Save for Summer Vacation",
-    "description": "Specific savings goal for family trip"
-  },
-  "category": { "value": "saving" },
-  "nature": { "value": "increase" },
-  "frequency": {
-    "type": "specific",
-    "specific": {
-      "date": "2024-07-01"
-    }
-  },
-  "amount": {
-    "type": "absolute",
-    "absolute": {
-      "currency": "USD",
-      "target": 3000
-    }
-  },
-  "source": { "value": "mixed" },
-  "status": { "value": "error" },
-  "progress": {
-    "current_value": 1250,
-    "percent_complete": 41.67,
-    "updated_at": "2024-02-15T08:30:00Z"
-  },
-  "error_details": {
-    "type": "connection_lost",
-    "message": "Plaid connection lost since 2024-02-13",
-    "last_successful_sync": "2024-02-13T14:22:00Z"
-  }
-}
-```
 
 ---
 
@@ -809,46 +785,6 @@ CREATE TABLE goals (
 - Progress calculations are executed async to avoid blocking user interactions
 - State transitions are evaluated in real-time for immediate frontend updates
 - Thresholds are evaluated daily via scheduled jobs
-- Goals in `error` state have automatic retry logic every 6 hours
-
-### Frontend UI States
-
-For consistent user experience, each state has defined visual specifications:
-
-#### Design System Integration
-```css
-/* Goal Status Badges */
-.goal-badge-pending { 
-  background: #FFF3CD; 
-  color: #856404; 
-  border: 1px solid #FFEAA7; 
-}
-
-.goal-badge-in-progress { 
-  background: #D4EDDA; 
-  color: #155724; 
-  border: 1px solid #C3E6CB; 
-}
-
-.goal-badge-completed { 
-  background: #D1ECF1; 
-  color: #0C5460; 
-  border: 1px solid #BEE5EB; 
-}
-
-.goal-badge-error { 
-  background: #F8D7DA; 
-  color: #721C24; 
-  border: 1px solid #F5C6CB; 
-}
-```
-
-#### Interactive Elements by State
-- **Pending:** Prominent CTA "Complete Configuration"
-- **In Progress:** Progress bar + visible percentage + quick actions
-- **Completed:** Celebration badge + "View details" + "Similar goal"
-- **Error:** Alert icon + "Reconnect" button + error details
-- **Deleted:** Only visible in archived view with restore option
 
 ### Security
 - Goals contain potential financial PII - encryption at rest is mandatory
@@ -864,19 +800,6 @@ For consistent user experience, each state has defined visual specifications:
 - JSON schema allows easy addition of new fields
 - Plugin architecture for custom goal types in V2+
 - Webhook support for third-party integrations
-
----
-
-## Roadmap V2+
-
-### Advanced Features Considered
-- **Goal Hierarchies:** Parent/child goal relationships
-- **Collaborative Goals:** Shared goals between household members
-- **AI-Suggested Goals:** Machine learning recommendations
-- **Goal Templates:** Pre-built templates for common scenarios
-- **Advanced Scheduling:** Complex recurrence patterns
-- **Integration Plugins:** Third-party service connections
-- **Gamification:** Achievement systems and social features
 
 This Goals system establishes a solid foundation for Vera's personalized financial coaching, balancing flexibility with simplicity of use, and preparing the ground for sophisticated features in future versions.
 
