@@ -1,5 +1,4 @@
 import json
-import uuid
 
 import requests
 import streamlit as st

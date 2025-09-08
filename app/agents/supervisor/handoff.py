@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import uuid4
 
+from langchain_core.messages import AIMessage, HumanMessage, ToolCall, ToolMessage
 from langchain_core.tools import tool
-from langchain_core.messages import AIMessage, ToolCall, ToolMessage, HumanMessage
 from langgraph.graph import MessagesState
 from langgraph.prebuilt import InjectedState
 from langgraph.types import Command, Send
@@ -12,7 +12,6 @@ from langgraph.types import Command, Send
 
 def create_task_description_handoff_tool(*, agent_name: str, description: str | None = None) -> tool:
     """Create a tool that delegates tasks to subagents using proper tool calls."""
-
     name = f"transfer_to_{agent_name}"
     tool_description = description or f"Delegate a task to the {agent_name} for specialized analysis."
 
@@ -25,7 +24,6 @@ def create_task_description_handoff_tool(*, agent_name: str, description: str | 
         state: Annotated[MessagesState, InjectedState],
     ) -> Command:
         """Delegate task to subagent using proper tool call mechanism."""
-
         # Create delegation message with proper context
         delegation_prompt = f"""
         Please analyze and complete the following task as a specialized agent.
