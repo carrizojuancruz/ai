@@ -196,7 +196,8 @@ class KnowledgeService:
                 "description": source.description,
                 "total_max_pages": source.total_max_pages,
                 "recursion_depth": source.recursion_depth,
-                "last_sync": source.last_sync
+                "last_sync": source.last_sync,
+                "section_urls": source.section_urls or []
             },
             "total_chunks": total_chunks,
             "chunks": chunks

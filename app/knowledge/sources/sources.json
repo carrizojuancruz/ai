@@ -11,29 +11,28 @@
     "exclude_path_patterns": "",
     "total_max_pages": 20,
     "recursion_depth": 2,
-    "last_sync": "2025-09-04T14:02:29",
-    "total_chunks": 91,
+    "last_sync": "2025-09-08T13:40:18",
+    "total_chunks": 121,
     "section_urls": [
-      "http://211.org/about-us/your-local-211",
+      "http://211.org/get-help/disaster-recovery",
       "http://211.org/partner-us/our-partners",
-      "http://211.org/homepage",
-      "http://211.org/contact-us",
+      "http://211.org/partner-us",
+      "http://211.org/get-help/substance-use",
       "http://211.org/get-help/utilities-expenses",
-      "http://211.org",
       "http://211.org/astar",
-      "http://211.org/211",
-      "http://211.org/get-help/mental-health",
+      "http://211.org/privacy-policy-terms-and-conditions",
       "http://211.org/about-us/blog",
       "http://211.org/get-help/housing-expenses",
-      "http://211.org/get-help/healthcare-expenses",
       "http://211.org/get-help/caregiver-resources",
-      "http://211.org/partner-us-0",
+      "http://211.org/about-us",
       "http://211.org/get-help/i-need-help-paying-my-bills",
-      "http://211.org/get-help/food-programs-food-benefits",
+      "http://211.org/partner-us-0",
+      "http://211.org/homepage",
       "http://211.org/",
-      "http://211.org/get-help/disaster-recovery",
-      "http://211.org/partner-us/pet-help-finder",
-      "http://211.org/partner-us"
+      "http://211.org/get-help/food-programs-food-benefits",
+      "http://211.org/get-help/mental-health",
+      "http://211.org/about-us/your-local-211",
+      "http://211.org"
     ]
   },
   {
@@ -48,7 +47,7 @@
     "exclude_path_patterns": "",
     "total_max_pages": 20,
     "recursion_depth": 2,
-    "last_sync": "2025-09-04T14:02:39",
+    "last_sync": "2025-09-08T13:40:33",
     "total_chunks": 25,
     "section_urls": [
       "https://988lifeline.org"
@@ -66,8 +65,8 @@
     "exclude_path_patterns": "",
     "total_max_pages": 20,
     "recursion_depth": 2,
-    "last_sync": "2025-09-04T14:03:13",
-    "total_chunks": 1,
+    "last_sync": "2025-09-08T13:41:39",
+    "total_chunks": 3,
     "section_urls": [
       "https://www.ahfa.com"
     ]
@@ -84,26 +83,61 @@
     "exclude_path_patterns": "",
     "total_max_pages": 20,
     "recursion_depth": 2,
-    "last_sync": "2025-09-04T14:05:34",
+    "last_sync": "2025-09-08T13:44:10",
     "total_chunks": 150,
     "section_urls": [
-      "https://dfcs.alaska.gov/Pages/LanguageAccess.aspx",
-      "https://dfcs.alaska.gov/API",
-      "https://dfcs.alaska.gov/daph/Pages/default.aspx",
+      "https://dfcs.alaska.gov/",
       "https://dfcs.alaska.gov/Commissioner/Pages/Contacts/default.aspx",
-      "https://dfcs.alaska.gov/News/Pages/Announcements.aspx",
-      "https://dfcs.alaska.gov/ocs/Pages/PAC/default.aspx",
-      "https://dfcs.alaska.gov/daph/",
-      "https://dfcs.alaska.gov/https&",
-      "https://dfcs.alaska.gov/Commissioner/",
-      "https://dfcs.alaska.gov",
-      "https://dfcs.alaska.gov/News/Pages/default.aspx",
       "https://dfcs.alaska.gov/ocs/Pages/fostercare/default.aspx",
-      "https://dfcs.alaska.gov/Pages/Site-Map.aspx",
+      "https://dfcs.alaska.gov/News/Pages/Announcements.aspx",
+      "https://dfcs.alaska.gov/ocs",
+      "https://dfcs.alaska.gov/Pages/Careers/default.aspx",
+      "https://dfcs.alaska.gov/ocs/Pages/childrensjustice/reporting/welcome.aspx",
+      "https://dfcs.alaska.gov/djj/",
+      "https://dfcs.alaska.gov/_layouts/15/Authenticate.aspx?Source=%2FPages%2Fdefault%2Easpx",
+      "https://dfcs.alaska.gov/Pages/Accessibility.aspx",
       "https://dfcs.alaska.gov/ocs/Pages/fostercare/",
-      "https://dfcs.alaska.gov/fms/Pages/Home.aspx",
-      "https://dfcs.alaska.gov/ocs/Pages/Report-Child-Abuse.aspx",
-      "https://dfcs.alaska.gov/Commissioner/Pages/Contacts"
+      "https://dfcs.alaska.gov/Pages/Publications.aspx",
+      "https://dfcs.alaska.gov",
+      "https://dfcs.alaska.gov/daph/",
+      "https://dfcs.alaska.gov/Pages/LanguageAccess.aspx",
+      "https://dfcs.alaska.gov/ocs/Pages/icwa/default.aspx"
+    ]
+  },
+  {
+    "id": "eb5b2c3e7b5c8fc0",
+    "name": "Alaska Housing Finance Corporation",
+    "url": "https://www.ahfc.us",
+    "enabled": true,
+    "type": "State Government",
+    "category": "State Services",
+    "description": "Alaska housing finance and programs",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-08T13:44:23",
+    "total_chunks": 3,
+    "section_urls": [
+      "https://www.ahfc.us"
+    ]
+  },
+  {
+    "id": "ad201ad803abda78",
+    "name": "American Psychological Association (APA)",
+    "url": "http://apa.org/helpcenter",
+    "enabled": true,
+    "type": "Professional Organization",
+    "category": "Mental Health",
+    "description": "APA help center resources",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-08T13:44:35",
+    "total_chunks": 1,
+    "section_urls": [
+      "http://apa.org/helpcenter"
     ]
   },
   {
@@ -118,29 +152,29 @@
     "exclude_path_patterns": "",
     "total_max_pages": 20,
     "recursion_depth": 2,
-    "last_sync": "2025-09-04T14:06:29",
-    "total_chunks": 87,
+    "last_sync": "2025-09-08T13:45:44",
+    "total_chunks": 81,
     "section_urls": [
       "https://www.annualcreditreport.com/gettingReports.action",
-      "https://www.annualcreditreport.com/requestingReportsInSpecialSituations.action",
-      "https://www.annualcreditreport.com/whatIsCreditReport.action",
-      "https://www.annualcreditreport.com/protectYourIdentity.action",
-      "https://www.annualcreditreport.com/index.action",
-      "https://www.annualcreditreport.com/requestingReportsInAlternativeFormats.action",
-      "https://www.annualcreditreport.com/generalQuestions.action",
-      "https://www.annualcreditreport.com/reviewYourReport.action",
-      "https://www.annualcreditreport.com/security.action",
-      "https://www.annualcreditreport.com/yourRights.action",
-      "https://www.annualcreditreport.com/policies.action",
-      "https://www.annualcreditreport.com/aboutThisSite.action",
       "https://www.annualcreditreport.com/privacy.action",
-      "https://www.annualcreditreport.com/termsOfUse.action",
+      "https://www.annualcreditreport.com/accessibility.action",
       "https://www.annualcreditreport.com/requestReport/landingPage.action",
-      "https://www.annualcreditreport.com/dataBreachBasics.action",
+      "https://www.annualcreditreport.com/requestingReportsInAlternativeFormats.action",
+      "https://www.annualcreditreport.com/securityFreezeBasics.action",
+      "https://www.annualcreditreport.com/protectYourIdentity.action",
+      "https://www.annualcreditreport.com/aboutThisSite.action",
+      "https://www.annualcreditreport.com/policies.action",
       "https://www.annualcreditreport.com/inaccuraciesInReporting.action",
+      "https://www.annualcreditreport.com/dataBreachBasics.action",
+      "https://www.annualcreditreport.com/generalQuestions.action",
+      "https://www.annualcreditreport.com/security.action",
+      "https://www.annualcreditreport.com/reviewYourReport.action",
+      "https://www.annualcreditreport.com/termsOfUse.action",
+      "https://www.annualcreditreport.com/suspectPhishing.action",
       "https://www.annualcreditreport.com/contactUs.action",
-      "https://www.annualcreditreport.com/filingADispute.action",
-      "https://www.annualcreditreport.com/accessibility.action"
+      "https://www.annualcreditreport.com/yourRights.action",
+      "https://www.annualcreditreport.com/index.action",
+      "https://www.annualcreditreport.com/filingADispute.action"
     ]
   },
   {
@@ -155,7 +189,7 @@
     "exclude_path_patterns": "",
     "total_max_pages": 20,
     "recursion_depth": 2,
-    "last_sync": "2025-09-04T14:06:31",
+    "last_sync": "2025-09-08T13:45:48",
     "total_chunks": 3,
     "section_urls": [
       "https://adaa.org/"
@@ -173,8 +207,8 @@
     "exclude_path_patterns": "",
     "total_max_pages": 20,
     "recursion_depth": 2,
-    "last_sync": "2025-09-04T14:06:33",
-    "total_chunks": 1,
+    "last_sync": "2025-09-08T13:46:08",
+    "total_chunks": 14,
     "section_urls": [
       "https://des.az.gov"
     ]
@@ -191,10 +225,28 @@
     "exclude_path_patterns": "",
     "total_max_pages": 20,
     "recursion_depth": 2,
-    "last_sync": "2025-09-04T14:06:35",
-    "total_chunks": 1,
+    "last_sync": "2025-09-08T13:46:20",
+    "total_chunks": 5,
     "section_urls": [
       "https://housing.az.gov"
+    ]
+  },
+  {
+    "id": "bd299cad30c2cb3c",
+    "name": "Arkansas Department of Human Services",
+    "url": "https://humanservices.arkansas.gov",
+    "enabled": true,
+    "type": "State Government",
+    "category": "State Services",
+    "description": "Arkansas social services and human resources",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-08T13:46:35",
+    "total_chunks": 33,
+    "section_urls": [
+      "https://humanservices.arkansas.gov"
     ]
   },
   {
@@ -209,7 +261,7 @@
     "exclude_path_patterns": "",
     "total_max_pages": 20,
     "recursion_depth": 2,
-    "last_sync": "2025-09-04T14:06:44",
+    "last_sync": "2025-09-08T13:46:43",
     "total_chunks": 10,
     "section_urls": [
       "https://www.arkansas.gov/adfa"
@@ -227,121 +279,10 @@
     "exclude_path_patterns": "",
     "total_max_pages": 20,
     "recursion_depth": 2,
-    "last_sync": "2025-09-04T14:06:49",
+    "last_sync": "2025-09-08T13:46:48",
     "total_chunks": 6,
     "section_urls": [
       "https://www.benefits.gov/"
-    ]
-  },
-  {
-    "id": "9b2b94e7614d0bf8",
-    "name": "California Department of Social Services",
-    "url": "https://www.cdss.ca.gov",
-    "enabled": true,
-    "type": "State Government",
-    "category": "State Services",
-    "description": "California social services and support programs",
-    "include_path_patterns": "",
-    "exclude_path_patterns": "",
-    "total_max_pages": 20,
-    "recursion_depth": 2,
-    "last_sync": "2025-09-04T14:10:57",
-    "total_chunks": 150,
-    "section_urls": [
-      "https://www.cdss.ca.gov",
-      "https://www.cdss.ca.gov/Portals/13/Homepage/Client-Disaster-Resource-Guide-hy.pdf"
-    ]
-  },
-  {
-    "id": "7218b1f2e91f33e1",
-    "name": "CareerOneStop (U.S. Dept of Labor)",
-    "url": "https://www.careeronestop.org",
-    "enabled": true,
-    "type": "Government Portal",
-    "category": "Career Development",
-    "description": "Comprehensive career development portal sponsored by DOL",
-    "include_path_patterns": "",
-    "exclude_path_patterns": "",
-    "total_max_pages": 20,
-    "recursion_depth": 2,
-    "last_sync": "2025-09-04T14:11:32",
-    "total_chunks": 1,
-    "section_urls": [
-      "https://www.careeronestop.org"
-    ]
-  },
-  {
-    "id": "6910db12a5b17b4e",
-    "name": "CFPB - Bill Calendar",
-    "url": "https://files.consumerfinance.gov/f/documents/cfpb_well-being_bill-calendar.pdf",
-    "enabled": true,
-    "type": "Government Tool",
-    "category": "Budgeting",
-    "description": "Plot bill due dates vs. paydays to avoid late fees",
-    "include_path_patterns": "",
-    "exclude_path_patterns": "",
-    "total_max_pages": 20,
-    "recursion_depth": 2,
-    "last_sync": "2025-09-04T14:11:54",
-    "total_chunks": 53,
-    "section_urls": [
-      "https://files.consumerfinance.gov/f/documents/cfpb_well-being_bill-calendar.pdf"
-    ]
-  },
-  {
-    "id": "236bc47ec0e8f793",
-    "name": "CFPB - Debt collector rights",
-    "url": "https://www.consumerfinance.gov/ask-cfpb/what-should-i-do-when-a-debt-collector-contacts-me-en-1695/",
-    "enabled": true,
-    "type": "Government Guide",
-    "category": "Credit & Debt",
-    "description": "Know your rights; links to sample letters",
-    "include_path_patterns": "",
-    "exclude_path_patterns": "",
-    "total_max_pages": 20,
-    "recursion_depth": 2,
-    "last_sync": "2025-09-04T14:16:16",
-    "total_chunks": 150,
-    "section_urls": [
-      "https://www.consumerfinance.gov/about-us/newsroom/?categories=testimony",
-      "https://www.consumerfinance.gov/ask-cfpb/what-should-i-do-when-a-debt-collector-contacts-me-en-1695/",
-      "https://www.consumerfinance.gov/privacy/website-privacy-policy/",
-      "https://www.consumerfinance.gov/consumer-tools/bank-accounts/",
-      "https://www.consumerfinance.gov/ask-cfpb/what-if-i-believe-i-do-not-owe-the-debt-or-i-want-more-information-about-the-debt-en-1403/",
-      "https://www.consumerfinance.gov/enforcement/enforcement-by-the-numbers/",
-      "https://www.consumerfinance.gov/ask-cfpb/what-should-i-do-when-a-debt-collector-contacts-me-en-1695/cfpb.gov/askcfpb/1411",
-      "https://www.consumerfinance.gov/enforcement/actions/",
-      "https://www.consumerfinance.gov/rules-policy/rules-under-development/",
-      "https://www.consumerfinance.gov/about-us/newsroom/?categories=consumer-advisories",
-      "https://www.consumerfinance.gov/ask-cfpb/"
-    ]
-  },
-  {
-    "id": "9a99b7bdd3cbe3b2",
-    "name": "CFPB - Dispute credit report errors",
-    "url": "https://www.consumerfinance.gov/ask-cfpb/how-do-i-dispute-an-error-on-my-credit-report-en-314/",
-    "enabled": true,
-    "type": "Government Guide",
-    "category": "Credit & Debt",
-    "description": "Steps to correct inaccurate information",
-    "include_path_patterns": "",
-    "exclude_path_patterns": "",
-    "total_max_pages": 20,
-    "recursion_depth": 2,
-    "last_sync": "2025-09-04T14:19:55",
-    "total_chunks": 150,
-    "section_urls": [
-      "https://www.consumerfinance.gov/about-us/newsroom/?categories=testimony",
-      "https://www.consumerfinance.gov/privacy/website-privacy-policy/",
-      "https://www.consumerfinance.gov/consumer-tools/bank-accounts/",
-      "https://www.consumerfinance.gov/data-research/research-hub/",
-      "https://www.consumerfinance.gov/enforcement/enforcement-by-the-numbers/",
-      "https://www.consumerfinance.gov/enforcement/actions/",
-      "https://www.consumerfinance.gov/es/obtener-respuestas/como-disputo-un-error-en-mi-informe-de-credito-es-314/",
-      "https://www.consumerfinance.gov/rules-policy/rules-under-development/",
-      "https://www.consumerfinance.gov/ask-cfpb/how-do-i-dispute-an-error-on-my-credit-report-en-314/",
-      "https://www.consumerfinance.gov/about-us/newsroom/?categories=consumer-advisories",
-      "https://www.consumerfinance.gov/ask-cfpb/"
     ]
   }
 ]

@@ -42,7 +42,8 @@ async def get_sources() -> SourcesResponse:
                 exclude_path_patterns=source.exclude_path_patterns,
                 total_max_pages=source.total_max_pages,
                 recursion_depth=source.recursion_depth,
-                last_sync=source.last_sync
+                last_sync=source.last_sync,
+                section_urls=source.section_urls or []
             )
             for source in sources
         ]
