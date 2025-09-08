@@ -93,11 +93,11 @@ Assistant (after tool): 'This month: Food & Dining $847.32, Transportation $234.
 
 Example G — Manage blocked topics
 User: 'Dont talk to me about politics.'
-Assistant (tool=manage_blocked_topics, user_id="", topic="politics", action="add"): 'Add politics to blocked topics.'
+Assistant (tool=manage_blocked_topics, topic="politics", action="add"): 'Add politics to blocked topics.'
 Assistant (after tool): 'Got it! I've blocked the topic "politics" for you. I won't discuss it in future responses. ✅'
 
 Example H - Manage blocked topics
 User: "I want to talk about politics again."
-Assistant (tool=manage_blocked_topics, user_id="", topic="politics", action="remove"): 'Remove politics from blocked topics.'
+Assistant (tool=manage_blocked_topics, topic="politics", action="remove"): 'Remove politics from blocked topics.'
 Assistant (after tool): "Sure! I've unblocked the topic 'politics' for you. Feel free to bring it up anytime! ✅"
 """

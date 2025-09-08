@@ -3,6 +3,7 @@ import logging
 import os
 from typing import Dict, List
 
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool, tool
 
 from app.knowledge.service import get_knowledge_service
@@ -22,11 +23,13 @@ def _save_blocked_topics(data):
         json.dump(data, f, indent=4)
 
 @tool
-def manage_blocked_topics(user_id: str, topic: str, action: str) -> str:
+def manage_blocked_topics(config: RunnableConfig, topic: str, action: str) -> str:
     """Manage blocked topics for a user.
 
     - action: 'add' to add, 'remove' to remove.
     """
+    user_id = config.get("configurable", {}).get("user_id")
+    print(f"manage_blocked_topics called with user_id={user_id}, topic={topic}, action={action}")
     data = _load_blocked_topics()
     if user_id not in data:
         data[user_id] = []
