@@ -54,7 +54,7 @@ def compile_goal_agent_graph() -> CompiledStateGraph:
 
     builder = StateGraph(MessagesState)
     
-    # Agregar el nodo del agente
+    # Add the agent node
     builder.add_node("goal_agent", goal_agent)
     
     # Define the flow
