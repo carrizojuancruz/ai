@@ -15,8 +15,6 @@ logger = logging.getLogger(__name__)
 class RecursiveLoader(BaseLoader):
 
     async def load_documents(self) -> List[Document]:
-        documents = []
-
         try:
             exclude_dirs = UrlFilter.build_exclude_dirs(self.source)
             max_docs_to_crawl = min(
@@ -40,15 +38,14 @@ class RecursiveLoader(BaseLoader):
 
             raw_documents = loader.load()[:max_docs_to_crawl]
 
-            for doc in raw_documents:
-                standardized_doc = self.create_document(
+            return [
+                self.create_document(
                     content=doc.page_content,
                     url=doc.metadata.get("source", self.source.url),
                     loader_name="recursive"
                 )
-                documents.append(standardized_doc)
-
+                for doc in raw_documents
+            ]
         except Exception as e:
             logger.error(f"Recursive load error for {self.source.url}: {e}")
-
-        return documents
+            return []

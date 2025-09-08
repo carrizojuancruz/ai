@@ -14,8 +14,6 @@ logger = logging.getLogger(__name__)
 class SitemapLoader(BaseLoader):
 
     async def load_documents(self) -> List[Document]:
-        documents = []
-
         try:
             max_pages = self.kwargs.get('max_pages', self.source.total_max_pages)
 
@@ -29,15 +27,14 @@ class SitemapLoader(BaseLoader):
 
             raw_documents = loader.load()[:max_pages]
 
-            for doc in raw_documents:
-                standardized_doc = self.create_document(
+            return [
+                self.create_document(
                     content=doc.page_content,
                     url=doc.metadata.get("source", self.source.url),
                     loader_name="sitemap"
                 )
-                documents.append(standardized_doc)
-
+                for doc in raw_documents
+            ]
         except Exception as e:
             logger.error(f"Sitemap load error for {self.source.url}: {e}")
-
-        return documents
+            return []
