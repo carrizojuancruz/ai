@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 
 from app.models import BlockedTopic, SemanticMemory, UserContext
 
+from .types import BinaryChoices, Choice, InteractionType
+
 
 class OnboardingStep(str, Enum):
     WARMUP = "warmup"
@@ -19,6 +21,7 @@ class OnboardingStep(str, Enum):
     LEARNING_PATH = "learning_path"
     PLAID_INTEGRATION = "plaid_integration"
     CHECKOUT_EXIT = "checkout_exit"
+
 
 class OnboardingState(BaseModel):
     conversation_id: UUID = Field(default_factory=uuid4)
@@ -44,9 +47,9 @@ class OnboardingState(BaseModel):
     skip_count: int = 0
     skipped_nodes: list[str] = Field(default_factory=list)
 
-    current_interaction_type: str = "free_text"
-    current_choices: list[dict[str, Any]] = Field(default_factory=list)
-    current_binary_choices: dict[str, Any] | None = None
+    current_interaction_type: InteractionType = InteractionType.FREE_TEXT
+    current_choices: list[Choice] = Field(default_factory=list)
+    current_binary_choices: BinaryChoices | None = None
     multi_min: int | None = None
     multi_max: int | None = None
 
@@ -57,6 +60,16 @@ class OnboardingState(BaseModel):
     def mark_step_skipped(self, step: OnboardingStep) -> None:
         if step not in self.skipped_steps:
             self.skipped_steps.append(step)
+
+    def mark_step_presented(self, step: OnboardingStep) -> None:
+        _ = step
+
+    def mark_step_transitioned(self, from_step: OnboardingStep, to_step: OnboardingStep) -> None:
+        _ = (from_step, to_step)
+
+    def ensure_completion_consistency(self) -> None:
+        if getattr(self.user_context, "ready_for_orchestrator", False):
+            self.ready_for_completion = True
 
     def add_semantic_memory(
         self,
@@ -89,6 +102,8 @@ class OnboardingState(BaseModel):
             "timestamp": datetime.now(UTC).isoformat(),
         }
         self.conversation_history.append(turn)
+        if len(self.conversation_history) > 50:
+            self.conversation_history = self.conversation_history[-50:]
         self.turn_number += 1
         self.last_user_message = user_message
         self.last_agent_response = agent_response
@@ -101,73 +116,13 @@ class OnboardingState(BaseModel):
         return any(keyword.lower() in all_text for keyword in keywords)
 
     def should_show_conditional_node(self, node: OnboardingStep) -> bool:
-        if node == OnboardingStep.HOME:
-            keywords = [
-                "house",
-                "home",
-                "housing",
-                "rent",
-                "mortgage",
-                "apartment",
-                "buy a house",
-                "home buying",
-                "real estate",
-                "property",
-                "living",
-                "move",
-                "relocate",
-                "downsize",
-                "upgrade home",
-                "landlord",
-                "lease",
-                "down payment",
-                "homeowner",
-            ]
-            return self.has_mentioned_topic(keywords)
-        elif node == OnboardingStep.FAMILY_UNIT:
-            keywords = [
-                "family",
-                "children",
-                "kids",
-                "child",
-                "dependents",
-                "spouse",
-                "partner",
-                "husband",
-                "wife",
-                "married",
-                "parent",
-                "parenting",
-                "childcare",
-                "education fund",
-                "college savings",
-                "family planning",
-                "baby",
-                "pregnancy",
-                "school",
-                "daycare",
-                "family expenses",
-            ]
-            return self.has_mentioned_topic(keywords)
-        elif node == OnboardingStep.HEALTH_COVERAGE:
-            keywords = [
-                "health",
-                "medical",
-                "doctor",
-                "hospital",
-                "medication",
-                "insurance",
-                "sick",
-                "treatment",
-                "therapy",
-                "prescription",
-                "medical bills",
-                "healthcare",
-                "clinic",
-                "surgery",
-            ]
-            return self.has_mentioned_topic(keywords)
-        return False
+        from .topic_detection import get_topic_detection_strategy
+
+        strategy = get_topic_detection_strategy()
+        try:
+            return bool(strategy.should_show(node, self))
+        except Exception:
+            return False
 
     def get_next_step(self) -> OnboardingStep | None:
         if self.skip_count >= 3:

@@ -1,0 +1,88 @@
+---
+alwaysApply: true
+description: Code quality guide — avoid magic numbers/hardcoded values; write clear, maintainable code
+globs: *.py
+---
+
+## Code Quality Guide
+
+Write explicit, maintainable code. Favor clarity over cleverness.
+
+### 1) Never use magic numbers or hardcoded values
+- Extract literals to named constants at the top of the module.
+- Prefer enums/typed constants for categories and modes.
+
+```python
+# ❌ Bad
+if retries > 3:
+    backoff = 1.5
+
+# ✅ Good
+MAX_RETRIES: int = 3
+DEFAULT_BACKOFF_MULTIPLIER: float = 1.5
+if retries > MAX_RETRIES:
+    backoff = DEFAULT_BACKOFF_MULTIPLIER
+```
+
+### 2) Logging
+- Use appropriate levels (DEBUG/INFO/WARNING/ERROR).
+- Include context (e.g., `user_id`, `thread_id`) when helpful.
+- Never log secrets or PII. Prefer structured logs.
+
+### 3) Python essentials
+- Type hints for all functions and important variables.
+- Descriptive naming; functions are verbs; variables are nouns.
+- Guard clauses and early returns; avoid deep nesting.
+- Small, focused functions (ideally < 50 lines); pure helpers where possible.
+- Use context managers for resources; no bare `except:`; use `contextlib.suppress` intentionally.
+- Docstrings: first line imperative, one-sentence summary (PEP 257); add short description if needed.
+
+### 4) Error handling
+- Catch specific exceptions; re-raise after logging when appropriate.
+- Prefer structured error objects at boundaries.
+- Use retries judiciously; bound attempts and time.
+
+```python
+# ❌ Bad
+try:
+    do_work()
+except Exception:
+    pass
+
+# ✅ Better
+try:
+    do_work()
+except SpecificError as e:
+    logger.error(f"do_work failed: {e}")
+    raise
+
+# ✅ Intentional ignore
+from contextlib import suppress
+with suppress(asyncio.CancelledError):
+    await task
+```
+
+### 5) LangGraph best practices
+- Define node contracts explicitly with Pydantic models or TypedDicts.
+- Keep nodes small and single-responsibility; avoid “god nodes”.
+- Prefer DAG flows; use cycles only for controlled, bounded loops.
+- Emit structured errors rather than raising where appropriate.
+- Parallelize independent branches; compose subgraphs for reuse.
+- Keep nodes idempotent where possible; minimize side effects.
+
+### 6) Design principles (DRY, SOLID, KISS, YAGNI)
+- DRY: extract shared logic; avoid duplication.
+- SOLID: single responsibility; clear interfaces; depend on abstractions.
+- KISS: favor simple, readable solutions over clever ones.
+- YAGNI: don’t add parameters/branches until needed.
+
+## Quick Checklist (before PR)
+- No magic numbers/strings; constants extracted.
+- Functions typed, small, clearly named; shallow nesting.
+- Specific exceptions only; structured error paths where needed.
+- Logs have context; no secrets/PII.
+- LangGraph nodes are small, typed, and composable.
+- DRY/SOLID/KISS/YAGNI applied.
+
+Follow these rules to keep the codebase reliable, secure, and easy to maintain.
+

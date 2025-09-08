@@ -428,7 +428,6 @@ This message is used in both the open-ended age input and age range selection st
 
 ### Response Structure
 - Keep messages conversational: 2-3 sentences, ~120 characters per paragraph
-- Use friendly emojis appropriately: 💰 📊 ✅ 🎯 💡 🎉 📈
 - Break longer thoughts into multiple message segments
 - Express warmth through word choice, not asterisk notation
 

@@ -7,7 +7,7 @@ from uuid import uuid4
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from app.api.schemas.cron import BackgroundSyncStartedResponse
-from app.knowledge.orchestrator import KnowledgeBaseOrchestrator
+from app.knowledge.sync_service import KnowledgeBaseSyncService
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +21,7 @@ async def sync_all_sources(background_tasks: BackgroundTasks) -> BackgroundSyncS
         job_id = str(uuid4())
         started_at = datetime.utcnow().isoformat()
 
-        orchestrator = KnowledgeBaseOrchestrator()
-        background_tasks.add_task(orchestrator.run_background_sync, job_id)
+        background_tasks.add_task(run_background_sync, job_id)
 
         return BackgroundSyncStartedResponse(
             job_id=job_id,
@@ -35,3 +34,29 @@ async def sync_all_sources(background_tasks: BackgroundTasks) -> BackgroundSyncS
             status_code=500,
             detail=f"Failed to start sync operation: {str(e)}"
         ) from e
+
+
+async def run_background_sync(job_id: str):
+    start_time = datetime.utcnow()
+
+    try:
+        logger.info(f"Starting knowledge sync job {job_id}")
+
+        sync_service = KnowledgeBaseSyncService()
+        result = await sync_service.sync_all()
+        duration = (datetime.utcnow() - start_time).total_seconds()
+
+        logger.info(
+            f"Job {job_id} completed successfully in {duration:.2f}s: "
+            f"Created: {result.get('sources_created', 0)}, "
+            f"Updated: {result.get('sources_updated', 0)}, "
+            f"No changes: {result.get('sources_no_changes', 0)}, "
+            f"Deleted: {result.get('sources_deleted', 0)}, "
+            f"Errors: {result.get('sources_errors', 0)}, "
+            f"Total chunks: {result.get('total_chunks_created', 0)}"
+        )
+
+    except Exception as e:
+        duration = (datetime.utcnow() - start_time).total_seconds()
+        logger.error(f"Job {job_id} failed after {duration:.2f}s: {str(e)}")
+        raise e

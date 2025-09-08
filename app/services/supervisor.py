@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-import json
-from typing import Any, Optional, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
 from langfuse.callback import CallbackHandler
@@ -137,28 +136,70 @@ class SupervisorService:
                         parts.append(part_text)
             return "".join(parts)
         return ""
-    
+
     def _add_source_from_tool_end(self, sources: list[dict[str, Any]], name: str, data: dict[str, Any]) -> list[dict[str, Any]]:
-        """
-        Add the source to the sources list from the tool end event
-        """
-        if "output" in data:
-            output = data["output"]
-            if hasattr(output, "content"):
-                content = output.content
-            elif isinstance(output, dict) and "content" in output:
-                content = output["content"]
-            else:
-                content = output
-            if isinstance(content, str):
+        """Add the source to the sources list from the tool end event."""
+        if "output" not in data:
+            return sources
+
+        output = data["output"]
+
+        if hasattr(output, '__class__') and 'coroutine' in str(output.__class__).lower():
+            logger.warning(f"[SUPERVISOR] Tool {name} returned unawaited coroutine: {output}")
+            return sources
+
+        content = output.content if hasattr(output, "content") else output.get("content", output) if isinstance(output, dict) else output
+
+        if hasattr(content, '__class__') and 'coroutine' in str(content.__class__).lower():
+            logger.warning(f"[SUPERVISOR] Tool {name} content is unawaited coroutine: {content}")
+            return sources
+
+        if isinstance(content, str):
+            try:
                 content = json.loads(content)
-            for item in content if isinstance(content, list) else []:
-                if "source" in item and len(item["source"]) > 0:
-                    if check_repeated_sources(sources, {"name": get_source_name(name), "source": item["source"]}):
-                        sources.append({"name": get_source_name(name), "source": item["source"]})
+            except json.JSONDecodeError:
+                if content.strip():
+                    new_source = {"name": get_source_name(name), "url": content}
+                    if check_repeated_sources(sources, new_source):
+                        sources.append(new_source)
+                return sources
+
+        items = content if isinstance(content, list) else [content] if isinstance(content, dict) and "source" in content else []
+
+        sources_added = 0
+        for item in items:
+            if not isinstance(item, dict) or "source" not in item:
+                continue
+
+            source_content = item["source"]
+            if not source_content or not isinstance(source_content, str) or 'coroutine' in str(type(source_content)).lower():
+                continue
+
+            new_source = {
+                "name": get_source_name(name),
+                "url": source_content
+            }
+
+            metadata = item.get("metadata", {})
+            if isinstance(metadata, dict):
+                for key, meta_key in [
+                    ("name", "source_name"),
+                    ("type", "type"),
+                    ("category", "category"),
+                    ("description", "description")
+                ]:
+                    if metadata.get(key):
+                        new_source[meta_key] = metadata[key]
+
+            if check_repeated_sources(sources, new_source):
+                sources.append(new_source)
+                sources_added += 1
+
+        if sources_added > 0:
+            logger.info(f"[SUPERVISOR] Added {sources_added} sources from tool '{name}'")
+
         return sources
-    
-    # Conversation summary helper methods
+
     async def _find_latest_prior_thread(self, session_store: InMemorySessionStore, user_id: str, exclude_thread_id: str) -> Optional[str]:
         """Find the most recent previous thread for this user (excluding current thread)."""
         user_threads = await session_store.get_user_threads(user_id)
@@ -202,7 +243,6 @@ class SupervisorService:
         if not pairs:
             return None
 
-        # Build transcript (limit to prevent token overflow)
         transcript_lines = []
         total_chars = 0
         max_chars = 3000
@@ -246,21 +286,18 @@ class SupervisorService:
     async def _get_prior_conversation_summary(self, session_store: InMemorySessionStore, user_id: str, current_thread_id: str) -> Optional[str]:
         """Get summary of the most recent prior conversation for this user."""
         try:
-            # Find the latest previous thread for this user
             prior_thread_id = await self._find_latest_prior_thread(session_store, user_id, current_thread_id)
 
             if not prior_thread_id:
                 logger.info(f"No prior conversation found for user {user_id}")
                 return None
 
-            # Load messages from that thread
             messages = self._load_conversation_messages(session_store, prior_thread_id)
 
             if not messages:
                 logger.info(f"No messages found in prior thread {prior_thread_id} for user {user_id}")
                 return None
 
-            # Extract chat pairs and summarize
             chat_pairs = self._extract_chat_pairs(messages)
 
             if not chat_pairs:
@@ -277,15 +314,12 @@ class SupervisorService:
             return None
 
     async def initialize(self, *, user_id: UUID) -> dict[str, Any]:
-        """
-        Initialize the supervisor service
-        """
+        """Initialize the supervisor service."""
         thread_id = str(uuid4())
         queue = get_sse_queue(thread_id)
 
         await queue.put({"event": "conversation.started", "data": {"thread_id": thread_id}})
 
-        # Load UserContext from external FOS service
         session_store = get_session_store()
         uid: UUID = user_id
         ctx = await self._load_user_context_from_external(uid)
@@ -295,17 +329,15 @@ class SupervisorService:
             {
                 "user_id": str(uid),
                 "user_context": ctx.model_dump(mode="json"),
-                "conversation_messages": [],  # Initialize empty message history
+                "conversation_messages": [],
             },
         )
 
-        # Get summary of prior conversation
         prior_summary = await self._get_prior_conversation_summary(session_store, str(uid), thread_id)
 
-        # Generate welcome message with prior conversation context
         user_context = (await session_store.get_session(thread_id) or {}).get("user_context", {})
         welcome = await generate_personalized_welcome(user_context, prior_summary)
-        await queue.put({"event": "token.delta", "data": {"text": welcome}})
+        await queue.put({"event": "token.delta", "data": {"content": welcome}})
 
         logger.info(f"Initialize complete for user {uid}: thread={thread_id}, has_prior_summary={bool(prior_summary)}")
 
@@ -328,17 +360,15 @@ class SupervisorService:
         session_ctx = await session_store.get_session(thread_id) or {}
         sources = []
 
-        # Store the user message
         conversation_messages = session_ctx.get("conversation_messages", [])
         conversation_messages.append({
             "role": "user",
             "content": text.strip(),
             "sources": sources
         })
-        # Collect assistant response
         assistant_response_parts = []
 
-        # Refresh UserContext from external FOS service each turn to avoid stale profile
+                # Refresh UserContext from external FOS service each turn to avoid stale profile
         user_id = session_ctx.get("user_id")
         if user_id:
             uid = UUID(user_id)
@@ -351,6 +381,8 @@ class SupervisorService:
             **session_ctx,
             "user_id": user_id,
         }
+
+        final_text_candidate: Optional[str] = None
 
         async for event in graph.astream_events(
             {"messages": [{"role": "user", "content": text}], "sources": sources},
@@ -376,9 +408,8 @@ class SupervisorService:
                     last = get_last_emitted_text(thread_id)
                     if out != last:
                         if name not in ["tools"]:
-                            await q.put({"event": "token.delta", "data": {"text": out}})
+                            await q.put({"event": "token.delta", "data": {"text": out, "sources": sources}})
                             set_last_emitted_text(thread_id, out)
-                        # Collect assistant response parts
                         assistant_response_parts.append(out)
             elif etype == "on_tool_start":
                 if name:
@@ -404,19 +435,23 @@ class SupervisorService:
                                 last = get_last_emitted_text(thread_id)
                                 if text != last:
                                     if name not in ["tools"]:
-                                        await q.put({"event": "token.delta", "data": {"text": text}})
+                                        await q.put({"event": "token.delta", "data": {"text": text, "sources": sources}})
                                         set_last_emitted_text(thread_id, text)
-                                    # Collect final assistant response
                                     assistant_response_parts.append(text)
                 except Exception:
                     pass
 
+        try:
+            final_text = "".join(assistant_response_parts).strip() if assistant_response_parts else (final_text_candidate or "")
+            if final_text:
+                await q.put({"event": "message.completed", "data": {"content": final_text}})
+        except Exception:
+            pass
+
         await q.put({"event": "step.update", "data": {"status": "presented"}})
 
-        # Store the complete conversation (user + assistant messages)
         try:
             if assistant_response_parts:
-                # Combine all assistant response parts
                 assistant_response = "".join(assistant_response_parts).strip()
                 if assistant_response:
                     conversation_messages.append({
@@ -425,12 +460,10 @@ class SupervisorService:
                         "sources": sources
                     })
 
-            # Update session with complete conversation
             session_ctx["conversation_messages"] = conversation_messages
             await session_store.set_session(thread_id, session_ctx)
             logger.info(f"Stored conversation for thread {thread_id}: {len(conversation_messages)} messages")
 
-            # Export updated UserContext back to external FOS service
             user_id = session_ctx.get("user_id")
             if user_id:
                 user_ctx_dict = session_ctx.get("user_context", {})

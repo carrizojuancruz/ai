@@ -8,6 +8,9 @@ from typing import Any
 
 from langfuse.callback import CallbackHandler
 
+from app.agents.onboarding.constants import (
+    AGE_HESITATION_WORDS,
+)
 from app.agents.onboarding.prompts import DEFAULT_RESPONSE_BY_STEP, ONBOARDING_SYSTEM_PROMPT, STEP_GUIDANCE
 from app.agents.onboarding.state import OnboardingState, OnboardingStep
 from app.core.config import config
@@ -26,8 +29,23 @@ langfuse_handler = CallbackHandler(
 
 ALLOWED_FIELDS_BY_STEP: dict[OnboardingStep, list[str]] = {
     OnboardingStep.WARMUP: ["warmup_choice"],
-    OnboardingStep.IDENTITY: ["age", "age_range", "location", "city", "region", "personal_goals"],
-    OnboardingStep.INCOME_MONEY: ["money_feelings", "annual_income", "annual_income_range", "income", "income_range"],
+    OnboardingStep.IDENTITY: [
+        "preferred_name",
+        "age",
+        "age_range",
+        "location",
+        "city",
+        "region",
+        "personal_goals",
+    ],
+    OnboardingStep.INCOME_MONEY: [
+        "money_feelings",
+        "annual_income",
+        "annual_income_range",
+        "income",
+        "income_range",
+        "personal_goals",
+    ],
     OnboardingStep.ASSETS_EXPENSES: ["assets_types", "fixed_expenses"],
     OnboardingStep.HOME: ["housing_type", "housing_satisfaction", "monthly_housing_cost"],
     OnboardingStep.FAMILY_UNIT: ["dependents_under_18", "pets"],
@@ -131,51 +149,20 @@ class OnboardingReasoningService:
 
             if state.last_user_message:
                 msg_lower = state.last_user_message.lower()
-                wants_options = any(
-                    word in msg_lower
-                    for word in [
-                        "option",
-                        "options",
-                        "choice",
-                        "choices",
-                        "range",
-                        "ranges",
-                        "category",
-                        "categories",
-                        "example",
-                        "examples",
-                        "what are my",
-                        "give me",
-                        "show me",
-                        "list",
-                    ]
-                )
-                if step == OnboardingStep.IDENTITY and wants_options:
-                    if "age_range" in missing_fields or "age" in missing_fields:
+
+                if step == OnboardingStep.IDENTITY and ("age_range" in missing_fields or "age" in missing_fields):
+                    age_hesitation = any(word in msg_lower for word in AGE_HESITATION_WORDS) or msg_lower.strip() in {
+                        "no"
+                    }
+                    if age_hesitation:
                         result["interaction_type"] = "single_choice"
                         result["patch"]["age_range"] = None
                         result["patch"].pop("age", None)
-                elif step == OnboardingStep.INCOME_MONEY:
-                    income_hesitation = any(
-                        word in msg_lower
-                        for word in ["uncomfortable", "prefer not", "rather not", "don't want to share", "private"]
-                    )
-                    if (wants_options or income_hesitation) and any(
-                        field in missing_fields
-                        for field in ["annual_income", "annual_income_range", "income", "income_range"]
-                    ):
-                        result["interaction_type"] = "single_choice"
-                        result["patch"]["annual_income_range"] = None
-                        for field in ["annual_income", "income"]:
-                            result["patch"].pop(field, None)
-                elif step == OnboardingStep.LEARNING_PATH and "learning_interests" in missing_fields:
-                    result["interaction_type"] = "multi_choice"
-                    result["multi_min"] = 1
-                    result["multi_max"] = 3
 
             if step == OnboardingStep.WARMUP:
                 choice_info = get_choices_for_field("warmup_choice", step)
                 if choice_info:
+                    result["assistant_text"] = "Want to do a quick onboarding now or skip it?"
                     result["interaction_type"] = choice_info["type"]
                     result["choices"] = choice_info.get("choices", [])
                     result.pop("primary_choice", None)
@@ -289,56 +276,33 @@ class OnboardingReasoningService:
 
             if state.last_user_message:
                 msg_lower = state.last_user_message.lower()
-                wants_options = any(
-                    word in msg_lower
-                    for word in [
-                        "option",
-                        "options",
-                        "choice",
-                        "choices",
-                        "range",
-                        "ranges",
-                        "category",
-                        "categories",
-                        "example",
-                        "examples",
-                        "what are my",
-                        "give me",
-                        "show me",
-                        "list",
-                    ]
-                )
-                if step == OnboardingStep.IDENTITY and wants_options:
-                    if "age_range" in missing_fields or "age" in missing_fields:
+
+                if step == OnboardingStep.IDENTITY and ("age_range" in missing_fields or "age" in missing_fields):
+                    age_hesitation = any(word in msg_lower for word in AGE_HESITATION_WORDS) or msg_lower.strip() in {
+                        "no"
+                    }
+                    if age_hesitation:
                         result["interaction_type"] = "single_choice"
                         result["patch"]["age_range"] = None
                         result["patch"].pop("age", None)
-                elif step == OnboardingStep.INCOME_MONEY:
-                    income_hesitation = any(
-                        word in msg_lower
-                        for word in ["uncomfortable", "prefer not", "rather not", "don't want to share", "private"]
-                    )
-                    if (wants_options or income_hesitation) and any(
-                        field in missing_fields
-                        for field in ["annual_income", "annual_income_range", "income", "income_range"]
-                    ):
-                        result["interaction_type"] = "single_choice"
-                        result["patch"]["annual_income_range"] = None
-                        for field in ["annual_income", "income"]:
-                            result["patch"].pop(field, None)
-                elif step == OnboardingStep.LEARNING_PATH and "learning_interests" in missing_fields:
-                    result["interaction_type"] = "multi_choice"
-                    result["multi_min"] = 1
-                    result["multi_max"] = 3
 
-            if step == OnboardingStep.WARMUP:
-                choice_info = get_choices_for_field("warmup_choice", step)
-                if choice_info:
-                    result["interaction_type"] = choice_info["type"]
-                    result["choices"] = choice_info.get("choices", [])
-                    result.pop("primary_choice", None)
-                    result.pop("secondary_choice", None)
-            elif result.get("interaction_type") != "free_text" and missing_fields:
+            if (result.get("interaction_type") == "free_text") and missing_fields:
+                for field in missing_fields:
+                    if should_always_offer_choices(step, field):
+                        choice_info = get_choices_for_field(field, step)
+                        if choice_info:
+                            result["interaction_type"] = choice_info["type"]
+                            if choice_info["type"] == "binary_choice":
+                                result["primary_choice"] = choice_info.get("primary_choice")
+                                result["secondary_choice"] = choice_info.get("secondary_choice")
+                            elif choice_info["type"] in ["single_choice", "multi_choice"]:
+                                result["choices"] = choice_info.get("choices", [])
+                                if choice_info["type"] == "multi_choice":
+                                    result["multi_min"] = choice_info.get("multi_min", 1)
+                                    result["multi_max"] = choice_info.get("multi_max", 3)
+                            break
+
+            if result.get("interaction_type") != "free_text" and missing_fields:
                 for field in missing_fields:
                     choice_info = get_choices_for_field(field, step)
                     if choice_info:
@@ -383,33 +347,43 @@ class OnboardingReasoningService:
 
         instructions = (
             ((step_guidance + "\n") if step_guidance else "")
-            + "You are conducting an onboarding conversation. Based on the user's response, decide the best interaction type.\n\n"
-            "INTERACTION TYPE DECISION RULES:\n"
+            + "You are conducting an onboarding conversation. Analyze the user's response to determine the best interaction type.\n\n"
+            "INTERACTION TYPE DECISION FRAMEWORK:\n\n"
             "1. Use 'free_text' when:\n"
-            "   - User provides a direct, confident answer\n"
-            "   - User seems comfortable sharing specific information\n"
-            "   - The question is open-ended without predefined options\n\n"
+            "   - User provides a direct, specific answer (e.g., 'I'm 28', 'I make $50k')\n"
+            "   - User seems comfortable and confident in their response\n"
+            "   - User provides detailed information voluntarily\n"
+            "   - The field is open-ended and doesn't have predefined options\n\n"
             "2. Switch to choice-based interactions when:\n"
-            "   - User expresses hesitation, uncertainty, or discomfort\n"
-            "   - User asks for options, ranges, or examples (e.g., 'give me ranges', 'what are my options')\n"
-            "   - User says they prefer ranges or categories over exact values\n"
-            "   - User seems unclear about what you're asking\n"
-            "   - User explicitly prefers not to share exact details\n"
-            "   - The field naturally works better with predefined options\n"
-            "   - For age: User mentions 'range', 'options', 'categories' or shows any hesitation\n"
-            "   - For income: User mentions 'range', is uncomfortable, or prefers not to share exact amount\n"
-            "   - For money_feelings: ALWAYS use multi_choice (this field always offers choices)\n"
-            "   - For learning_interests: ALWAYS use multi_choice (this field always offers choices)\n"
-            "   - For housing_type: ALWAYS use single_choice (this field always offers choices)\n"
-            "   - For health_insurance_status: ALWAYS use single_choice (this field always offers choices)\n\n"
-            "Available choice-based options for current fields:\n"
+            "   - User expresses ANY form of hesitation or uncertainty\n"
+            "   - User asks for help in any way (e.g., 'what should I say?', 'I'm not sure', 'can you help?')\n"
+            "   - User requests structure (e.g., mentions 'options', 'choices', 'ranges', 'categories', 'examples')\n"
+            "   - User prefers not to be specific (e.g., 'around...', 'approximately...', 'somewhere between...')\n"
+            "   - User shows discomfort with exact values (e.g., 'I'd rather not say exactly', 'is a range ok?')\n"
+            "   - User's response is vague or unclear\n"
+            "   - User references previous interactions where choices were given\n"
+            "   - User seems to be asking what format you want the answer in\n\n"
+            "3. Critical Context Signals:\n"
+            "   - Questions about format = wants choices\n"
+            "   - Comparison or reference to previous steps = wants consistency\n"
+            "   - Any form of 'help me decide' = needs choices\n"
+            "   - Uncertainty markers ('maybe', 'possibly', 'I think') = offer choices\n\n"
+            "FIELD-SPECIFIC GUIDANCE:\n"
         )
 
-        for field, choice_info in available_choices.items():
-            instructions += f"- {field}: {choice_info['type']} available\n"
+        if "age" in missing_fields or "age_range" in missing_fields:
+            instructions += "- Age: If user shows ANY hesitation about exact age, use single_choice with age ranges\n"
 
-        if "age" in missing_fields and "age_range" not in missing_fields:
-            instructions += "\nNOTE: If user asks for age ranges or shows hesitation about exact age, use the 'age_range' field with single_choice instead of free_text 'age'.\n"
+        if any(f in missing_fields for f in ["income", "income_range", "annual_income", "annual_income_range"]):
+            instructions += (
+                "- Income: Sensitive topic - if ANY discomfort detected, offer income ranges via single_choice\n"
+            )
+
+        if "money_feelings" in missing_fields:
+            instructions += "- Money Feelings: This is subjective - strongly consider multi_choice to help user articulate emotions\n"
+
+        if "learning_interests" in missing_fields:
+            instructions += "- Learning Interests: Always use multi_choice - users benefit from seeing topic options\n"
 
         always_choice_fields = []
         for field in missing_fields:
@@ -417,27 +391,34 @@ class OnboardingReasoningService:
                 always_choice_fields.append(field)
 
         if always_choice_fields:
-            instructions += f"\nFIELDS THAT SHOULD ALWAYS USE CHOICES: {', '.join(always_choice_fields)}\n"
+            instructions += (
+                f"\n⚠️ MANDATORY CHOICE FIELDS: {', '.join(always_choice_fields)} - MUST use appropriate choice type\n"
+            )
+
+        instructions += "\nAvailable choice configurations:\n"
+        for field, choice_info in available_choices.items():
+            instructions += f"- {field}: {choice_info['type']} available"
+            if choice_info["type"] == "multi_choice":
+                instructions += f" (min: {choice_info.get('multi_min', 1)}, max: {choice_info.get('multi_max', 3)})"
+            instructions += "\n"
 
         instructions += (
-            "\nYour response should:\n"
-            "- Naturally acknowledge the user's comfort level\n"
-            "- Offer choices conversationally when appropriate\n"
-            "- Do NOT list or enumerate options/choices in the assistant text; the UI will present them\n"
-            "- If offering choices, invite selection in 1–2 sentences (no bullets or lists)\n"
-            "- Always respond to the user's latest message shown below\n"
-            "- Never force specific answers if user is uncomfortable\n"
-            "- For binary_choice, use primary_choice and secondary_choice fields\n"
-            "- For single_choice and multi_choice, use the choices array\n"
-            "- IMPORTANT: If user asks for age ranges/options, set interaction_type='single_choice' and patch={'age_range': null}\n"
-            "- Output ONLY JSON matching the schema\n\n"
-            f"Step: {step.value}\n"
+            "\n\nRESPONSE RULES:\n"
+            "- Naturally acknowledge the user's communication style\n"
+            "- When offering choices, don't list them in text - just invite selection\n"
+            "- Adapt your tone to match the user's comfort level\n"
+            "- For binary_choice: use primary_choice and secondary_choice fields\n"
+            "- For single/multi_choice: use the choices array\n"
+            "- The UI will display the actual options - you just set up the interaction type\n"
+            "- Trust your analysis of user intent over literal words\n"
+            "- Output ONLY valid JSON matching the schema\n\n"
+            f"Current Step: {step.value}\n"
             f"Missing fields: {missing_fields}\n"
             f"Allowed patch fields: {allowed_fields}\n"
-            f"Last user message: {last_user_message or ''}\n"
-            f"Recent conversation (most recent last):\n{convo_tail}\n"
-            f"Context: {json.dumps(state_dict, ensure_ascii=False)}\n"
-            f"JSON Schema: {json.dumps(self._json_schema, ensure_ascii=False)}\n"
+            f"User's message: {last_user_message or '[No message]'}\n"
+            f"Recent conversation:\n{convo_tail}\n"
+            f"User context: {json.dumps(state_dict, ensure_ascii=False)}\n"
+            f"Required JSON Schema: {json.dumps(self._json_schema, ensure_ascii=False)}\n"
         )
         return instructions
 

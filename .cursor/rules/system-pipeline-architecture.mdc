@@ -1,0 +1,182 @@
+---
+alwaysApply: false
+description: Complete system pipeline from memory processing to agent orchestration
+globs: app/agents/**/*.py,app/services/**/*.py
+---
+
+# System Pipeline Architecture
+
+**Core Principle:** Requests flow through a memory-augmented, multi-stage pipeline designed for contextual AI responses with persistent learning.
+
+## 🚀 Complete Request Flow
+
+### Stage 1: Memory Hotpath (Semantic Memory Creation)
+```
+Input: User message + conversation context
+├── Classify if message contains durable user facts
+├── Generate semantic memory (category, summary, importance)
+├── Search for similar existing memories
+├── Deduplicate/merge using similarity thresholds
+└── Store new semantic memory + trigger profile sync
+```
+
+### Stage 2: Memory Context (Retrieval & Injection)
+```
+Input: Current user query
+├── Search semantic memories by similarity
+├── Search episodic memories by recency
+├── Rerank using: similarity + importance + recency + pinned
+├── Format top memories as contextual bullets
+└── Inject as HumanMessage into conversation
+```
+
+### Stage 3: Supervisor Agent (Routing & Orchestration)
+```
+Input: User query + memory context
+├── Analyze query intent and complexity
+├── Route to specialized agent:
+│   ├── Finance Agent (SQL queries, financial analysis)
+│   ├── Onboarding Agent (user setup, profile building)
+│   └── General Chat (fallback conversational responses)
+├── Execute agent workflow
+└── Format final response
+```
+
+### Stage 4: Agent Processing (Specialized Execution)
+
+#### Finance Agent Pipeline:
+```
+Input: Financial query
+├── Parse query intent (spending, income, categories)
+├── Generate SQL using normalization patterns
+├── Execute against user-isolated database
+├── Format results with insights
+└── Return direct answer (no exploration)
+```
+
+#### Onboarding Agent Pipeline:
+```
+Input: User onboarding request
+├── Check current onboarding state
+├── Execute next onboarding step
+├── Update user profile and preferences
+├── Store progress in session state
+└── Guide user through setup flow
+```
+
+### Stage 5: Episodic Memory (Conversation Capture)
+```
+Input: Complete conversation turn
+├── Check cooldown timers (turns + minutes)
+├── Generate conversation summary via LLM
+├── Search for similar recent episodes
+├── Merge if similarity > threshold and within time window
+└── Store episodic memory for future context
+```
+
+### Stage 6: Profile Sync (Background Learning)
+```
+Input: New semantic memories
+├── Extract profile updates (tone, language, goals, etc.)
+├── Update user context in database
+├── Sync with external profile services
+└── Update cached profile data
+```
+
+## 🔄 Data Flow Architecture
+
+### Memory System Layers:
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│  Episodic       │    │  Semantic       │    │  Profile        │
+│  Memories       │    │  Memories       │    │  Context        │
+│                 │    │                 │    │                 │
+│ • Conversation  │    │ • User facts    │    │ • Preferences   │
+│   summaries     │    │ • Preferences   │    │ • Goals         │
+│ • Recent events │    │ • Stable data   │    │ • Settings      │
+│ • Time-bound    │    │ • Durable       │    │ • Cached state  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+        ▲                        ▲                        ▲
+        │                        │                        │
+        └─────────── Memory Context Retrieval ───────────┘
+```
+
+### Agent Orchestration:
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│  Supervisor     │───▶│  Specialized    │───▶│  Response       │
+│  Router         │    │  Agents         │    │  Generation     │
+│                 │    │                 │    │                 │
+│ • Intent        │    │ • Finance       │    │ • Formatted      │
+│   analysis      │    │ • Onboarding    │    │ • Contextual     │
+│ • Agent         │    │ • General       │    │ • Memory-        │
+│   selection     │    │   Chat          │    │   augmented     │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+## 🎯 Key Architectural Patterns
+
+### 1. Memory-First Design
+- **Every request** gets memory context injection
+- **Semantic memories** capture durable user facts
+- **Episodic memories** capture conversation context
+- **Profile sync** maintains user model accuracy
+
+### 2. Agent Specialization
+- **Finance Agent**: SQL generation with user isolation
+- **Onboarding Agent**: Guided user setup flow
+- **Supervisor**: Intelligent routing and orchestration
+
+### 3. Async Pipeline
+- **Non-blocking**: All operations use async/await
+- **Concurrent**: Multiple memory operations in parallel
+- **Resource pooling**: Centralized connection management
+
+### 4. Error Resilience
+- **User isolation**: Every operation scoped to user_id
+- **Graceful degradation**: Components fail independently
+- **Retry strategies**: Different approaches for different error types
+
+### 5. Performance Optimization
+- **Lazy loading**: Expensive resources created on-demand
+- **Caching**: Multi-level caching with appropriate TTLs
+- **Connection pooling**: AWS and database connection reuse
+
+## 🔧 Component Integration Points
+
+### Memory System Integration:
+```python
+# Memory injected into every conversation
+messages = [memory_context_message] + user_messages
+
+# Memory updated after every turn
+await memory_hotpath.process(messages)
+await episodic_capture.process(messages)
+```
+
+### Agent Integration:
+```python
+# Supervisor routes to appropriate agent
+if finance_query:
+    result = await finance_agent.process(query, user_id)
+elif onboarding_needed:
+    result = await onboarding_agent.process(query, user_id)
+```
+
+### External Service Integration:
+```python
+# Profile sync triggers external updates
+if new_memory:
+    await profile_sync.update_external(user_id, memory_data)
+```
+
+## 📊 System Characteristics
+
+- **Memory-Augmented**: Every response enhanced with relevant context
+- **User-Isolated**: Complete data isolation between users
+- **Performance-First**: Optimized for low-latency responses
+- **Learning System**: Continuous profile improvement through interactions
+- **Modular Architecture**: Independent components with clear interfaces
+- **Async-Native**: Designed for concurrent, non-blocking operations
+
+This pipeline creates a **contextually aware, continuously learning AI system** that provides personalized responses while maintaining strict user isolation and high performance standards.

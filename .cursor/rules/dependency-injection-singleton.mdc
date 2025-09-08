@@ -1,0 +1,165 @@
+---
+description: Dependency injection and singleton patterns for state management and external services
+alwaysApply: false
+---
+# Dependency Injection & Singleton Pattern Guide
+
+This project uses a **centralized dependency injection pattern** with singletons for managing shared state and external service connections.
+
+## Core Pattern Location
+📁 **[app/core/app_state.py](mdc:app/core/app_state.py)**
+
+## 🏗️ Singleton Pattern Implementation
+
+### Basic Structure
+```python
+# Global state variables (module-level)
+_onboarding_agent = None
+_bedrock_runtime_client = None
+
+# Lazy initialization functions
+def get_onboarding_agent():
+    global _onboarding_agent
+    if _onboarding_agent is None:
+        _onboarding_agent = OnboardingAgent()
+    return _onboarding_agent
+```
+
+### Key Benefits
+- ✅ **Lazy Loading**: Resources created only when first needed
+- ✅ **Thread Safety**: Global variables work safely in async contexts
+- ✅ **Resource Management**: Centralized cleanup and disposal
+- ✅ **Performance**: Eliminates redundant object creation
+- ✅ **Consistency**: Same pattern used across all services
+
+## 🔧 Services Managed with This Pattern
+
+### State Management
+- `get_onboarding_agent()` - Onboarding workflow management
+- `get_supervisor_graph()` - LangGraph compilation and caching
+- `get_thread_state()` - Per-thread state management
+- `get_sse_queue()` - Server-sent events per thread
+
+### External Services
+- `get_bedrock_runtime_client()` - AWS Bedrock with connection pooling
+- `get_s3vectors_client()` - S3Vectors with connection pooling
+- `get_s3_client()` - S3 client with connection pooling
+
+### Infrastructure
+- Database connections (managed in **[app/db/session.py](mdc:app/db/session.py)**)
+- Thread locks and synchronization
+- Health monitoring and cleanup
+
+## 📝 Usage Guidelines
+
+### ✅ DO: Use Centralized Functions
+```python
+# ✅ CORRECT: Use centralized getter
+from app.core.app_state import get_bedrock_runtime_client
+bedrock = get_bedrock_runtime_client()
+```
+
+### ❌ DON'T: Create Direct Instances
+```python
+# ❌ WRONG: Direct instantiation
+bedrock = boto3.client("bedrock-runtime", region_name=region)
+```
+
+### ✅ DO: Follow Naming Convention
+```python
+# Pattern: get_[service_name]()
+def get_bedrock_runtime_client():
+def get_s3vectors_client():
+def get_onboarding_agent():
+```
+
+## 🚀 Initialization & Cleanup
+
+### Startup (in main.py)
+```python
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize services
+    from app.db.session import _get_engine
+    from app.core.app_state import warmup_aws_clients
+
+    _get_engine()  # Database
+    await warmup_aws_clients()  # AWS clients
+
+    yield
+
+    # Cleanup
+    from app.db.session import dispose_engine
+    from app.core.app_state import dispose_aws_clients
+
+    await dispose_engine()
+    dispose_aws_clients()
+```
+
+### Benefits of This Approach
+- **Pre-warmed connections** on startup
+- **No first-request latency** penalties
+- **Graceful shutdown** with proper cleanup
+- **Resource monitoring** and health checks
+
+## 🏭 Adding New Services
+
+### 1. Add Global Variable
+```python
+# In app_state.py
+_new_service_client = None
+```
+
+### 2. Add Getter Function
+```python
+def get_new_service_client():
+    global _new_service_client
+    if _new_service_client is None:
+        # Initialize with proper config
+        _new_service_client = SomeClient(config)
+    return _new_service_client
+```
+
+### 3. Add to Startup/Cleanup
+```python
+# Startup
+await warmup_new_service()
+
+# Cleanup
+dispose_new_service()
+```
+
+## 📊 Connection Pooling Configuration
+
+All AWS clients use optimized connection pooling:
+```python
+Config(
+    max_pool_connections=20,      # Concurrent connections
+    connect_timeout=10,          # Fast failure detection
+    read_timeout=60,             # Reasonable timeouts
+    retries={'max_attempts': 3}  # Resilience
+)
+```
+
+## 🔍 Monitoring & Debugging
+
+### Health Checks
+- Database: `/health/database` endpoint
+- AWS Clients: Check startup logs for warmup status
+
+### Connection Stats
+```python
+from app.db.session import get_connection_stats
+stats = get_connection_stats()
+```
+
+## 🎯 Best Practices
+
+1. **Always use centralized getters** instead of direct instantiation
+2. **Add proper error handling** in getter functions
+3. **Include warmup functions** for services that benefit from pre-initialization
+4. **Implement cleanup functions** for proper resource disposal
+5. **Monitor connection pools** and adjust pool sizes as needed
+6. **Document new services** following this pattern
+
+This pattern ensures **consistent, performant, and maintainable** service management across the entire application.

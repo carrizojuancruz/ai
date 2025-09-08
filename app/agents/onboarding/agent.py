@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from collections.abc import AsyncGenerator, Callable
 from typing import Any
@@ -8,59 +9,90 @@ from langgraph.graph import END, StateGraph
 
 from app.core.config import config
 
-from .state import OnboardingState, OnboardingStep
-
-langfuse_handler = CallbackHandler(
-    public_key=config.LANGFUSE_PUBLIC_KEY,
-    secret_key=config.LANGFUSE_SECRET_KEY,
-    host=config.LANGFUSE_HOST,
+from .events import (
+    build_interaction_update,
+    emit_message_completed,
+    emit_onboarding_done,
+    emit_step_update,
+    emit_token_delta,
 )
+from .prompts import validate_onboarding_prompts
+from .state import OnboardingState, OnboardingStep
+from .types import InteractionType
 
 logger = logging.getLogger(__name__)
 
-if not (config.LANGFUSE_PUBLIC_KEY and config.LANGFUSE_SECRET_KEY and config.LANGFUSE_HOST):
-    logger.warning("Langfuse env vars missing or incomplete; callback tracing will be disabled")
-
 
 class OnboardingAgent:
-    def __init__(self) -> None:
+    def __init__(
+        self, *, step_handler_service: Any | None = None, langfuse_handler: CallbackHandler | None = None
+    ) -> None:
+        try:
+            validate_onboarding_prompts()
+        except Exception as e:
+            logger.error("Onboarding prompts validation failed: %s", e)
+            raise
+
+        if step_handler_service is None:
+            from app.services.onboarding.step_handler import step_handler_service as _default_handler
+
+            step_handler_service = _default_handler
+        if langfuse_handler is None:
+            langfuse_handler = CallbackHandler(
+                public_key=config.LANGFUSE_PUBLIC_KEY,
+                secret_key=config.LANGFUSE_SECRET_KEY,
+                host=config.LANGFUSE_HOST,
+            )
+            if not (config.LANGFUSE_PUBLIC_KEY and config.LANGFUSE_SECRET_KEY and config.LANGFUSE_HOST):
+                logger.warning("Langfuse env vars missing or incomplete; callback tracing will be disabled")
+
+        self._step_handler_service = step_handler_service
+        self._langfuse_handler = langfuse_handler
         self.graph = self._create_graph()
 
     def _create_graph(self) -> StateGraph:
         workflow = StateGraph(OnboardingState)
 
         steps = [
-            "warmup",
-            "identity",
-            "income_money",
-            "assets_expenses",
-            "home",
-            "family_unit",
-            "health_coverage",
-            "learning_path",
-            "plaid_integration",
-            "checkout_exit",
+            OnboardingStep.WARMUP,
+            OnboardingStep.IDENTITY,
+            OnboardingStep.INCOME_MONEY,
+            OnboardingStep.ASSETS_EXPENSES,
+            OnboardingStep.HOME,
+            OnboardingStep.FAMILY_UNIT,
+            OnboardingStep.HEALTH_COVERAGE,
+            OnboardingStep.LEARNING_PATH,
+            OnboardingStep.PLAID_INTEGRATION,
+            OnboardingStep.CHECKOUT_EXIT,
         ]
 
-        for step_name in steps:
-            workflow.add_node(step_name, self._create_step_handler(step_name))
+        for step in steps:
+            workflow.add_node(step.value, self._create_step_handler(step))
 
         workflow.add_node("route", lambda state: state)
+        workflow.add_node("finished", lambda state: state)
 
-        workflow.add_conditional_edges("route", lambda state: state.current_step.value, {step: step for step in steps})
+        def _route_selector(state: OnboardingState) -> str:
+            try:
+                if getattr(state, "ready_for_completion", False):
+                    return "finished"
+            except Exception:
+                pass
+            return state.current_step.value
 
-        for step_name in steps:
-            workflow.add_edge(step_name, END)
+        mapping = {s.value: s.value for s in steps} | {"finished": "finished"}
+        workflow.add_conditional_edges("route", _route_selector, mapping)
+
+        for step in steps:
+            workflow.add_edge(step.value, "route")
+        workflow.add_edge("finished", END)
 
         workflow.set_entry_point("route")
         return workflow.compile()
 
-    def _create_step_handler(self, step_name: str) -> Callable:
+    def _create_step_handler(self, step: OnboardingStep) -> Callable:
         async def handler(state: OnboardingState) -> OnboardingState:
-            from app.services.onboarding.step_handler import step_handler_service
-
-            step = OnboardingStep(step_name)
-            return await step_handler_service.handle_step(state, step)
+            return await self._step_handler_service.handle_step(state, step)
 
         return handler
 
@@ -69,25 +101,18 @@ class OnboardingAgent:
     ) -> tuple[str, OnboardingState]:
         if state is None:
             state = OnboardingState(user_id=user_id)
-        state.last_user_message = message
-
-        state_dict = state.model_dump()
-        result = await self.graph.ainvoke(
-            state_dict,
-            config={
-                "callbacks": [langfuse_handler],
-                "thread_id": str(state.conversation_id),
-                "tags": ["onboarding", "verde-ai"],
-                "configurable": {
-                    "session_id": str(state.conversation_id),
-                    "original_query": message,
-                    "user_id": str(state.user_id),
-                },
-            },
-        )
-        new_state = OnboardingState(**result) if isinstance(result, dict) else result
-
-        return (new_state.last_agent_response or "", new_state)
+        final_state = state
+        accumulated_text = ""
+        async for event, current_state in self.process_message_with_events(user_id, message, state):
+            final_state = current_state
+            if not event:
+                continue
+            ev_name = event.get("event")
+            if ev_name == "message.completed":
+                accumulated_text = (event.get("data", {}) or {}).get("text", "") or accumulated_text
+            elif ev_name == "token.delta":
+                accumulated_text += (event.get("data", {}) or {}).get("text", "") or ""
+        return (accumulated_text or final_state.last_agent_response or "", final_state)
 
     async def process_message_with_events(
         self,
@@ -95,8 +120,6 @@ class OnboardingAgent:
         message: str,
         state: OnboardingState | None,
     ) -> AsyncGenerator[tuple[dict[str, Any], OnboardingState], None]:
-        from app.services.onboarding.step_handler import step_handler_service
-
         if state is None:
             state = OnboardingState(user_id=user_id)
         state.last_user_message = message
@@ -107,59 +130,40 @@ class OnboardingAgent:
         prev_step = state.current_step
         prev_interaction_type = state.current_interaction_type
         prev_choices = list(state.current_choices) if isinstance(state.current_choices, list) else []
-        prev_binary_choices = (
-            dict(state.current_binary_choices) if isinstance(state.current_binary_choices, dict) else None
-        )
+        prev_binary_choices = state.current_binary_choices
 
-        yield (
-            {
-                "event": "step.update",
-                "data": {"status": "validating", "step_id": state.current_step.value},
-            },
-            current_state,
-        )
+        yield (emit_step_update("validating", state.current_step.value), current_state)
 
         step = state.current_step
 
         accumulated_text = ""
-        async for chunk, updated_state in step_handler_service.handle_step_stream(state, step):
+        async for chunk, updated_state in self._step_handler_service.handle_step_stream(state, step):
             current_state = updated_state
 
             if chunk:
                 accumulated_text += chunk
-                yield ({"event": "token.delta", "data": {"text": chunk}}, current_state)
+                yield (emit_token_delta(chunk), current_state)
 
-        yield (
-            {
-                "event": "message.completed",
-                "data": {"text": accumulated_text},
-            },
-            current_state,
-        )
+        yield (emit_message_completed(accumulated_text), current_state)
 
-        if current_state.ready_for_completion:
-            yield ({"event": "onboarding.status", "data": {"status": "done"}}, current_state)
-            yield (None, current_state)
-            return
+        with contextlib.suppress(Exception):
+            current_state.ensure_completion_consistency()
 
         new_completed = set(s.value for s in current_state.completed_steps)
         for step_value in sorted(new_completed - prev_completed):
-            yield (
-                {
-                    "event": "step.update",
-                    "data": {"status": "completed", "step_id": step_value},
-                },
-                current_state,
-            )
+            yield (emit_step_update("completed", step_value), current_state)
+
+        if current_state.current_step != prev_step:
+            with contextlib.suppress(Exception):
+                current_state.mark_step_transitioned(prev_step, current_state.current_step)
+        with contextlib.suppress(Exception):
+            current_state.mark_step_presented(current_state.current_step)
 
         yield (
-            {
-                "event": "step.update",
-                "data": {
-                    "status": "presented",
-                    "step_id": current_state.current_step.value,
-                },
-            },
+            emit_step_update(
+                "presented",
+                current_state.current_step.value,
+            ),
             current_state,
         )
 
@@ -167,43 +171,27 @@ class OnboardingAgent:
             current_state.current_step != prev_step
             or current_state.current_interaction_type != prev_interaction_type
             or (
-                current_state.current_interaction_type in ("single_choice", "multi_choice")
+                current_state.current_interaction_type in (InteractionType.SINGLE_CHOICE, InteractionType.MULTI_CHOICE)
                 and list(current_state.current_choices or []) != prev_choices
             )
             or (
-                current_state.current_interaction_type == "binary_choice"
-                and (current_state.current_binary_choices or {}) != (prev_binary_choices or {})
+                current_state.current_interaction_type == InteractionType.BINARY_CHOICE
+                and (current_state.current_binary_choices != prev_binary_choices)
             )
         )
 
         if (
             changed_interaction
-            and current_state.current_interaction_type != "free_text"
+            and current_state.current_interaction_type != InteractionType.FREE_TEXT
             and current_state.current_step == step
         ):
-            interaction_data = {
-                "type": current_state.current_interaction_type,
-                "step_id": current_state.current_step.value,
-            }
+            interaction_event = build_interaction_update(current_state)
+            if interaction_event:
+                yield (interaction_event, current_state)
 
-            if current_state.current_interaction_type == "binary_choice":
-                interaction_data["primary_choice"] = current_state.current_binary_choices.get("primary_choice")
-                interaction_data["secondary_choice"] = current_state.current_binary_choices.get("secondary_choice")
-            elif current_state.current_interaction_type in ["single_choice", "multi_choice"]:
-                interaction_data["choices"] = current_state.current_choices
-                if current_state.current_interaction_type == "multi_choice":
-                    interaction_data["multi_min"] = current_state.multi_min
-                    interaction_data["multi_max"] = current_state.multi_max
-
-            yield (
-                {
-                    "event": "interaction.update",
-                    "data": interaction_data,
-                },
-                current_state,
-            )
-
-        if current_state.ready_for_completion and current_state.user_context.ready_for_orchestrator:
-            yield ({"event": "onboarding.status", "data": {"status": "done"}}, current_state)
+        if current_state.ready_for_completion:
+            yield (emit_onboarding_done(), current_state)
+            yield (None, current_state)
+            return
 
         yield (None, current_state)

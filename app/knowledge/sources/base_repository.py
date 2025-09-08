@@ -33,6 +33,6 @@ class SourceRepositoryInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_by_id(self, source_id: str) -> bool:
-        """Delete source by ID."""
+    def upsert(self, source: Source) -> None:
+        """Upsert source by URL."""
         pass

@@ -3,7 +3,7 @@ name: Build and Push to ECR
 on:
   push:
     branches:
-      - dev  # Change if needed
+      - dev2  # Change if needed
     paths-ignore:
       - '.github/workflows/**'  # Ignore changes in workflow folder
   workflow_dispatch:
