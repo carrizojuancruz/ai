@@ -25,10 +25,58 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Application startup complete")
+    logger.info("Application startup - initializing services")
+
+    # Initialize database connection on startup
+    try:
+        from app.db.session import _get_engine
+        _get_engine()  # This will create the engine and start health checks
+        logger.info("Database connection initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize database connection: {e}")
+        # Continue startup even if DB fails (for resilience)
+
+    # Warm up AWS clients to avoid first-request latency
+    try:
+        from app.core.app_state import warmup_aws_clients
+        await warmup_aws_clients()
+        logger.info("AWS clients warmed up successfully")
+    except Exception as e:
+        logger.error(f"Failed to warm up AWS clients: {e}")
+
+    try:
+        from app.core.app_state import start_finance_agent_cleanup_task
+        await start_finance_agent_cleanup_task()
+        logger.info("Finance agent cleanup task started successfully")
+    except Exception as e:
+        logger.error(f"Failed to start finance agent cleanup task: {e}")
+
     try:
         yield
     finally:
+        logger.info("Application shutdown - cleaning up resources")
+
+        try:
+            from app.db.session import dispose_engine
+            await dispose_engine()
+            logger.info("Database connections disposed successfully")
+        except Exception as e:
+            logger.error(f"Error disposing database connections: {e}")
+
+        try:
+            from app.core.app_state import dispose_aws_clients
+            dispose_aws_clients()
+            logger.info("AWS clients disposed successfully")
+        except Exception as e:
+            logger.error(f"Error disposing AWS clients: {e}")
+
+        try:
+            from app.core.app_state import dispose_finance_agent_cleanup_task
+            dispose_finance_agent_cleanup_task()
+            logger.info("Finance agent cleanup task disposed successfully")
+        except Exception as e:
+            logger.error(f"Error disposing finance agent cleanup task: {e}")
+
         logger.info("Application shutdown complete")
 
 
@@ -47,6 +95,38 @@ async def log_requests(request: Request, call_next: Callable[[Request], Response
 async def health_check() -> dict[str, str]:
     logger.info("Health check requested")
     return {"message": "Verde AI - Vera Agent System", "status": "healthy"}
+
+
+@app.get("/health/database")
+async def database_health_check() -> dict:
+    """Comprehensive database health check."""
+    try:
+        from app.db.session import _get_engine, _health_check_connection, get_connection_stats
+
+        engine = _get_engine()
+        is_healthy = await _health_check_connection(engine)
+        stats = get_connection_stats()
+
+        response = {
+            "status": "healthy" if is_healthy else "unhealthy",
+            "database": {
+                "connection_healthy": is_healthy,
+                "pool_stats": stats,
+            }
+        }
+
+        logger.info(f"Database health check: {response['status']}")
+        return response
+
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        return {
+            "status": "error",
+            "database": {
+                "connection_healthy": False,
+                "error": str(e)
+            }
+        }
 
 @app.get("/actual_config")
 async def actual_config() -> dict[str, Any]:

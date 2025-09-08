@@ -248,5 +248,14 @@ class OnboardingService:
         set_thread_state(thread_id, state)
         await self._export_user_context(state, thread_id)
 
+        # Clean up global state after completion
+        from app.core.app_state import drop_sse_queue
+        drop_sse_queue(thread_id)
+
+        # Remove thread from global state (optional - could keep for debugging)
+        # Uncomment the following line if you want to remove completed threads:
+        # global _onboarding_threads
+        # _onboarding_threads.pop(thread_id, None)
+
 
 onboarding_service = OnboardingService()

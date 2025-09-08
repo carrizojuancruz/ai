@@ -16,6 +16,7 @@ from app.core.app_state import (
 )
 from app.core.config import config
 from app.models.user import UserContext
+from app.repositories.database_service import get_database_service
 from app.repositories.session_store import InMemorySessionStore, get_session_store
 from app.utils.mapping import get_source_name
 from app.utils.tools import check_repeated_sources
@@ -85,10 +86,20 @@ class SupervisorService:
             else:
                 logger.warning(f"[SUPERVISOR] External API returned no body or 404 for user {user_context.user_id}")
                 return False
-
         except Exception as e:
-            logger.warning(f"[SUPERVISOR] Failed to export user context: {e}")
+            logger.error(f"[SUPERVISOR] Failed to export user context: {e}")
             return False
+
+    async def _get_user_context_from_db(self, user_id: UUID) -> UserContext | None:
+        """Get user context from database using the centralized database service."""
+        try:
+            db_service = get_database_service()
+            async with db_service.get_session() as session:
+                repo = db_service.get_user_repository(session)
+                return await repo.get_by_id(user_id)
+        except Exception as e:
+            logger.error(f"[SUPERVISOR] Failed to load user context from database: {e}")
+            return None
 
     def _is_guardrail_intervention(self, text: str) -> bool:
         if not isinstance(text, str):
@@ -341,6 +352,14 @@ class SupervisorService:
 
         logger.info(f"Initialize complete for user {uid}: thread={thread_id}, has_prior_summary={bool(prior_summary)}")
 
+        try:
+            import asyncio
+
+            from app.agents.supervisor.finance_agent.agent import _finance_agent
+            asyncio.create_task(_finance_agent._fetch_shallow_samples(uid))
+        except Exception:
+            pass
+
         return {
             "thread_id": thread_id,
             "welcome": welcome,
@@ -395,6 +414,7 @@ class SupervisorService:
             stream_mode="values",
             subgraphs=True,
         ):
+
             name = event.get("name")
             etype = event.get("event")
             data = event.get("data") or {}
@@ -419,6 +439,7 @@ class SupervisorService:
                 if name:
                     await q.put({"event": "tool.end", "data": {"tool": name}})
             elif etype == "on_chain_end":
+
                 try:
                     output = data.get("output", {})
                     if isinstance(output, dict):

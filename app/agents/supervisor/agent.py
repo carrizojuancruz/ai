@@ -12,15 +12,16 @@ from app.agents.supervisor.memory import episodic_capture, memory_context, memor
 from app.core.config import config
 from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
+from .finance_agent.agent import finance_agent
 from .handoff import create_task_description_handoff_tool
 from .prompts import SUPERVISOR_PROMPT
-from .workers import goal_agent, math_agent, wealth_agent
+from .workers import goal_agent, wealth_agent
 
 logger = logging.getLogger(__name__)
 
 def compile_supervisor_graph() -> CompiledStateGraph:
-    assign_to_math_agent_with_description = create_task_description_handoff_tool(
-        agent_name="math_agent", description="Assign task to a math agent."
+    assign_to_finance_agent_with_description = create_task_description_handoff_tool(
+        agent_name="finance_agent", description="Assign task to a finance agent for account and transaction queries."
     )
     assign_to_goal_agent_with_description = create_task_description_handoff_tool(
         agent_name="goal_agent", description="Assign task to the goal agent for financial objectives."
@@ -46,7 +47,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     supervisor_agent_with_description = create_react_agent(
         model=chat_bedrock,
         tools=[
-            assign_to_math_agent_with_description,
+            assign_to_finance_agent_with_description,
             assign_to_wealth_agent_with_description,
             assign_to_goal_agent_with_description,
         ],
@@ -62,13 +63,13 @@ def compile_supervisor_graph() -> CompiledStateGraph:
 
     # --- Main supervisor node and destinations ---
     builder.add_node(
-        supervisor_agent_with_description, destinations=("math_agent", "goal_agent", "episodic_capture", "wealth_agent")
+        supervisor_agent_with_description, destinations=("finance_agent", "wealth_agent", "goal_agent", "episodic_capture")
     )
 
 
     # --- Specialist agent nodes ---
     builder.add_node("episodic_capture", episodic_capture)
-    builder.add_node("math_agent", math_agent)
+    builder.add_node("finance_agent", finance_agent)
     builder.add_node("wealth_agent", wealth_agent)
     builder.add_node("goal_agent", goal_agent)
 
@@ -76,14 +77,13 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     builder.add_edge(START, "memory_hotpath")
     builder.add_edge("memory_hotpath", "memory_context")
     builder.add_edge("memory_context", "supervisor")
-    builder.add_edge("math_agent", "supervisor")
+    builder.add_edge("finance_agent", "supervisor")
     builder.add_edge("wealth_agent", "supervisor")
     builder.add_edge("goal_agent", "supervisor")
     builder.add_edge("supervisor", "episodic_capture")
     builder.add_edge("episodic_capture", END)
-
-    # --- Store configuration for tools ---
     store = create_s3_vectors_store_from_env()
+    checkpointer = MemorySaver()
     return builder.compile(store=store, checkpointer=checkpointer)
 
 

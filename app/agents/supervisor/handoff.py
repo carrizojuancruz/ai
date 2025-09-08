@@ -21,7 +21,16 @@ def create_task_description_handoff_tool(*, agent_name: str, description: str | 
         ],
         state: Annotated[MessagesState, InjectedState],
     ) -> Command:
-        task_description_message = {"role": "user", "content": task_description}
+        # Extract user_id from configurable/session context (not messages)
+        user_id = state.get("configurable", {}).get("user_id")
+
+        # Create task description message with preserved user_id
+        task_description_message = {
+            "role": "user",
+            "content": task_description,
+            "user_id": user_id
+        }
+
         agent_input = {**state, "messages": [task_description_message]}
         return Command(
             goto=[Send(agent_name, agent_input)],
