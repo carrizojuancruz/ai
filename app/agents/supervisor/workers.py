@@ -46,6 +46,7 @@ async def math_agent(state: MessagesState) -> dict[str, Any]:
     content = content or "I could not compute that right now."
     return {"messages": [{"role": "assistant", "content": content, "name": "math_agent"}]}
 
+
 async def wealth_agent(state: MessagesState) -> dict[str, Any]:
     try:
         wealth_agent = compile_wealth_agent_graph()
@@ -55,6 +56,7 @@ async def wealth_agent(state: MessagesState) -> dict[str, Any]:
         logger.error(f"Wealth agent failed: {e}")
         content = "I'm having trouble accessing financial information right now. Please try again later."
         return {"messages": [{"role": "assistant", "content": content, "name": "wealth_agent"}]}
+
 
 async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
     """Goal agent worker that handles financial goals management."""

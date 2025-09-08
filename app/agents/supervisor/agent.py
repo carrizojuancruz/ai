@@ -7,7 +7,6 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
-from langgraph.checkpoint.memory import MemorySaver
 
 from app.agents.supervisor.memory import episodic_capture, memory_context, memory_hotpath
 from app.core.config import config
@@ -15,7 +14,7 @@ from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
 from .handoff import create_task_description_handoff_tool
 from .prompts import SUPERVISOR_PROMPT
-from .workers import math_agent, wealth_agent, goal_agent
+from .workers import goal_agent, math_agent, wealth_agent
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +65,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
         supervisor_agent_with_description, destinations=("research_agent", "math_agent", "goal_agent", "episodic_capture", "wealth_agent")
     )
 
-    
+
     # --- Specialist agent nodes ---
     builder.add_node("episodic_capture", episodic_capture)
     builder.add_node("math_agent", math_agent)
