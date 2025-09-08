@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 
 from .api.admin.memories import router as memories_router
 from .api.routes import router as api_router
@@ -81,6 +82,35 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Verde AI - Vera Agent System", version="0.1.0", lifespan=lifespan)
+
+# CORS configuration
+allowed_origins = [
+    # Frontend domains
+    "https://fos-dev.tellvera.com",
+    "https://fos-uat.tellvera.com",
+    "https://fos.tellvera.com",
+    # API domains (for Swagger UI, etc.)
+    "https://api-dev.tellvera.com",
+    "https://api-uat.tellvera.com",
+    "https://api.tellvera.com",
+    # Local development
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
+    "http://localhost:8000",
+    "http://localhost:8081",
+    "http://localhost:8501",  # Streamlit dev UI
+    # Expo development (React Native web testing)
+    "http://localhost:19006",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 
 @app.middleware("http")
