@@ -7,8 +7,6 @@ from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import MessagesState
 
-from app.utils.welcome import call_llm
-
 from .subagents.wealth_agent.agent import compile_wealth_agent_graph
 
 logger = logging.getLogger(__name__)

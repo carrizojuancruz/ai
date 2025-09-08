@@ -72,7 +72,7 @@ class FinanceAgent:
 
         guardrails = {
             "guardrailIdentifier": config.BEDROCK_GUARDRAIL_ID,
-            "guardrailVersion": config.BEDROCK_GUARDRAIL_VERSION,
+            "guardrailVersion": str(config.BEDROCK_GUARDRAIL_VERSION),
             "trace": True,
         }
 
