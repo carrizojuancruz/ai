@@ -62,7 +62,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
 
     # --- Main supervisor node and destinations ---
     builder.add_node(
-        supervisor_agent_with_description, destinations=("research_agent", "math_agent", "goal_agent", "episodic_capture", "wealth_agent")
+        supervisor_agent_with_description, destinations=("math_agent", "goal_agent", "episodic_capture", "wealth_agent")
     )
 
 

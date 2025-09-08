@@ -1,15 +1,13 @@
-"""
-Models for the Goal Agent (Goals System V1)
-"""
+"""Models for the Goal Agent (Goals System V1)."""
 
-from uuid import UUID
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, List, Optional, Union
 from enum import Enum
+from typing import Annotated, Dict, List, Optional, Union
+from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict, ValidationError, field_validator, model_validator
-from typing import Annotated
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+
 
 # Goal Categories for intelligent routing to specialized agents
 class GoalCategory(str, Enum):
@@ -118,26 +116,31 @@ Money = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=2)]
 # Base goal structure
 class GoalBase(BaseModel):
     """Base goal structure for human identification and context."""
+
     title: str = Field(..., description="Descriptive title of the objective")
     description: Optional[str] = Field(None, description="Optional detailed description")
 
 # Category classification
 class GoalCategoryInfo(BaseModel):
     """Classification of the objective for intelligent routing."""
+
     value: GoalCategory = Field(..., description="Goal category for routing")
 
 # Goal nature
 class GoalNatureInfo(BaseModel):
     """Defines the desired direction of change."""
+
     value: GoalNature = Field(..., description="Desired direction: increase or reduce")
 
 # Frequency structures
 class SpecificFrequency(BaseModel):
     """Specific date frequency."""
+
     date: datetime = Field(..., description="Single target date")
 
 class RecurrentFrequency(BaseModel):
     """Recurring frequency with temporal anchors."""
+
     unit: FrequencyUnit = Field(..., description="Time unit")
     every: int = Field(..., ge=1, description="Every X units")
     start_date: datetime = Field(..., description="Start date")
@@ -146,6 +149,7 @@ class RecurrentFrequency(BaseModel):
 
 class Frequency(BaseModel):
     """Goal evaluation calendar."""
+
     type: str = Field(..., description="Frequency type")
     specific: Optional[SpecificFrequency] = None
     recurrent: Optional[RecurrentFrequency] = None
@@ -153,16 +157,19 @@ class Frequency(BaseModel):
 # Amount structures
 class AbsoluteAmount(BaseModel):
     """Absolute amount target."""
+
     currency: str = Field(default="USD", description="ISO 4217 currency code")
     target: Money = Field(..., description="Target value")
 
 class PercentageAmount(BaseModel):
     """Percentage-based target."""
+
     target_pct: Decimal = Field(..., ge=0, le=100, description="Target percentage 0-100")
     of: Dict[str, Union[str, Optional[str]]] = Field(..., description="Percentage basis and reference")
 
 class Amount(BaseModel):
     """Quantitative target definition."""
+
     type: str = Field(..., description="Amount type")
     absolute: Optional[AbsoluteAmount] = None
     percentage: Optional[PercentageAmount] = None
@@ -170,6 +177,7 @@ class Amount(BaseModel):
 # Evaluation configuration
 class EvaluationConfig(BaseModel):
     """Data source and evaluation configuration."""
+
     aggregation: AggregationMethod = Field(default=AggregationMethod.SUM)
     direction: EvaluationDirection = Field(default=EvaluationDirection.LESS_EQUAL)
     rounding: Optional[RoundingMethod] = Field(default=RoundingMethod.NONE)
@@ -198,6 +206,7 @@ class EvaluationConfig(BaseModel):
 # Alerts system
 class Thresholds(BaseModel):
     """Proactive engagement thresholds."""
+
     warn_progress_pct: Optional[Decimal] = Field(None, ge=0, le=100, description="Warning threshold percentage")
     alert_progress_pct: Optional[Decimal] = Field(None, ge=0, le=100, description="Critical alert threshold percentage")
     warn_days_remaining: Optional[int] = Field(None, ge=0, description="Days remaining for warning")
@@ -205,20 +214,24 @@ class Thresholds(BaseModel):
 # Reminders system
 class ReminderItem(BaseModel):
     """User-configurable reminder."""
+
     type: str = Field(..., description="Reminder type: push, email, sms")
     when: str = Field(..., description="Temporal expression")
 
 class Reminders(BaseModel):
     """Reminders configuration."""
+
     items: List[ReminderItem] = Field(default_factory=list)
 
 # Status and progress
 class GoalStatusInfo(BaseModel):
     """Current goal status."""
+
     value: GoalStatus = Field(default=GoalStatus.PENDING, description="Current status")
 
 class Progress(BaseModel):
     """Current progress tracking."""
+
     current_value: Optional[Decimal] = Field(None, description="Current value toward objective")
     percent_complete: Optional[Decimal] = Field(None, ge=0, le=100, description="Completion percentage")
     updated_at: Optional[datetime] = Field(None, description="Last progress update")
@@ -226,15 +239,14 @@ class Progress(BaseModel):
 # Audit trail
 class Audit(BaseModel):
     """Temporal traceability."""
+
     created_at: Optional[datetime] = Field(None, description="Creation timestamp")
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
 
 # Main Goal model
 class Goal(BaseModel):
-    """
-    Complete Goals System V1 specification.
-    Enables users to define, track, and achieve financial objectives.
-    """
+    """Complete Goals System V1 specification. Enables users to define, track, and achieve financial objectives."""
+
     # Core identification
     goal_id: Optional[UUID] = Field(default=None, description="Unique goal identifier")
     user_id: UUID = Field(..., description="User identifier")
@@ -290,7 +302,7 @@ class Goal(BaseModel):
                 ],
                 type(self),
             )
-        
+
         if freq_type == "recurrent" and not getattr(self.frequency, 'recurrent', None):
             raise ValidationError(
                 [
@@ -318,7 +330,7 @@ class Goal(BaseModel):
                 ],
                 type(self),
             )
-        
+
         if amount_type == "percentage" and not getattr(self.amount, 'percentage', None):
             raise ValidationError(
                 [
