@@ -348,9 +348,11 @@ class SupervisorService:
 
         user_context = (await session_store.get_session(thread_id) or {}).get("user_context", {})
         welcome = await generate_personalized_welcome(user_context, prior_summary)
-        await queue.put({"event": "token.delta", "data": {"content": welcome}})
+        await queue.put({"event": "token.delta", "data": {"text": welcome}})
 
         logger.info(f"Initialize complete for user {uid}: thread={thread_id}, has_prior_summary={bool(prior_summary)}")
+
+        await queue.put({"event": "message.completed", "data": {"text": welcome}})
 
         try:
             import asyncio
