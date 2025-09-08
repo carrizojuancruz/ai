@@ -50,7 +50,7 @@ async def math_agent(state: MessagesState) -> dict[str, Any]:
     content = content or "I could not compute that right now."
     return {"messages": [{"role": "assistant", "content": content, "name": "math_agent"}]}
 
-async def goal_agent(state: MessagesState, config: RunnableConfig) -> str:
+async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
     """
     Goal agent worker that handles financial goals management.
     """
@@ -60,7 +60,7 @@ async def goal_agent(state: MessagesState, config: RunnableConfig) -> str:
         
         goal_graph = compile_goal_agent_graph()
         
-        # Proccess message through the goal_agent graph
+        # Process message through the goal_agent graph with full conversation context
         result = await goal_graph.ainvoke(state, config=config)
         
         # Return the result in the expected format by MessagesState

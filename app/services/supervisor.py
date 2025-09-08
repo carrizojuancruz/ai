@@ -349,6 +349,7 @@ class SupervisorService:
             "thread_id": thread_id,
             "session_id": thread_id,
             **session_ctx,
+            "user_id": user_id,
         }
 
         async for event in graph.astream_events(
@@ -357,8 +358,10 @@ class SupervisorService:
             config={
                 "callbacks": [langfuse_handler],
                 "configurable": configurable,
+                "thread_id": thread_id,
             },
             stream_mode="values",
+            subgraphs=True,
         ):
             name = event.get("name")
             etype = event.get("event")

@@ -27,9 +27,9 @@ def _get_user_goals(user_id: str) -> List[Goal]:
     """Get all goals for a user."""
     return [g for g in _GOALS if str(g.user_id) == str(user_id)]
 
-def _save_user_goals(goals: List[Goal]) -> None:
+def _save_user_goal(goal: Goal) -> None:
     """Save goals for a user."""
-    _GOALS.extend(goals)
+    _GOALS.append(goal)
 
 def _update_user_goal(goal: Goal) -> None:
     """Update a goal for a user."""
@@ -42,15 +42,33 @@ def _get_in_progress_goal(user_id: str) -> List[Goal]:
     """Get the in progress goal for a user."""
     return [g for g in _get_user_goals(user_id) if g.status.value == GoalStatus.IN_PROGRESS]
 
-@tool
+def _get_goal_by_id(user_id: str, goal_id: str) -> Goal:
+    """Get a goal by id for a user."""
+    return [g for g in _get_user_goals(user_id) if g.goal_id == goal_id]
+
+def _get_in_pending_goal(user_id: str) -> Goal:
+    """Get a pending goal for a user."""
+    return [g for g in _get_user_goals(user_id) if g.status.value == GoalStatus.PENDING]
+
+@tool(
+    name_or_callable="get_goal_requirements",
+    description="Get the requirements for a goal",
+)
 def get_goal_requirements() -> dict[str, Any]:
     """
     Get the requirements for a goal.
     This is infered from the Goal Model
     """
-    return Goal.model_json_schema()
+    goal_json = Goal.model_json_schema()
+    goal_json = json.loads(goal_json)
+    # Remove the user_id field
+    goal_json.pop("user_id")
+    return goal_json
 
-@tool
+@tool(
+    name_or_callable="create_goal",
+    description="Create a new financial goal for a user",
+)
 def create_goal(data: Goal, config: RunnableConfig) -> str:
     """
     Create a new financial goal for a user.
@@ -58,22 +76,7 @@ def create_goal(data: Goal, config: RunnableConfig) -> str:
     """
     try:
         user_key = str(config.get("configurable", {}).get("user_id"))
-        in_progress_goal = _get_in_progress_goal(user_key)
-
-        if in_progress_goal:
-            # Serialize the in progress goals correctly
-            in_progress_goals_dict = []
-            for g in in_progress_goal:
-                goal_json = g.model_dump_json()
-                goal_dict = json.loads(goal_json)
-                in_progress_goals_dict.append(goal_dict)
-            
-            return json.dumps({
-                "error": "GOAL_ALREADY_EXISTS",
-                "message": "User already has an active goal",
-                "goals": in_progress_goals_dict,
-                "user_id": user_key
-            })
+        
         
         # Set default values
         goal = Goal(
@@ -99,9 +102,7 @@ def create_goal(data: Goal, config: RunnableConfig) -> str:
         )
         
         # Add to user's goals
-        user_goals = _get_user_goals(user_key)
-        user_goals.append(goal)
-        _save_user_goals(user_goals)
+        _save_user_goal(goal)
 
         # Use model_dump_json() for correct serialization
         goal_json = goal.model_dump_json()
@@ -120,60 +121,45 @@ def create_goal(data: Goal, config: RunnableConfig) -> str:
             "user_id": user_key
         })
 
-@tool
+@tool(
+    name_or_callable="update_goal",
+    description="Update an existing goal using the new goal data",
+)
 def update_goal(data: Goal, config: RunnableConfig) -> str:
     """
     Update an existing goal.
     """
     try:
         user_key = str(config.get("configurable", {}).get("user_id"))
-        user_goals = _get_user_goals(user_key)
+        goal_to_update = _get_goal_by_id(user_key, str(data.goal_id))
 
-        # Check if the status goal is not "error" or "deleted"
-        if data.status.value in [GoalStatus.ERROR, GoalStatus.DELETED]:
+        if not goal_to_update:
             return json.dumps({
-                "error": "INVALID_STATUS",
-                "message": "Goal status is not valid",
-                "goals": [],
+                "error": "NO_GOAL_TO_UPDATE",
+                "message": "No goal to update, please search all goals or create a new goal using the create_goal tool",
+                "goal": None,
                 "user_id": user_key
             })
-        
-        # Find the goal to update
-        goal_index = None
-        for i, g in enumerate(user_goals):
-            if g.goal_id == data.goal_id:
-                goal_index = i
-                break
-        
-        if goal_index is None:
-            return json.dumps({
-                "error": "NOT_FOUND",
-                "message": "Goal not found",
-                "goals": [],
-                "user_id": user_key
-            })
-        
-        existing_goal = user_goals[goal_index]
         
         # Update fields
         updated_goal = Goal(
-            goal_id=existing_goal.goal_id,
-            user_id=existing_goal.user_id,
-            version=existing_goal.version + 1,
-            goal=data.goal or existing_goal.goal,
-            category=data.category or existing_goal.category,
-            nature=data.nature or existing_goal.nature,
-            frequency=data.frequency or existing_goal.frequency,
-            amount=data.amount or existing_goal.amount,
-            evaluation=data.evaluation or existing_goal.evaluation,
-            thresholds=data.thresholds or existing_goal.thresholds,
-            reminders=data.reminders or existing_goal.reminders,
-            status= data.status or existing_goal.status,
-            progress=data.progress or existing_goal.progress,
-            metadata=data.metadata or existing_goal.metadata,
-            idempotency_key=data.idempotency_key or existing_goal.idempotency_key,
+            goal_id=goal_to_update.goal_id,
+            user_id=goal_to_update.user_id,
+            version=goal_to_update.version + 1,
+            goal=data.goal or goal_to_update.goal,
+            category=data.category or goal_to_update.category,
+            nature=data.nature or goal_to_update.nature,
+            frequency=data.frequency or goal_to_update.frequency,
+            amount=data.amount or goal_to_update.amount,
+            evaluation=data.evaluation or goal_to_update.evaluation,
+            thresholds=data.thresholds or goal_to_update.thresholds,
+            reminders=data.reminders or goal_to_update.reminders,
+            status= data.status or goal_to_update.status,
+            progress=data.progress or goal_to_update.progress,
+            metadata=data.metadata or goal_to_update.metadata,
+            idempotency_key=data.idempotency_key or goal_to_update.idempotency_key,
             audit=Audit(
-                created_at=existing_goal.audit.created_at if existing_goal.audit else _now(),
+                created_at=goal_to_update.audit.created_at if goal_to_update.audit else _now(),
                 updated_at=_now()
             )
         )
@@ -192,11 +178,14 @@ def update_goal(data: Goal, config: RunnableConfig) -> str:
         return json.dumps({
             "error": "UPDATE_FAILED",
             "message": f"Failed to update goal: {str(e)}",
-            "goals": [],
+            "goal": None,
             "user_id": user_key
         })
 
-@tool
+@tool(
+    name_or_callable="list_goals",
+    description="List all goals for a user",
+)
 def list_goals(config: RunnableConfig) -> str:
     """
     List all goals for a user.
@@ -244,7 +233,10 @@ def list_goals(config: RunnableConfig) -> str:
             "goals": []
         })
 
-@tool
+@tool(
+    name_or_callable="get_in_progress_goal",
+    description="Get the unique in progress goal for a user",
+)
 def get_in_progress_goal(config: RunnableConfig) -> str:
     """
     Get the unique in progress goal for a user.
@@ -257,209 +249,112 @@ def get_in_progress_goal(config: RunnableConfig) -> str:
                 "message": "User ID not found in context",
                 "goals": []
             })
+
+        in_progress_goal = _get_in_progress_goal(user_id)
+
+        if not in_progress_goal or len(in_progress_goal) == 0:
+            return json.dumps({
+                "error": "USER_HAS_NO_IN_PROGRESS_GOALS",
+                "message": "User has no in progress goals",
+                "goal": None,
+                "user_id": user_id
+            })
         
-        user_goals = _get_user_goals(user_id)
 
-        in_progress_goals = [g for g in user_goals if g.status.value == GoalStatus.IN_PROGRESS]
+        if isinstance(in_progress_goal, list):
+            in_progress_goal = in_progress_goal[0] if len(in_progress_goal) > 0 else None
 
-        # Serialize each goal correctly
-        in_progress_goals_dict = []
-        for g in in_progress_goals:
-            goal_json = g.model_dump_json()
-            goal_dict = json.loads(goal_json)
-            in_progress_goals_dict.append(goal_dict)
+        # Serialize goal correctly
+        in_progress_goal_json = in_progress_goal.model_dump_json()
+        in_progress_goal_dict = json.loads(in_progress_goal_json)
 
+        
         return json.dumps({
-            "message": f"Found {len(in_progress_goals)} in progress goals",
-            "goals": in_progress_goals_dict,
-            "user_id": user_id,
-            "count": len(in_progress_goals)
+            "message": "The user has an in progress goal",
+            "goal": in_progress_goal_dict,
+            "user_id": user_id
         })
     except Exception as e:
         return json.dumps({
             "error": "READ_FAILED",
             "message": f"Failed to get goal: {str(e)}",
-            "goals": []
+            "goal": None,
+            "user_id": user_id
         })
 
-@tool
-def delete_goal(config: RunnableConfig) -> str:
+@tool(
+    name_or_callable="delete_goal",
+    description="Soft delete a goal using the goal_id",
+)
+def delete_goal(goal_id: str, config: RunnableConfig) -> str:
     """
     Soft delete a goal (set status to deleted).
     """
     try:
         user_key = str(config.get("configurable", {}).get("user_id"))
-        user_goals = _get_user_goals(user_key)
+        goal_to_delete = _get_goal_by_id(user_key, goal_id)
         
-        # Find and update the goal
-        for i, goal in enumerate(user_goals):
-            if str(goal.goal_id) == str(config.get("configurable", {}).get("goal_id")):
-                # Soft delete
-                goal.status.value = GoalStatus.DELETED
-                if goal.audit:
-                    goal.audit.updated_at = _now()
-                else:
-                    goal.audit = Audit(created_at=_now(), updated_at=_now())
-                
-                _update_user_goal(goal)
-                
-                # Use model_dump_json() for correct serialization
-                goal_json = goal.model_dump_json()
-                goal_dict = json.loads(goal_json)
-                
-                return json.dumps({
-                    "message": "Goal deleted",
-                    "goal": goal_dict,
-                    "user_id": user_key
-                })
+        if not goal_to_delete:
+            return json.dumps({
+                "error": "NO_GOAL_TO_DELETE",
+                "message": "No goal to delete, please search all goals and ask to the user what goal to delete",
+                "user_id": user_key
+            })
+        
+        goal_to_delete.status.value = GoalStatus.DELETED
+        goal_to_delete.audit.updated_at = _now()
+        _update_user_goal(goal_to_delete)
         
         return json.dumps({
-            "error": "NOT_FOUND",
-            "message": "Goal not found",
-            "goals": [],
+            "message": "Goal deleted",
+            "goal": goal_to_delete.model_dump_json(),
             "user_id": user_key
         })
     except Exception as e:
         return json.dumps({
             "error": "DELETE_FAILED",
             "message": f"Failed to delete goal: {str(e)}",
-            "goals": [],
+            "goal": None,
             "user_id": user_key
         })
 
-# @tool
-# def calculate_progress(user_id: str, goal_id: str) -> str:
-#     """
-#     Calculate and update progress for a goal.
-#     """
-#     try:
-#         user_key = str(user_id)
-#         user_goals = _get_user_goals(user_key)
+@tool(
+    name_or_callable="switch_goal_status",
+    description="Switch the status of a goal using the goal_id and the new status",
+)
+def switch_goal_status(goal_id: str, status: str, config: RunnableConfig) -> str:
+    """
+    Switch the status of a goal.
+    """
+    try:
+        user_key = str(config.get("configurable", {}).get("user_id"))
+        user_goals = _get_user_goals(user_key)
+        # Find the goal by id
+        goal_to_switch = [g for g in user_goals if g.goal_id == UUID(goal_id)]
+        goal_to_switch = goal_to_switch[0] if len(goal_to_switch) > 0 else None
         
-#         # Find the goal
-#         goal_index = None
-#         for i, g in enumerate(user_goals):
-#             if str(g.goal_id) == str(goal_id):
-#                 goal_index = i
-#                 break
+        if not goal_to_switch:
+            return json.dumps({
+                "error": "NO_GOAL_TO_SWITCH",
+                "message": "No goal to switch, please search all goals and ask to the user what goal to switch",
+                "goal": None,
+                "user_id": user_key
+            })
         
-#         if goal_index is None:
-#             return json.dumps({
-#                 "error": "NOT_FOUND",
-#                 "message": "Goal not found",
-#                 "goals": [],
-#                 "user_id": user_key
-#             })
-        
-#         goal = user_goals[goal_index]
-        
-#         # Simple progress calculation (dummy for now)
-#         # In real implementation, this would query transaction data
-#         if goal.amount.type == "absolute" and goal.amount.absolute:
-#             target = goal.amount.absolute.target
-#             # Simulate progress (replace with real calculation)
-#             current_value = target * Decimal("0.6")  # 60% progress
-#             percent_complete = (current_value / target) * 100
-#         else:
-#             current_value = Decimal("0")
-#             percent_complete = Decimal("0")
-        
-#         # Update progress
-#         goal.progress = Progress(
-#             current_value=current_value,
-#             percent_complete=percent_complete,
-#             updated_at=_now()
-#         )
-        
-#         # Check if goal is completed
-#         if percent_complete >= 100:
-#             goal.status.value = GoalStatus.COMPLETED
-        
-#         user_goals[goal_index] = goal
-#         _save_user_goals(user_goals)
-        
-#         return goal.model_dump_json()
-#     except Exception as e:
-#         return str(_error("PROGRESS_CALCULATION_FAILED", "Failed to calculate progress", str(e)))
+        goal_to_switch.status.value = status
+        goal_to_switch.audit.updated_at = _now()
+        _update_user_goal(goal_to_switch)
+        print(f"Goal status switched: {goal_to_switch}")
+        return json.dumps({
+            "message": "Goal status switched",
+            "goal": goal_to_switch.model_dump_json(),
+            "user_id": user_key
+        })
+    except Exception as e:
+        return json.dumps({
+            "error": "SWITCH_FAILED",
+            "message": f"Failed to switch goal status: {str(e)}",
+            "goal": None,
+            "user_id": user_key
+        })
 
-# @tool
-# def handle_binary_choice(goal_id: str, choice: str, user_id: str) -> str:
-#     """
-#     Handle binary choices for goal state transitions and confirmations.
-#     """
-#     try:
-#         user_key = str(user_id)
-#         user_goals = _get_user_goals(user_key)
-        
-#         # Find the goal
-#         goal_index = None
-#         for i, g in enumerate(user_goals):
-#             if str(g.goal_id) == str(goal_id):
-#                 goal_index = i
-#                 break
-        
-#         if goal_index is None:
-#             return str(_error("NOT_FOUND", "Goal not found", None))
-        
-#         goal = user_goals[goal_index]
-        
-#         # Handle different choice types
-#         if choice == "activate" and goal.status.value == GoalStatus.PENDING:
-#             # Activate goal (pending → in_progress)
-#             goal.status.value = GoalStatus.IN_PROGRESS
-#             if goal.audit:
-#                 goal.audit.updated_at = _now()
-            
-#         elif choice == "keep_pending":
-#             # Keep goal in pending state
-#             pass
-            
-#         elif choice == "save":
-#             # Save changes (already handled in update_goal)
-#             pass
-            
-#         elif choice == "discard":
-#             # Discard changes (revert to previous state)
-#             # In real implementation, this would restore from backup
-#             pass
-            
-#         elif choice == "archive":
-#             # Archive goal (soft delete)
-#             goal.status.value = GoalStatus.DELETED
-#             if goal.audit:
-#                 goal.audit.updated_at = _now()
-                
-#         elif choice == "restore":
-#             # Restore deleted goal
-#             if goal.status.value == GoalStatus.DELETED:
-#                 goal.status.value = GoalStatus.PENDING
-#                 if goal.audit:
-#                     goal.audit.updated_at = _now()
-        
-#         user_goals[goal_index] = goal
-#         _save_user_goals(user_goals)
-        
-#         return goal.model_dump_json()
-#     except Exception as e:
-#         return str(_error("BINARY_CHOICE_FAILED", "Failed to handle binary choice", str(e)))
-
-# @tool
-# def get_goals_by_status(user_id: str, status: str) -> str:
-#     """
-#     Get goals filtered by status.
-#     """
-#     try:
-#         user_goals = _get_user_goals(str(user_id))
-        
-#         if not user_goals:
-#             return str(_error("NOT_FOUND", "No goals found for user", None))
-        
-#         # Filter by status
-#         filtered_goals = [g for g in user_goals if g.status.value == status]
-        
-#         if not filtered_goals:
-#             return str(_error("NOT_FOUND", f"No goals found with status: {status}", None))
-        
-#         return str([g.model_dump() for g in filtered_goals])
-#     except Exception as e:
-#         return str(_error("READ_FAILED", "Failed to get goals by status", str(e)))

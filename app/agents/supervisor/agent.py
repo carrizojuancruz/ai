@@ -6,6 +6,7 @@ from langchain_aws import ChatBedrock
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
+from langgraph.checkpoint.memory import MemorySaver
 
 from app.agents.supervisor.memory import episodic_capture, memory_context, memory_hotpath
 from app.core.config import config
@@ -42,6 +43,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     }
     logger.info(f"Guardrails: {guardrails}")
     chat_bedrock = ChatBedrock(model_id=model_id, region_name=region, guardrails=guardrails)
+    checkpointer = MemorySaver()
 
     supervisor_agent_with_description = create_react_agent(
         model=chat_bedrock,
@@ -86,6 +88,6 @@ def compile_supervisor_graph() -> CompiledStateGraph:
 
     # --- Store configuration for tools ---
     store = create_s3_vectors_store_from_env()
-    return builder.compile(store=store)
+    return builder.compile(store=store, checkpointer=checkpointer)
 
 
