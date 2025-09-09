@@ -10,12 +10,22 @@ from langchain_core.messages import HumanMessage
 from langgraph.graph import MessagesState
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import RunnableConfig
+from langchain_core.tools import tool
 
 from app.agents.supervisor.finance_agent.tools import execute_financial_query
 from app.core.config import config
 from app.repositories.database_service import get_database_service
 from app.repositories.postgres.finance_repository import FinanceTables
 from app.utils.tools import get_config_value
+from app.core.app_state import (
+    get_finance_samples,
+    set_finance_samples,
+    get_cached_finance_agent,
+    set_cached_finance_agent,
+    get_finance_agent,
+)
+from app.agents.supervisor.handoff import create_handoff_back_messages
+
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +107,6 @@ class FinanceAgent:
         Returns compact JSON arrays as strings for embedding in the prompt.
         """
         try:
-            from app.core.app_state import get_finance_samples, set_finance_samples
 
             cached_pair = get_finance_samples(user_id)
             if cached_pair:
@@ -351,7 +360,6 @@ class FinanceAgent:
 
     async def _create_agent_with_tools(self, user_id: UUID):
         """Create a LangGraph agent with SQL tools for the given user."""
-        from langchain_core.tools import tool
 
         logger.info(f"Creating SQL tools for user {user_id}")
 
@@ -379,8 +387,6 @@ class FinanceAgent:
         """Process financial queries using cached agent per user."""
         try:
             logger.info(f"Processing finance query for user {user_id}: {query}")
-
-            from app.core.app_state import get_cached_finance_agent, set_cached_finance_agent
 
             agent = get_cached_finance_agent(user_id)
             if agent is None:
@@ -437,7 +443,7 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[st
             return {"messages": [{"role": "assistant", "content": error_msg, "name": "finance_agent"}]}
 
         # Process the financial analysis
-        from app.core.app_state import get_finance_agent
+        
         finance_agent_instance = get_finance_agent()
         analysis_result = await finance_agent_instance.process_query(query, user_id)
 
@@ -452,7 +458,6 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[st
         This analysis is provided to the supervisor for final user response formatting.
         """
 
-        from app.agents.supervisor.handoff import create_handoff_back_messages
         handoff_messages = create_handoff_back_messages("finance_agent", "supervisor")
 
         return {
@@ -467,7 +472,6 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[st
         logger.error(f"Finance agent critical error: {e}")
         error_analysis = f"FINANCIAL ANALYSIS ERROR: {str(e)}"
 
-        from app.agents.supervisor.handoff import create_handoff_back_messages
         handoff_messages = create_handoff_back_messages("finance_agent", "supervisor")
 
         return {

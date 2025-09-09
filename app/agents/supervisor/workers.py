@@ -11,6 +11,8 @@ from app.repositories.session_store import get_session_store
 from app.utils.tools import get_config_value
 
 from .subagents.wealth_agent.agent import compile_wealth_agent_graph
+from .subagents.goal_agent.agent import compile_goal_agent_graph
+from .finance_agent.agent import finance_agent as finance_worker
 
 logger = logging.getLogger(__name__)
 
@@ -28,14 +30,6 @@ def _extract_text_from_content(content: str | list[dict[str, Any]] | dict[str, A
         return "\n".join(parts).strip()
     return ""
 
-
-def _get_last_user_message_text(messages: list[HumanMessage | dict[str, Any]]) -> str:
-    for m in reversed(messages):
-        if isinstance(m, HumanMessage):
-            return _extract_text_from_content(getattr(m, "content", ""))
-        if isinstance(m, dict) and m.get("role") == "user":
-            return _extract_text_from_content(m.get("content"))
-    return ""
 
 
 
@@ -55,8 +49,6 @@ async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, 
     """Goal agent worker that handles financial goals management."""
     try:
         # Get the goal_agent graph
-        from .subagents.goal_agent.agent import compile_goal_agent_graph
-
         goal_graph = compile_goal_agent_graph()
 
         # Process message through the goal_agent graph with full conversation context
@@ -95,7 +87,6 @@ async def finance_router(state: MessagesState, config: RunnableConfig) -> dict[s
             content = "FINANCE_STATUS: NO_ACCOUNTS_CONNECTED — You don't have any financial accounts connected yet. To get started, go to the Connected Accounts menu and connect your accounts through Plaid."
             return {"messages": [{"role": "assistant", "content": content, "name": "finance_agent"}]}
 
-        from app.agents.supervisor.finance_agent.agent import finance_agent as finance_worker
         return await finance_worker(state, config)
 
     except Exception as e:
