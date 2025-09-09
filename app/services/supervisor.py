@@ -8,7 +8,16 @@ from uuid import UUID, uuid4
 from langfuse.callback import CallbackHandler
 from langgraph.graph.state import CompiledStateGraph
 
-from app.agents.supervisor.i18n import TRANSFER_TOOL_DESCRIPTIONS
+from app.agents.supervisor.i18n import (
+    _get_random_finance_current,
+    _get_random_finance_completed,
+    _get_random_budget_current,
+    _get_random_budget_completed,
+    _get_random_wealth_current,
+    _get_random_wealth_completed,
+    _get_random_step_planning_current,
+    _get_random_step_planning_completed,
+)
 from app.core.app_state import (
     get_last_emitted_text,
     get_sse_queue,
@@ -375,7 +384,8 @@ class SupervisorService:
             raise ValueError("Message text must not be empty")
 
         q = get_sse_queue(thread_id)
-        await q.put({"event": "step.update", "data": {"status": "processing"}})
+        current_description = _get_random_step_planning_current()
+        await q.put({"event": "step.update", "data": {"status": "processing", "description": current_description}})
 
         graph: CompiledStateGraph = get_supervisor_graph()
         session_store: InMemorySessionStore = get_session_store()
@@ -408,6 +418,7 @@ class SupervisorService:
         supervisor_active: bool = False
         suppress_streaming: bool = False
         emitted_handoff_back_keys: set[str] = set()
+        current_agent_tool: Optional[str] = None
 
         async for event in graph.astream_events(
             {"messages": [{"role": "user", "content": text}], "sources": sources},
@@ -434,13 +445,22 @@ class SupervisorService:
             if etype == "on_tool_start":
                 tool_name = name
                 if tool_name and tool_name.startswith("transfer_to_"):
-                    info = TRANSFER_TOOL_DESCRIPTIONS.get(tool_name) or {}
+                    current_agent_tool = tool_name
+
+                    description = "Consulting a source"
+                    if tool_name == "transfer_to_finance_agent":
+                        description = _get_random_finance_current()
+                    elif tool_name == "transfer_to_goal_agent":
+                        description = _get_random_budget_current()
+                    elif tool_name == "transfer_to_wealth_agent":
+                        description = _get_random_wealth_current()
+
                     await q.put({
                         "event": "source.search.start",
                         "data": {
                             "tool": tool_name,
-                            "source": info.get("source") or tool_name.replace("transfer_to_", "").replace("_", " ").title(),
-                            "description": info.get("description") or "Consulting a source",
+                            "source": tool_name.replace("transfer_to_", "").replace("_", " ").title(),
+                            "description": description,
                         }
                     })
                     suppress_streaming = True
@@ -483,16 +503,25 @@ class SupervisorService:
                                 dedupe_key = f"{back_tool}:{tool_call_id or 'noid'}"
                                 if dedupe_key not in emitted_handoff_back_keys:
                                     emitted_handoff_back_keys.add(dedupe_key)
+                                    description = "Returned from source"  # fallback
+                                    if current_agent_tool == "transfer_to_finance_agent":
+                                        description = _get_random_finance_completed()
+                                    elif current_agent_tool == "transfer_to_goal_agent":
+                                        description = _get_random_budget_completed()
+                                    elif current_agent_tool == "transfer_to_wealth_agent":
+                                        description = _get_random_wealth_completed()
+
                                     supervisor_name = back_tool.replace("transfer_back_to_", "").replace("_", " ").title() or "Supervisor"
                                     await q.put({
                                         "event": "source.search.end",
                                         "data": {
                                             "tool": back_tool,
                                             "source": supervisor_name,
-                                            "description": "Returned from source",
+                                            "description": description,
                                         }
                                     })
                                     suppress_streaming = False
+                                    current_agent_tool = None
                 except Exception:
                     pass
 
@@ -503,7 +532,8 @@ class SupervisorService:
         except Exception:
             pass
 
-        await q.put({"event": "step.update", "data": {"status": "presented"}})
+        completed_description = _get_random_step_planning_completed()
+        await q.put({"event": "step.update", "data": {"status": "presented", "description": completed_description}})
 
         try:
             if assistant_response_parts:

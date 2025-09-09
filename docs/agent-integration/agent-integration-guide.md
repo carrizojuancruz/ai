@@ -38,19 +38,21 @@ graph TD
     A[User Message] --> B[memory_hotpath]
     B --> C[memory_context]
     C --> D[supervisor]
-    D -->|handoff| E[research_agent]
-    D -->|handoff| F[math_agent]
-    D -->|direct response| G[episodic_capture]
+    D -->|handoff| E[finance_agent]
+    D -->|handoff| F[goal_agent]
+    D -->|handoff| G[wealth_agent]
+    D -->|direct response| H[episodic_capture]
     E --> D
     F --> D
-    D --> G
-    G --> H[Response to User]
+    G --> D
+    D --> H
+    H --> I[Response to User]
 ```
 
 ### Key Components
 
 - **Supervisor**: Main orchestrator that decides routing
-- **Workers**: Specialized agents (research_agent, math_agent)
+- **Workers**: Specialized agents (finance_agent, goal_agent, wealth_agent)
 - **Tools**: Tools available to the supervisor
 - **Handoff**: Delegation system between agents
 - **Memory**: Context and episodic capture system
@@ -63,7 +65,7 @@ graph TD
 - Simple, specialized functions
 - Run in the same graph
 - Return directly to the supervisor
-- **Example**: `research_agent`, `math_agent`
+- **Example**: `finance_agent`, `goal_agent`, `wealth_agent`
 
 ### 2. **Sub-Graph Agents** (Advanced)
 - Independent graphs with their own state
@@ -140,16 +142,19 @@ In `app/agents/supervisor/agent.py`, add:
 ```python
 def compile_supervisor_graph() -> CompiledStateGraph:
     # Existing handoff tools
-    assign_to_research_agent_with_description = create_task_description_handoff_tool(
-        agent_name="research_agent", description="Assign task to a researcher agent."
+    assign_to_finance_agent_with_description = create_task_description_handoff_tool(
+        agent_name="finance_agent", description="Assign task to a finance agent for account and transaction queries."
     )
-    assign_to_math_agent_with_description = create_task_description_handoff_tool(
-        agent_name="math_agent", description="Assign task to a math agent."
+    assign_to_goal_agent_with_description = create_task_description_handoff_tool(
+        agent_name="goal_agent", description="Assign task to the goal agent for financial objectives."
     )
-    
+    assign_to_wealth_agent_with_description = create_task_description_handoff_tool(
+        agent_name="wealth_agent", description="Assign task to a wealth agent."
+    )
+
     # ✅ ADD: New handoff tool
     assign_to_api_agent_with_description = create_task_description_handoff_tool(
-        agent_name="api_agent", 
+        agent_name="api_agent",
         description="Assign task to API integration agent for external service calls."
     )
 
@@ -170,8 +175,9 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     supervisor_agent_with_description = create_react_agent(
         model=chat_bedrock,
         tools=[
-            assign_to_research_agent_with_description,
-            assign_to_math_agent_with_description,
+            assign_to_finance_agent_with_description,
+            assign_to_goal_agent_with_description,
+            assign_to_wealth_agent_with_description,
             assign_to_api_agent_with_description,  # ← NEW
             knowledge_search_tool,
         ],
@@ -185,20 +191,22 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     builder.add_node("memory_hotpath", memory_hotpath)
     builder.add_node("memory_context", memory_context)
     builder.add_node(
-        supervisor_agent_with_description, 
-        destinations=("research_agent", "math_agent", "api_agent", "episodic_capture")  # ← ADD api_agent
+        supervisor_agent_with_description,
+        destinations=("finance_agent", "goal_agent", "wealth_agent", "api_agent", "episodic_capture")  # ← ADD api_agent
     )
     builder.add_node("episodic_capture", episodic_capture)
-    builder.add_node("research_agent", research_agent)
-    builder.add_node("math_agent", math_agent)
+    builder.add_node("finance_agent", finance_agent)
+    builder.add_node("goal_agent", goal_agent)
+    builder.add_node("wealth_agent", wealth_agent)
     builder.add_node("api_agent", api_agent)  # ← NEW NODE
 
     # Existing edges (unchanged)
     builder.add_edge(START, "memory_hotpath")
     builder.add_edge("memory_hotpath", "memory_context")
     builder.add_edge("memory_context", "supervisor")
-    builder.add_edge("research_agent", "supervisor")
-    builder.add_edge("math_agent", "supervisor")
+    builder.add_edge("finance_agent", "supervisor")
+    builder.add_edge("goal_agent", "supervisor")
+    builder.add_edge("wealth_agent", "supervisor")
     builder.add_edge("api_agent", "supervisor")  # ← NEW EDGE
     builder.add_edge("supervisor", "episodic_capture")
     builder.add_edge("episodic_capture", END)
@@ -216,22 +224,24 @@ SUPERVISOR_PROMPT = """
 
     You are Vera, the supervising orchestrator for a multi-agent system at Verde Money.
     Your job is to decide whether to answer directly or route to a specialist agent.
-    
+
     Agents available:
-    - research_agent — use only to retrieve external information not present in the provided context.
-    - math_agent — use only for non-trivial calculations that need precision.
+    - finance_agent — text-to-SQL agent over user's Plaid financial database (accounts, transactions, balances, spending analysis).
+    - goal_agent — for financial objectives and goal tracking.
+    - wealth_agent — for wealth management and investment guidance.
     - api_agent — use for external API calls, user data updates, or integration tasks.  # ← ADD
-    
+
     # ... rest of the prompt unchanged ...
-    
+
     Tool routing policy:
     - Prefer answering directly from user message + context; minimize tool calls.
     - Use exactly one agent at a time; never call agents in parallel.
-    - research_agent: only if updated, external, or missing info is essential to answer.
-    - math_agent: only if a careful calculation is required beyond simple mental math.
+    - finance_agent: for queries about financial accounts, transaction history, balances, spending patterns.
+    - goal_agent: for financial goal setting, tracking, and analysis.
+    - wealth_agent: for investment advice, portfolio management, and wealth strategies.
     - api_agent: for user profile updates, external service integration, or data synchronization.  # ← ADD
     - For recall, personalization, or formatting tasks, do not use tools.
-    
+
     # ... rest of the prompt unchanged ...
 """
 ```
@@ -241,7 +251,7 @@ SUPERVISOR_PROMPT = """
 In `app/agents/supervisor/agent.py`, add the import:
 
 ```python
-from .workers import math_agent, research_agent, api_agent  # ← ADD api_agent
+from .workers import finance_agent, goal_agent, wealth_agent, api_agent  # ← ADD api_agent
 ```
 
 ---
@@ -273,15 +283,16 @@ async def api_agent(state: MessagesState) -> dict[str, Any]:
 
 # In agent.py - inside compile_supervisor_graph()
 assign_to_api_agent = create_task_description_handoff_tool(
-    agent_name="api_agent", 
+    agent_name="api_agent",
     description="Handle external API integrations and user data operations."
 )
 
 supervisor_agent = create_react_agent(
     model=chat_bedrock,
     tools=[
-        assign_to_research_agent,
-        assign_to_math_agent,
+        assign_to_finance_agent,
+        assign_to_goal_agent,
+        assign_to_wealth_agent,
         assign_to_api_agent,  # ← New
         knowledge_search_tool,
     ],
