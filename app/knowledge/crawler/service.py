@@ -56,8 +56,14 @@ class CrawlerService:
 
         try:
             documents = await loader.load_documents()
-            if crawl_type != "single" and not source.url.lower().endswith('.pdf') and JavaScriptDetector.needs_javascript(documents):
+
+            if crawl_type == "recursive" and self._has_corrupted_content(documents):
+                logger.warning(f"Detected corrupted content from recursive crawl for {source.url}, falling back to single page loader")
                 documents = await SinglePageLoader(source=source).load_documents()
+
+            elif crawl_type != "single" and not source.url.lower().endswith('.pdf') and JavaScriptDetector.needs_javascript(documents):
+                documents = await SinglePageLoader(source=source).load_documents()
+
             return self._filter_documents(documents)
         except Exception as e:
             logger.error(f"Load error for {source.url}: {e}")
@@ -68,6 +74,18 @@ class CrawlerService:
                 except Exception:
                     pass
             return []
+
+    def _has_corrupted_content(self, documents: List[Document]) -> bool:
+        """Check if any document contains corrupted binary content."""
+        for doc in documents:
+            content = doc.page_content
+            if not content or len(content) < 10:
+                continue
+            sample = content[:100]
+            corrupted_chars = [c for c in sample if ord(c) > 127 or ord(c) < 32 and ord(c) not in [9, 10, 13]]
+            if corrupted_chars:
+                return True
+        return False
 
     def _get_loader(self, source: Source, crawl_type: str):
         if source.url.lower().endswith('.pdf'):
