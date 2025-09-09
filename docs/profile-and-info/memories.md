@@ -33,6 +33,7 @@ Memories are created automatically in real-time during user conversations:
 5. **Summary extraction**: Generates a concise summary of relevant information
 6. **Access assignment**: Determines which agents can access this memory
 
+## Memory update
 Existing memories can be updated when:
 - Additional information is provided about the same topic
 - Previous information is corrected or expanded
