@@ -16,6 +16,7 @@ class SearchResponse(BaseModel):
 class SourceResponse(BaseModel):
     """Response model for source data."""
 
+    id: str
     name: str
     url: str
     type: Optional[str] = None

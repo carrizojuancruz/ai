@@ -36,21 +36,25 @@ class ExternalSourcesRepository(ExternalSourcesRepositoryInterface):
         """Get all sources from external API."""
         endpoint = "/internal/kb-sources"
 
-        try:
-            response_data = await self.client.get(endpoint)
-            if not response_data:
-                logger.warning("No data received from external sources API")
-                return []
+        response_data = await self.client.get(endpoint)
+        if response_data is None:
+            # HTTP client returned None, which means the API call failed
+            raise ConnectionError("Failed to connect to external sources API")
 
+        if not response_data:
+            logger.warning("No data received from external sources API")
+            return []
+
+        try:
             api_response = APIResponse(**response_data)
             external_sources = [
                 self._map_api_to_external_source(api_source)
                 for api_source in api_response.items
             ]
 
-            logger.info(f"Retrieved {len(external_sources)} sources from external API")
+            logger.debug(f"Retrieved {len(external_sources)} sources from external API")
             return external_sources
 
         except Exception as e:
             logger.error(f"Error processing external API response: {e}")
-            return []
+            raise e

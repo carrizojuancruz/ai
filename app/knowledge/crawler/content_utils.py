@@ -1,8 +1,11 @@
+import logging
 import re
 from typing import Dict, List, Set
 
 from bs4 import BeautifulSoup
 from langchain_core.documents import Document
+
+logger = logging.getLogger(__name__)
 
 
 class ContentProcessor:
@@ -31,11 +34,11 @@ class ContentProcessor:
 
     @classmethod
     def extract_clean_text(cls, html: str) -> str:
+        if isinstance(html, bytes):
+            html = html.decode('utf-8', errors='ignore')
         soup = BeautifulSoup(html, "lxml")
         text = soup.get_text()
         return cls.WHITESPACE_PATTERN.sub('\n\n', text).strip()
-
-
 class UrlFilter:
     EXCLUDED_EXTENSIONS: Set[str] = {
         '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico',
