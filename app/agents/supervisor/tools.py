@@ -44,11 +44,12 @@ def manage_blocked_topics(config: RunnableConfig, topic: str, action: str) -> st
     return f"Invalid action '{action}' or topic already in desired state."
 
 @tool
-def check_blocked_topic(user_id: str, topic: str) -> bool:
+def check_blocked_topic(config: RunnableConfig, topic: str) -> bool:
     """Check if a topic is blocked for a user.
 
     Returns True if blocked, False otherwise.
     """
+    user_id = config.get("configurable", {}).get("user_id")
     data = _load_blocked_topics()
     return topic in data.get(user_id, [])
 
