@@ -34,7 +34,7 @@ class FOSHttpClient:
         headers = self._build_headers()
 
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=15.0) as client:
                 logger.debug(f"Calling FOS API: {url}")
                 resp = await client.get(url, headers=headers)
                 if resp.status_code == 404:
