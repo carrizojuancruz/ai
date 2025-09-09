@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
@@ -31,7 +32,10 @@ async def sync_all_sources(
         job_id = str(uuid4())
         started_at = datetime.utcnow().isoformat()
 
-        background_tasks.add_task(run_background_sync, job_id, limit)
+        logger.info(f"Starting background sync with job_id={job_id}")
+
+        # Use BackgroundTasks with non-async function (StackOverflow solution)
+        background_tasks.add_task(run_background_sync_non_async, job_id, limit)
 
         return BackgroundSyncStartedResponse(
             job_id=job_id,
@@ -44,6 +48,19 @@ async def sync_all_sources(
             status_code=500,
             detail=f"Failed to start sync operation: {str(e)}"
         ) from e
+
+
+def run_background_sync_non_async(job_id: str, limit: Optional[int] = None):
+    """Non-async sync wrapper - runs in separate thread (StackOverflow solution)."""
+    # Create new event loop for this thread
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    try:
+        # Run the async function in this thread's event loop
+        loop.run_until_complete(run_background_sync(job_id, limit))
+    finally:
+        loop.close()
 
 
 async def run_background_sync(job_id: str, limit: Optional[int] = None):
