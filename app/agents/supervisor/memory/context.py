@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timezone, tzinfo
 from typing import Any
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_store
 from langgraph.graph import MessagesState
@@ -141,7 +141,7 @@ def _build_context_response(bullets: list[str], config: RunnableConfig) -> dict:
     date_bullet = f"Now: {now_local.strftime('%Y-%m-%d %H:%M %Z')}"
     all_bullets = ([date_bullet] if date_bullet else []) + bullets
     context_str = "Relevant context for tailoring this turn:\n- " + "\n- ".join(all_bullets)
-    return {"messages": [HumanMessage(content=context_str)]}
+    return {"messages": [AIMessage(content=context_str)]}
 
 
 async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:

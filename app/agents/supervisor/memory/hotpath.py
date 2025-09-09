@@ -11,7 +11,7 @@ from typing import Any
 from uuid import uuid4
 
 from botocore.exceptions import BotoCoreError, ClientError
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_store
 from langgraph.graph import MessagesState
@@ -590,7 +590,7 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
     if not trigger.get("should_create"):
         ctx = config.get("configurable", {}).get("user_context") or {}
         prof = _build_profile_line(ctx) if isinstance(ctx, dict) else None
-        return {"messages": [HumanMessage(content=prof)]} if prof else {}
+        return {"messages": [AIMessage(content=prof)]} if prof else {}
 
     thread_id = config.get("configurable", {}).get("thread_id")
     user_id = config.get("configurable", {}).get("user_id")
@@ -654,6 +654,6 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
     ))
     ctx = config.get("configurable", {}).get("user_context") or {}
     prof = _build_profile_line(ctx) if isinstance(ctx, dict) else None
-    return ({"messages": [HumanMessage(content=prof)]} if prof else {})
+    return ({"messages": [AIMessage(content=prof)]} if prof else {})
 
 
