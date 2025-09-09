@@ -464,7 +464,11 @@ class SupervisorService:
                         }
                     })
                     suppress_streaming = True
-                continue
+                    continue
+
+                # Handle non-transfer tools
+                if name and not name.startswith("transfer_to_"):
+                    await q.put({"event": "tool.start", "data": {"tool": name}})
 
             if etype == "on_chat_model_stream":
                 if not supervisor_active or suppress_streaming:
@@ -480,14 +484,9 @@ class SupervisorService:
                             await q.put({"event": "token.delta", "data": {"text": out, "sources": sources}})
                             set_last_emitted_text(thread_id, out)
                         assistant_response_parts.append(out)
-            elif etype == "on_tool_start":
-                tool_name = name
-                if name and not (tool_name and tool_name.startswith("transfer_to_")):
-                    await q.put({"event": "tool.start", "data": {"tool": name}})
             elif etype == "on_tool_end":
                 sources = self._add_source_from_tool_end(sources, name, data)
-                tool_name = name
-                if name and not (tool_name and tool_name.startswith("transfer_to_")):
+                if name and not name.startswith("transfer_to_"):
                     await q.put({"event": "tool.end", "data": {"tool": name}})
             elif etype == "on_chain_end":
 
