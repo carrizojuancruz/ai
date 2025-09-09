@@ -8,7 +8,6 @@ from uuid import UUID, uuid4
 from langfuse.callback import CallbackHandler
 from langgraph.graph.state import CompiledStateGraph
 
-from app.agents.supervisor.tools import _load_blocked_topics
 from app.core.app_state import (
     get_last_emitted_text,
     get_sse_queue,
@@ -21,6 +20,7 @@ from app.repositories.database_service import get_database_service
 from app.repositories.session_store import InMemorySessionStore, get_session_store
 from app.services.external_context.user.mapping import map_ai_context_to_user_context
 from app.services.external_context.user.repository import ExternalUserRepository
+from app.services.utils import _load_blocked_topics
 from app.utils.mapping import get_source_name
 from app.utils.tools import check_repeated_sources
 from app.utils.welcome import call_llm, generate_personalized_welcome
@@ -55,7 +55,6 @@ class SupervisorService:
 
             ctx = UserContext(user_id=user_id)
             ctx.blocked_topics = _load_blocked_topics().get(str(user_id), [])
-            print(ctx.blocked_topics)
             if external_ctx:
                 ctx = map_ai_context_to_user_context(external_ctx, ctx)
                 logger.info(f"[SUPERVISOR] External AI Context loaded for user: {user_id}")
