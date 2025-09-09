@@ -11,6 +11,7 @@ from fastapi import FastAPI, Request, Response
 
 from .api.admin.memories import router as memories_router
 from .api.routes import router as api_router
+from .api.routes_admin import router as admin_router
 from .api.routes_crawl import router as crawl_router
 from .api.routes_cron import router as cron_router
 from .api.routes_guest import router as guest_router
@@ -56,6 +57,7 @@ async def actual_config() -> dict[str, Any]:
     return actual_config_data
 
 app.include_router(api_router)
+app.include_router(admin_router)
 app.include_router(supervisor_router)
 app.include_router(memories_router)
 app.include_router(guest_router)
