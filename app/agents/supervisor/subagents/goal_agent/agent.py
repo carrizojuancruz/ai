@@ -12,11 +12,11 @@ from app.agents.supervisor.subagents.goal_agent.prompts import GOAL_AGENT_PROMPT
 from app.agents.supervisor.subagents.goal_agent.tools import (
     create_goal,
     delete_goal,
-    get_goal_requirements,
+    get_goal_by_id,
     get_in_progress_goal,
     list_goals,
     switch_goal_status,
-    update_goal,
+    update_goal
 )
 from app.core.config import config
 from app.observability.logging_config import configure_logging  # ensure logging format
@@ -45,9 +45,8 @@ def compile_goal_agent_graph() -> CompiledStateGraph:
     goal_agent = create_react_agent(
         model=chat_bedrock,
         tools=[
-            create_goal, update_goal, get_in_progress_goal, get_in_progress_goal,
-            get_goal_requirements, list_goals, delete_goal,
-            switch_goal_status
+            create_goal, update_goal, get_in_progress_goal,
+            list_goals, delete_goal, switch_goal_status, get_goal_by_id
         ],
         prompt=GOAL_AGENT_PROMPT,
         name="goal_agent",
