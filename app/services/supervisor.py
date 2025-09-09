@@ -356,6 +356,7 @@ class SupervisorService:
         if has_financial_accounts:
             try:
                 import asyncio
+
                 from app.core.app_state import get_finance_agent
                 fa = get_finance_agent()
                 asyncio.create_task(fa._fetch_shallow_samples(uid))

@@ -16,6 +16,7 @@ def get_config_value(config: Any, key: str, default: Optional[Any] = None) -> An
 
     Returns:
         Value from config.configurable[key] or default
+
     """
     try:
         configurable = (

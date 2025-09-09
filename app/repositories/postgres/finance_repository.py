@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 class FinanceTables:
     """Constants for finance-related database tables."""
+
     ACCOUNTS = "public.unified_accounts"
     TRANSACTIONS = "public.unified_transactions"
 

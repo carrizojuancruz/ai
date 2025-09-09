@@ -14,7 +14,7 @@ from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
 from .handoff import create_task_description_handoff_tool
 from .prompts import SUPERVISOR_PROMPT
-from .workers import goal_agent, wealth_agent, finance_router
+from .workers import finance_router, goal_agent, wealth_agent
 
 logger = logging.getLogger(__name__)
 

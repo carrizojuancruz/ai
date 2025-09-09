@@ -7,25 +7,24 @@ from uuid import UUID
 
 from langchain_aws import ChatBedrock
 from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
 from langgraph.graph import MessagesState
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import RunnableConfig
-from langchain_core.tools import tool
 
 from app.agents.supervisor.finance_agent.tools import execute_financial_query
+from app.agents.supervisor.handoff import create_handoff_back_messages
+from app.core.app_state import (
+    get_cached_finance_agent,
+    get_finance_agent,
+    get_finance_samples,
+    set_cached_finance_agent,
+    set_finance_samples,
+)
 from app.core.config import config
 from app.repositories.database_service import get_database_service
 from app.repositories.postgres.finance_repository import FinanceTables
 from app.utils.tools import get_config_value
-from app.core.app_state import (
-    get_finance_samples,
-    set_finance_samples,
-    get_cached_finance_agent,
-    set_cached_finance_agent,
-    get_finance_agent,
-)
-from app.agents.supervisor.handoff import create_handoff_back_messages
-
 
 logger = logging.getLogger(__name__)
 
@@ -360,7 +359,6 @@ class FinanceAgent:
 
     async def _create_agent_with_tools(self, user_id: UUID):
         """Create a LangGraph agent with SQL tools for the given user."""
-
         logger.info(f"Creating SQL tools for user {user_id}")
 
         # Create a custom sql_db_query tool that has access to user_id
@@ -443,7 +441,7 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[st
             return {"messages": [{"role": "assistant", "content": error_msg, "name": "finance_agent"}]}
 
         # Process the financial analysis
-        
+
         finance_agent_instance = get_finance_agent()
         analysis_result = await finance_agent_instance.process_query(query, user_id)
 
