@@ -14,6 +14,7 @@ from langgraph.graph import MessagesState
 from app.core.app_state import get_bedrock_runtime_client, get_sse_queue
 from app.core.config import config as app_config
 from app.repositories.session_store import get_session_store
+from app.utils.tools import get_config_value
 
 from .utils import _parse_iso, _utc_now_iso
 
@@ -33,7 +34,7 @@ AWS_REGION = app_config.get_aws_region()
 
 def _resolve_user_tz_from_config(config: RunnableConfig) -> tzinfo:
     """Return user's tzinfo from config; fallback to UTC when unavailable/invalid."""
-    ctx = config.get("configurable", {}).get("user_context") or {}
+    ctx = get_config_value(config, "user_context") or {}
     tzname = ((ctx.get("locale_info", {}) or {}).get("time_zone") or "UTC") if isinstance(ctx, dict) else "UTC"
     try:
         import zoneinfo
@@ -257,8 +258,8 @@ async def episodic_capture(state: MessagesState, config: RunnableConfig) -> dict
     Returns empty dict as a node output.
     """
     try:
-        user_id = config.get("configurable", {}).get("user_id")
-        thread_id = config.get("configurable", {}).get("thread_id")
+        user_id = get_config_value(config, "user_id")
+        thread_id = get_config_value(config, "thread_id")
         if not user_id:
             return {}
 

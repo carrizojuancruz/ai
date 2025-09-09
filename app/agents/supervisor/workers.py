@@ -8,6 +8,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import MessagesState
 
 from app.repositories.session_store import get_session_store
+from app.utils.tools import get_config_value
 
 from .subagents.wealth_agent.agent import compile_wealth_agent_graph
 
@@ -78,12 +79,7 @@ async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, 
 async def finance_router(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
     """Short-circuit when no accounts; else forward to finance_agent."""
     try:
-        configurable = (
-            config.get("configurable", {})
-            if isinstance(config, dict)
-            else getattr(config, "get", lambda *_: {})("configurable", {})
-        )
-        thread_id = configurable.get("thread_id")
+        thread_id = get_config_value(config, "thread_id")
 
         if not thread_id:
             logger.warning("finance_router: missing thread_id, defaulting to no accounts")

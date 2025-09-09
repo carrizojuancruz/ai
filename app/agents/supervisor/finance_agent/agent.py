@@ -15,6 +15,7 @@ from app.agents.supervisor.finance_agent.tools import execute_financial_query
 from app.core.config import config
 from app.repositories.database_service import get_database_service
 from app.repositories.postgres.finance_repository import FinanceTables
+from app.utils.tools import get_config_value
 
 logger = logging.getLogger(__name__)
 
@@ -417,7 +418,7 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[st
     """LangGraph node for finance agent that provides analysis to supervisor."""
     try:
         # Get user_id from configurable context
-        user_id = config.get("configurable", {}).get("user_id")
+        user_id = get_config_value(config, "user_id")
         if not user_id:
             # Fallback: try to extract from messages (preserved by handoff tool)
             user_id = _get_user_id_from_messages(state["messages"])
