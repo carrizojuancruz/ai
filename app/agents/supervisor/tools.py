@@ -29,7 +29,6 @@ def manage_blocked_topics(config: RunnableConfig, topic: str, action: str) -> st
     - action: 'add' to add, 'remove' to remove.
     """
     user_id = config.get("configurable", {}).get("user_id")
-    print(f"manage_blocked_topics called with user_id={user_id}, topic={topic}, action={action}")
     data = _load_blocked_topics()
     if user_id not in data:
         data[user_id] = []
