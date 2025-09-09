@@ -1,5 +1,5 @@
 import json
-import uuid
+import re
 
 import requests
 import streamlit as st
@@ -7,24 +7,37 @@ from sseclient import SSEClient
 
 st.set_page_config(page_title="Supervisor Test UI", layout="wide")
 
+def escape_currency_dollars(text: str) -> str:
+    """Escape $ characters that are likely currency amounts, while preserving LaTeX math expressions.
+
+    This function:
+    - Escapes $ followed by numbers (currency like $36, $12.50)
+    - Leaves $ followed by letters/variables intact (math like $x + y$)
+    - Preserves $$ display math expressions
+    """
+    if not text:
+        return text
+
+    # Pattern to match currency: $ followed by digits, optionally with commas/decimals
+    # This will match: $36, $12.50, $1,000, $100.99, etc.
+    currency_pattern = r'\$([0-9]+(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)'
+
+    # Replace currency $ with \$ to escape in markdown
+    def escape_currency_match(match):
+        return f"\\${match.group(1)}"
+
+    return re.sub(currency_pattern, escape_currency_match, text)
+
 if "thread_id" not in st.session_state:
     st.session_state.thread_id = None
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "user_id" not in st.session_state:
-    st.session_state.user_id = str(uuid.uuid4())
+    st.session_state.user_id = "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8"
 if "base_url" not in st.session_state:
     st.session_state.base_url = "http://localhost:8000"
 
 st.title("Supervisor Test UI")
-
-with st.sidebar:
-    st.header("Configuration")
-    st.session_state.base_url = st.text_input("API Base URL", st.session_state.base_url)
-    st.session_state.user_id = st.text_input("User ID", st.session_state.user_id)
-    if st.button("Generate New User ID"):
-        st.session_state.user_id = str(uuid.uuid4())
-        st.rerun()
 
 def start_conversation():
     """Initialize a new conversation thread with the supervisor."""
@@ -41,13 +54,15 @@ def start_conversation():
         st.error(f"Failed to start conversation: {e}")
         st.session_state.thread_id = None
 
+# Automatically start conversation if not already started
 if st.session_state.thread_id is None:
-    if st.button("Start Conversation"):
-        start_conversation()
-        st.rerun()
-else:
+    start_conversation()
+
+# Display messages if conversation is active
+if st.session_state.thread_id is not None:
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
+            # Content is already escaped when stored, just display it
             st.markdown(msg["content"])
             if "sources" in msg and msg["sources"]:
                 st.info(f"Sources: {msg['sources']}")
@@ -101,7 +116,9 @@ else:
                         else:
                             full_response += text_delta
 
-                        message_placeholder.markdown(full_response + "▌")
+                        # Escape currency $ while preserving LaTeX math expressions
+                        escaped_response = escape_currency_dollars(full_response)
+                        message_placeholder.markdown(escaped_response + "▌")
                     elif event.event == "tool.start" or event.event == "tool.end":
                         data = json.loads(event.data)
                         tool_name = data.get("tool")
@@ -110,9 +127,11 @@ else:
                         if data.get("status") == "presented":
                             break
 
-                message_placeholder.markdown(full_response)
+                # Escape currency $ while preserving LaTeX math expressions
+                escaped_response = escape_currency_dollars(full_response)
+                message_placeholder.markdown(escaped_response)
 
-            message_with_sources = {"role": "assistant", "content": full_response}
+            message_with_sources = {"role": "assistant", "content": escaped_response}
             if len(sources) > 0:
                 message_with_sources["sources"] = sources
 
@@ -124,5 +143,3 @@ else:
             st.error(f"An unexpected error occurred: {e}")
 
         st.rerun()
-
-

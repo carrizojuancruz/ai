@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone, tzinfo
@@ -29,8 +30,8 @@ def _extract_user_text(messages: list[Any]) -> str | None:
         if role in ("user", "human"):
             candidate = getattr(m, "content", None)
             if isinstance(candidate, str) and (
-                candidate.startswith("CONTEXT_PROFILE:") or
-                candidate.startswith("Relevant context for tailoring this turn:")
+                candidate.startswith("CONTEXT_PROFILE:")
+                or candidate.startswith("Relevant context for tailoring this turn:")
             ):
                 continue
             user_text = candidate
@@ -49,7 +50,12 @@ def _score_factory(weights: dict[str, float]):
         if ts:
             age_days = max(0.0, (datetime.now(tz=timezone.utc) - ts).total_seconds() / 86400.0)
             recency = 1.0 / (1.0 + age_days)
-        return weights["sim"] * sim + weights["imp"] * (imp / 5.0) + weights["recency"] * recency + weights["pinned"] * pinned
+        return (
+            weights["sim"] * sim
+            + weights["imp"] * (imp / 5.0)
+            + weights["recency"] * recency
+            + weights["pinned"] * pinned
+        )
 
     return _score
 
@@ -123,6 +129,7 @@ def _resolve_user_tz_from_config(config: RunnableConfig) -> tzinfo:
     tzname = ((ctx.get("locale_info", {}) or {}).get("time_zone") or "UTC") if isinstance(ctx, dict) else "UTC"
     try:
         import zoneinfo
+
         return zoneinfo.ZoneInfo(tzname)
     except Exception:
         return timezone.utc
@@ -149,8 +156,14 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
         store = get_store()
         query_text = (user_text or "").strip() or "personal profile"
         logger.info("memory_context.query: user_id=%s query=%s", user_id, (query_text[:200]))
-        sem = store.search((user_id, "semantic"), query=query_text, filter=None, limit=CONTEXT_TOPK)
-        epi = store.search((user_id, "episodic"), query=query_text, filter=None, limit=max(3, CONTEXT_TOPK // 2))
+
+        sem, epi = await asyncio.gather(
+            asyncio.to_thread(store.search, (user_id, "semantic"), query=query_text, filter=None, limit=CONTEXT_TOPK),
+            asyncio.to_thread(
+                store.search, (user_id, "episodic"), query=query_text, filter=None, limit=max(3, CONTEXT_TOPK // 2)
+            ),
+        )
+
         logger.info("memory_context.results: sem=%d epi=%d", len(sem or []), len(epi or []))
         score = _score_factory(w)
         merged_sem = _merge_semantic_items(sem, CONTEXT_TOPN, score)
@@ -178,5 +191,3 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
     if not locals().get("bullets"):
         return {}
     return _build_context_response(bullets, config)
-
-
