@@ -14,6 +14,7 @@ from langgraph.types import RunnableConfig
 from app.agents.supervisor.finance_agent.tools import execute_financial_query
 from app.core.config import config
 from app.repositories.database_service import get_database_service
+from app.repositories.postgres.finance_repository import FinanceTables
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,7 @@ class FinanceAgent:
                     "  COALESCE(t.provider_tx_category_detailed, t.category_detailed, t.provider_tx_category, t.category, 'Uncategorized') AS category, "
                     "  t.pending, "
                     "  t.created_at "
-                    "FROM public.unified_transactions t "
+                    f"FROM {FinanceTables.TRANSACTIONS} t "
                     "WHERE t.user_id = :user_id "
                     f"ORDER BY t.created_at DESC LIMIT {self.MAX_TRANSACTION_SAMPLES}"
                 )
@@ -129,7 +130,7 @@ class FinanceAgent:
                 # Account sample
                 acct_query = (
                     "SELECT a.id, a.name, a.account_type, a.account_subtype, a.institution_name, a.created_at "
-                    "FROM public.unified_accounts a "
+                    f"FROM {FinanceTables.ACCOUNTS} a "
                     "WHERE a.user_id = :user_id "
                     f"ORDER BY a.created_at DESC LIMIT {self.MAX_ACCOUNT_SAMPLES}"
                 )
@@ -237,7 +238,7 @@ class FinanceAgent:
 
         ## 📋 TABLE SCHEMAS (Typed; shallow as source of truth)
 
-        **public.unified_transactions**
+        **{FinanceTables.TRANSACTIONS}**
         - id (UUID)
         - user_id (UUID)
         - account_id (UUID)
@@ -255,7 +256,7 @@ class FinanceAgent:
         - external_transaction_id (VARCHAR)
         - created_at (TIMESTAMPTZ), updated_at (TIMESTAMPTZ)
 
-        **public.unified_accounts**
+        **{FinanceTables.ACCOUNTS}**
         - id (UUID)
         - user_id (UUID)
         - name (VARCHAR)
@@ -287,7 +288,7 @@ class FinanceAgent:
             END AS category,
             t.pending,
             t.created_at
-          FROM public.unified_transactions t
+          FROM {FinanceTables.TRANSACTIONS} t
           WHERE t.user_id = '{user_id}'
         ),
         dedup AS (

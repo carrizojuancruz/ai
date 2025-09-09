@@ -10,6 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger(__name__)
 
 
+class FinanceTables:
+    """Constants for finance-related database tables."""
+    ACCOUNTS = "public.unified_accounts"
+    TRANSACTIONS = "public.unified_transactions"
+
+
 class FinanceRepository:
     """PostgreSQL repository for finance data queries against Plaid tables."""
 
@@ -20,7 +26,7 @@ class FinanceRepository:
         """Return True if the user has any connected accounts, else False."""
         try:
             query = text(
-                "SELECT 1 FROM public.unified_accounts WHERE user_id = :user_id LIMIT 1"
+                f"SELECT 1 FROM {FinanceTables.ACCOUNTS} WHERE user_id = :user_id LIMIT 1"
             )
             result = await self.session.execute(query, {"user_id": str(user_id)})
             return bool(result.first())
