@@ -53,6 +53,8 @@ def _build_profile_line(ctx: dict[str, Any]) -> Optional[str]:
     city = ctx.get("city") or (ctx.get("location", {}) or {}).get("city") or None
     goals = ctx.get("goals") or []
     goals_str = ", ".join([str(g) for g in goals[:3] if isinstance(g, str)]) if isinstance(goals, list) else ""
+    blocked_topics = ctx.get("blocked_topics", [])
+    blocked_str = ", ".join([str(b) for b in blocked_topics[:5] if isinstance(b, str)]) if isinstance(blocked_topics, list) else ""
     parts: list[str] = []
     if name:
         parts.append(f"name={name}")
@@ -64,13 +66,16 @@ def _build_profile_line(ctx: dict[str, Any]) -> Optional[str]:
         parts.append(f"tone={tone}")
     if goals_str:
         parts.append(f"goals={goals_str}")
+    if blocked_str:
+        parts.append(f"blocked_topics={blocked_str}")
     if not parts:
         return None
     core = "; ".join(parts)
     guidance = (
         " Use these details to personalize tone and examples. "
         "Do not restate this line verbatim. Do not override with assumptions. "
-        "If the user contradicts this, prefer the latest user message."
+        "If the user contradicts this, prefer the latest user message. "
+        "Respect blocked_topics by not discussing them unless the user initiates."
     )
     return f"CONTEXT_PROFILE: {core}.{guidance}"
 

@@ -15,7 +15,7 @@ from app.services.memory.store_factory import create_s3_vectors_store_from_env
 from .finance_agent.agent import finance_agent
 from .handoff import create_task_description_handoff_tool
 from .prompts import SUPERVISOR_PROMPT
-from .tools import check_blocked_topic, manage_blocked_topics
+from .tools import manage_blocked_topics
 from .workers import goal_agent, wealth_agent
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,6 @@ def compile_supervisor_graph() -> CompiledStateGraph:
             assign_to_wealth_agent_with_description,
             assign_to_goal_agent_with_description,
             manage_blocked_topics,
-            check_blocked_topic,
         ],
         prompt=SUPERVISOR_PROMPT,
         name="supervisor",
