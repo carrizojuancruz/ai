@@ -7,6 +7,8 @@ from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import MessagesState
 
+from app.repositories.session_store import get_session_store
+
 from .subagents.wealth_agent.agent import compile_wealth_agent_graph
 
 logger = logging.getLogger(__name__)
@@ -71,3 +73,36 @@ async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, 
                 "name": "goal_agent"
             }]
         }
+
+
+async def finance_router(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
+    """Short-circuit when no accounts; else forward to finance_agent."""
+    try:
+        configurable = (
+            config.get("configurable", {})
+            if isinstance(config, dict)
+            else getattr(config, "get", lambda *_: {})("configurable", {})
+        )
+        thread_id = configurable.get("thread_id")
+
+        if not thread_id:
+            logger.warning("finance_router: missing thread_id, defaulting to no accounts")
+            content = "FINANCE_STATUS: NO_ACCOUNTS_CONNECTED — You don't have any financial accounts connected yet. To get started, go to the Connected Accounts menu and connect your accounts through Plaid."
+            return {"messages": [{"role": "assistant", "content": content, "name": "finance_agent"}]}
+
+        session_store = get_session_store()
+        sess = await session_store.get_session(thread_id)
+
+        has_accounts = bool(sess.get("has_financial_accounts", False)) if isinstance(sess, dict) else False
+
+        if not has_accounts:
+            content = "FINANCE_STATUS: NO_ACCOUNTS_CONNECTED — You don't have any financial accounts connected yet. To get started, go to the Connected Accounts menu and connect your accounts through Plaid."
+            return {"messages": [{"role": "assistant", "content": content, "name": "finance_agent"}]}
+
+        from app.agents.supervisor.finance_agent.agent import finance_agent as finance_worker
+        return await finance_worker(state, config)
+
+    except Exception as e:
+        logger.error(f"finance_router: error - {e}")
+        content = "I'm having trouble accessing your financial information right now. Please try again, or connect your accounts through the Connected Accounts menu if you haven't already."
+        return {"messages": [{"role": "assistant", "content": content, "name": "finance_agent"}]}

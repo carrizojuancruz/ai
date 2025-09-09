@@ -343,12 +343,23 @@ class SupervisorService:
         uid: UUID = user_id
         ctx = await self._load_user_context_from_external(uid)
 
+        has_financial_accounts = False
+        try:
+            db_service = get_database_service()
+            async with db_service.get_session() as session:
+                repo = db_service.get_finance_repository(session)
+                has_financial_accounts = await repo.user_has_any_accounts(uid)
+        except Exception as e:
+            logger.warning(f"[SUPERVISOR] Failed to check financial accounts for user {uid}: {e}")
+
+        logger.info(f"[SUPERVISOR] User {uid} has financial accounts: {has_financial_accounts}")
         await session_store.set_session(
             thread_id,
             {
                 "user_id": str(uid),
                 "user_context": ctx.model_dump(mode="json"),
                 "conversation_messages": [],
+                "has_financial_accounts": has_financial_accounts,
             },
         )
 
@@ -362,13 +373,14 @@ class SupervisorService:
 
         await queue.put({"event": "message.completed", "data": {"text": welcome}})
 
-        try:
-            import asyncio
-
-            from app.agents.supervisor.finance_agent.agent import _finance_agent
-            asyncio.create_task(_finance_agent._fetch_shallow_samples(uid))
-        except Exception:
-            pass
+        if has_financial_accounts:
+            try:
+                import asyncio
+                from app.core.app_state import get_finance_agent
+                fa = get_finance_agent()
+                asyncio.create_task(fa._fetch_shallow_samples(uid))
+            except Exception:
+                pass
 
         return {
             "thread_id": thread_id,
