@@ -21,6 +21,7 @@ from app.repositories.session_store import InMemorySessionStore, get_session_sto
 from app.utils.mapping import get_source_name
 from app.utils.tools import check_repeated_sources
 from app.utils.welcome import call_llm, generate_personalized_welcome
+from app.agents.supervisor.i18n import TRANSFER_TOOL_DESCRIPTIONS
 
 langfuse_handler = CallbackHandler(
     public_key=config.LANGFUSE_PUBLIC_SUPERVISOR_KEY,
@@ -404,6 +405,9 @@ class SupervisorService:
         }
 
         final_text_candidate: Optional[str] = None
+        supervisor_active: bool = False
+        suppress_streaming: bool = False
+        emitted_handoff_back_keys: set[str] = set()
 
         async for event in graph.astream_events(
             {"messages": [{"role": "user", "content": text}], "sources": sources},
@@ -421,11 +425,30 @@ class SupervisorService:
             etype = event.get("event")
             data = event.get("data") or {}
 
-            # Only stream events from the supervisor node to avoid showing subagent activity
-            if name != "supervisor":
+      
+            if name == "supervisor" and etype == "on_chain_start":
+                supervisor_active = True
+            elif name == "supervisor" and etype == "on_chain_end":
+                supervisor_active = False
+
+            if etype == "on_tool_start":
+                tool_name = name
+                if tool_name and tool_name.startswith("transfer_to_"):
+                    info = TRANSFER_TOOL_DESCRIPTIONS.get(tool_name) or {}
+                    await q.put({
+                        "event": "source.search.start",
+                        "data": {
+                            "tool": tool_name,
+                            "source": info.get("source") or tool_name.replace("transfer_to_", "").replace("_", " ").title(),
+                            "description": info.get("description") or "Consulting a source",
+                        }
+                    })
+                    suppress_streaming = True
                 continue
 
             if etype == "on_chat_model_stream":
+                if not supervisor_active or suppress_streaming:
+                    continue
                 chunk = data.get("chunk")
                 out = self._content_to_text(chunk)
                 if out:
@@ -438,11 +461,13 @@ class SupervisorService:
                             set_last_emitted_text(thread_id, out)
                         assistant_response_parts.append(out)
             elif etype == "on_tool_start":
-                if name:
+                tool_name = name
+                if name and not (tool_name and tool_name.startswith("transfer_to_")):
                     await q.put({"event": "tool.start", "data": {"tool": name}})
             elif etype == "on_tool_end":
                 sources = self._add_source_from_tool_end(sources, name, data)
-                if name:
+                tool_name = name
+                if name and not (tool_name and tool_name.startswith("transfer_to_")):
                     await q.put({"event": "tool.end", "data": {"tool": name}})
             elif etype == "on_chain_end":
 
@@ -451,20 +476,23 @@ class SupervisorService:
                     if isinstance(output, dict):
                         messages = output.get("messages")
                         if isinstance(messages, list) and messages:
-                            last = messages[-1]
-                            content_obj = (
-                                last.get("content") if isinstance(last, dict) else getattr(last, "content", None)
-                            )
-                            text = self._content_to_text(content_obj)
-                            if text:
-                                text = self._strip_guardrail_marker(text)
-                            if text and not self._is_injected_context(text):
-                                last = get_last_emitted_text(thread_id)
-                                if text != last:
-                                    if name not in ["tools"]:
-                                        await q.put({"event": "token.delta", "data": {"text": text, "sources": sources}})
-                                        set_last_emitted_text(thread_id, text)
-                                    assistant_response_parts.append(text)
+                            last_tool = next((m for m in messages if (getattr(m, "name", None) or getattr(m, "tool_name", "")).startswith("transfer_back_to_")), None)
+                            if last_tool:
+                                back_tool: str = getattr(last_tool, "name", None) or getattr(last_tool, "tool_name", "")
+                                tool_call_id = getattr(last_tool, "tool_call_id", None) or getattr(last_tool, "id", None)
+                                dedupe_key = f"{back_tool}:{tool_call_id or 'noid'}"
+                                if dedupe_key not in emitted_handoff_back_keys:
+                                    emitted_handoff_back_keys.add(dedupe_key)
+                                    supervisor_name = back_tool.replace("transfer_back_to_", "").replace("_", " ").title() or "Supervisor"
+                                    await q.put({
+                                        "event": "source.search.end",
+                                        "data": {
+                                            "tool": back_tool,
+                                            "source": supervisor_name,
+                                            "description": "Returned from source",
+                                        }
+                                    })
+                                    suppress_streaming = False
                 except Exception:
                     pass
 
