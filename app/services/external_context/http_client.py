@@ -14,11 +14,8 @@ class FOSHttpClient:
     """HTTP client for FOS service."""
 
     def __init__(self):
-        self.base_url = (config.FOS_SERVICE_URL).rstrip('/')
+        self.base_url = (config.FOS_SERVICE_URL).rstrip('/') if config.FOS_SERVICE_URL else None
         self.api_key = config.FOS_API_KEY
-
-        if not self.base_url:
-            logger.info("FOS_SERVICE_URL not set; FOS API calls will be skipped")
 
     def _build_headers(self) -> Dict[str, str]:
         """Build request headers with API key."""
@@ -30,6 +27,7 @@ class FOSHttpClient:
     async def get(self, endpoint: str) -> Dict[str, Any] | None:
         """GET request to FOS service."""
         if not self.base_url:
+            logger.warning("FOS_SERVICE_URL not configured - skipping external API call")
             return None
 
         url = f"{self.base_url}{endpoint}"
@@ -37,13 +35,18 @@ class FOSHttpClient:
 
         try:
             async with httpx.AsyncClient() as client:
+                logger.debug(f"Calling FOS API: {url}")
                 resp = await client.get(url, headers=headers)
                 if resp.status_code == 404:
+                    logger.warning(f"FOS API endpoint not found: {endpoint}")
                     return None
                 resp.raise_for_status()
                 return resp.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"FOS API HTTP error for {endpoint}: {e.response.status_code} - {e.response.text}")
+            return None
         except Exception as e:
-            logger.warning(f"FOS API GET failed for {endpoint}: {e}")
+            logger.error(f"FOS API connection failed for {endpoint}: {type(e).__name__}: {e}")
             return None
 
     async def put(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any] | None:

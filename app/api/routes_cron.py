@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from typing import Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
@@ -15,13 +16,22 @@ router = APIRouter(prefix="/cron", tags=["Cron"])
 
 
 @router.post("/knowledge-base", response_model=BackgroundSyncStartedResponse)
-async def sync_all_sources(background_tasks: BackgroundTasks) -> BackgroundSyncStartedResponse:
-    """Trigger synchronization of all knowledge base sources in background."""
+async def sync_all_sources(
+    background_tasks: BackgroundTasks,
+    limit: Optional[int] = None
+) -> BackgroundSyncStartedResponse:
+    """Trigger synchronization of all knowledge base sources in background.
+
+    Args:
+        background_tasks: FastAPI background tasks handler.
+        limit: Optional limit on the number of sources to sync. If not provided, all enabled sources will be synced.
+
+    """
     try:
         job_id = str(uuid4())
         started_at = datetime.utcnow().isoformat()
 
-        background_tasks.add_task(run_background_sync, job_id)
+        background_tasks.add_task(run_background_sync, job_id, limit)
 
         return BackgroundSyncStartedResponse(
             job_id=job_id,
@@ -36,14 +46,14 @@ async def sync_all_sources(background_tasks: BackgroundTasks) -> BackgroundSyncS
         ) from e
 
 
-async def run_background_sync(job_id: str):
+async def run_background_sync(job_id: str, limit: Optional[int] = None):
     start_time = datetime.utcnow()
 
     try:
         logger.info(f"Starting knowledge sync job {job_id}")
 
         sync_service = KnowledgeBaseSyncService()
-        result = await sync_service.sync_all()
+        result = await sync_service.sync_all(limit=limit)
         duration = (datetime.utcnow() - start_time).total_seconds()
 
         logger.info(
