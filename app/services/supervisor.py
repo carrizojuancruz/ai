@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from langfuse.callback import CallbackHandler
 from langgraph.graph.state import CompiledStateGraph
 
+from app.agents.supervisor.i18n import TRANSFER_TOOL_DESCRIPTIONS
 from app.core.app_state import (
     get_last_emitted_text,
     get_sse_queue,
@@ -21,7 +22,6 @@ from app.repositories.session_store import InMemorySessionStore, get_session_sto
 from app.utils.mapping import get_source_name
 from app.utils.tools import check_repeated_sources
 from app.utils.welcome import call_llm, generate_personalized_welcome
-from app.agents.supervisor.i18n import TRANSFER_TOOL_DESCRIPTIONS
 
 langfuse_handler = CallbackHandler(
     public_key=config.LANGFUSE_PUBLIC_SUPERVISOR_KEY,
@@ -425,7 +425,7 @@ class SupervisorService:
             etype = event.get("event")
             data = event.get("data") or {}
 
-      
+
             if name == "supervisor" and etype == "on_chain_start":
                 supervisor_active = True
             elif name == "supervisor" and etype == "on_chain_end":
