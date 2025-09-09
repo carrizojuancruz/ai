@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import random
+
 
 def _get_random_step_planning_current() -> str:
     """Get random current state message for step planning."""

@@ -9,14 +9,14 @@ from langfuse.callback import CallbackHandler
 from langgraph.graph.state import CompiledStateGraph
 
 from app.agents.supervisor.i18n import (
-    _get_random_finance_current,
-    _get_random_finance_completed,
-    _get_random_budget_current,
     _get_random_budget_completed,
-    _get_random_wealth_current,
-    _get_random_wealth_completed,
-    _get_random_step_planning_current,
+    _get_random_budget_current,
+    _get_random_finance_completed,
+    _get_random_finance_current,
     _get_random_step_planning_completed,
+    _get_random_step_planning_current,
+    _get_random_wealth_completed,
+    _get_random_wealth_current,
 )
 from app.core.app_state import (
     get_last_emitted_text,
