@@ -33,6 +33,7 @@ async def get_sources() -> SourcesResponse:
 
         source_responses = [
             SourceResponse(
+                id=source.id,
                 name=source.name,
                 url=source.url,
                 type=source.type,
