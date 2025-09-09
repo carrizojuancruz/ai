@@ -98,26 +98,6 @@ class SupervisorService:
             logger.error(f"[SUPERVISOR] Failed to export user context: {e}")
             return False
 
-    async def _get_user_context_from_db(self, user_id: UUID) -> UserContext | None:
-        """Get user context from database using the centralized database service."""
-        try:
-            db_service = get_database_service()
-            async with db_service.get_session() as session:
-                repo = db_service.get_user_repository(session)
-                return await repo.get_by_id(user_id)
-        except Exception as e:
-            logger.error(f"[SUPERVISOR] Failed to load user context from database: {e}")
-            return None
-
-    def _is_guardrail_intervention(self, text: str) -> bool:
-        if not isinstance(text, str):
-            return False
-        low = text.lower()
-        return (
-            "guardrail_intervened" in low
-            or "gr_input_blocked" in low
-            or ("guardrail" in low and ("blocked" in low or "intervened" in low))
-        )
 
     def _strip_guardrail_marker(self, text: str) -> str:
         if not isinstance(text, str):
