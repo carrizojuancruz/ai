@@ -1,13 +1,13 @@
 import json
 from datetime import date, datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import httpx
 
 from langfuse import Langfuse
 
 from .config import LangfuseConfig
-from .models import CostSummary, DailyCostResponse, UserCostSummary
+from .models import CostSummary, DailyCostResponse, AdminCostSummary, UserCostSummary
 
 
 class LangfuseCostService:
@@ -36,41 +36,13 @@ class LangfuseCostService:
         """Get costs for users on a specific date."""
         return self._get_costs(self.supervisor_client, target_date, user_id)
 
-    async def get_costs_per_user_all_time(self, user_id: str) -> CostSummary:
-        """Get all-time aggregated costs for a specific user."""
-        try:
-            end_date = date.today()
-            start_date = end_date - timedelta(days=30)
-
-            all_costs = []
-            current_date = start_date
-
-            while current_date <= end_date:
-                daily_costs = self._get_costs(self.supervisor_client, current_date, user_id)
-                all_costs.extend(daily_costs)
-                current_date += timedelta(days=1)
-
-            total_cost = sum(cost.total_cost for cost in all_costs)
-            total_tokens = sum(cost.total_tokens for cost in all_costs)
-            total_traces = sum(cost.trace_count for cost in all_costs)
-
-            return CostSummary(
-                user_id=user_id,
-                total_cost=total_cost,
-                total_tokens=total_tokens,
-                trace_count=total_traces,
-                date_range={"from": start_date.isoformat(), "to": end_date.isoformat()}
-            )
-        except Exception:
-            return CostSummary(user_id=user_id, total_cost=0.0, total_tokens=0, trace_count=0)
-
     async def get_users_costs_flexible(
         self,
         from_date: Optional[date] = None,
         to_date: Optional[date] = None,
         user_id: Optional[str] = None,
         exclude_user_metadata: bool = False
-    ) -> List[UserCostSummary]:
+    ) -> List[CostSummary]:
         """Get flexible cost data with date range support."""
         try:
             start_date, end_date = self._get_date_range(from_date, to_date)
@@ -83,7 +55,69 @@ class LangfuseCostService:
                 all_costs.extend(daily_costs)
                 current_date += timedelta(days=1)
 
-            return all_costs
+            # Aggregate costs by user_id
+            user_aggregates = {}
+            for cost in all_costs:
+                uid = cost.user_id
+                if uid not in user_aggregates:
+                    user_aggregates[uid] = {'total_cost': 0.0, 'total_tokens': 0, 'trace_count': 0}
+                
+                user_aggregates[uid]['total_cost'] += cost.total_cost
+                user_aggregates[uid]['total_tokens'] += cost.total_tokens
+                user_aggregates[uid]['trace_count'] += cost.trace_count
+
+            # Convert to CostSummary objects
+            return [
+                CostSummary(
+                    user_id=uid,
+                    total_cost=data['total_cost'],
+                    total_tokens=data['total_tokens'],
+                    trace_count=data['trace_count'],
+                    date_range={"from": start_date.isoformat(), "to": end_date.isoformat()}
+                )
+                for uid, data in user_aggregates.items()
+            ]
+        except Exception:
+            return []
+
+    async def get_users_costs(
+        self,
+        from_date: Optional[date] = None,
+        to_date: Optional[date] = None,
+        user_id: Optional[str] = None,
+        exclude_user_metadata: bool = False
+    ) -> List[AdminCostSummary]:
+        """Get cost data with only essential fields: user_id, total_cost, trace_count."""
+        try:
+            start_date, end_date = self._get_date_range(from_date, to_date)
+            
+            all_costs = []
+            current_date = start_date
+
+            while current_date <= end_date:
+                daily_costs = self._get_costs(self.supervisor_client, current_date, user_id, exclude_user_metadata)
+                all_costs.extend(daily_costs)
+                current_date += timedelta(days=1)
+
+            # Aggregate costs by user_id
+            user_aggregates = {}
+            for cost in all_costs:
+                uid = cost.user_id
+                if uid not in user_aggregates:
+                    user_aggregates[uid] = {'total_cost': 0.0, 'trace_count': 0}
+                
+                user_aggregates[uid]['total_cost'] += cost.total_cost
+                user_aggregates[uid]['trace_count'] += cost.trace_count
+
+            # Convert to AdminCostSummary objects
+            return [
+                AdminCostSummary(
+                    user_id=uid,
+                    total_cost=data['total_cost'],
+                    trace_count=data['trace_count']
+                )
+                for uid, data in user_aggregates.items()
+            ]
         except Exception:
             return []
 
@@ -119,9 +153,40 @@ class LangfuseCostService:
         except Exception:
             return []
 
+    async def get_guest_costs(
+        self,
+        from_date: Optional[date] = None,
+        to_date: Optional[date] = None
+    ) -> CostSummary:
+        """Get guest user costs (users without user_id) with date range support."""
+        try:
+            start_date, end_date = self._get_date_range(from_date, to_date)
+            
+            all_costs = []
+            current_date = start_date
+
+            while current_date <= end_date:
+                daily_costs = self._get_costs(self.guest_client, current_date, exclude_user_metadata=True)
+                all_costs.extend(daily_costs)
+                current_date += timedelta(days=1)
+
+            total_cost = sum(cost.total_cost for cost in all_costs)
+            total_tokens = sum(cost.total_tokens for cost in all_costs)
+            total_traces = sum(cost.trace_count for cost in all_costs)
+
+            return CostSummary(
+                user_id=None,  # Guest users have no user_id
+                total_cost=total_cost,
+                total_tokens=total_tokens,
+                trace_count=total_traces,
+                date_range={"from": start_date.isoformat(), "to": end_date.isoformat()}
+            )
+        except Exception:
+            return CostSummary(user_id=None, total_cost=0.0, total_tokens=0, trace_count=0)
+
     # === PRIVATE HELPERS ===
 
-    def _get_date_range(self, from_date: Optional[date], to_date: Optional[date]) -> tuple[date, date]:
+    def _get_date_range(self, from_date: Optional[date], to_date: Optional[date]) -> Tuple[date, date]:
         """Get normalized date range."""
         if from_date and to_date:
             return from_date, to_date

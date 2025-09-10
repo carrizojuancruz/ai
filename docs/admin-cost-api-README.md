@@ -3,8 +3,11 @@
 This document provides comprehensive documentation for the Verde AI Admin Cost API endpoints. 
 
 ## Overview
+---
 
-The Admin Cost API provides cost analytics for **registered users only** (users with user_id). The API currently implements **2 core endpoints** that cover all cost analysis needs.
+## 📅 **Endpoint 2: Daily Cost Breakdown**
+
+### `GET /admin/users/{user_id}/costs`Admin Cost API provides cost analytics for **registered users only** (users with user_id). The API currently implements **2 core endpoints** that cover all cost analysis needs.
 
 ### 🎯 **Available Endpoints**
 
@@ -40,7 +43,7 @@ http://localhost:8000
 - **from_date=to_date**: All/specific users for single date
 - **date range**: All/specific users aggregated for date range
 
-**Always returns `List[CostSummary]` with consistent data model.**
+**Always returns `List[AdminCostSummary]` with only essential fields: user_id, total_cost, trace_count.**
 
 #### Use Case 1: All Users Historical Costs
 **Purpose:** Admin dashboard overview of all registered users
@@ -54,16 +57,12 @@ GET /admin/users/costs
   {
     "user_id": "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8",
     "total_cost": 8.561042599928,
-    "total_tokens": 0,
-    "trace_count": 151,
-    "date_range": {"from": "2025-09-02", "to": "2025-09-10"}
+    "trace_count": 151
   },
   {
     "user_id": "user2-abc-123",
     "total_cost": 1.580669999984,
-    "total_tokens": 0,
-    "trace_count": 82,
-    "date_range": {"from": "2025-08-28", "to": "2025-09-09"}
+    "trace_count": 82
   }
 ]
 ```
@@ -80,9 +79,7 @@ GET /admin/users/costs?user_id=ba5c5db4-d3fb-4ca8-9445-1c221ea502a8
   {
     "user_id": "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8",
     "total_cost": 8.561042599928,
-    "total_tokens": 0,
-    "trace_count": 151,
-    "date_range": {"from": "2025-09-02", "to": "2025-09-10"}
+    "trace_count": 151
   }
 ]
 ```
@@ -99,16 +96,12 @@ GET /admin/users/costs?from_date=2025-09-10&to_date=2025-09-10
   {
     "user_id": "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8",
     "total_cost": 0.189464999999,
-    "total_tokens": 0,
-    "trace_count": 4,
-    "date_range": {"from": "2025-09-10", "to": "2025-09-10"}
+    "trace_count": 4
   },
   {
     "user_id": "27c4b928-59f7-46fa-be5a-f6795f4fda6f",
     "total_cost": 0.041343,
-    "total_tokens": 0,
-    "trace_count": 4,
-    "date_range": {"from": "2025-09-10", "to": "2025-09-10"}
+    "trace_count": 4
   }
 ]
 ```
@@ -125,9 +118,7 @@ GET /admin/users/costs?user_id=ba5c5db4-d3fb-4ca8-9445-1c221ea502a8&from_date=20
   {
     "user_id": "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8",
     "total_cost": 7.895123456789,
-    "total_tokens": 0,
-    "trace_count": 142,
-    "date_range": {"from": "2025-09-01", "to": "2025-09-10"}
+    "trace_count": 142
   }
 ]
 ```
@@ -226,11 +217,21 @@ Used by `/admin/users/{user_id}/costs` endpoint.
 }
 ```
 
-### CostSummary
+### AdminCostSummary
 Used by `/admin/users/costs` endpoint.
 ```json
 {
   "user_id": "string",
+  "total_cost": 0.0,
+  "trace_count": 0
+}
+```
+
+### CostSummary
+Used by `/admin/users/guest/costs` endpoint.
+```json
+{
+  "user_id": null,
   "total_cost": 0.0,
   "total_tokens": 0,
   "trace_count": 0,
