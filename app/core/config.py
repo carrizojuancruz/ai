@@ -164,6 +164,31 @@ class Config:
     BILL_MIN_OCCURRENCES: int = int(os.getenv("BILL_MIN_OCCURRENCES", "3"))
     BILL_PREDICTION_WINDOW_DAYS: int = int(os.getenv("BILL_PREDICTION_WINDOW_DAYS", "35"))
 
+    def __init__(self):
+        self.__class__._initialize()
+
+    @classmethod
+    def _initialize(cls):
+        secrets = AWSConfig(cls.FOS_SECRETS_REGION, cls.FOS_SECRETS_ID).get_secrets_manager_values()
+
+        if secrets:
+            for key, value in secrets.items():
+                cls.set_env_var(key, value)
+
+    @classmethod
+    def set_env_var(cls, key: str, value: str):
+        try:
+            if isinstance(value, str):
+                if value.lower() in ["true", "false"]:
+                    value = value.lower() == "true"
+                elif value.isdigit():
+                    value = int(value)
+                elif value.replace(".", "", 1).isdigit():
+                    value = float(value)
+            setattr(cls, key, value)
+        except (ValueError, TypeError):
+            print(f"Failed to set environment variable {key} with value {value}")
+
     @classmethod
     def get_aws_region(cls) -> str:
         """Get AWS region with fallback logic."""
