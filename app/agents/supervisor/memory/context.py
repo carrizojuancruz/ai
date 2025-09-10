@@ -12,6 +12,7 @@ from langgraph.config import get_store
 from langgraph.graph import MessagesState
 
 from app.core.config import config
+from app.utils.tools import get_config_value
 
 from .utils import _parse_iso, _parse_weights
 
@@ -125,7 +126,7 @@ def _items_to_bullets(epi_items: list[Any], sem_items: list[Any], topn: int, use
 
 
 def _resolve_user_tz_from_config(config: RunnableConfig) -> tzinfo:
-    ctx = config.get("configurable", {}).get("user_context") or {}
+    ctx = get_config_value(config, "user_context") or {}
     tzname = ((ctx.get("locale_info", {}) or {}).get("time_zone") or "UTC") if isinstance(ctx, dict) else "UTC"
     try:
         import zoneinfo
@@ -147,7 +148,7 @@ def _build_context_response(bullets: list[str], config: RunnableConfig) -> dict:
 async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
     messages = state["messages"]
     user_text = _extract_user_text(messages)
-    user_id = config.get("configurable", {}).get("user_id")
+    user_id = get_config_value(config, "user_id")
     if not user_id:
         return {}
 

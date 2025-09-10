@@ -98,26 +98,6 @@ class SupervisorService:
             logger.error(f"[SUPERVISOR] Failed to export user context: {e}")
             return False
 
-    async def _get_user_context_from_db(self, user_id: UUID) -> UserContext | None:
-        """Get user context from database using the centralized database service."""
-        try:
-            db_service = get_database_service()
-            async with db_service.get_session() as session:
-                repo = db_service.get_user_repository(session)
-                return await repo.get_by_id(user_id)
-        except Exception as e:
-            logger.error(f"[SUPERVISOR] Failed to load user context from database: {e}")
-            return None
-
-    def _is_guardrail_intervention(self, text: str) -> bool:
-        if not isinstance(text, str):
-            return False
-        low = text.lower()
-        return (
-            "guardrail_intervened" in low
-            or "gr_input_blocked" in low
-            or ("guardrail" in low and ("blocked" in low or "intervened" in low))
-        )
 
     def _strip_guardrail_marker(self, text: str) -> str:
         if not isinstance(text, str):
@@ -343,12 +323,23 @@ class SupervisorService:
         uid: UUID = user_id
         ctx = await self._load_user_context_from_external(uid)
 
+        has_financial_accounts = False
+        try:
+            db_service = get_database_service()
+            async with db_service.get_session() as session:
+                repo = db_service.get_finance_repository(session)
+                has_financial_accounts = await repo.user_has_any_accounts(uid)
+        except Exception as e:
+            logger.warning(f"[SUPERVISOR] Failed to check financial accounts for user {uid}: {e}")
+
+        logger.info(f"[SUPERVISOR] User {uid} has financial accounts: {has_financial_accounts}")
         await session_store.set_session(
             thread_id,
             {
                 "user_id": str(uid),
                 "user_context": ctx.model_dump(mode="json"),
                 "conversation_messages": [],
+                "has_financial_accounts": has_financial_accounts,
             },
         )
 
@@ -362,13 +353,15 @@ class SupervisorService:
 
         await queue.put({"event": "message.completed", "data": {"text": welcome}})
 
-        try:
-            import asyncio
+        if has_financial_accounts:
+            try:
+                import asyncio
 
-            from app.agents.supervisor.finance_agent.agent import _finance_agent
-            asyncio.create_task(_finance_agent._fetch_shallow_samples(uid))
-        except Exception:
-            pass
+                from app.core.app_state import get_finance_agent
+                fa = get_finance_agent()
+                asyncio.create_task(fa._fetch_shallow_samples(uid))
+            except Exception:
+                pass
 
         return {
             "thread_id": thread_id,

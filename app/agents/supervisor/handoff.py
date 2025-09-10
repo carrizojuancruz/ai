@@ -10,9 +10,21 @@ from langgraph.prebuilt import InjectedState
 from langgraph.types import Command, Send
 
 
-def create_task_description_handoff_tool(*, agent_name: str, description: str | None = None) -> tool:
-    """Create a tool that delegates tasks to subagents using proper tool calls."""
-    name = f"transfer_to_{agent_name}"
+def create_task_description_handoff_tool(
+    *,
+    agent_name: str,
+    description: str | None = None,
+    destination_agent_name: str | None = None,
+    tool_name: str | None = None,
+) -> tool:
+    """Create a tool that delegates tasks to subagents using proper tool call mechanics.
+
+    agent_name controls the semantic name used in descriptions. The tool's actual
+    registered name can be overridden via tool_name. The graph destination can be
+    overridden via destination_agent_name (defaults to agent_name).
+    """
+    name = tool_name or f"transfer_to_{agent_name}"
+    dest = destination_agent_name or agent_name
     tool_description = description or f"Delegate a task to the {agent_name} for specialized analysis."
 
     @tool(name, description=tool_description)
@@ -43,10 +55,7 @@ def create_task_description_handoff_tool(*, agent_name: str, description: str | 
             name="supervisor_delegator"
         )
 
-        return Command(
-            graph=Command.PARENT,
-            goto=Send(agent_name, {"messages": [task_message]}),
-        )
+        return Command(graph=Command.PARENT, goto=Send(dest, {"messages": [task_message]}))
 
     return handoff_tool
 
