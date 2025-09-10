@@ -25,18 +25,23 @@
 ## Types of Nudges in the System
 
 ### 1. **Goal Progress Nudges**
-- Reminders to complete pending steps
-- Celebration of achieved milestones
-- Visual progress indicators
-- Encouraging messages during the process (follow-up)
+- Reminders to complete pending goals
+- Celebration of achieved goals
 
-### 2. **Connection Nudges**
-- Suggestions to connect bank accounts (if they don't have them)
+### 2. **App Nudges**
+- Notifications triggered based on the structured data we have for a user
+- Suggestions to connect bank accounts (if not already connected)
+- Reminder of free trial ending soon (e.g., 3 days left)
 
-### 3. **Education Nudges**
-- Brief explanations of financial concepts related to interests or goals
-- Security and privacy tips
-- Financial best practices
+### 3. **Memory-based Nudges**
+- Recurring notifications (daily or every two days, to be defined)
+- Use episodic or semantic memory as the icebreaker
+- Craft a personalized message from that memory to spark a new conversation
+
+### 4. **Bill payment Nudge**
+- Reminder for upcoming bill due dates
+- Bill items are defined in the user's profile
+- Each item includes name and monthly due date
 
 ## Nudge Manifestation Types
 
@@ -61,7 +66,7 @@
 - **Behavior**: When preview is tapped, direct message is executed
 - **Purpose**: Start natural conversation about a specific topic
 - **Example**: "Hello Vera! Tell me about my savings progress"
-- **Flow**: Preview → Welcome Message → USER responds naturally → LLM continues conversation
+- **Flow**: Preview → Welcome Message → USER responds naturally → Supervisor Agent continues conversation
 - **Result**: Always initiates active conversation
 
 #### **Binary Choice Welcome Message**
@@ -69,80 +74,53 @@
 - **Purpose**: Get immediate user decision before continuing
 - **Example**: "Would you like to review your entertainment expenses this month?"
 - **Options**: 
-  - "Yes, help me" → User message is sent to chat → LLM responds about the topic
+  - "Yes, help me" → User message is sent to chat → Supervisor Agent responds about the topic
   - "Not now" → Decline message is sent → CLOSE chat immediately
-- **Flow**: Preview → Binary Choice → User Selection → **if ACCEPT** = LLM responds → **if DECLINE** = CLOSE chat
+- **Flow**: Preview → Binary Choice → User Selection → **if ACCEPT** = Supervisor Agent responds → **if DECLINE** = CLOSE chat
 - **Logic**: Accept = active conversation, Decline = immediate closure
 
-## The Nudge Engine: Detailed Architecture
+#### **Text Message Welcome Message**
+- **Behavior**: When preview is tapped, direct text message is executed
+- **Purpose**: Start conversation with memory-based or contextual content
+- **Example**: "Remember when you mentioned wanting to save for vacation? Let's check your progress!"
+- **Flow**: Preview → Text Message → USER responds naturally → Supervisor Agent continues conversation
+- **Result**: Always initiates active conversation with personalized context
 
-### Engine Components
+## Nudge Engine Architecture
 
-### **Main Engine Components**
+### **Core Components**
+- **Nudge Orchestrator**: Coordinates execution flow and selects appropriate nudges
+- **Context Analyzer**: Collects user context (memories, profile, goals, preferences)
+- **Nudge Selector**: Uses scoring to determine the most relevant nudge
+- **Supervisor Agent Router**: Routes selected messages to Supervisor Agent
 
-#### **1. Nudge Orchestrator**
-- Coordinates the entire nudge execution flow
-- Analyzes context, selects appropriate nudge, and executes delivery
-
-#### **2. Context Analyzer**
-- Collects user context: episodic/semantic memories, profile, goals, preferences
-- Integrates with your existing memory system
-
-#### **3. Nudge Selector**
-- Selects the most relevant nudge based on context and user preferences
-- Uses scoring to determine which is most appropriate
-
-#### **4. LLM Router**
-- Doesn't need to prepare complex prompts - the LLM already has context
-- Only sends the selected user message to the chat
-- The LLM responds naturally using its existing personality and context
-
-### Engine Execution Flow
-
+### **Execution Flow**
 ```
-1. Trigger Event → 2. Context Analysis → 3. Nudge Selection → 4. User Message → 5. Execution
-     ↓                      ↓                    ↓                    ↓                ↓
-User Action/Time        User Context         Best Nudge         User Selection      Deliver & Handle
+Trigger Event → Context Analysis → Nudge Selection → User Message → Delivery
 ```
 
-### Nudge Engine States
-
+### **Engine States**
 ```python
 class NudgeEngineState:
     IDLE = "idle"                    # Waiting for triggers
     ANALYZING = "analyzing"          # Analyzing context
     SELECTING = "selecting"          # Selecting nudge
-    PREPARING = "preparing"          # Preparing user message
     EXECUTING = "executing"          # Executing nudge
     COMPLETED = "completed"          # Nudge completed
     FAILED = "failed"                # Execution error
 ```
 
-## Integration with the Agent System
+## Integration & Memory System
 
-### Nudge Routing by Type
+### **Routing**
+All nudges are routed to the **Supervisor Agent** for processing:
+- **Simple/Text Messages**: Continue conversation naturally
+- **Binary Choices**: Process user choice (accept → continue, decline → close chat)
 
-### **Nudge Routing by Type**
-
-#### **Welcome Message Nudges → Supervisor Agent**
-- Sent to supervisor agent to continue conversation naturally
-- Use predefined nudge context to personalize the response
-
-#### **Binary Choice Nudges → Direct LLM**
-- Processed directly by the LLM according to user choice
-- If accepted: user message is sent to chat
-- If declined: decline message is sent to chat and conversation is closed
-
-#### **Intelligent Routing System**
-- Automatically determines where to send each type of nudge
-- Fallback to supervisor agent if no specific handler exists
-
-### **Memory System for Nudges**
-
-- **Storage**: Saves each nudge interaction in episodic memory
-- **Tracking**: Tracks user responses, outcomes, and context
-- **Optimization**: Calculates effectiveness of each nudge type to improve future selections
-- **Integration**: Connects with your existing memory system (episodic and semantic)
+### **Memory Integration**
+- **Storage**: Saves nudge interactions in episodic memory
+- **Tracking**: Monitors user responses and outcomes
+- **Optimization**: Calculates effectiveness to improve future selections
 
 ## Nudge Response Structure
 
@@ -271,39 +249,39 @@ INAPP_NUDGES = {
             'timing': 'immediate'
         }
     },
-    'goal_category_alert': {
-        'preview_text': "Your plan for {goal_category} is going very well. Should we keep the momentum?",
-        'trigger_conditions': ['goal_category_active', 'progress_positive'],
+    'pending_goal': {
+        'preview_text': "Hey {user-name}, we've got a goal waiting on details… want to wrap it up?",
+        'trigger_conditions': ['goal_status_pending'],
         'type': 'nudge_inapp',
         'welcome_message': {
-            'type': 'simple',
-            'user_message': "Vera, how's my progress with {goal_category}?",
-            'action': "continue_conversation"
+            'type': 'binary_choice',
+            'message': "Would you like to complete your pending goal?",
+            'choices': {
+                'accept': {
+                    'label': "Edit goal",
+                    'user_message': "Yes, I want to complete my goal",
+                    'action': "continue_conversation"
+                },
+                'decline': {
+                    'label': "Not now",
+                    'user_message': "Not now, maybe later",
+                    'action': "close_chat"
+                }
+            }
         },
         'manifestation': {
             'channel': 'in_app_message',
             'timing': 'immediate'
         }
     },
-    'spending_pattern_alert': {
-        'preview_text': "I noticed a pattern in your {category} expenses that adds up to ${total_amount} per month 🐜",
-        'trigger_conditions': ['spending_pattern_detected', 'impact_threshold_met'],
+    'memory_icebreaker': {
+        'preview_text': "{memory_based_text}",
+        'trigger_conditions': ['memory_available', 'daily_schedule'],
         'type': 'nudge_inapp',
         'welcome_message': {
-            'type': 'binary_choice',
-            'message': "Would you like to review this spending pattern?",
-            'choices': {
-                'accept': {
-                    'label': "Yes, I want to review it",
-                    'user_message': "Yes, I want to review this spending pattern",
-                    'action': "continue_conversation"
-                },
-                'decline': {
-                    'label': "Not interested now",
-                    'user_message': "I'm not interested in reviewing it now",
-                    'action': "close_chat"
-                }
-            }
+            'type': 'text_message',
+            'user_message': "{memory_based_text}",
+            'action': "continue_conversation"
         },
         'manifestation': {
             'channel': 'in_app_message',
@@ -316,31 +294,17 @@ INAPP_NUDGES = {
 ### **Push Notification Nudges (With Welcome Message)**
 ```python
 PUSH_NUDGES = {
-    'goal_engagement': {
-        'preview_text': "Hello {user-name}! How's your {goal-name} going?",
-        'trigger_conditions': ['goal_active', 'no_interaction_7_days'],
-        'type': 'nudge_push',
-        'welcome_message': {
-            'type': 'simple',
-            'user_message': "Hello Vera! How's my progress in {goal-name}?",
-            'action': "continue_conversation"
-        },
-        'manifestation': {
-            'channel': 'push_notification',
-            'timing': 'scheduled_7_days'
-        }
-    },
-    'spending_insight': {
-        'preview_text': "Hello {user-name}, I noticed something about your {category} expenses 🤔",
-        'trigger_conditions': ['goal_category_spending', 'threshold_warn_progress_pct'],
+    'free_trial_ending': {
+        'preview_text': "Hey {user-name} just letting you know: we've got 3 days left on the free trial.",
+        'trigger_conditions': ['user_is_free', 'days_left_equals_3'],
         'type': 'nudge_push',
         'welcome_message': {
             'type': 'binary_choice',
-            'message': "Would you like to review your {category} expenses this month?",
+            'message': "Would you like to subscribe to continue using Vera?",
             'choices': {
                 'accept': {
-                    'label': "Yes, help me",
-                    'user_message': "Yes, I'd like to review my {category} expenses",
+                    'label': "Subscribe now",
+                    'user_message': "Yes, I want to subscribe",
                     'action': "continue_conversation"
                 },
                 'decline': {
@@ -355,13 +319,38 @@ PUSH_NUDGES = {
             'timing': 'immediate'
         }
     },
-    'goal_milestone': {
-        'preview_text': "¡{user-name}, you're super close to achieving your goal! 🚀",
-        'trigger_conditions': ['goal_status_in_progress', 'progress_pct_gte_90'],
+    'connect_accounts': {
+        'preview_text': "Hey {user-name} linking your accounts helps us give you better advice… and unlocks some extras too.",
+        'trigger_conditions': ['accounts_connected_false'],
         'type': 'nudge_push',
         'welcome_message': {
-            'type': 'simple',
-            'user_message': "Vera! How close am I to my goal?",
+            'type': 'binary_choice',
+            'message': "Would you like to connect your bank accounts?",
+            'choices': {
+                'accept': {
+                    'label': "Connect accounts",
+                    'user_message': "Yes, I want to connect my accounts",
+                    'action': "continue_conversation"
+                },
+                'decline': {
+                    'label': "Not now",
+                    'user_message': "Not now, maybe later",
+                    'action': "close_chat"
+                }
+            }
+        },
+        'manifestation': {
+            'channel': 'push_notification',
+            'timing': 'immediate'
+        }
+    },
+    'goal_achieved': {
+        'preview_text': "Hey {user-name}, you did it! {goal-name} achieved!",
+        'trigger_conditions': ['goal_end_date_true', 'goal_status_complete'],
+        'type': 'nudge_push',
+        'welcome_message': {
+            'type': 'text_message',
+            'user_message': "Congratulations! Tell me about my achievement",
             'action': "continue_conversation"
         },
         'manifestation': {
@@ -369,72 +358,58 @@ PUSH_NUDGES = {
             'timing': 'immediate'
         }
     },
-    'temporal_event_reminder': {
-        'preview_text': "¡{event_name} is coming in {days_until_event} days! Should we plan the budget?",
-        'trigger_conditions': ['temporal_event_approaching', 'no_budget_planned'],
+    'goal_7_days_left': {
+        'preview_text': "Hey {user-name}, just 7 days left to hit {goal-name}… and you're doing amazing!",
+        'trigger_conditions': ['goal_end_date_current_minus_7'],
         'type': 'nudge_push',
         'welcome_message': {
-            'type': 'binary_choice',
-            'message': "Would you like to plan the budget for {event_name}?",
-            'choices': {
-                'accept': {
-                    'label': "Yes, help me plan",
-                    'user_message': "Yes, help me plan the budget for {event_name}",
-                    'action': "continue_conversation"
-                },
-                'decline': {
-                    'label': "I don't need a budget",
-                    'user_message': "I don't need a budget for {event_name}",
-                    'action': "close_chat"
-                }
-            }
+            'type': 'text_message',
+            'user_message': "Tell me about my goal progress",
+            'action': "continue_conversation"
         },
         'manifestation': {
             'channel': 'push_notification',
-            'timing': 'scheduled_7_days',
+            'timing': 'immediate'
+        }
+    },
+    'bill_payment_due': {
+        'preview_text': "Hey {user-name}, just a reminder: {bill-item} payment's due today.",
+        'trigger_conditions': ['bill_payment_item_due_date_current'],
+        'type': 'nudge_push',
+        'welcome_message': {
+            'type': 'text_message',
+            'user_message': "Tell me about my bill payment",
+            'action': "continue_conversation"
+        },
+        'manifestation': {
+            'channel': 'push_notification',
+            'timing': 'immediate'
+        }
+    },
+    'memory_icebreaker_push': {
+        'preview_text': "{memory_based_text}",
+        'trigger_conditions': ['memory_available', 'daily_schedule'],
+        'type': 'nudge_push',
+        'welcome_message': {
+            'type': 'text_message',
+            'user_message': "{memory_based_text}",
+            'action': "continue_conversation"
+        },
+        'manifestation': {
+            'channel': 'push_notification',
+            'timing': 'scheduled_daily',
             'delivery_rules': {
                 'max_per_day': 1,
                 'avoid_weekends': True,
                 'time_window': '9:00-18:00',
-                'priority_score': 8
+                'priority_score': 5
             }
         }
     }
 }
 ```
 
-## Technical Implementation
-
-### Nudge Architecture
-
-```
-User State → Nudge Engine → Context Analysis → Nudge Selection → Delivery
-```
-
-### System Components
-
-#### 1. **Nudge Engine**
-- Analyzes user state
-- Determines when to show nudges
-- Selects the most appropriate nudge
-
-#### 2. **Context Analyzer**
-- Evaluates user progress in their goals
-- Identifies improvement opportunities
-- Considers interaction history
-
-#### 3. **Nudge Repository**
-- Stores different types of nudges
-- Manages variations and personalization
-- Controls appearance frequency
-
-#### 4. **Delivery System**
-- Integrates nudges into conversation flow
-- Manages timing and positioning
-- Tracks engagement and effectiveness
-
-### Nudge States
-
+### **Nudge States**
 ```python
 class NudgeState:
     PENDING = "pending"      # Nudge ready to show
@@ -444,36 +419,32 @@ class NudgeState:
     EXPIRED = "expired"      # Nudge no longer relevant
 ```
 
-## Timing Strategies
+## Timing & Frequency
 
-### 1. **Immediate Nudges**
-- Shown within the conversation, part of Vera's proactivity
-- Take advantage of user momentum
-- Example: "Would you like to connect your bank account now?"
+### **Delivery Rules**
+- **Maximum 3 push notifications per day** per user
+- **In-app nudges**: No daily limit (shown when user opens app)
+- **Minimum spacing**: 4 hours between push notifications of same type
+- **Rotation**: Avoid repeating same push nudge within 7 days
 
-### 2. **Deferred Nudges**
-- Triggered at specific moments (related to memory, user context, or goals)
-- Consider user behavior
-
-### 3. **Conditional Nudges**
-- Activated based on specific triggers (e.g., free trial days left)
+### **Smart Scheduling (Push Only)**
+- **Active window**: 9:00 AM - 8:00 PM
+- **Avoid**: Early morning (12:00 AM - 6:00 AM) and late night (after 9:00 PM)
+- **Weekends**: No automatic push notifications
 
 ## Personalization and Adaptation
 
 ### Personalization Factors
 
 #### **User Profile**
-- Financial experience level (financial_literacy)
-- Communication preferences (active push notifications)
+- Account setting
+- Bill payment items (if added)
 
-#### **Behavior**
-- Application usage patterns
-- Response time to nudges
-- Timing preferences
+#### **Memories**
+- Semantic and Episodic
 
 #### **Context**
 - Time of day
-- Device used
 
 ### Adaptation Algorithm
 
@@ -487,46 +458,12 @@ def calculate_nudge_relevance(user_state, nudge_type, context):
     return base_score * user_factor * context_factor * timing_factor
 ```
 
-## Timing and Frequency
-
-### **Daily Limits and Delivery Rules**
-- **Maximum 2 push notifications per day** per user
-- **In-app nudges without daily limit** (shown when user opens the app)
-- **Minimum spacing**: 4 hours between push notifications of the same type
-- **Rotation**: Avoid repeating the same push nudge within 7 days
-
-### **Smart Scheduling (Push Notifications Only)**
-- **Active window**: 9:00 AM - 8:00 PM (business hours and evening)
-- **Avoid**: Early morning hours (12:00 AM - 6:00 AM) and very late (after 9:00 PM)
-- **Weekends**: Don't send automatic push notifications
-- **In-app nudges**: No time restrictions (shown when user opens the app)
-
-### **Prioritization Criteria**
-**Note**: Only applies to push notifications. In-app nudges are shown automatically when the user opens the app.
-
-When there are multiple push notification candidates for the same day:
-
-1. **Urgency**: Security alerts or anomalies (maximum priority)
-2. **Temporal relevance**: Birthday planning, upcoming goal milestones
-3. **Historical engagement**: Users who respond more to certain types of nudges
-4. **Diversity**: Rotate between different categories (goals, learning, small expenses)
-5. **Personal context**: Prioritize nudges related to user's active goals
-
-### **Daily Selection Logic**
-```
-1. Analyze all active triggers for the user
-2. Separate nudges by manifestation type:
-   - In-app: No timing restrictions (shown when user opens app, replacing the original Welcome Message)
-   - Push: Apply strict filters (no night, no weekends)
-3. For push notifications:
-   - Calculate priority score
-   - Select maximum 1 per day with highest score
-   - Schedule optimal time within active window
-4. For in-app nudges:
-   - Shown immediately when user opens the app
-   - No daily frequency limits
-   - Automatic rotation to avoid repetition
-```
+### **Prioritization (Push Only)**
+1. **Urgency**: Security alerts (max priority)
+2. **Temporal relevance**: Bill due dates, goal milestones
+3. **Historical engagement**: User response patterns
+4. **Diversity**: Rotate between categories
+5. **Personal context**: Active goals priority
 
 ## UX Considerations
 
@@ -546,44 +483,32 @@ When there are multiple push notification candidates for the same day:
 - Allow feedback on relevance
 - Option to disable specific types
 
-## Implementation Examples
-
-### Bank Connection Nudge
+## Implementation Example
 
 ```python
-class BankConnectionNudge:
-    def __init__(self):
-        self.message = "Would you like to connect your bank account to get more precise insights?"
-        self.actions = [
-            {"text": "Connect now", "action": "connect_bank"},
-            {"text": "Later", "action": "dismiss"},
-            {"text": "Don't show again", "action": "disable"}
-        ]
+class NudgeHandler:
+    def __init__(self, nudge_type, message, actions):
+        self.nudge_type = nudge_type
+        self.message = message
+        self.actions = actions
     
     def should_show(self, user_state):
+        # Generic logic for all nudge types
         return (
-            user_state.has_active_goals and
-            not user_state.has_connected_bank and
-            not user_state.nudges_disabled.get('bank_connection', False)
+            self.check_trigger_conditions(user_state) and
+            not user_state.nudges_disabled.get(self.nudge_type, False)
         )
-```
-
-### Data Verification Nudge
-
-```python
-class DataVerificationNudge:
-    def __init__(self):
-        self.message = "We've noticed some inconsistencies in your data. Would you like to review them?"
-        self.actions = [
-            {"text": "Review now", "action": "verify_data"},
-            {"text": "Ignore", "action": "dismiss"}
-        ]
     
-    def should_show(self, user_state):
-        return (
-            user_state.has_data_inconsistencies and
-            not user_state.nudges_shown.get('data_verification', False)
-        )
+    def check_trigger_conditions(self, user_state):
+        # Specific conditions per nudge type
+        conditions = {
+            'free_trial_ending': user_state.is_free_trial and user_state.days_left == 3,
+            'bill_payment_due': user_state.has_bill_items and user_state.bill_due_today,
+            'memory_icebreaker': user_state.has_recent_memories and user_state.daily_schedule_active,
+            'goal_achieved': user_state.goal_status == 'complete',
+            'connect_accounts': not user_state.accounts_connected
+        }
+        return conditions.get(self.nudge_type, False)
 ```
 
 ## Ethical Considerations
@@ -618,70 +543,40 @@ By implementing it ethically and user-centered, we can:
 
 The key is finding the perfect balance between being helpful and not intrusive, always keeping the user at the center of design decisions.
 
-The Nudge Engine acts as the brain of the system, analyzing context, selecting appropriate nudges, and coordinating perfect integration with the LLM to create personalized and effective experiences.
+The Nudge Engine acts as the brain of the system, analyzing context, selecting appropriate nudges, and coordinating perfect integration with the Supervisor Agent to create personalized and effective experiences.
 
-## Complete Nudge Execution Flow
-
-### **1. Nudge Activation**
-```
-Trigger Event → Context Analysis → Nudge Selection → Manifestation Decision
-```
-
-### **2. User Manifestation**
-- **In-App**: Shown within the interface
-- **Push**: Sent as system notification
-- **Preview Text**: Shows the nudge hook text
-
-### **3. User Interaction**
-- **Welcome Message**: When tapped, opens chat with specific context
-- **Binary Choice**: When tapped, shows predefined options
-
-### **4. Response Processing**
-- **Welcome Message**: Sent to Supervisor Agent to continue conversation
-- **Binary Choice**: Choice is processed and specific prompt sent to LLM
-
-### **5. LLM Integration**
-- **Predefined Context**: Each nudge has its own LLM context
-- **Intelligent Routing**: Sent to appropriate agent or LLM
-- **Personalization**: User context is used to enrich the response
-
-### **Complete Flow Example**
+## Complete Flow
 
 ```
-1. User breaks a decrease nature threshold → 2. Alert nudge + info → 3. Push notification
-4. User taps → 5. App opens → 6. Binary choice is shown
-7. User chooses "Yes" → 8. User message is sent to chat
-9. LLM responds about savings tips or expense planning → 10. Conversation continues naturally
+1. Trigger Event → 2. Context Analysis → 3. Nudge Selection → 4. User Manifestation
+5. User Interaction → 6. Supervisor Agent Processing → 7. Conversation Continues
 ```
 
-This system ensures that each nudge has a clear purpose, appropriate manifestation, and perfect integration with the existing conversation flow.
+**Example**: User breaks spending threshold → Push notification → User taps → Binary choice → User accepts → Supervisor Agent responds → Conversation continues
 
-## Few Shots Table - Implementation Examples
+## Nudges Table - Implementation Examples
 
-| Type | Preview Text (With Variables) | Trigger Conditions | Manifestation | Welcome Message Type | User Message Result |
-|------|------------------------------|-------------------|----------------|---------------------|---------------------|
-| **Goal Progress Celebration** | "Congratulations! You're at {progress_pct}% of your {goal_category} goal 🎉" | `goal_status_in_progress`, `progress_pct_gte_75` | In-app, immediate | Simple | "Hello Vera! Tell me about my progress" |
-| **Goal Check-in** | "Hello {user-name}! How's your {goal-name} going?" | `goal_active`, `no_interaction_7_days` | Push, scheduled_7_days | Simple | "Hello Vera! How's my progress?" |
-| **Spending Category Alert** | "Hello {user-name}, I noticed something about your {category} expenses 🤔" | `goal_category_spending`, `threshold_warn_progress_pct` | Push, immediate | Binary Choice | "Yes, I'd like to review my {category} expenses" / "Not now, maybe later" |
-| **Goal Near Completion** | "¡{user-name}, you're super close to achieving your goal! 🚀" | `goal_status_in_progress`, `progress_pct_gte_90` | Push, immediate | Simple | "Vera! How close am I to my goal?" |
-| **Debt Reduction Progress** | "Your plan to reduce debt is going very well. Should we keep the momentum?" | `goal_category_debt`, `progress_positive` | In-app, immediate | Simple | "Vera, how's my progress with debt?" |
-| **Food Spending Optimization** | "Your goal to reduce food expenses is going great. Should we keep optimizing?" | `goal_category_food_drink`, `progress_positive` | In-app, immediate | Binary Choice | "Yes, I'd like to keep optimizing my food expenses" / "I think I'm good as is for now" |
-| **Birthday Planning** | "¡Your birthday is coming in {days_until_birthday} days! Should we plan the budget?" | `birthday_approaching`, `no_celebration_budget` | Push, scheduled_7_days | Binary Choice | "Yes, help me plan" / "I don't need a budget" |
-| **Small Expenses Alert** | "I noticed several small expenses that add up to ${total_amount} per month 🐜" | `small_recurring_expenses_detected`, `impact_threshold_met` | In-app, immediate | Binary Choice | "Yes, I want to see the impact" / "Not interested now" |
-| **Financial Learning** | "Would you like to learn about {suggested_topic} today?" | `learning_opportunity`, `topic_relevant_to_goals` | Push, scheduled_weekly | Simple | "Yes, teach me about {suggested_topic}" |
-| **Emergency Fund Reminder** | "{user-name}, you've gone {streak_days} days without financial emergencies 💪" | `emergency_fund_goal_active`, `no_emergency_expenses` | In-app, immediate | Simple | "Vera! Tell me about my emergency savings streak" |
+| Description | Type | Preview Text (With Variables) | Trigger Conditions | Manifestation | Welcome Message Type | User Message Result |
+|-------------|------|------------------------------|-------------------|----------------|---------------------|---------------------|
+| **3 days left (free trial)** | app settings | "Hey {user-name} just letting you know: we've got 3 days left on the free trial." | if user is free and days left is equal to 3 | Push | binary_choice | Subscribe now \| Not now |
+| **Connect your accounts** | app settings | "Hey {user-name} linking your accounts helps us give you better advice… and unlocks some extras too." | if accountsConnected = false | Push | binary_choice | Connect accounts \| Not now |
+| **Memory as Ice Breaker** | memory_based | [free text based on episodic or semantic memories recently visited or created] | each day at {hh:mm am/pm} | Push / App | text_message | [free text based on episodic or semantic memories recently visited or created] |
+| **Goal achieved!** | goals | "Hey {user-name}, you did it! {goal-name} achieved!" | if goalEndDate=true and goalStatus=complete | Push | text_message | |
+| **Pending goal** | goals | "Hey {user-name}, we've got a goal waiting on details… want to wrap it up?" | if goalStatus=pending | Push / in App | binary_choice | Edit goal \| Not now |
+| **7 days left to goal Goal** | goals | "Hey {user-name}, just 7 days left to hit {goal-name}… and you're doing amazing!" | ifGoalEndDate=currentDate - 7 | Push | text_message | |
+| **Bill payment** | bill payment | "Hey {user-name}, just a reminder: {bill-item} payment's due today." | if billPaymentItemDueDate=currentDate | Push | text_message | |
 
 ## Unified Nudge System Diagram
 
 ```mermaid
 flowchart TD
-    A[Triggers: Goals + Birthday + Small Expenses + Learning] --> B[Nudge Engine]
+    A[Triggers: Goals + App Settings + Memory-based + Bill Payment] --> B[Nudge Engine]
     B --> C[Context Analysis: Goals + User + Memories + Variables]
     C --> D[Nudge Selection & Personalization]
     D --> E{Manifestation Channel}
     
     E -->|In-App| F["In-App Preview: '{progress_pct}% of your goal 🎉'"]
-    E -->|Push| G["Push Notification: 'Hello {user-name}, {days} days! 🎉'"]
+    E -->|Push| G["Push Notification: 'Hey {user-name}, 3 days left! 🎉'"]
     
     F --> H[User sees personalized preview]
     G --> I[User receives notification]
@@ -692,14 +587,14 @@ flowchart TD
     J --> L{Welcome Message Type}
     K --> L
     
-    L -->|Simple| M["User message is printed: 'Hello Vera! Tell me about my progress'"]
-    L -->|Binary Choice| N["Shows: 'Would you like to review expenses?'"]
+    L -->|Binary Choice| M["Shows: 'Would you like to review expenses?'"]
+    L -->|Text Message| N["Memory-based message: 'Remember when you...'"]
     
-    N --> O{User chooses}
+    M --> O{User chooses}
     O -->|Accept| P["Prints: 'Yes, I want to see the impact'"]
     O -->|Decline| Q["Prints: 'Not interested now'"]
     
-    M --> R[Vera responds with complete context + goals]
+    N --> R[Supervisor Agent responds with complete context]
     P --> R
     Q --> S[Chat closes - tracking decline]
     
@@ -710,5 +605,5 @@ flowchart TD
     style E fill:#fff3e0
     style F fill:#e1f5fe
     style G fill:#ffebee
-    style R fill:#f3e5f5
+    style S fill:#f3e5f5
 ```

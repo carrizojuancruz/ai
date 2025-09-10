@@ -7,12 +7,11 @@ from datetime import datetime, timedelta, timezone, tzinfo
 from typing import Any
 from uuid import uuid4
 
-import boto3
 from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_store
 from langgraph.graph import MessagesState
 
-from app.core.app_state import get_sse_queue
+from app.core.app_state import get_bedrock_runtime_client, get_sse_queue
 from app.core.config import config as app_config
 from app.repositories.session_store import get_session_store
 
@@ -97,8 +96,7 @@ def _collect_recent_messages(state: MessagesState, max_messages: int) -> list[tu
 def _summarize_with_bedrock(msgs: list[tuple[str, str]]) -> tuple[str, str, int]:
     """Call Bedrock to generate a JSON summary; return (summary, category, importance)."""
     model_id = MEMORY_TINY_LLM_MODEL_ID
-    region = AWS_REGION
-    bedrock = boto3.client("bedrock-runtime", region_name=region)
+    bedrock = get_bedrock_runtime_client()
     convo = "\n".join([f"{r.title()}: {t}" for r, t in msgs])[:2000]
     prompt = (
         "Summarize the interaction in 1–2 sentences focusing on what was discussed/decided/done. "
@@ -116,10 +114,13 @@ def _summarize_with_bedrock(msgs: list[tuple[str, str]]) -> tuple[str, str, int]
     data = json.loads(raw)
     out_text = ""
     try:
-        contents = data.get("output", {}).get("message", {}).get("content", [])
-        for part in contents:
-            if isinstance(part, dict) and part.get("text"):
-                out_text += part.get("text", "")
+        contents = data.get("output", {}).get("message", {}).get("content", "")
+        if isinstance(contents, list):
+            for part in contents:
+                if isinstance(part, dict) and part.get("text"):
+                    out_text += part.get("text", "")
+        elif isinstance(contents, str):
+            out_text = contents
     except Exception:
         out_text = data.get("outputText") or data.get("generation") or ""
     parsed: dict[str, Any] = {}

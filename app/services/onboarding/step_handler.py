@@ -259,6 +259,26 @@ class StepHandlerService:
 
                 self._ensure_warmup_choices(state)
 
+                if state.last_user_message:
+                    msg_lower = state.last_user_message.lower()
+                    just_asked_for_options = any(
+                        phrase in msg_lower
+                        for phrase in [
+                            "give me options",
+                            "show me options",
+                            "what are the options",
+                            "can you give me",
+                            "show me some",
+                            "like before",
+                            "give me some options",
+                            "what choices",
+                            "options please",
+                        ]
+                    )
+
+                    if just_asked_for_options and state.current_interaction_type != InteractionType.FREE_TEXT:
+                        final_decision["complete"] = False
+
                 if final_decision.get("complete") or self.is_step_complete(state, step):
                     state.mark_step_completed(step)
                     state.current_step = state.get_next_step() or OnboardingStep.CHECKOUT_EXIT
@@ -366,7 +386,15 @@ class StepHandlerService:
         return bool((state.user_context.age or state.user_context.age_range) and state.user_context.location.city)
 
     def _is_income_money_complete(self, state: OnboardingState) -> bool:
-        return hasattr(state.user_context, "money_feelings") or state.user_context.income is not None
+        has_money_feelings = bool(getattr(state.user_context, "money_feelings", None))
+        has_income = bool(
+            getattr(state.user_context, "income", None)
+            or getattr(state.user_context, "income_range", None)
+            or getattr(state.user_context, "annual_income", None)
+            or getattr(state.user_context, "annual_income_range", None)
+        )
+
+        return has_money_feelings and has_income
 
     def _is_warmup_complete(self, state: OnboardingState) -> bool:
         return bool(state.last_user_message and state.last_user_message.strip() and len(state.conversation_history) > 0)

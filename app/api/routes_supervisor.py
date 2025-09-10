@@ -67,7 +67,9 @@ async def supervisor_sse(thread_id: str, request: Request) -> StreamingResponse:
                 else:
                     yield f"data: {json.dumps(item)}\n\n"
         finally:
-            pass
+            # Clean up SSE queue when client disconnects
+            from app.core.app_state import drop_sse_queue
+            drop_sse_queue(thread_id)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

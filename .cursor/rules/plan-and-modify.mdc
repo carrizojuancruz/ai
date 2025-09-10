@@ -1,0 +1,21 @@
+---
+description: Require explanation before code changes
+globs:
+alwaysApply: true
+---
+
+## Code Modification Rule
+
+**NEVER** make code changes without first:
+1. Explaining what you found and the problem
+2. Describing your proposed solution
+3. Getting user confirmation to proceed
+
+When asked "what happened here?" or "how do we fix this?":
+
+**REQUIRED Response:**
+1. **Analyze** - Explain current state and issues
+2. **Propose** - Describe what you would change and why
+3. **Confirm** - Ask "Shall I implement this fix?"
+
+**Only proceed with changes AFTER user agreement.**

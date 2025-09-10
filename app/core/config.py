@@ -6,9 +6,7 @@ Centralizes all environment variables and provides type-safe access to configura
 import os
 from typing import Optional
 
-from .aws_config import load_aws_secrets
-
-load_aws_secrets()
+from app.core.aws_config import AWSConfig
 
 
 class Config:
@@ -53,7 +51,7 @@ class Config:
     DEBUG: bool = os.getenv("DEBUG", "false").lower() in {"true", "1", "yes", "on"}
 
     # AI Models Configuration
-    AGENT_MODEL_ID: str = os.getenv("AGENT_MODEL_ID", "anthropic.claude-sonnet-4-20250514-v1:0")
+    AGENT_MODEL_ID: str = os.getenv("AGENT_MODEL_ID", "global.anthropic.claude-sonnet-4-20250514-v1:0")
     EMBEDDINGS_MODEL_ID: str = os.getenv("EMBEDDINGS_MODEL_ID", "amazon.titan-embed-text-v2:0")
     BEDROCK_MODEL_ID: str = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20240620-v1:0")
     BEDROCK_EMBED_MODEL_ID: str = os.getenv("BEDROCK_EMBED_MODEL_ID", "amazon.titan-embed-text-v2:0")
@@ -123,6 +121,7 @@ class Config:
     FOS_SERVICE_URL: Optional[str] = os.getenv("FOS_SERVICE_URL")
     FOS_API_KEY: Optional[str] = os.getenv("FOS_API_KEY")
     FOS_SECRETS_ID: Optional[str] = os.getenv("FOS_SECRETS_ID")
+    FOS_SECRETS_REGION: str = os.getenv("FOS_SECRETS_REGION", "us-east-1")
 
     # Knowledge Base Configuration
     SOURCES_FILE_PATH: str = os.getenv("SOURCES_FILE_PATH", "./app/knowledge/sources/sources.json")

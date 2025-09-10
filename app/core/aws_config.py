@@ -5,17 +5,42 @@ import logging
 import os
 from typing import Any
 
+import boto3
+from botocore.exceptions import ClientError, NoCredentialsError
+
 logger = logging.getLogger(__name__)
 
+class AWSConfig:
+    """AWSConfig class for managing AWS configuration and secrets."""
+
+    def __init__(self, region: str, secrets_arn: str):
+        self.session = boto3.session.Session()
+        self.region = region
+        self.secrets_arn = secrets_arn
+
+    def get_secrets_manager_values(self) -> dict[str, Any]:
+        """Get secrets from AWS Secrets Manager."""
+        if not self.secrets_arn:
+            logger.info("No FOS_SECRETS_ID provided, using local environment variables")
+            return
+        secret_data = {}
+        try:
+            client = self.session.client(service_name="secretsmanager", region_name=self.region)
+            response = client.get_secret_value(SecretId=self.secrets_arn)
+            if "SecretString" in response:
+                secret_string = response["SecretString"]
+                secret_data = json.loads(secret_string)
+                logger.info("Successfully loaded %d secrets from AWS Secrets Manager", len(secret_data))
+            else:
+                logger.error("Secret does not contain a SecretString")
+        except ClientError as e:
+            logger.error("Error retrieving secret: %s", e)
+        except json.JSONDecodeError as e:
+            logger.error("Failed to parse secret JSON: %s", e)
+        return secret_data
 
 def load_aws_secrets() -> None:
-    try:
-        import boto3
-        from botocore.exceptions import ClientError, NoCredentialsError
-    except ImportError:
-        logger.warning("boto3 not available, skipping AWS Secrets Manager loading")
-        return
-
+    """Load AWS secrets from AWS Secrets Manager."""
     secret_id = os.getenv("FOS_SECRETS_ID")
     if not secret_id:
         logger.info("No FOS_SECRETS_ID provided, using local environment variables")

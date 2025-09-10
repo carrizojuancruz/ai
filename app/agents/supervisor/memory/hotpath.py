@@ -10,14 +10,13 @@ from json import JSONDecodeError
 from typing import Any
 from uuid import uuid4
 
-import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_store
 from langgraph.graph import MessagesState
 
-from app.core.app_state import get_sse_queue
+from app.core.app_state import get_bedrock_runtime_client, get_sse_queue
 from app.core.config import config
 
 from .profile_sync import _profile_sync_from_memory
@@ -55,7 +54,7 @@ def _collect_recent_user_texts(messages: list[Any], max_messages: int = 3) -> li
 
 
 def _trigger_decide(text: str) -> dict[str, Any]:
-    bedrock = boto3.client("bedrock-runtime", region_name=REGION)
+    bedrock = get_bedrock_runtime_client()
     allowed_categories = (
         "Finance, Budget, Goals, Personal, Education, Conversation_Summary, Other"
     )
@@ -108,10 +107,13 @@ def _trigger_decide(text: str) -> dict[str, Any]:
         data = json.loads(txt)
         out_text = ""
         try:
-            contents = data.get("output", {}).get("message", {}).get("content", [])
-            for part in contents:
-                if isinstance(part, dict) and part.get("text"):
-                    out_text += part.get("text", "")
+            contents = data.get("output", {}).get("message", {}).get("content", "")
+            if isinstance(contents, list):
+                for part in contents:
+                    if isinstance(part, dict) and part.get("text"):
+                        out_text += part.get("text", "")
+            elif isinstance(contents, str):
+                out_text = contents
         except Exception:
             out_text = ""
         if not out_text:
@@ -411,7 +413,7 @@ async def _write_semantic_memory(
 
 
 def _same_fact_classify(existing_summary: str, candidate_summary: str, category: str) -> bool:
-    bedrock = boto3.client("bedrock-runtime", region_name=REGION)
+    bedrock = get_bedrock_runtime_client()
     prompt = (
         "Same-Fact Classifier (language-agnostic)\n"
         "Your job: Return whether two short summaries express the SAME underlying fact about the user.\n"
@@ -453,10 +455,13 @@ def _same_fact_classify(existing_summary: str, candidate_summary: str, category:
         data = json.loads(txt)
         out_text = ""
         try:
-            contents = data.get("output", {}).get("message", {}).get("content", [])
-            for part in contents:
-                if isinstance(part, dict) and part.get("text"):
-                    out_text += part.get("text", "")
+            contents = data.get("output", {}).get("message", {}).get("content", "")
+            if isinstance(contents, list):
+                for part in contents:
+                    if isinstance(part, dict) and part.get("text"):
+                        out_text += part.get("text", "")
+            elif isinstance(contents, str):
+                out_text = contents
         except Exception:
             out_text = ""
         if not out_text:
@@ -478,7 +483,7 @@ def _same_fact_classify(existing_summary: str, candidate_summary: str, category:
 
 
 def _compose_summaries(existing_summary: str, candidate_summary: str, category: str) -> str:
-    bedrock = boto3.client("bedrock-runtime", region_name=REGION)
+    bedrock = get_bedrock_runtime_client()
     prompt = (
         "Task: Combine two short summaries about the SAME user fact into one concise statement.\n"
         "- Keep it neutral, third person, and include both details without redundancy.\n"
@@ -501,10 +506,13 @@ def _compose_summaries(existing_summary: str, candidate_summary: str, category: 
         data = json.loads(txt)
         out_text = ""
         try:
-            contents = data.get("output", {}).get("message", {}).get("content", [])
-            for part in contents:
-                if isinstance(part, dict) and part.get("text"):
-                    out_text += part.get("text", "")
+            contents = data.get("output", {}).get("message", {}).get("content", "")
+            if isinstance(contents, list):
+                for part in contents:
+                    if isinstance(part, dict) and part.get("text"):
+                        out_text += part.get("text", "")
+            elif isinstance(contents, str):
+                out_text = contents
         except Exception:
             out_text = ""
         if not out_text:
