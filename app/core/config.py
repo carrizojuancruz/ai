@@ -140,6 +140,30 @@ class Config:
     NUDGE_GOAL_PROGRESS_MIN: float = float(os.getenv("NUDGE_GOAL_PROGRESS_MIN", "80.0"))
     NUDGE_GOAL_PROGRESS_MAX: float = float(os.getenv("NUDGE_GOAL_PROGRESS_MAX", "95.0"))
 
+    # SQS Configuration
+    SQS_QUEUE_URL: str = os.getenv(
+        "SQS_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/909418399862/fos-ai-dev-nudges"
+    )
+    SQS_QUEUE_REGION: str = os.getenv("SQS_QUEUE_REGION", "us-east-1")
+    SQS_MAX_MESSAGES: int = int(os.getenv("SQS_MAX_MESSAGES", "10"))
+    SQS_VISIBILITY_TIMEOUT: int = int(os.getenv("SQS_VISIBILITY_TIMEOUT", "300"))  # 5 minutes
+    SQS_WAIT_TIME_SECONDS: int = int(os.getenv("SQS_WAIT_TIME_SECONDS", "20"))  # Long polling
+
+    # FOS API Configuration
+    FOS_USERS_PAGE_SIZE: int = int(os.getenv("FOS_USERS_PAGE_SIZE", "500"))
+    FOS_USERS_MAX_PAGES: int = int(os.getenv("FOS_USERS_MAX_PAGES", "100"))
+    FOS_USERS_API_TIMEOUT_MS: int = int(os.getenv("FOS_USERS_API_TIMEOUT_MS", "5000"))
+
+    # Evaluation Configuration
+    EVAL_CONCURRENCY_LIMIT: int = int(os.getenv("EVAL_CONCURRENCY_LIMIT", "4"))
+    NUDGE_EVAL_BATCH_SIZE: int = int(os.getenv("NUDGE_EVAL_BATCH_SIZE", "100"))
+    NUDGE_EVAL_TIMEOUT: int = int(os.getenv("NUDGE_EVAL_TIMEOUT", "30"))
+
+    # Bill Detection Configuration
+    BILL_DETECTION_LOOKBACK_DAYS: int = int(os.getenv("BILL_DETECTION_LOOKBACK_DAYS", "120"))
+    BILL_MIN_OCCURRENCES: int = int(os.getenv("BILL_MIN_OCCURRENCES", "3"))
+    BILL_PREDICTION_WINDOW_DAYS: int = int(os.getenv("BILL_PREDICTION_WINDOW_DAYS", "35"))
+
     @classmethod
     def get_aws_region(cls) -> str:
         """Get AWS region with fallback logic."""

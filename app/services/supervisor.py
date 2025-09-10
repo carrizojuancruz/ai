@@ -143,20 +143,28 @@ class SupervisorService:
             return "".join(parts)
         return ""
 
-    def _add_source_from_tool_end(self, sources: list[dict[str, Any]], name: str, data: dict[str, Any]) -> list[dict[str, Any]]:
+    def _add_source_from_tool_end(
+        self, sources: list[dict[str, Any]], name: str, data: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Add the source to the sources list from the tool end event."""
         if "output" not in data:
             return sources
 
         output = data["output"]
 
-        if hasattr(output, '__class__') and 'coroutine' in str(output.__class__).lower():
+        if hasattr(output, "__class__") and "coroutine" in str(output.__class__).lower():
             logger.warning(f"[SUPERVISOR] Tool {name} returned unawaited coroutine: {output}")
             return sources
 
-        content = output.content if hasattr(output, "content") else output.get("content", output) if isinstance(output, dict) else output
+        content = (
+            output.content
+            if hasattr(output, "content")
+            else output.get("content", output)
+            if isinstance(output, dict)
+            else output
+        )
 
-        if hasattr(content, '__class__') and 'coroutine' in str(content.__class__).lower():
+        if hasattr(content, "__class__") and "coroutine" in str(content.__class__).lower():
             logger.warning(f"[SUPERVISOR] Tool {name} content is unawaited coroutine: {content}")
             return sources
 
@@ -170,7 +178,13 @@ class SupervisorService:
                         sources.append(new_source)
                 return sources
 
-        items = content if isinstance(content, list) else [content] if isinstance(content, dict) and "source" in content else []
+        items = (
+            content
+            if isinstance(content, list)
+            else [content]
+            if isinstance(content, dict) and "source" in content
+            else []
+        )
 
         sources_added = 0
         for item in items:
@@ -178,13 +192,14 @@ class SupervisorService:
                 continue
 
             source_content = item["source"]
-            if not source_content or not isinstance(source_content, str) or 'coroutine' in str(type(source_content)).lower():
+            if (
+                not source_content
+                or not isinstance(source_content, str)
+                or "coroutine" in str(type(source_content)).lower()
+            ):
                 continue
 
-            new_source = {
-                "name": get_source_name(name),
-                "url": source_content
-            }
+            new_source = {"name": get_source_name(name), "url": source_content}
 
             metadata = item.get("metadata", {})
             if isinstance(metadata, dict):
@@ -192,7 +207,7 @@ class SupervisorService:
                     ("name", "source_name"),
                     ("type", "type"),
                     ("category", "category"),
-                    ("description", "description")
+                    ("description", "description"),
                 ]:
                     if metadata.get(key):
                         new_source[meta_key] = metadata[key]
@@ -357,6 +372,7 @@ class SupervisorService:
             import asyncio
 
             from app.agents.supervisor.finance_agent.agent import _finance_agent
+
             asyncio.create_task(_finance_agent._fetch_shallow_samples(uid))
         except Exception:
             pass
@@ -366,70 +382,6 @@ class SupervisorService:
             "welcome": welcome,
             "sse_url": f"/supervisor/sse/{thread_id}",
             "prior_conversation_summary": prior_summary,
-        }
-
-    async def initialize_nudge(
-        self, *, user_id: UUID, nudge_prompt_line: str, preview_text: str, channel: str = "push"
-    ) -> dict[str, Any]:
-        thread_id = str(uuid4())
-        queue = get_sse_queue(thread_id)
-
-        await queue.put({"event": "conversation.started", "data": {"thread_id": thread_id, "nudge": True}})
-
-        session_store = get_session_store()
-        uid: UUID = user_id
-        ctx = await self._load_user_context_from_external(uid)
-
-        prior_summary = await self._get_prior_conversation_summary(session_store, str(uid), thread_id)
-
-        user_context = ctx.model_dump(mode="json")
-
-        system_prompt = (
-            "You are Vera, a helpful and friendly AI assistant."
-            "You're starting a proactive conversation based on something you've noticed."
-            "Be warm, conversational, and supportive. Keep your opening concise and engaging."
-        )
-
-        prompt = f"Prior context: {prior_summary}\n\n{nudge_prompt_line}" if prior_summary else nudge_prompt_line
-
-        try:
-            nudge_message = await call_llm(system_prompt, prompt)
-
-            if not nudge_message:
-                nudge_message = f"Hi! {preview_text} Let me know if you'd like to discuss this."
-
-        except Exception as e:
-            logger.error(f"Failed to generate nudge message: {e}")
-            nudge_message = f"Hi! {preview_text} Let me know if you'd like to discuss this."
-
-        await session_store.set_session(
-            thread_id,
-            {
-                "user_id": str(uid),
-                "user_context": user_context,
-                "conversation_messages": [{"role": "assistant", "content": nudge_message}],
-                "nudge_metadata": {
-                    "preview_text": preview_text,
-                    "channel": channel,
-                    "initialized_at": datetime.now(timezone.utc).isoformat(),
-                },
-            },
-        )
-
-        await queue.put(
-            {
-                "event": "nudge.initialized",
-                "data": {"thread_id": thread_id, "message": nudge_message, "preview_text": preview_text},
-            }
-        )
-
-        logger.info(f"Nudge initialized for user {uid}: thread={thread_id}, channel={channel}")
-
-        return {
-            "thread_id": thread_id,
-            "message": nudge_message,
-            "preview_text": preview_text,
-            "sse_url": f"/supervisor/sse/{thread_id}",
         }
 
     async def process_message(self, *, thread_id: str, text: str) -> None:
@@ -445,11 +397,10 @@ class SupervisorService:
         sources = []
 
         conversation_messages = session_ctx.get("conversation_messages", [])
-        conversation_messages.append({"role": "user", "content": text.strip(),
-            "sources": sources})
+        conversation_messages.append({"role": "user", "content": text.strip(), "sources": sources})
         assistant_response_parts = []
 
-                # Refresh UserContext from external FOS service each turn to avoid stale profile
+        # Refresh UserContext from external FOS service each turn to avoid stale profile
         user_id = session_ctx.get("user_id")
         if user_id:
             uid = UUID(user_id)
@@ -476,7 +427,6 @@ class SupervisorService:
             stream_mode="values",
             subgraphs=True,
         ):
-
             name = event.get("name")
             etype = event.get("event")
             data = event.get("data") or {}
@@ -505,7 +455,6 @@ class SupervisorService:
                 if name:
                     await q.put({"event": "tool.end", "data": {"tool": name}})
             elif etype == "on_chain_end":
-
                 try:
                     output = data.get("output", {})
                     if isinstance(output, dict):
@@ -522,14 +471,18 @@ class SupervisorService:
                                 last = get_last_emitted_text(thread_id)
                                 if text != last:
                                     if name not in ["tools"]:
-                                        await q.put({"event": "token.delta", "data": {"text": text, "sources": sources}})
+                                        await q.put(
+                                            {"event": "token.delta", "data": {"text": text, "sources": sources}}
+                                        )
                                         set_last_emitted_text(thread_id, text)
                                     assistant_response_parts.append(text)
                 except Exception:
                     pass
 
         try:
-            final_text = "".join(assistant_response_parts).strip() if assistant_response_parts else (final_text_candidate or "")
+            final_text = (
+                "".join(assistant_response_parts).strip() if assistant_response_parts else (final_text_candidate or "")
+            )
             if final_text:
                 await q.put({"event": "message.completed", "data": {"content": final_text}})
         except Exception:
@@ -541,8 +494,9 @@ class SupervisorService:
             if assistant_response_parts:
                 assistant_response = "".join(assistant_response_parts).strip()
                 if assistant_response:
-                    conversation_messages.append({"role": "assistant", "content": assistant_response,
-                        "sources": sources})
+                    conversation_messages.append(
+                        {"role": "assistant", "content": assistant_response, "sources": sources}
+                    )
 
             session_ctx["conversation_messages"] = conversation_messages
             await session_store.set_session(thread_id, session_ctx)
