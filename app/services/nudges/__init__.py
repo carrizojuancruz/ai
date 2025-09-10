@@ -1,20 +1,17 @@
 """Nudges Service Module - handles nudge evaluation, queueing, and management."""
 
 from .activity_counter import ActivityCounter, get_activity_counter
-from .bill_detector import BillDetector, get_bill_detector
-from .evaluator import NudgeEvaluator, get_nudge_evaluator, iter_active_users
-from .selector import NudgeSelector
-from .templates import NudgeRegistry, NudgeTemplate
+from .evaluator import NudgeCandidate, NudgeEvaluator, get_nudge_evaluator, iter_active_users
+from .plaid_bills import PlaidBill, PlaidBillsService, get_plaid_bills_service
 
 __all__ = [
     "ActivityCounter",
-    "BillDetector",
+    "NudgeCandidate",
     "NudgeEvaluator",
-    "NudgeSelector",
-    "NudgeTemplate",
-    "NudgeRegistry",
+    "PlaidBill",
+    "PlaidBillsService",
     "get_activity_counter",
-    "get_bill_detector",
     "get_nudge_evaluator",
+    "get_plaid_bills_service",
     "iter_active_users",
 ]
