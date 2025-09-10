@@ -31,6 +31,19 @@ class AWSConfig:
                 secret_string = response["SecretString"]
                 secret_data = json.loads(secret_string)
                 logger.info("Successfully loaded %d secrets from AWS Secrets Manager", len(secret_data))
+                
+                # Check if AURORA_SECRET_ARN is in the secrets
+                if "AURORA_SECRET_ARN" in secret_data:
+                    aurora_secret_arn = secret_data["AURORA_SECRET_ARN"]
+                    logger.info("Found AURORA_SECRET_ARN, fetching database credentials")
+                    
+                    # Fetch the Aurora secret
+                    aurora_credentials = self._fetch_aurora_credentials(client, aurora_secret_arn)
+                    if aurora_credentials:
+                        # Add database credentials to secret_data
+                        secret_data["DATABASE_USER"] = aurora_credentials.get("username")
+                        secret_data["DATABASE_PASSWORD"] = aurora_credentials.get("password")
+                        logger.info("Successfully loaded database credentials from Aurora secret")
             else:
                 logger.error("Secret does not contain a SecretString")
         except ClientError as e:
@@ -38,6 +51,25 @@ class AWSConfig:
         except json.JSONDecodeError as e:
             logger.error("Failed to parse secret JSON: %s", e)
         return secret_data
+    
+    def _fetch_aurora_credentials(self, client, aurora_secret_arn: str) -> dict[str, Any]:
+        """Fetch Aurora database credentials from the provided secret ARN."""
+        try:
+            response = client.get_secret_value(SecretId=aurora_secret_arn)
+            if "SecretString" in response:
+                secret_string = response["SecretString"]
+                aurora_secret = json.loads(secret_string)
+                logger.debug("Successfully fetched Aurora credentials")
+                return aurora_secret
+            else:
+                logger.error("Aurora secret does not contain a SecretString")
+                return {}
+        except ClientError as e:
+            logger.error("Error retrieving Aurora secret: %s", e)
+            return {}
+        except json.JSONDecodeError as e:
+            logger.error("Failed to parse Aurora secret JSON: %s", e)
+            return {}
 
 def load_aws_secrets() -> None:
     """Load AWS secrets from AWS Secrets Manager."""
@@ -59,6 +91,26 @@ def load_aws_secrets() -> None:
             logger.error("Binary secrets are not supported")
             return
         secret_data = json.loads(secret_string)
+        
+        # Check if AURORA_SECRET_ARN is in the secrets
+        if "AURORA_SECRET_ARN" in secret_data:
+            aurora_secret_arn = secret_data["AURORA_SECRET_ARN"]
+            logger.info("Found AURORA_SECRET_ARN, fetching database credentials")
+            
+            try:
+                # Fetch the Aurora secret
+                aurora_response = client.get_secret_value(SecretId=aurora_secret_arn)
+                if "SecretString" in aurora_response:
+                    aurora_secret = json.loads(aurora_response["SecretString"])
+                    # Add database credentials to secret_data
+                    secret_data["DATABASE_USER"] = aurora_secret.get("username")
+                    secret_data["DATABASE_PASSWORD"] = aurora_secret.get("password")
+                    logger.info("Successfully loaded database credentials from Aurora secret")
+            except ClientError as e:
+                logger.error(f"Error retrieving Aurora secret: {e}")
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse Aurora secret JSON: {e}")
+        
         loaded_count = 0
         for key, value in secret_data.items():
             os.environ[key] = str(value)
