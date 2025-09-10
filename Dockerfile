@@ -24,6 +24,9 @@ RUN poetry lock
 # Install deps (if lock file is present, it will be used)
 RUN poetry install --no-interaction --no-ansi
 
+# Install Playwright browsers and system dependencies automatically
+RUN poetry run playwright install chromium --with-deps
+
 # Extra tools
 RUN poetry run pip install watchfiles
 

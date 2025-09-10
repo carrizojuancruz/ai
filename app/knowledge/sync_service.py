@@ -125,7 +125,11 @@ class KnowledgeBaseSyncService:
                 logger.error(f"Sync failed for {external_source.url}: {error_msg}")
 
         if external_sources_available:
-            sources_to_delete = [source for url, source in kb_sources_by_url.items() if url not in external_sources_by_url]
+            if limit is not None:
+                enabled_sources_by_url = {s.url: s for s in enabled_sources}
+                sources_to_delete = [source for url, source in kb_sources_by_url.items() if url not in enabled_sources_by_url]
+            else:
+                sources_to_delete = [source for url, source in kb_sources_by_url.items() if url not in external_sources_by_url]
 
             if sources_to_delete:
                 logger.info(f"Deleting {len(sources_to_delete)} obsolete sources")
@@ -135,7 +139,7 @@ class KnowledgeBaseSyncService:
                 if deletion_result["success"]:
                     sources_deleted += 1
                     logger.info(f"Deleted source: {source.url}")
-                else:
+                else:##
                     sources_errors += 1
                     sync_failures.append({
                         "url": source.url,
