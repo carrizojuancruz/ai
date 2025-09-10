@@ -11,13 +11,14 @@ from typing import Any
 from uuid import uuid4
 
 from botocore.exceptions import BotoCoreError, ClientError
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_store
 from langgraph.graph import MessagesState
 
 from app.core.app_state import get_bedrock_runtime_client, get_sse_queue
 from app.core.config import config
+from app.utils.tools import get_config_value
 
 from .profile_sync import _profile_sync_from_memory
 from .utils import _build_profile_line, _parse_iso, _utc_now_iso
@@ -691,12 +692,12 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
         trigger.get("importance"),
     )
     if not trigger.get("should_create"):
-        ctx = config.get("configurable", {}).get("user_context") or {}
+        ctx = get_config_value(config, "user_context") or {}
         prof = _build_profile_line(ctx) if isinstance(ctx, dict) else None
-        return {"messages": [HumanMessage(content=prof)]} if prof else {}
+        return {"messages": [AIMessage(content=prof)]} if prof else {}
 
-    thread_id = config.get("configurable", {}).get("thread_id")
-    user_id = config.get("configurable", {}).get("user_id")
+    thread_id = get_config_value(config, "thread_id")
+    user_id = get_config_value(config, "user_id")
     if not user_id:
         return {}
 
@@ -712,7 +713,7 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
 
     if mem_type != "semantic":
         logger.info("memory.skip: entry node only writes semantic; type=%s", mem_type)
-        ctx = config.get("configurable", {}).get("user_context") or {}
+        ctx = get_config_value(config, "user_context") or {}
         prof = _build_profile_line(ctx) if isinstance(ctx, dict) else None
         return {"messages": [HumanMessage(content=prof)]} if prof else {}
 
@@ -770,6 +771,8 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
             candidate_id=candidate_id,
         )
     )
-    ctx = config.get("configurable", {}).get("user_context") or {}
+    ctx = get_config_value(config, "user_context") or {}
     prof = _build_profile_line(ctx) if isinstance(ctx, dict) else None
-    return {"messages": [HumanMessage(content=prof)]} if prof else {}
+    return ({"messages": [AIMessage(content=prof)]} if prof else {})
+
+

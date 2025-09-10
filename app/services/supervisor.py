@@ -9,6 +9,16 @@ from uuid import UUID, uuid4
 from langfuse.callback import CallbackHandler
 from langgraph.graph.state import CompiledStateGraph
 
+from app.agents.supervisor.i18n import (
+    _get_random_budget_completed,
+    _get_random_budget_current,
+    _get_random_finance_completed,
+    _get_random_finance_current,
+    _get_random_step_planning_completed,
+    _get_random_step_planning_current,
+    _get_random_wealth_completed,
+    _get_random_wealth_current,
+)
 from app.core.app_state import (
     get_last_emitted_text,
     get_sse_queue,
@@ -19,6 +29,9 @@ from app.core.config import config
 from app.models.user import UserContext
 from app.repositories.database_service import get_database_service
 from app.repositories.session_store import InMemorySessionStore, get_session_store
+from app.services.external_context.user.mapping import map_ai_context_to_user_context
+from app.services.external_context.user.repository import ExternalUserRepository
+from app.services.utils import _load_blocked_topics
 from app.utils.mapping import get_source_name
 from app.utils.tools import check_repeated_sources
 from app.utils.welcome import call_llm, generate_personalized_welcome
@@ -39,20 +52,20 @@ logger.info(
 
 # Warn if Langfuse env is missing so callbacks would be disabled silently
 if not config.is_langfuse_supervisor_enabled():
-    logger.warning("Langfuse env vars missing or incomplete; callback tracing will be disabled")
+    logger.warning(
+        "Langfuse env vars missing or incomplete; callback tracing will be disabled"
+    )
 
 
 class SupervisorService:
     async def _load_user_context_from_external(self, user_id: UUID) -> UserContext:
         """Load UserContext from external FOS service with fallback."""
         try:
-            from app.services.external_context.user.mapping import map_ai_context_to_user_context
-            from app.services.external_context.user.repository import ExternalUserRepository
-
             repo = ExternalUserRepository()
             external_ctx = await repo.get_by_id(user_id)
 
             ctx = UserContext(user_id=user_id)
+            ctx.blocked_topics = _load_blocked_topics().get(str(user_id), [])
             if external_ctx:
                 ctx = map_ai_context_to_user_context(external_ctx, ctx)
                 logger.info(f"[SUPERVISOR] External AI Context loaded for user: {user_id}")
@@ -86,26 +99,6 @@ class SupervisorService:
             logger.error(f"[SUPERVISOR] Failed to export user context: {e}")
             return False
 
-    async def _get_user_context_from_db(self, user_id: UUID) -> UserContext | None:
-        """Get user context from database using the centralized database service."""
-        try:
-            db_service = get_database_service()
-            async with db_service.get_session() as session:
-                repo = db_service.get_user_repository(session)
-                return await repo.get_by_id(user_id)
-        except Exception as e:
-            logger.error(f"[SUPERVISOR] Failed to load user context from database: {e}")
-            return None
-
-    def _is_guardrail_intervention(self, text: str) -> bool:
-        if not isinstance(text, str):
-            return False
-        low = text.lower()
-        return (
-            "guardrail_intervened" in low
-            or "gr_input_blocked" in low
-            or ("guardrail" in low and ("blocked" in low or "intervened" in low))
-        )
 
     def _strip_guardrail_marker(self, text: str) -> str:
         if not isinstance(text, str):
@@ -349,12 +342,23 @@ class SupervisorService:
         uid: UUID = user_id
         ctx = await self._load_user_context_from_external(uid)
 
+        has_financial_accounts = False
+        try:
+            db_service = get_database_service()
+            async with db_service.get_session() as session:
+                repo = db_service.get_finance_repository(session)
+                has_financial_accounts = await repo.user_has_any_accounts(uid)
+        except Exception as e:
+            logger.warning(f"[SUPERVISOR] Failed to check financial accounts for user {uid}: {e}")
+
+        logger.info(f"[SUPERVISOR] User {uid} has financial accounts: {has_financial_accounts}")
         await session_store.set_session(
             thread_id,
             {
                 "user_id": str(uid),
                 "user_context": ctx.model_dump(mode="json"),
                 "conversation_messages": [],
+                "has_financial_accounts": has_financial_accounts,
             },
         )
 
@@ -368,14 +372,15 @@ class SupervisorService:
 
         await queue.put({"event": "message.completed", "data": {"text": welcome}})
 
-        try:
-            import asyncio
+        if has_financial_accounts:
+            try:
+                import asyncio
 
-            from app.agents.supervisor.finance_agent.agent import _finance_agent
-
-            asyncio.create_task(_finance_agent._fetch_shallow_samples(uid))
-        except Exception:
-            pass
+                from app.core.app_state import get_finance_agent
+                fa = get_finance_agent()
+                asyncio.create_task(fa._fetch_shallow_samples(uid))
+            except Exception:
+                pass
 
         return {
             "thread_id": thread_id,
@@ -389,7 +394,8 @@ class SupervisorService:
             raise ValueError("Message text must not be empty")
 
         q = get_sse_queue(thread_id)
-        await q.put({"event": "step.update", "data": {"status": "processing"}})
+        current_description = _get_random_step_planning_current()
+        await q.put({"event": "step.update", "data": {"status": "processing", "description": current_description}})
 
         graph: CompiledStateGraph = get_supervisor_graph()
         session_store: InMemorySessionStore = get_session_store()
@@ -415,6 +421,10 @@ class SupervisorService:
         }
 
         final_text_candidate: Optional[str] = None
+        supervisor_active: bool = False
+        suppress_streaming: bool = False
+        emitted_handoff_back_keys: set[str] = set()
+        current_agent_tool: Optional[str] = None
 
         async for event in graph.astream_events(
             {"messages": [{"role": "user", "content": text}], "sources": sources},
@@ -431,11 +441,43 @@ class SupervisorService:
             etype = event.get("event")
             data = event.get("data") or {}
 
-            # Only stream events from the supervisor node to avoid showing subagent activity
-            if name != "supervisor":
-                continue
+
+            if name == "supervisor" and etype == "on_chain_start":
+                supervisor_active = True
+            elif name == "supervisor" and etype == "on_chain_end":
+                supervisor_active = False
+
+            if etype == "on_tool_start":
+                tool_name = name
+                if tool_name and tool_name.startswith("transfer_to_"):
+                    current_agent_tool = tool_name
+
+                    description = "Consulting a source"
+                    if tool_name == "transfer_to_finance_agent":
+                        description = _get_random_finance_current()
+                    elif tool_name == "transfer_to_goal_agent":
+                        description = _get_random_budget_current()
+                    elif tool_name == "transfer_to_wealth_agent":
+                        description = _get_random_wealth_current()
+
+                    await q.put({
+                        "event": "source.search.start",
+                        "data": {
+                            "tool": tool_name,
+                            "source": tool_name.replace("transfer_to_", "").replace("_", " ").title(),
+                            "description": description,
+                        }
+                    })
+                    suppress_streaming = True
+                    continue
+
+                # Handle non-transfer tools
+                if name and not name.startswith("transfer_to_"):
+                    await q.put({"event": "tool.start", "data": {"tool": name}})
 
             if etype == "on_chat_model_stream":
+                if not supervisor_active or suppress_streaming:
+                    continue
                 chunk = data.get("chunk")
                 out = self._content_to_text(chunk)
                 if out:
@@ -447,12 +489,9 @@ class SupervisorService:
                             await q.put({"event": "token.delta", "data": {"text": out, "sources": sources}})
                             set_last_emitted_text(thread_id, out)
                         assistant_response_parts.append(out)
-            elif etype == "on_tool_start":
-                if name:
-                    await q.put({"event": "tool.start", "data": {"tool": name}})
             elif etype == "on_tool_end":
                 sources = self._add_source_from_tool_end(sources, name, data)
-                if name:
+                if name and not name.startswith("transfer_to_"):
                     await q.put({"event": "tool.end", "data": {"tool": name}})
             elif etype == "on_chain_end":
                 try:
@@ -460,22 +499,32 @@ class SupervisorService:
                     if isinstance(output, dict):
                         messages = output.get("messages")
                         if isinstance(messages, list) and messages:
-                            last = messages[-1]
-                            content_obj = (
-                                last.get("content") if isinstance(last, dict) else getattr(last, "content", None)
-                            )
-                            text = self._content_to_text(content_obj)
-                            if text:
-                                text = self._strip_guardrail_marker(text)
-                            if text and not self._is_injected_context(text):
-                                last = get_last_emitted_text(thread_id)
-                                if text != last:
-                                    if name not in ["tools"]:
-                                        await q.put(
-                                            {"event": "token.delta", "data": {"text": text, "sources": sources}}
-                                        )
-                                        set_last_emitted_text(thread_id, text)
-                                    assistant_response_parts.append(text)
+                            last_tool = next((m for m in messages if (getattr(m, "name", None) or getattr(m, "tool_name", "")).startswith("transfer_back_to_")), None)
+                            if last_tool:
+                                back_tool: str = getattr(last_tool, "name", None) or getattr(last_tool, "tool_name", "")
+                                tool_call_id = getattr(last_tool, "tool_call_id", None) or getattr(last_tool, "id", None)
+                                dedupe_key = f"{back_tool}:{tool_call_id or 'noid'}"
+                                if dedupe_key not in emitted_handoff_back_keys:
+                                    emitted_handoff_back_keys.add(dedupe_key)
+                                    description = "Returned from source"  # fallback
+                                    if current_agent_tool == "transfer_to_finance_agent":
+                                        description = _get_random_finance_completed()
+                                    elif current_agent_tool == "transfer_to_goal_agent":
+                                        description = _get_random_budget_completed()
+                                    elif current_agent_tool == "transfer_to_wealth_agent":
+                                        description = _get_random_wealth_completed()
+
+                                    supervisor_name = back_tool.replace("transfer_back_to_", "").replace("_", " ").title() or "Supervisor"
+                                    await q.put({
+                                        "event": "source.search.end",
+                                        "data": {
+                                            "tool": back_tool,
+                                            "source": supervisor_name,
+                                            "description": description,
+                                        }
+                                    })
+                                    suppress_streaming = False
+                                    current_agent_tool = None
                 except Exception:
                     pass
 
@@ -488,7 +537,8 @@ class SupervisorService:
         except Exception:
             pass
 
-        await q.put({"event": "step.update", "data": {"status": "presented"}})
+        completed_description = _get_random_step_planning_completed()
+        await q.put({"event": "step.update", "data": {"status": "presented", "description": completed_description}})
 
         try:
             if assistant_response_parts:

@@ -1,5 +1,4 @@
 import json
-import uuid
 import re
 
 import requests
@@ -9,8 +8,7 @@ from sseclient import SSEClient
 st.set_page_config(page_title="Supervisor Test UI", layout="wide")
 
 def escape_currency_dollars(text: str) -> str:
-    """
-    Escape $ characters that are likely currency amounts, while preserving LaTeX math expressions.
+    """Escape $ characters that are likely currency amounts, while preserving LaTeX math expressions.
 
     This function:
     - Escapes $ followed by numbers (currency like $36, $12.50)

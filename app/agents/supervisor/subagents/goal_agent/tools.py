@@ -9,6 +9,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
 from app.agents.supervisor.subagents.goal_agent.models import Audit, Goal, GoalStatus, GoalStatusInfo
+from app.utils.tools import get_config_value
 
 # In-memory store: multiple goals per user_id
 _GOALS: List[Goal] = []
@@ -65,7 +66,7 @@ def get_goal_requirements() -> dict[str, Any]:
 def create_goal(data: Goal, config: RunnableConfig) -> str:
     """Create a new financial goal for a user. Make sure if the user has no active goals."""
     try:
-        user_key = str(config.get("configurable", {}).get("user_id"))
+        user_key = str(get_config_value(config, "user_id"))
 
 
         # Set default values
@@ -118,7 +119,7 @@ def create_goal(data: Goal, config: RunnableConfig) -> str:
 def update_goal(data: Goal, config: RunnableConfig) -> str:
     """Update an existing goal."""
     try:
-        user_key = str(config.get("configurable", {}).get("user_id"))
+        user_key = str(get_config_value(config, "user_id"))
         goal_to_update = _get_goal_by_id(user_key, str(data.goal_id))
 
         if not goal_to_update:
@@ -177,7 +178,7 @@ def update_goal(data: Goal, config: RunnableConfig) -> str:
 def list_goals(config: RunnableConfig) -> str:
     """List all goals for a user."""
     try:
-        user_id = str(config.get("configurable", {}).get("user_id"))
+        user_id = str(get_config_value(config, "user_id"))
         if not user_id:
             return json.dumps({
                 "error": "MISSING_USER_ID",
@@ -226,7 +227,7 @@ def list_goals(config: RunnableConfig) -> str:
 def get_in_progress_goal(config: RunnableConfig) -> str:
     """Get the unique in progress goal for a user."""
     try:
-        user_id = str(config.get("configurable", {}).get("user_id"))
+        user_id = str(get_config_value(config, "user_id"))
         if not user_id:
             return json.dumps({
                 "error": "MISSING_USER_ID",
@@ -273,7 +274,7 @@ def get_in_progress_goal(config: RunnableConfig) -> str:
 def delete_goal(goal_id: str, config: RunnableConfig) -> str:
     """Soft delete a goal (set status to deleted)."""
     try:
-        user_key = str(config.get("configurable", {}).get("user_id"))
+        user_key = str(get_config_value(config, "user_id"))
         goal_to_delete = _get_goal_by_id(user_key, goal_id)
 
         if not goal_to_delete:
@@ -307,7 +308,7 @@ def delete_goal(goal_id: str, config: RunnableConfig) -> str:
 def switch_goal_status(goal_id: str, status: str, config: RunnableConfig) -> str:
     """Switch the status of a goal."""
     try:
-        user_key = str(config.get("configurable", {}).get("user_id"))
+        user_key = str(get_config_value(config, "user_id"))
         user_goals = _get_user_goals(user_key)
         # Find the goal by id
         goal_to_switch = [g for g in user_goals if g.goal_id == UUID(goal_id)]

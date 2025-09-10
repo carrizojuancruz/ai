@@ -7,6 +7,8 @@ from uuid import uuid4
 from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_store
 
+from app.utils.tools import get_config_value
+
 
 def _utc_now_iso() -> str:
     """Return the current UTC time in ISO format.
@@ -75,7 +77,7 @@ async def semantic_memory_search(
     if config is None:
         config = {}
     store = get_store()
-    user_id = config.get("configurable", {}).get("user_id")
+    user_id = get_config_value(config, "user_id")
     if not user_id:
         return []
     namespace = (user_id, "semantic")
@@ -113,7 +115,7 @@ async def episodic_memory_fetch(
 
     """
     store = get_store()
-    user_id = config.get("configurable", {}).get("user_id")
+    user_id = get_config_value(config, "user_id")
     if not user_id:
         return []
     namespace = (user_id, "episodic")
@@ -160,7 +162,7 @@ async def semantic_memory_put(
 
     """
     store = get_store()
-    user_id = config.get("configurable", {}).get("user_id")
+    user_id = get_config_value(config, "user_id")
     if not user_id:
         return {"ok": False, "error": "missing_user_id"}
     namespace = (user_id, "semantic")
@@ -218,7 +220,7 @@ async def episodic_memory_put(
 
     """
     store = get_store()
-    user_id = config.get("configurable", {}).get("user_id")
+    user_id = get_config_value(config, "user_id")
     if not user_id:
         return {"ok": False, "error": "missing_user_id"}
     namespace = (user_id, "episodic")
@@ -274,7 +276,7 @@ async def semantic_memory_update(
 
     """
     store = get_store()
-    user_id = config.get("configurable", {}).get("user_id")
+    user_id = get_config_value(config, "user_id")
     if not user_id:
         return {"ok": False, "error": "missing_user_id"}
     namespace = (user_id, "semantic")
@@ -331,7 +333,7 @@ async def episodic_memory_update(
 
     """
     store = get_store()
-    user_id = config.get("configurable", {}).get("user_id")
+    user_id = get_config_value(config, "user_id")
     if not user_id:
         return {"ok": False, "error": "missing_user_id"}
     namespace = (user_id, "episodic")

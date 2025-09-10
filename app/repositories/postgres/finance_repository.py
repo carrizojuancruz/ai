@@ -10,11 +10,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger(__name__)
 
 
+class FinanceTables:
+    """Constants for finance-related database tables."""
+
+    ACCOUNTS = "public.unified_accounts"
+    TRANSACTIONS = "public.unified_transactions"
+
+
 class FinanceRepository:
     """PostgreSQL repository for finance data queries against Plaid tables."""
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+    async def user_has_any_accounts(self, user_id: UUID) -> bool:
+        """Return True if the user has any connected accounts, else False."""
+        try:
+            query = text(
+                f"SELECT 1 FROM {FinanceTables.ACCOUNTS} WHERE user_id = :user_id LIMIT 1"
+            )
+            result = await self.session.execute(query, {"user_id": str(user_id)})
+            return bool(result.first())
+        except Exception as exec_error:
+            logger.error(f"Check accounts existence error for user {user_id}: {exec_error}")
+            await self.session.rollback()
+            return False
 
     async def execute_query(self, query: str, user_id: UUID) -> Optional[list[dict]]:
         """Execute a SQL query with user isolation."""
