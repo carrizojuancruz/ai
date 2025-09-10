@@ -31,12 +31,12 @@ class AWSConfig:
                 secret_string = response["SecretString"]
                 secret_data = json.loads(secret_string)
                 logger.info("Successfully loaded %d secrets from AWS Secrets Manager", len(secret_data))
-                
+
                 # Check if AURORA_SECRET_ARN is in the secrets
                 if "AURORA_SECRET_ARN" in secret_data:
                     aurora_secret_arn = secret_data["AURORA_SECRET_ARN"]
                     logger.info("Found AURORA_SECRET_ARN, fetching database credentials")
-                    
+
                     # Fetch the Aurora secret
                     aurora_credentials = self._fetch_aurora_credentials(client, aurora_secret_arn)
                     if aurora_credentials:
@@ -51,7 +51,7 @@ class AWSConfig:
         except json.JSONDecodeError as e:
             logger.error("Failed to parse secret JSON: %s", e)
         return secret_data
-    
+
     def _fetch_aurora_credentials(self, client, aurora_secret_arn: str) -> dict[str, Any]:
         """Fetch Aurora database credentials from the provided secret ARN."""
         try:
@@ -91,12 +91,12 @@ def load_aws_secrets() -> None:
             logger.error("Binary secrets are not supported")
             return
         secret_data = json.loads(secret_string)
-        
+
         # Check if AURORA_SECRET_ARN is in the secrets
         if "AURORA_SECRET_ARN" in secret_data:
             aurora_secret_arn = secret_data["AURORA_SECRET_ARN"]
             logger.info("Found AURORA_SECRET_ARN, fetching database credentials")
-            
+
             try:
                 # Fetch the Aurora secret
                 aurora_response = client.get_secret_value(SecretId=aurora_secret_arn)
@@ -110,7 +110,7 @@ def load_aws_secrets() -> None:
                 logger.error(f"Error retrieving Aurora secret: {e}")
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse Aurora secret JSON: {e}")
-        
+
         loaded_count = 0
         for key, value in secret_data.items():
             os.environ[key] = str(value)
