@@ -139,7 +139,7 @@ class KnowledgeBaseSyncService:
                 if deletion_result["success"]:
                     sources_deleted += 1
                     logger.info(f"Deleted source: {source.url}")
-                else:##
+                else:
                     sources_errors += 1
                     sync_failures.append({
                         "url": source.url,
