@@ -117,7 +117,6 @@ async def get_nudge_health() -> Dict[str, Any]:
             "nudges_enabled": config.NUDGES_ENABLED,
             "queue_depth": queue_depth,
             "queue_url": config.SQS_QUEUE_URL,
-            "rate_limits": {"max_per_day": config.NUDGE_MAX_PER_DAY, "max_per_week": config.NUDGE_MAX_PER_WEEK},
         }
 
     except Exception as e:

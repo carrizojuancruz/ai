@@ -131,15 +131,6 @@ class Config:
     NUDGES_ENABLED: bool = os.getenv("NUDGES_ENABLED", "true").lower() == "true"
     NUDGES_TYPE2_ENABLED: bool = os.getenv("NUDGES_TYPE2_ENABLED", "true").lower() == "true"
     NUDGES_TYPE3_ENABLED: bool = os.getenv("NUDGES_TYPE3_ENABLED", "true").lower() == "true"
-    NUDGE_MEMORY_COOLDOWN_DAYS: int = int(os.getenv("NUDGE_MEMORY_COOLDOWN_DAYS", "7"))
-    NUDGE_QUIET_HOURS_START: int = int(os.getenv("NUDGE_QUIET_HOURS_START", "22"))  # 10 PM
-    NUDGE_QUIET_HOURS_END: int = int(os.getenv("NUDGE_QUIET_HOURS_END", "8"))  # 8 AM
-    NUDGE_MAX_PER_DAY: int = int(os.getenv("NUDGE_MAX_PER_DAY", "2"))
-    NUDGE_MAX_PER_WEEK: int = int(os.getenv("NUDGE_MAX_PER_WEEK", "5"))
-    NUDGE_SPENDING_THRESHOLD: float = float(os.getenv("NUDGE_SPENDING_THRESHOLD", "200.0"))
-    NUDGE_SPENDING_INCREASE_PCT: float = float(os.getenv("NUDGE_SPENDING_INCREASE_PCT", "30.0"))
-    NUDGE_GOAL_PROGRESS_MIN: float = float(os.getenv("NUDGE_GOAL_PROGRESS_MIN", "80.0"))
-    NUDGE_GOAL_PROGRESS_MAX: float = float(os.getenv("NUDGE_GOAL_PROGRESS_MAX", "95.0"))
 
     # SQS Configuration
     SQS_QUEUE_URL: str = os.getenv(
