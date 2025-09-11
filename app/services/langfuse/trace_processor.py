@@ -22,7 +22,7 @@ def extract_user_id(trace) -> Optional[str]:
         elif isinstance(metadata, str):
             parsed = json.loads(metadata)
             return parsed.get('user_id')
-    except (json.JSONDecodeError, AttributeError, KeyError) as e:
+    except (json.JSONDecodeError, AttributeError) as e:
         logger.debug(f"Failed to extract user_id from trace: {e}")
 
     return None

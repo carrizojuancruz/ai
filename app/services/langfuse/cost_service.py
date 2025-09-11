@@ -1,6 +1,5 @@
-"""Main Langfuse cost service with clean, focused responsibilities."""
-
 import logging
+import threading
 from datetime import date, datetime
 from typing import List, Optional
 
@@ -21,6 +20,7 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 _instance: Optional['LangfuseCostService'] = None
+_lock = threading.Lock()
 
 
 class LangfuseCostService:
@@ -31,10 +31,13 @@ class LangfuseCostService:
 
     @classmethod
     def get_instance(cls) -> 'LangfuseCostService':
-        """Get singleton instance of the service."""
-        global _instance
+        """Get thread-safe singleton instance of the service."""
+        global _instance, _lock
+
         if _instance is None:
-            _instance = cls()
+            with _lock:
+                if _instance is None:
+                    _instance = cls()
         return _instance
 
     def _initialize_clients(self):
