@@ -6,7 +6,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.services.langfuse import LangfuseCostService
-from app.services.langfuse.models import CostSummary, DailyCostResponse, AdminCostSummary
+from app.services.langfuse.models import CostSummary, AdminCostSummary, DailyCostFields, UserDailyCosts
 
 router = APIRouter(prefix="/admin/users", tags=["admin-users"])
 
@@ -51,16 +51,20 @@ async def get_user_costs(
         ) from e
 
 
-@router.get("/{user_id}/costs", response_model=List[DailyCostResponse])
+@router.get("/{user_id}/costs", response_model=List[DailyCostFields])
 async def get_user_daily_costs(
     user_id: str,
     from_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD). Default: 30 days ago"),  # noqa: B008
     to_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD). Default: today"),  # noqa: B008
     service: LangfuseCostService = Depends(get_cost_service)  # noqa: B008
-) -> List[DailyCostResponse]:
-    """Get daily cost breakdown for a specific user.
+) -> List[DailyCostFields]:
+    """Get daily cost breakdown for a specific user with core fields only.
 
-    Returns a list of daily costs where each object represents one day's activity.
+    Returns a list of daily costs where each object contains only:
+    - total_cost: The total cost for that day
+    - trace_count: The number of traces for that day
+    - date: The date in YYYY-MM-DD format
+
     Default range is the last 30 days if no dates are provided.
     Results are sorted by date in descending order (most recent first).
 
@@ -81,11 +85,58 @@ async def get_user_daily_costs(
     - `/admin/users/ba5c5db4-d3fb-4ca8-9445-1c221ea502a8/costs?from_date=2025-09-08&to_date=2025-09-10` - Specific range
     """
     try:
-        return await service.get_user_daily_costs(user_id, from_date, to_date)
+        return await service.get_user_daily_cost_fields(user_id, from_date, to_date)
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to fetch daily costs for user {user_id}: {str(e)}"
+        ) from e
+
+
+@router.get("/daily-costs", response_model=List[UserDailyCosts])
+async def get_all_users_daily_costs_grouped(
+    from_date: Optional[date] = Query(None, description="Start date for range (YYYY-MM-DD)"),  # noqa: B008
+    to_date: Optional[date] = Query(None, description="End date for range (YYYY-MM-DD)"),  # noqa: B008
+    service: LangfuseCostService = Depends(get_cost_service)  # noqa: B008
+) -> List[UserDailyCosts]:
+    """Get daily costs for all users, grouped by user.
+
+    **Returns Structure B: List of users with their daily costs grouped together.**
+    
+    **Response Format:**
+    ```json
+    [
+      {
+        "user_id": "user123",
+        "daily_costs": [
+          {"total_cost": 0.05, "trace_count": 10, "date": "2024-01-01"},
+          {"total_cost": 0.03, "trace_count": 6, "date": "2024-01-02"}
+        ]
+      }
+    ]
+    ```
+
+    **Date Range Logic:**
+    - **No params**: Last 30 days (from 30 days ago to today)
+    - **from_date only**: From that date to today
+    - **to_date only**: From that date to that date (single day)
+    - **Both dates**: From from_date to to_date
+
+    **Parameters:**
+    - **from_date**: Optional. Start date in YYYY-MM-DD format
+    - **to_date**: Optional. End date in YYYY-MM-DD format
+
+    **Example:**
+    - `/admin/users/daily-costs` - Last 30 days for all users
+    - `/admin/users/daily-costs?from_date=2025-09-08` - From Sept 8 to today for all users
+    - `/admin/users/daily-costs?from_date=2025-09-08&to_date=2025-09-10` - Specific range for all users
+    """
+    try:
+        return await service.get_all_users_daily_costs_grouped(from_date, to_date)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch grouped daily costs for all users: {str(e)}"
         ) from e
 
 

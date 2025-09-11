@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 from pydantic import BaseModel
 
@@ -38,3 +38,27 @@ class DailyCostResponse(BaseModel):
     total_tokens: int
     trace_count: int
     date: str  # Single date as string (YYYY-MM-DD)
+
+
+class DailyCostFields(BaseModel):
+    """Daily cost response with core fields: total_cost, trace_count, and date."""
+
+    total_cost: float
+    trace_count: int
+    date: str  # Single date as string (YYYY-MM-DD)
+
+
+class UserDailyCost(BaseModel):
+    """User daily cost with user_id, date, total_cost, and trace_count."""
+
+    user_id: str
+    date: str  # Single date as string (YYYY-MM-DD)
+    total_cost: float
+    trace_count: int
+
+
+class UserDailyCosts(BaseModel):
+    """User with their daily costs grouped together."""
+    
+    user_id: str
+    daily_costs: List[DailyCostFields]
