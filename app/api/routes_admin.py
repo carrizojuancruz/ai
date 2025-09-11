@@ -10,19 +10,23 @@ from app.services.langfuse.models import AdminCostSummary, GuestCostSummary, Use
 
 router = APIRouter(prefix="/admin/users", tags=["admin-users"])
 
+USER_ID_QUERY = Query(None, description="Filter by specific user ID (optional)")
+FROM_DATE_QUERY = Query(None, description="Start date for range (YYYY-MM-DD)")
+TO_DATE_QUERY = Query(None, description="End date for range (YYYY-MM-DD)")
+COST_SERVICE_DEPENDENCY = Depends(LangfuseCostService.get_instance)
 
-# Dependency
+
 def get_cost_service() -> LangfuseCostService:
-    """Dependency to get cost service instance."""
-    return LangfuseCostService()
+    """Dependency to get singleton cost service instance."""
+    return LangfuseCostService.get_instance()
 
 
 @router.get("/total-costs", response_model=List[AdminCostSummary])
 async def get_user_costs(
-    user_id: Optional[str] = Query(None, description="Filter by specific user ID (optional)"),  # noqa: B008
-    from_date: Optional[date] = Query(None, description="Start date for range (YYYY-MM-DD)"),  # noqa: B008
-    to_date: Optional[date] = Query(None, description="End date for range (YYYY-MM-DD)"),  # noqa: B008
-    service: LangfuseCostService = Depends(get_cost_service)  # noqa: B008
+    user_id: Optional[str] = USER_ID_QUERY,
+    from_date: Optional[date] = FROM_DATE_QUERY,
+    to_date: Optional[date] = TO_DATE_QUERY,
+    service: LangfuseCostService = COST_SERVICE_DEPENDENCY
 ) -> List[AdminCostSummary]:
     """Get aggregated costs for registered users with essential fields: user_id, total_cost, trace_count.
 
@@ -48,10 +52,10 @@ async def get_user_costs(
 
 @router.get("/daily-costs", response_model=List[UserDailyCosts])
 async def get_all_users_daily_costs_grouped(
-    user_id: Optional[str] = Query(None, description="Filter by specific user ID (optional)"),  # noqa: B008
-    from_date: Optional[date] = Query(None, description="Start date for range (YYYY-MM-DD)"),  # noqa: B008
-    to_date: Optional[date] = Query(None, description="End date for range (YYYY-MM-DD)"),  # noqa: B008
-    service: LangfuseCostService = Depends(get_cost_service)  # noqa: B008
+    user_id: Optional[str] = USER_ID_QUERY,
+    from_date: Optional[date] = FROM_DATE_QUERY,
+    to_date: Optional[date] = TO_DATE_QUERY,
+    service: LangfuseCostService = COST_SERVICE_DEPENDENCY
 ) -> List[UserDailyCosts]:
     """Get daily costs for all users or a specific user, grouped by user.
 
@@ -77,9 +81,9 @@ async def get_all_users_daily_costs_grouped(
 
 @router.get("/guest/costs", response_model=GuestCostSummary)
 async def get_guest_costs(
-    from_date: Optional[date] = Query(None, description="Start date for range (YYYY-MM-DD)"),  # noqa: B008
-    to_date: Optional[date] = Query(None, description="End date for range (YYYY-MM-DD)"),  # noqa: B008
-    service: LangfuseCostService = Depends(get_cost_service)  # noqa: B008
+    from_date: Optional[date] = FROM_DATE_QUERY,
+    to_date: Optional[date] = TO_DATE_QUERY,
+    service: LangfuseCostService = COST_SERVICE_DEPENDENCY
 ) -> GuestCostSummary:
     """Get costs for guest users with core fields only: total_cost and trace_count.
 

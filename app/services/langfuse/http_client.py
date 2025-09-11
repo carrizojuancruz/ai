@@ -19,27 +19,35 @@ class LangfuseHttpClient:
         self.public_key = public_key
         self.secret_key = secret_key
         self.base_url = base_url
+        self._client: httpx.AsyncClient | None = None
 
-    def get_traces(self, start_time: datetime, end_time: datetime) -> List[dict]:
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Get or create async HTTP client."""
+        if self._client is None:
+            self._client = httpx.AsyncClient(
+                auth=(self.public_key, self.secret_key),
+                timeout=HTTP_TIMEOUT
+            )
+        return self._client
+
+    async def get_traces(self, start_time: datetime, end_time: datetime) -> List[dict]:
         """Fetch traces from Langfuse API."""
         try:
-            with httpx.Client() as client:
-                response = client.get(
-                    f"{self.base_url}/api/public/traces",
-                    auth=(self.public_key, self.secret_key),
-                    params={
-                        "fromTimestamp": start_time.isoformat() + "Z",
-                        "toTimestamp": end_time.isoformat() + "Z",
-                        "limit": TRACES_API_LIMIT
-                    },
-                    timeout=HTTP_TIMEOUT
-                )
+            client = await self._get_client()
+            response = await client.get(
+                f"{self.base_url}/api/public/traces",
+                params={
+                    "fromTimestamp": start_time.isoformat() + "Z",
+                    "toTimestamp": end_time.isoformat() + "Z",
+                    "limit": TRACES_API_LIMIT
+                }
+            )
 
-                if response.status_code == 200:
-                    data = response.json()
-                    return data.get('data', [])
-                else:
-                    logger.warning(f"Langfuse API returned status {response.status_code}")
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('data', [])
+            else:
+                logger.warning(f"Langfuse API returned status {response.status_code}")
 
         except httpx.RequestError as e:
             logger.error(f"HTTP request failed: {e}")
@@ -47,3 +55,9 @@ class LangfuseHttpClient:
             logger.error(f"Unexpected error fetching traces: {e}")
 
         return []
+
+    async def close(self):
+        """Close the HTTP client."""
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None

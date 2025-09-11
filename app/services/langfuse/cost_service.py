@@ -20,12 +20,22 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
+_instance: Optional['LangfuseCostService'] = None
+
 
 class LangfuseCostService:
     """Main service for retrieving and processing Langfuse cost data."""
 
     def __init__(self):
         self._initialize_clients()
+
+    @classmethod
+    def get_instance(cls) -> 'LangfuseCostService':
+        """Get singleton instance of the service."""
+        global _instance
+        if _instance is None:
+            _instance = cls()
+        return _instance
 
     def _initialize_clients(self):
         """Initialize Langfuse clients for guest and supervisor."""
@@ -43,7 +53,6 @@ class LangfuseCostService:
             host=self.supervisor_config.host
         )
 
-        # HTTP clients for API communication
         self.guest_http_client = LangfuseHttpClient(
             self.guest_config.public_key,
             self.guest_config.secret_key,
@@ -55,15 +64,13 @@ class LangfuseCostService:
             self.supervisor_config.host
         )
 
-    # === PUBLIC API METHODS ===
-
     async def get_costs_per_user_date(
         self,
         target_date: date,
         user_id: Optional[str] = None
     ) -> List[UserCostSummary]:
         """Get costs for users on a specific date."""
-        return self._get_costs_for_date(target_date, user_id)
+        return await self._get_costs_for_date(target_date, user_id)
 
     async def get_users_costs(
         self,
@@ -72,10 +79,17 @@ class LangfuseCostService:
         user_id: Optional[str] = None,
         exclude_user_metadata: bool = False
     ) -> List[AdminCostSummary]:
-        """Get aggregated cost data with essential fields: user_id, total_cost, trace_count."""
+        """Get aggregated cost data with essential fields: user_id, total_cost, trace_count.
+
+        Date Range Logic:
+        - No params: Last 30 days (default behavior)
+        - from_date only: From that date to today
+        - to_date only: Single day (that date only)
+        - Both dates: From from_date to to_date
+        """
         try:
             start_date, end_date = date_utils.get_date_range(from_date, to_date)
-            all_costs = self._collect_costs_for_date_range(
+            all_costs = await self._collect_costs_for_date_range(
                 start_date, end_date, user_id, exclude_user_metadata
             )
 
@@ -98,7 +112,7 @@ class LangfuseCostService:
             daily_costs = []
 
             for current_date in date_utils.iterate_date_range(start_date, end_date):
-                costs = self._get_costs_for_date(current_date, user_id)
+                costs = await self._get_costs_for_date(current_date, user_id)
                 daily_cost_fields = aggregators.create_daily_cost_fields(costs, current_date)
                 daily_costs.append(daily_cost_fields)
 
@@ -140,7 +154,7 @@ class LangfuseCostService:
             all_daily_costs = []
 
             for current_date in date_utils.iterate_date_range(start_date, end_date):
-                daily_costs = self._create_user_daily_costs_for_date(current_date, user_id)
+                daily_costs = await self._create_user_daily_costs_for_date(current_date, user_id)
                 all_daily_costs.extend(daily_costs)
 
             return all_daily_costs
@@ -157,7 +171,7 @@ class LangfuseCostService:
         """Get guest user costs with core fields only: total_cost and trace_count."""
         try:
             start_date, end_date = date_utils.get_date_range(from_date, to_date)
-            all_costs = self._collect_guest_costs_for_date_range(start_date, end_date)
+            all_costs = await self._collect_guest_costs_for_date_range(start_date, end_date)
 
             total_cost = sum(cost.total_cost for cost in all_costs)
             total_traces = sum(cost.trace_count for cost in all_costs)
@@ -168,9 +182,8 @@ class LangfuseCostService:
             logger.error(f"Failed to get guest costs: {e}")
             return GuestCostSummary(total_cost=0.0, trace_count=0)
 
-    # === PRIVATE HELPER METHODS ===
 
-    def _collect_costs_for_date_range(
+    async def _collect_costs_for_date_range(
         self,
         start_date: date,
         end_date: date,
@@ -180,25 +193,25 @@ class LangfuseCostService:
         """Collect costs for a date range using supervisor client."""
         all_costs = []
         for current_date in date_utils.iterate_date_range(start_date, end_date):
-            daily_costs = self._get_costs_for_date(current_date, user_id, exclude_user_metadata)
+            daily_costs = await self._get_costs_for_date(current_date, user_id, exclude_user_metadata)
             all_costs.extend(daily_costs)
         return all_costs
 
-    def _collect_guest_costs_for_date_range(self, start_date: date, end_date: date) -> List[UserCostSummary]:
+    async def _collect_guest_costs_for_date_range(self, start_date: date, end_date: date) -> List[UserCostSummary]:
         """Collect guest costs for a date range using guest client."""
         all_costs = []
         for current_date in date_utils.iterate_date_range(start_date, end_date):
-            daily_costs = self._get_guest_costs_for_date(current_date)
+            daily_costs = await self._get_guest_costs_for_date(current_date)
             all_costs.extend(daily_costs)
         return all_costs
 
-    def _create_user_daily_costs_for_date(
+    async def _create_user_daily_costs_for_date(
         self,
         target_date: date,
         user_id: Optional[str] = None
     ) -> List[UserDailyCost]:
         """Create UserDailyCost objects for a specific date."""
-        costs = self._get_costs_for_date(target_date, user_id)
+        costs = await self._get_costs_for_date(target_date, user_id)
         user_costs = {}
 
         for cost in costs:
@@ -217,27 +230,27 @@ class LangfuseCostService:
                 trace_count=data['trace_count']
             )
             for uid, data in user_costs.items()
-            if uid  # Filter out None user_ids
+            if uid
         ]
 
-    def _get_costs_for_date(
+    async def _get_costs_for_date(
         self,
         target_date: date,
         user_id: Optional[str] = None,
         exclude_user_metadata: bool = False
     ) -> List[UserCostSummary]:
         """Get costs for a specific date using supervisor client."""
-        return self._get_costs_from_client(
+        return await self._get_costs_from_client(
             self.supervisor_http_client, target_date, user_id, exclude_user_metadata
         )
 
-    def _get_guest_costs_for_date(self, target_date: date) -> List[UserCostSummary]:
+    async def _get_guest_costs_for_date(self, target_date: date) -> List[UserCostSummary]:
         """Get guest costs for a specific date using guest client."""
-        return self._get_costs_from_client(
+        return await self._get_costs_from_client(
             self.guest_http_client, target_date, exclude_user_metadata=True
         )
 
-    def _get_costs_from_client(
+    async def _get_costs_from_client(
         self,
         http_client: LangfuseHttpClient,
         target_date: date,
@@ -249,7 +262,7 @@ class LangfuseCostService:
             start_time = datetime.combine(target_date, datetime.min.time())
             end_time = datetime.combine(target_date, datetime.max.time())
 
-            traces_data = http_client.get_traces(start_time, end_time)
+            traces_data = await http_client.get_traces(start_time, end_time)
             return trace_processor.process_traces(
                 traces_data, target_date, user_id, exclude_user_metadata
             )

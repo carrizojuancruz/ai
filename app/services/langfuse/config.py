@@ -1,5 +1,6 @@
-import os
 from dataclasses import dataclass
+
+from app.core.config import config
 
 
 @dataclass
@@ -12,17 +13,17 @@ class LangfuseConfig:
     @classmethod
     def from_env_guest(cls) -> "LangfuseConfig":
         return cls(
-            public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
-            secret_key=os.environ["LANGFUSE_SECRET_KEY"],
-            host=os.environ["LANGFUSE_HOST"],
+            public_key=config.LANGFUSE_PUBLIC_KEY or "",
+            secret_key=config.LANGFUSE_SECRET_KEY or "",
+            host=config.LANGFUSE_HOST,
             project_name="guest"
         )
 
     @classmethod
     def from_env_supervisor(cls) -> "LangfuseConfig":
         return cls(
-            public_key=os.environ["LANGFUSE_PUBLIC_SUPERVISOR_KEY"],
-            secret_key=os.environ["LANGFUSE_SECRET_SUPERVISOR_KEY"],
-            host=os.environ["LANGFUSE_HOST_SUPERVISOR"],
+            public_key=config.LANGFUSE_PUBLIC_SUPERVISOR_KEY or "",
+            secret_key=config.LANGFUSE_SECRET_SUPERVISOR_KEY or "",
+            host=config.LANGFUSE_HOST_SUPERVISOR,
             project_name="supervisor"
         )
