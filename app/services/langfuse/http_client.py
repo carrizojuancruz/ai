@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 import httpx
 
@@ -19,7 +19,7 @@ class LangfuseHttpClient:
         self.public_key = public_key
         self.secret_key = secret_key
         self.base_url = base_url
-        self._client: httpx.AsyncClient | None = None
+        self._client: Optional[httpx.AsyncClient] = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create async HTTP client."""

@@ -13,12 +13,14 @@ router = APIRouter(prefix="/admin/users", tags=["admin-users"])
 USER_ID_QUERY = Query(None, description="Filter by specific user ID (optional)")
 FROM_DATE_QUERY = Query(None, description="Start date for range (YYYY-MM-DD)")
 TO_DATE_QUERY = Query(None, description="End date for range (YYYY-MM-DD)")
-COST_SERVICE_DEPENDENCY = Depends(LangfuseCostService.get_instance)
 
 
 def get_cost_service() -> LangfuseCostService:
     """Dependency to get singleton cost service instance."""
     return LangfuseCostService.get_instance()
+
+
+COST_SERVICE_DEPENDENCY = Depends(get_cost_service)
 
 
 @router.get("/total-costs", response_model=List[AdminCostSummary])

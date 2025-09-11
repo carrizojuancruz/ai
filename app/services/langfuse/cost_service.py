@@ -87,7 +87,7 @@ class LangfuseCostService:
         Date Range Logic:
         - No params: Last 30 days (default behavior)
         - from_date only: From that date to today
-        - to_date only: Single day (that date only)
+        - to_date only: Last 30 days ending today (ignores to_date)
         - Both dates: From from_date to to_date
         """
         try:

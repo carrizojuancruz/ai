@@ -55,7 +55,31 @@ def process_traces(
     user_id: Optional[str] = None,
     exclude_user_metadata: bool = False
 ) -> List[UserCostSummary]:
-    """Process traces into cost summaries with optional filtering."""
+    """Process traces into cost summaries with optional filtering.
+
+    Args:
+        traces_data: List of trace dictionaries from Langfuse API containing trace information
+        target_date: The date to associate with all processed cost summaries
+        user_id: Optional user ID to filter traces for. If provided, only traces from this user
+                 will be processed. If None, all traces are processed.
+        exclude_user_metadata: If True, excludes traces that have user metadata (user_id present).
+                              If False (default), includes all traces regardless of user metadata.
+                              This is useful for filtering guest vs registered user traces.
+
+    Returns:
+        List[UserCostSummary]: List of cost summary objects, each containing:
+            - user_id: The user ID (None for guest users)
+            - total_cost: Accumulated cost for this user on the target date
+            - trace_count: Number of traces processed for this user
+            - date: The target_date provided as parameter
+
+    Filtering Logic:
+        - If user_id is provided: Only processes traces matching that specific user_id
+        - If exclude_user_metadata=True: Only processes traces WITHOUT user_id (guest users)
+        - If exclude_user_metadata=False: Processes all traces (default behavior)
+        - Cost extraction failures are logged but don't stop processing other traces
+
+    """
     user_costs = {}
 
     for trace in traces_data:
