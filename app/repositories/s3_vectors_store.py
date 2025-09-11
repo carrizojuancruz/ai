@@ -8,7 +8,7 @@ from typing import Any, Iterable, Literal, Optional, Sequence, Tuple, TypeAlias,
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 try:
-    from langgraph.store.base import NOT_PROVIDED, BaseStore, Item, NotProvided, Op, Result, SearchItem
+    from langgraph.store.base import NOT_PROVIDED, BaseStore, Item, NotProvided, Op, SearchItem
 except Exception:  # pragma: no cover
     from typing import Protocol
 

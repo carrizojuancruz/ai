@@ -7,13 +7,24 @@ from uuid import UUID
 
 from langchain_aws import ChatBedrock
 from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
 from langgraph.graph import MessagesState
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import RunnableConfig
 
 from app.agents.supervisor.finance_agent.tools import execute_financial_query
+from app.agents.supervisor.handoff import create_handoff_back_messages
+from app.core.app_state import (
+    get_cached_finance_agent,
+    get_finance_agent,
+    get_finance_samples,
+    set_cached_finance_agent,
+    set_finance_samples,
+)
 from app.core.config import config
 from app.repositories.database_service import get_database_service
+from app.repositories.postgres.finance_repository import FinanceTables
+from app.utils.tools import get_config_value
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +106,6 @@ class FinanceAgent:
         Returns compact JSON arrays as strings for embedding in the prompt.
         """
         try:
-            from app.core.app_state import get_finance_samples, set_finance_samples
 
             cached_pair = get_finance_samples(user_id)
             if cached_pair:
@@ -121,7 +131,7 @@ class FinanceAgent:
                     "  COALESCE(t.provider_tx_category_detailed, t.category_detailed, t.provider_tx_category, t.category, 'Uncategorized') AS category, "
                     "  t.pending, "
                     "  t.created_at "
-                    "FROM public.unified_transactions t "
+                    f"FROM {FinanceTables.TRANSACTIONS} t "
                     "WHERE t.user_id = :user_id "
                     f"ORDER BY t.created_at DESC LIMIT {self.MAX_TRANSACTION_SAMPLES}"
                 )
@@ -129,7 +139,7 @@ class FinanceAgent:
                 # Account sample
                 acct_query = (
                     "SELECT a.id, a.name, a.account_type, a.account_subtype, a.institution_name, a.created_at "
-                    "FROM public.unified_accounts a "
+                    f"FROM {FinanceTables.ACCOUNTS} a "
                     "WHERE a.user_id = :user_id "
                     f"ORDER BY a.created_at DESC LIMIT {self.MAX_ACCOUNT_SAMPLES}"
                 )
@@ -237,7 +247,7 @@ class FinanceAgent:
 
         ## 📋 TABLE SCHEMAS (Typed; shallow as source of truth)
 
-        **public.unified_transactions**
+        **{FinanceTables.TRANSACTIONS}**
         - id (UUID)
         - user_id (UUID)
         - account_id (UUID)
@@ -255,7 +265,7 @@ class FinanceAgent:
         - external_transaction_id (VARCHAR)
         - created_at (TIMESTAMPTZ), updated_at (TIMESTAMPTZ)
 
-        **public.unified_accounts**
+        **{FinanceTables.ACCOUNTS}**
         - id (UUID)
         - user_id (UUID)
         - name (VARCHAR)
@@ -287,7 +297,7 @@ class FinanceAgent:
             END AS category,
             t.pending,
             t.created_at
-          FROM public.unified_transactions t
+          FROM {FinanceTables.TRANSACTIONS} t
           WHERE t.user_id = '{user_id}'
         ),
         dedup AS (
@@ -349,8 +359,6 @@ class FinanceAgent:
 
     async def _create_agent_with_tools(self, user_id: UUID):
         """Create a LangGraph agent with SQL tools for the given user."""
-        from langchain_core.tools import tool
-
         logger.info(f"Creating SQL tools for user {user_id}")
 
         # Create a custom sql_db_query tool that has access to user_id
@@ -377,8 +385,6 @@ class FinanceAgent:
         """Process financial queries using cached agent per user."""
         try:
             logger.info(f"Processing finance query for user {user_id}: {query}")
-
-            from app.core.app_state import get_cached_finance_agent, set_cached_finance_agent
 
             agent = get_cached_finance_agent(user_id)
             if agent is None:
@@ -416,7 +422,7 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[st
     """LangGraph node for finance agent that provides analysis to supervisor."""
     try:
         # Get user_id from configurable context
-        user_id = config.get("configurable", {}).get("user_id")
+        user_id = get_config_value(config, "user_id")
         if not user_id:
             # Fallback: try to extract from messages (preserved by handoff tool)
             user_id = _get_user_id_from_messages(state["messages"])
@@ -435,7 +441,7 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[st
             return {"messages": [{"role": "assistant", "content": error_msg, "name": "finance_agent"}]}
 
         # Process the financial analysis
-        from app.core.app_state import get_finance_agent
+
         finance_agent_instance = get_finance_agent()
         analysis_result = await finance_agent_instance.process_query(query, user_id)
 
@@ -450,7 +456,6 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[st
         This analysis is provided to the supervisor for final user response formatting.
         """
 
-        from app.agents.supervisor.handoff import create_handoff_back_messages
         handoff_messages = create_handoff_back_messages("finance_agent", "supervisor")
 
         return {
@@ -465,7 +470,6 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[st
         logger.error(f"Finance agent critical error: {e}")
         error_analysis = f"FINANCIAL ANALYSIS ERROR: {str(e)}"
 
-        from app.agents.supervisor.handoff import create_handoff_back_messages
         handoff_messages = create_handoff_back_messages("finance_agent", "supervisor")
 
         return {
