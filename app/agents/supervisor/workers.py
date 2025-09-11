@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import MessagesState
 
@@ -10,8 +11,7 @@ from app.repositories.session_store import get_session_store
 from app.utils.tools import get_config_value
 
 from .finance_agent.agent import finance_agent as finance_worker
-from .subagents.goal_agent.agent import compile_goal_agent_graph
-from .subagents.wealth_agent.agent import compile_wealth_agent_graph
+from .wealth_agent.agent import compile_wealth_agent_graph
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ async def wealth_agent(state: MessagesState) -> dict[str, Any]:
         result = await wealth_agent.ainvoke(state)
         return result
     except Exception as e:
-        logger.error(f"Wealth agent failed: {e}")
+        logger.error("Wealth agent failed: %s", e)
         content = "I'm having trouble accessing financial information right now. Please try again later."
         return {"messages": [{"role": "assistant", "content": content, "name": "wealth_agent"}]}
 
@@ -48,16 +48,47 @@ async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, 
     """Goal agent worker that handles financial goals management."""
     try:
         # Get the goal_agent graph
+        from .goal_agent.agent import compile_goal_agent_graph
+
         goal_graph = compile_goal_agent_graph()
 
         # Process message through the goal_agent graph with full conversation context
         result = await goal_graph.ainvoke(state, config=config)
 
+        # Get the last user message content safely
+        last_message = state["messages"][-1]
+        if isinstance(last_message, HumanMessage):
+            task_content = getattr(last_message, "content", "Unknown task")
+        elif isinstance(last_message, dict):
+            task_content = last_message.get("content", "Unknown task")
+        else:
+            task_content = str(last_message)
+
+        analysis_response = f"""
+        GOAL AGENT COMPLETE:
+
+        Task Analyzed: {task_content}...
+
+        Analysis Results:
+        {result}
+
+        This goal agent is provided to the supervisor for final user response formatting.
+        """
+
+        from app.agents.supervisor.handoff import create_handoff_back_messages
+        handoff_messages = create_handoff_back_messages("goal_agent", "supervisor")
+
         # Return the result in the expected format by MessagesState
-        return result
+        return {
+            "messages": [
+                {"role": "assistant", "content": analysis_response, "name": "goal_agent"},
+                handoff_messages[0],
+                handoff_messages[1]
+            ]
+        }
 
     except Exception as e:
-        print(f"Error in goal_agent: {e}")
+        logger.error("Error in goal_agent: %s", e)
         return {
             "messages": [{
                 "role": "assistant",

@@ -2,14 +2,15 @@
 
 import json
 from datetime import datetime
-from typing import Any, List
+from typing import List
 from uuid import UUID, uuid4
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
-from app.agents.supervisor.subagents.goal_agent.models import Audit, Goal, GoalStatus, GoalStatusInfo
 from app.utils.tools import get_config_value
+
+from .models import Audit, Goal, GoalStatus, GoalStatusInfo
 
 # In-memory store: multiple goals per user_id
 _GOALS: List[Goal] = []
@@ -37,27 +38,28 @@ def _update_user_goal(goal: Goal) -> None:
 
 def _get_in_progress_goal(user_id: str) -> List[Goal]:
     """Get the in progress goal for a user."""
-    return [g for g in _get_user_goals(user_id) if g.status.value == GoalStatus.IN_PROGRESS]
+    return [g for g in _get_user_goals(user_id) if g.status == GoalStatus.IN_PROGRESS]
 
-def _get_goal_by_id(user_id: str, goal_id: str) -> Goal:
+def _get_goal_by_id(user_id: str, goal_id: str) -> Goal | None:
     """Get a goal by id for a user."""
-    return [g for g in _get_user_goals(user_id) if g.goal_id == goal_id]
+    goals = [g for g in _get_user_goals(user_id) if str(g.goal_id) == str(goal_id)]
+    return goals[0] if goals else None
 
 def _get_in_pending_goal(user_id: str) -> Goal:
     """Get a pending goal for a user."""
-    return [g for g in _get_user_goals(user_id) if g.status.value == GoalStatus.PENDING]
+    return [g for g in _get_user_goals(user_id) if g.status == GoalStatus.PENDING]
 
-@tool(
-    name_or_callable="get_goal_requirements",
-    description="Get the requirements for a goal",
-)
-def get_goal_requirements() -> dict[str, Any]:
-    """Get the requirements for a goal This is infered from the Goal Model."""
-    goal_json = Goal.model_json_schema()
-    goal_json = json.loads(goal_json)
-    # Remove the user_id field
-    goal_json.pop("user_id")
-    return goal_json
+# @tool(
+#     name_or_callable="get_goal_requirements",
+#     description="Get the requirements for a goal",
+# )
+# def get_goal_requirements() -> dict[str, Any]:
+#     """Get the requirements for a goal This is infered from the Goal Model."""
+#     goal_json = Goal.model_json_schema()
+#     goal_json = json.loads(goal_json)
+#     # Remove the user_id field
+#     goal_json.pop("user_id")
+#     return goal_json
 
 @tool(
     name_or_callable="create_goal",
@@ -196,7 +198,7 @@ def list_goals(config: RunnableConfig) -> str:
             })
 
         # Return active goals (not deleted)
-        active_goals = [g for g in user_goals if g.status.value != GoalStatus.DELETED]
+        active_goals = [g for g in user_goals if g.status != GoalStatus.DELETED]
 
         # Serialize each goal correctly
         active_goals_dict = []
@@ -284,7 +286,7 @@ def delete_goal(goal_id: str, config: RunnableConfig) -> str:
                 "user_id": user_key
             })
 
-        goal_to_delete.status.value = GoalStatus.DELETED
+        goal_to_delete.status = GoalStatus.DELETED
         goal_to_delete.audit.updated_at = _now()
         _update_user_goal(goal_to_delete)
 
@@ -322,7 +324,17 @@ def switch_goal_status(goal_id: str, status: str, config: RunnableConfig) -> str
                 "user_id": user_key
             })
 
-        goal_to_switch.status.value = status
+        # Convert string status to GoalStatus enum
+        try:
+            new_status = GoalStatus(status)
+            goal_to_switch.status.value = new_status
+        except ValueError:
+            return json.dumps({
+                "error": "INVALID_STATUS",
+                "message": f"Invalid status '{status}'. Valid statuses are: {[s.value for s in GoalStatus]}",
+                "goal": None,
+                "user_id": user_key
+            })
         goal_to_switch.audit.updated_at = _now()
         _update_user_goal(goal_to_switch)
         print(f"Goal status switched: {goal_to_switch}")
@@ -339,3 +351,38 @@ def switch_goal_status(goal_id: str, status: str, config: RunnableConfig) -> str
             "user_id": user_key
         })
 
+
+@tool(
+    name_or_callable="get_goal_by_id",
+    description="Get a specific goal by its ID",
+)
+def get_goal_by_id(goal_id: str, config: RunnableConfig) -> str:
+    """Get a specific goal by its ID."""
+    try:
+        user_key = str(config.get("configurable", {}).get("user_id"))
+        goal = _get_goal_by_id(user_key, goal_id)
+
+        if not goal:
+            return json.dumps({
+                "error": "GOAL_NOT_FOUND",
+                "message": f"No goal found with ID: {goal_id}",
+                "goal": None,
+                "user_id": user_key
+            })
+
+        # Serialize the goal correctly
+        goal_json = goal.model_dump_json()
+        goal_dict = json.loads(goal_json)
+
+        return json.dumps({
+            "message": "Goal found",
+            "goal": goal_dict,
+            "user_id": user_key
+        })
+    except Exception as e:
+        return json.dumps({
+            "error": "READ_FAILED",
+            "message": f"Failed to get goal: {str(e)}",
+            "goal": None,
+            "user_id": user_key
+        })
