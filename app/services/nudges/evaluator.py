@@ -50,10 +50,6 @@ class NudgeEvaluator:
                     user_id = UUID(user_id_str)
                     logger.debug(f"evaluator.evaluating_user: user_id={user_id_str}, nudge_type={nudge_type}")
 
-                    if not await self._check_common_conditions(user_id, nudge_type):
-                        logger.debug(f"evaluator.common_conditions_failed: user_id={user_id_str}")
-                        return {"user_id": user_id_str, "status": "skipped", "reason": "conditions_not_met"}
-
                     if not await strategy.validate_conditions(user_id):
                         logger.debug(
                             f"evaluator.strategy_conditions_failed: user_id={user_id_str}, strategy={strategy.__class__.__name__}"
@@ -107,35 +103,9 @@ class NudgeEvaluator:
 
         return {"evaluated": evaluated, "queued": queued, "skipped": skipped, "results": results}
 
-    async def _check_common_conditions(self, user_id: UUID, nudge_type: str) -> bool:
-        if not config.NUDGES_ENABLED:
-            logger.debug(f"evaluator.nudges_disabled_globally: user_id={str(user_id)}")
-            return False
-
-        rate_limited = not await self.activity_counter.check_rate_limits(user_id)
-        if rate_limited:
-            logger.info(f"evaluator.rate_limited: user_id={str(user_id)}, nudge_type={nudge_type}")
-            return False
-
-        in_cooldown = await self.activity_counter.is_in_cooldown(user_id, nudge_type)
-        if in_cooldown:
-            logger.info(f"evaluator.in_cooldown: user_id={str(user_id)}, nudge_type={nudge_type}")
-            return False
-
-        if self._is_quiet_hours():
-            from datetime import datetime
-
-            logger.info(
-                f"evaluator.quiet_hours: user_id={str(user_id)}, current_hour={datetime.now().hour}, quiet_start={config.NUDGE_QUIET_HOURS_START}, quiet_end={config.NUDGE_QUIET_HOURS_END}"
-            )
-            return False
-
-        logger.debug(f"evaluator.conditions_passed: user_id={str(user_id)}, nudge_type={nudge_type}")
-        return True
-
     async def _queue_nudge(self, candidate: NudgeCandidate) -> str:
         message = NudgeMessage(
-            user_id=UUID(candidate.user_id),
+            user_id=candidate.user_id,
             nudge_type=candidate.nudge_type,
             priority=candidate.priority,
             payload={
@@ -150,7 +120,7 @@ class NudgeEvaluator:
         )
 
         message_id = await self.sqs_manager.enqueue_nudge(message)
-        await self.activity_counter.increment_nudge_count(UUID(candidate.user_id), candidate.nudge_type)
+        await self.activity_counter.increment_nudge_count(candidate.user_id, candidate.nudge_type)
 
         logger.debug(
             f"evaluator.nudge_queued_successfully: user_id={str(candidate.user_id)}, message_id={message_id}"
@@ -158,16 +128,7 @@ class NudgeEvaluator:
 
         return message_id
 
-    def _is_quiet_hours(self) -> bool:
-        from datetime import datetime
 
-        current_hour = datetime.now().hour
-        start = config.NUDGE_QUIET_HOURS_START
-        end = config.NUDGE_QUIET_HOURS_END
-        if start > end:
-            return current_hour >= start or current_hour < end
-        else:
-            return start <= current_hour < end
 
     def register_custom_strategy(self, nudge_type: str, strategy_class):
         self.strategy_registry.register_strategy_class(nudge_type, strategy_class)

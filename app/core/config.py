@@ -71,6 +71,7 @@ class Config:
     S3V_INDEX_KB: Optional[str] = os.getenv("S3V_INDEX_KB")
     S3V_DISTANCE: str = os.getenv("S3V_DISTANCE", "cosine").upper()
     S3V_DIMS: int = int(os.getenv("S3V_DIMS", "1024"))
+    S3V_MAX_TOP_K: int = int(os.getenv("S3V_MAX_TOP_K", "30"))
 
     # Langfuse Configuration (Guest)
     LANGFUSE_PUBLIC_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY")
@@ -142,7 +143,7 @@ class Config:
 
     # SQS Configuration
     SQS_QUEUE_URL: str = os.getenv(
-        "SQS_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/909418399862/fos-ai-dev-nudges"
+        "SQS_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/905418355862/fos-ai-dev-nudges"
     )
     SQS_QUEUE_REGION: str = os.getenv("SQS_QUEUE_REGION", "us-east-1")
     SQS_MAX_MESSAGES: int = int(os.getenv("SQS_MAX_MESSAGES", "10"))
