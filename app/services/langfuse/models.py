@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Dict, Optional, List
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -59,6 +59,6 @@ class UserDailyCost(BaseModel):
 
 class UserDailyCosts(BaseModel):
     """User with their daily costs grouped together."""
-    
+
     user_id: str
     daily_costs: List[DailyCostFields]

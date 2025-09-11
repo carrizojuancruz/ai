@@ -6,7 +6,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.services.langfuse import LangfuseCostService
-from app.services.langfuse.models import CostSummary, AdminCostSummary, DailyCostFields, UserDailyCosts
+from app.services.langfuse.models import AdminCostSummary, CostSummary, DailyCostFields, UserDailyCosts
 
 router = APIRouter(prefix="/admin/users", tags=["admin-users"])
 
@@ -102,7 +102,7 @@ async def get_all_users_daily_costs_grouped(
     """Get daily costs for all users, grouped by user.
 
     **Returns Structure B: List of users with their daily costs grouped together.**
-    
+
     **Response Format:**
     ```json
     [
