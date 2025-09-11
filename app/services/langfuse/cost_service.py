@@ -193,23 +193,22 @@ class LangfuseCostService:
     async def get_all_users_daily_costs_grouped(
         self,
         from_date: Optional[date] = None,
-        to_date: Optional[date] = None
+        to_date: Optional[date] = None,
+        user_id: Optional[str] = None
     ) -> List[UserDailyCosts]:
-        """Get daily costs for all users, grouped by user."""
+        """Get daily costs for all users or a specific user, grouped by user."""
         try:
-            # Get all users' daily costs
             all_user_daily_costs = await self.get_all_users_daily_costs(
                 from_date=from_date,
-                to_date=to_date
+                to_date=to_date,
+                user_id=user_id
             )
 
-            # Group costs by user_id
             user_costs_dict = {}
             for user_cost in all_user_daily_costs:
                 if user_cost.user_id not in user_costs_dict:
                     user_costs_dict[user_cost.user_id] = []
 
-                # Convert UserDailyCost to DailyCostFields
                 daily_cost_field = DailyCostFields(
                     total_cost=user_cost.total_cost,
                     trace_count=user_cost.trace_count,
@@ -217,7 +216,6 @@ class LangfuseCostService:
                 )
                 user_costs_dict[user_cost.user_id].append(daily_cost_field)
 
-            # Convert to UserDailyCosts objects
             result = []
             for user_id, daily_costs in user_costs_dict.items():
                 result.append(UserDailyCosts(
@@ -247,10 +245,8 @@ class LangfuseCostService:
             current_date = start_date
 
             while current_date <= end_date:
-                # Get costs for all users on this date
                 costs = self._get_costs(self.supervisor_client, current_date, user_id)
 
-                # Group by user_id
                 user_costs = {}
                 for cost in costs:
                     uid = cost.user_id
