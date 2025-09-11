@@ -1,10 +1,5 @@
-
-import json
-import os
-
 from app.services.external_context.http_client import FOSHttpClient
 
-BLOCKED_TOPICS_FILE = os.path.join(os.path.dirname(__file__), "blocked_topics.json")
 
 async def get_blocked_topics(user_id: str):
     fos_client = FOSHttpClient()
@@ -18,7 +13,3 @@ async def get_blocked_topics(user_id: str):
         return topics_list
 
     return []
-
-def _save_blocked_topics(data):
-    with open(BLOCKED_TOPICS_FILE, "w") as f:
-        json.dump(data, f, indent=4)
