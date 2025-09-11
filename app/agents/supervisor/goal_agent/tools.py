@@ -8,8 +8,9 @@ from uuid import UUID, uuid4
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
-from .models import Audit, Goal, GoalStatus, GoalStatusInfo
 from app.utils.tools import get_config_value
+
+from .models import Audit, Goal, GoalStatus, GoalStatusInfo
 
 # In-memory store: multiple goals per user_id
 _GOALS: List[Goal] = []
@@ -360,7 +361,7 @@ def get_goal_by_id(goal_id: str, config: RunnableConfig) -> str:
     try:
         user_key = str(config.get("configurable", {}).get("user_id"))
         goal = _get_goal_by_id(user_key, goal_id)
-        
+
         if not goal:
             return json.dumps({
                 "error": "GOAL_NOT_FOUND",
@@ -368,11 +369,11 @@ def get_goal_by_id(goal_id: str, config: RunnableConfig) -> str:
                 "goal": None,
                 "user_id": user_key
             })
-        
+
         # Serialize the goal correctly
         goal_json = goal.model_dump_json()
         goal_dict = json.loads(goal_json)
-        
+
         return json.dumps({
             "message": "Goal found",
             "goal": goal_dict,
