@@ -30,6 +30,13 @@ class AdminCostSummary(BaseModel):
     trace_count: int = 0
 
 
+class GuestCostSummary(BaseModel):
+    """Guest cost summary with core fields: total_cost and trace_count."""
+
+    total_cost: float = 0.0
+    trace_count: int = 0
+
+
 class DailyCostResponse(BaseModel):
     """Response model for daily cost data with a single date field."""
 

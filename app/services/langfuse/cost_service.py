@@ -12,6 +12,7 @@ from .models import (
     CostSummary,
     DailyCostFields,
     DailyCostResponse,
+    GuestCostSummary,
     UserCostSummary,
     UserDailyCost,
     UserDailyCosts,
@@ -256,9 +257,8 @@ class LangfuseCostService:
                     user_costs[uid]['total_cost'] += cost.total_cost
                     user_costs[uid]['trace_count'] += cost.trace_count
 
-                # Create UserDailyCost objects for each user on this date
                 for uid, data in user_costs.items():
-                    if uid:  # Only include users with valid user_id
+                    if uid:
                         all_daily_costs.append(UserDailyCost(
                             user_id=uid,
                             date=current_date.isoformat(),
@@ -294,7 +294,7 @@ class LangfuseCostService:
             total_traces = sum(cost.trace_count for cost in all_costs)
 
             return CostSummary(
-                user_id=None,  # Guest users have no user_id
+                user_id=None,
                 total_cost=total_cost,
                 total_tokens=total_tokens,
                 trace_count=total_traces,
@@ -303,7 +303,32 @@ class LangfuseCostService:
         except Exception:
             return CostSummary(user_id=None, total_cost=0.0, total_tokens=0, trace_count=0)
 
-    # === PRIVATE HELPERS ===
+    async def get_guest_costs_simple(
+        self,
+        from_date: Optional[date] = None,
+        to_date: Optional[date] = None
+    ) -> GuestCostSummary:
+        """Get guest user costs with core fields only: total_cost and trace_count."""
+        try:
+            start_date, end_date = self._get_date_range(from_date, to_date)
+
+            all_costs = []
+            current_date = start_date
+
+            while current_date <= end_date:
+                daily_costs = self._get_costs(self.guest_client, current_date, exclude_user_metadata=True)
+                all_costs.extend(daily_costs)
+                current_date += timedelta(days=1)
+
+            total_cost = sum(cost.total_cost for cost in all_costs)
+            total_traces = sum(cost.trace_count for cost in all_costs)
+
+            return GuestCostSummary(
+                total_cost=total_cost,
+                trace_count=total_traces
+            )
+        except Exception:
+            return GuestCostSummary(total_cost=0.0, trace_count=0)
 
     def _get_date_range(self, from_date: Optional[date], to_date: Optional[date]) -> Tuple[date, date]:
         """Get normalized date range."""

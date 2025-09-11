@@ -6,7 +6,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.services.langfuse import LangfuseCostService
-from app.services.langfuse.models import AdminCostSummary, CostSummary, UserDailyCosts
+from app.services.langfuse.models import AdminCostSummary, UserDailyCosts, GuestCostSummary
 
 router = APIRouter(prefix="/admin/users", tags=["admin-users"])
 
@@ -61,7 +61,7 @@ async def get_all_users_daily_costs_grouped(
     """Get daily costs for all users or a specific user, grouped by user.
 
     **Returns Structure B: List of users with their daily costs grouped together.**
-    
+
     **Flexible Filtering:**
     - No user_id: Returns daily costs for ALL users
     - With user_id: Returns daily costs for SPECIFIC user only
@@ -91,30 +91,33 @@ async def get_all_users_daily_costs_grouped(
         ) from e
 
 
-@router.get("/guest/costs", response_model=CostSummary)
+@router.get("/guest/costs", response_model=GuestCostSummary)
 async def get_guest_costs(
     from_date: Optional[date] = Query(None, description="Start date for range (YYYY-MM-DD)"),  # noqa: B008
     to_date: Optional[date] = Query(None, description="End date for range (YYYY-MM-DD)"),  # noqa: B008
     service: LangfuseCostService = Depends(get_cost_service)  # noqa: B008
-) -> CostSummary:
-    """Get costs for guest users (users without user_id) with flexible date filtering.
+) -> GuestCostSummary:
+    """Get costs for guest users with core fields only: total_cost and trace_count.
 
-    **Date Parameter Handling:**
-    - No params: Last 7 days (default range for guest costs)
-    - from_date=to_date: Guest costs for single date
-    - date range: Guest costs aggregated for date range
+    **Returns only essential fields:**
+    - total_cost: The total cost for guest users
+    - trace_count: The number of traces for guest users
 
-    **Returns a single CostSummary object with user_id=null for all guest users.**
+    **Date Range Logic:**
+    - **No params**: Last 30 days (from 30 days ago to today)
+    - **from_date only**: From that date to today
+    - **to_date only**: From that date to that date (single day)
+    - **Both dates**: From from_date to to_date
 
     **Examples:**
-    - `/admin/users/guest/costs` - Guest costs for last 7 days
+    - `/admin/users/guest/costs` - Guest costs for last 30 days
     - `/admin/users/guest/costs?from_date=2025-09-10&to_date=2025-09-10` - Guest costs for single date
     - `/admin/users/guest/costs?from_date=2025-09-08&to_date=2025-09-10` - Guest costs for date range
 
     **Note:** This endpoint aggregates costs for ALL guest users (without user_id) into a single summary.
     """
     try:
-        return await service.get_guest_costs(from_date, to_date)
+        return await service.get_guest_costs_simple(from_date, to_date)
     except Exception as e:
         raise HTTPException(
             status_code=500,
