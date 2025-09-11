@@ -1,18 +1,16 @@
 # Admin Cost API Documentation
 
-This document provides comprehensive documentation for the Verde AI Admin Cost API endpoints. 
+This document provides comprehensive documentation for the Verde AI Admin Cost API endpoints.
 
 ## Overview
----
 
-## 📅 **Endpoint 2: Daily Cost Breakdown**
-
-### `GET /admin/users/{user_id}/costs`Admin Cost API provides cost analytics for **registered users only** (users with user_id). The API currently implements **2 core endpoints** that cover all cost analysis needs.
+Admin Cost API provides cost analytics for **registered users and guest users**. The API implements **3 core endpoints** that cover all cost analysis needs with a clean, consistent structure.
 
 ### 🎯 **Available Endpoints**
 
-1. **`GET /admin/users/costs`** - Flexible endpoint for cost summaries with multiple query options
-2. **`GET /admin/users/{user_id}/costs`** - Daily cost breakdown for specific users
+1. **`GET /admin/users/total-costs`** - Aggregated cost summaries across all users
+2. **`GET /admin/users/daily-costs`** - Daily costs grouped by user (Structure B format)
+3. **`GET /admin/users/guest/costs`** - Guest user cost analytics
 
 ## Base URL
 
@@ -26,32 +24,32 @@ http://localhost:8000
 
 ---
 
-## 📊 **Endpoint 1: Flexible User Costs**
+## 📊 **Endpoint 1: Total Costs Summary**
 
-### `GET /admin/users/costs`
+### `GET /admin/users/total-costs`
 
-**Description:** Single flexible endpoint that handles all user cost scenarios with consistent response format. Returns aggregated cost summaries.
+**Description:** Returns aggregated cost summaries for all registered users. Provides high-level overview with essential fields only.
 
 **Parameters:**
-- `user_id` (query): Optional. Filter by specific user ID
 - `from_date` (query): Optional. Start date for range (YYYY-MM-DD)
 - `to_date` (query): Optional. End date for range (YYYY-MM-DD)
+- `user_id` (query): Optional. Filter by specific user ID
 
-**Parameter Logic:**
-- **No params**: All users historical costs 
-- **user_id only**: Specific user historical costs
-- **from_date=to_date**: All/specific users for single date
-- **date range**: All/specific users aggregated for date range
+**Date Range Logic:**
+- **No params**: Last 30 days for all users
+- **user_id only**: Last 30 days for specific user
+- **from_date only**: From that date to today
+- **Both dates**: From from_date to to_date
 
-**Always returns `List[AdminCostSummary]` with only essential fields: user_id, total_cost, trace_count.**
+**Always returns `List[AdminCostSummary]` with fields: user_id, total_cost, trace_count.**
 
-#### Use Case 1: All Users Historical Costs
-**Purpose:** Admin dashboard overview of all registered users
+#### Use Case 1: All Users Total Costs (Last 30 Days)
+**Purpose:** Admin dashboard overview
 ```bash
-GET /admin/users/costs
+GET /admin/users/total-costs
 ```
 
-**Expected Response:** *(List of all users)*
+**Expected Response:**
 ```json
 [
   {
@@ -67,101 +65,83 @@ GET /admin/users/costs
 ]
 ```
 
-#### Use Case 2: Specific User Historical Costs
-**Purpose:** Customer support - check user's lifetime usage
+#### Use Case 2: Specific User Total Costs
 ```bash
-GET /admin/users/costs?user_id=ba5c5db4-d3fb-4ca8-9445-1c221ea502a8
+GET /admin/users/total-costs?user_id=ba5c5db4-d3fb-4ca8-9445-1c221ea502a8
 ```
 
-**Expected Response:**
-```json
-[
-  {
-    "user_id": "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8",
-    "total_cost": 8.561042599928,
-    "trace_count": 151
-  }
-]
-```
-
-#### Use Case 3: All Users for Specific Date
-**Purpose:** Daily operations report
+#### Use Case 3: All Users for Date Range
 ```bash
-GET /admin/users/costs?from_date=2025-09-10&to_date=2025-09-10
-```
-
-**Expected Response:**
-```json
-[
-  {
-    "user_id": "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8",
-    "total_cost": 0.189464999999,
-    "trace_count": 4
-  },
-  {
-    "user_id": "27c4b928-59f7-46fa-be5a-f6795f4fda6f",
-    "total_cost": 0.041343,
-    "trace_count": 4
-  }
-]
-```
-
-#### Use Case 4: Specific User for Date Range
-**Purpose:** Monthly billing calculation
-```bash
-GET /admin/users/costs?user_id=ba5c5db4-d3fb-4ca8-9445-1c221ea502a8&from_date=2025-09-01&to_date=2025-09-10
-```
-
-**Expected Response:**
-```json
-[
-  {
-    "user_id": "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8",
-    "total_cost": 7.895123456789,
-    "trace_count": 142
-  }
-]
-```
-
-#### Use Case 5: No Data Found
-**Purpose:** Handle cases with no activity
-```bash
-GET /admin/users/costs?user_id=nonexistent-user
-GET /admin/users/costs?from_date=2025-01-01&to_date=2025-01-01
-```
-
-**Expected Response:**
-```json
-[]
+GET /admin/users/total-costs?from_date=2025-09-01&to_date=2025-09-10
 ```
 
 ---
 
-## � **Endpoint 2: Daily Cost Breakdown**
+## 📅 **Endpoint 2: Daily Costs Breakdown (Structure B)**
 
-### `GET /admin/users/{user_id}/costs`
+### `GET /admin/users/daily-costs`
 
-**Description:** Returns daily cost breakdown for a specific registered user. Returns a list where each object represents one day's activity.
+**Description:** Returns daily costs grouped by user in Structure B format. Each user has their daily costs grouped together for easy analysis.
 
 **Parameters:**
-- `user_id` (path): Required. The specific user ID
-- `from_date` (query): Optional. Start date (YYYY-MM-DD). Default: 30 days ago
-- `to_date` (query): Optional. End date (YYYY-MM-DD). Default: today
+- `user_id` (query): Optional. Filter by specific user ID
+- `from_date` (query): Optional. Start date for range (YYYY-MM-DD)
+- `to_date` (query): Optional. End date for range (YYYY-MM-DD)
 
 **Date Range Logic:**
-- **No params**: Last 30 days (from 30 days ago to today)
+- **No params**: Last 30 days for all users
+- **user_id only**: Last 30 days for specific user
 - **from_date only**: From that date to today
-- **to_date only**: From that date to that date (single day)
 - **Both dates**: From from_date to to_date
 
-**Use Cases:**
-- Get daily cost breakdown for billing analysis
-- Track user spending patterns over time
-- Monitor cost trends for specific users
+**Returns `List[UserDailyCosts]` where each user has their daily costs grouped together.**
 
-#### Example 1: Default Range (Last 30 Days)
+#### Use Case 1: All Users Daily Costs (Last 30 Days)
+**Purpose:** Complete daily breakdown for all users
 ```bash
-GET /admin/users/ba5c5db4-d3fb-4ca8-9445-1c221ea502a8/costs
+GET /admin/users/daily-costs
+```
+
+**Expected Response (Structure B):**
+```json
+[
+  {
+    "user_id": "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8",
+    "daily_costs": [
+      {
+        "total_cost": 0.189465,
+        "trace_count": 4,
+        "date": "2025-09-10"
+      },
+      {
+        "total_cost": 3.464079,
+        "trace_count": 36,
+        "date": "2025-09-09"
+      },
+      {
+        "total_cost": 2.441913,
+        "trace_count": 34,
+        "date": "2025-09-08"
+      }
+    ]
+  },
+  {
+    "user_id": "user2-abc-123",
+    "daily_costs": [
+      {
+        "total_cost": 0.125000,
+        "trace_count": 2,
+        "date": "2025-09-10"
+      }
+    ]
+  }
+]
+```
+
+#### Use Case 2: Specific User Daily Costs
+**Purpose:** Individual user daily breakdown
+```bash
+GET /admin/users/daily-costs?user_id=ba5c5db4-d3fb-4ca8-9445-1c221ea502a8
 ```
 
 **Expected Response:**
@@ -169,56 +149,70 @@ GET /admin/users/ba5c5db4-d3fb-4ca8-9445-1c221ea502a8/costs
 [
   {
     "user_id": "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8",
-    "total_cost": 0.189465,
-    "total_tokens": 0,
-    "trace_count": 4,
-    "date": "2025-09-10"
-  },
-  {
-    "user_id": "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8",
-    "total_cost": 3.464079,
-    "total_tokens": 0,
-    "trace_count": 36,
-    "date": "2025-09-09"
-  },
-  {
-    "user_id": "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8",
-    "total_cost": 2.441913,
-    "total_tokens": 0,
-    "trace_count": 34,
-    "date": "2025-09-08"
+    "daily_costs": [
+      {
+        "total_cost": 0.189465,
+        "trace_count": 4,
+        "date": "2025-09-10"
+      },
+      {
+        "total_cost": 3.464079,
+        "trace_count": 36,
+        "date": "2025-09-09"
+      }
+    ]
   }
 ]
 ```
 
-#### Example 2: From Specific Date to Today
+#### Use Case 3: Date Range for All Users
 ```bash
-GET /admin/users/ba5c5db4-d3fb-4ca8-9445-1c221ea502a8/costs?from_date=2025-09-08
+GET /admin/users/daily-costs?from_date=2025-09-08&to_date=2025-09-10
 ```
 
-#### Example 3: Specific Date Range
+---
+
+## 👤 **Endpoint 3: Guest User Costs**
+
+### `GET /admin/users/guest/costs`
+
+**Description:** Returns cost analytics for guest users (users without user_id). Uses the 'verde-money-onboarding-agent' Langfuse project.
+
+**Parameters:**
+- `from_date` (query): Optional. Start date for range (YYYY-MM-DD)
+- `to_date` (query): Optional. End date for range (YYYY-MM-DD)
+
+**Date Range Logic:**
+- **No params**: Last 30 days
+- **from_date only**: From that date to today
+- **Both dates**: From from_date to to_date
+
+**Returns `GuestCostSummary` with simplified fields: total_cost, trace_count.**
+
+#### Example: Guest Costs for Today
 ```bash
-GET /admin/users/ba5c5db4-d3fb-4ca8-9445-1c221ea502a8/costs?from_date=2025-09-08&to_date=2025-09-10
+GET /admin/users/guest/costs?from_date=2025-09-11&to_date=2025-09-11
+```
+
+**Expected Response:**
+```json
+{
+  "total_cost": 1.25,
+  "trace_count": 15
+}
+```
+
+#### Example: Guest Costs (Last 30 Days)
+```bash
+GET /admin/users/guest/costs
 ```
 
 ---
 
 ## 📋 **Data Models**
 
-### DailyCostResponse
-Used by `/admin/users/{user_id}/costs` endpoint.
-```json
-{
-  "user_id": "string",
-  "total_cost": 0.0,
-  "total_tokens": 0,
-  "trace_count": 0,
-  "date": "YYYY-MM-DD"
-}
-```
-
 ### AdminCostSummary
-Used by `/admin/users/costs` endpoint.
+Used by `/admin/users/total-costs` endpoint.
 ```json
 {
   "user_id": "string",
@@ -227,18 +221,37 @@ Used by `/admin/users/costs` endpoint.
 }
 ```
 
-### CostSummary
+### UserDailyCosts
+Used by `/admin/users/daily-costs` endpoint (Structure B).
+```json
+{
+  "user_id": "string",
+  "daily_costs": [
+    {
+      "total_cost": 0.0,
+      "trace_count": 0,
+      "date": "YYYY-MM-DD"
+    }
+  ]
+}
+```
+
+### DailyCostFields
+Individual daily cost entry within UserDailyCosts.
+```json
+{
+  "total_cost": 0.0,
+  "trace_count": 0,
+  "date": "YYYY-MM-DD"
+}
+```
+
+### GuestCostSummary
 Used by `/admin/users/guest/costs` endpoint.
 ```json
 {
-  "user_id": null,
   "total_cost": 0.0,
-  "total_tokens": 0,
-  "trace_count": 0,
-  "date_range": {
-    "from": "YYYY-MM-DD",
-    "to": "YYYY-MM-DD"
-  }
+  "trace_count": 0
 }
 ```
 
@@ -262,7 +275,7 @@ Used by `/admin/users/guest/costs` endpoint.
 ### Server Errors (HTTP 500)
 ```json
 {
-  "detail": "Failed to fetch user costs: <error_message>"
+  "detail": "Failed to fetch total costs: <error_message>"
 }
 ```
 
@@ -272,16 +285,19 @@ Used by `/admin/users/guest/costs` endpoint.
 
 ### Complete Test Suite
 ```bash
-# Flexible endpoint tests
-curl "http://localhost:8000/admin/users/costs"
-curl "http://localhost:8000/admin/users/costs?user_id=ba5c5db4-d3fb-4ca8-9445-1c221ea502a8"
-curl "http://localhost:8000/admin/users/costs?from_date=2025-09-10&to_date=2025-09-10"
-curl "http://localhost:8000/admin/users/costs?user_id=ba5c5db4-d3fb-4ca8-9445-1c221ea502a8&from_date=2025-09-02&to_date=2025-09-10"
+# Total costs endpoint
+curl "http://localhost:8000/admin/users/total-costs"
+curl "http://localhost:8000/admin/users/total-costs?user_id=ba5c5db4-d3fb-4ca8-9445-1c221ea502a8"
+curl "http://localhost:8000/admin/users/total-costs?from_date=2025-09-10&to_date=2025-09-10"
 
-# Daily breakdown tests
-curl "http://localhost:8000/admin/users/ba5c5db4-d3fb-4ca8-9445-1c221ea502a8/costs"
-curl "http://localhost:8000/admin/users/ba5c5db4-d3fb-4ca8-9445-1c221ea502a8/costs?from_date=2025-09-08"
-curl "http://localhost:8000/admin/users/ba5c5db4-d3fb-4ca8-9445-1c221ea502a8/costs?from_date=2025-09-08&to_date=2025-09-10"
+# Daily costs endpoint (Structure B)
+curl "http://localhost:8000/admin/users/daily-costs"
+curl "http://localhost:8000/admin/users/daily-costs?user_id=ba5c5db4-d3fb-4ca8-9445-1c221ea502a8"
+curl "http://localhost:8000/admin/users/daily-costs?from_date=2025-09-08&to_date=2025-09-10"
+
+# Guest costs endpoint
+curl "http://localhost:8000/admin/users/guest/costs"
+curl "http://localhost:8000/admin/users/guest/costs?from_date=2025-09-11&to_date=2025-09-11"
 ```
 
 ### PowerShell Test Script
@@ -292,39 +308,38 @@ $userId = "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8"
 
 Write-Output "=== Testing Admin Cost API ==="
 
-# Test flexible endpoint
-Write-Output "`n--- Flexible Endpoint Tests ---"
+# Test total costs endpoint
+Write-Output "`n--- Total Costs Endpoint ---"
 
-# All users historical
-$response = Invoke-WebRequest -Uri "$baseUrl/admin/users/costs" -Method GET
-$response.Content | ConvertFrom-Json | Format-List
+# All users total costs (last 30 days)
+$response = Invoke-WebRequest -Uri "$baseUrl/admin/users/total-costs" -Method GET
+$response.Content | ConvertFrom-Json | ConvertTo-Json
 
-# Specific user historical
-$response = Invoke-WebRequest -Uri "$baseUrl/admin/users/costs?user_id=$userId" -Method GET
-$response.Content | ConvertFrom-Json | Format-List
+# Specific user total costs
+$response = Invoke-WebRequest -Uri "$baseUrl/admin/users/total-costs?user_id=$userId" -Method GET
+$response.Content | ConvertFrom-Json | ConvertTo-Json
 
-# All users for today
-$response = Invoke-WebRequest -Uri "$baseUrl/admin/users/costs?from_date=2025-09-10&to_date=2025-09-10" -Method GET
-$response.Content | ConvertFrom-Json | Format-List
+# Test daily costs endpoint (Structure B)
+Write-Output "`n--- Daily Costs Endpoint (Structure B) ---"
 
-# Specific user for date range
-$response = Invoke-WebRequest -Uri "$baseUrl/admin/users/costs?user_id=$userId&from_date=2025-09-08&to_date=2025-09-10" -Method GET
-$response.Content | ConvertFrom-Json | Format-List
+# All users daily costs
+$response = Invoke-WebRequest -Uri "$baseUrl/admin/users/daily-costs" -Method GET
+$response.Content | ConvertFrom-Json | ConvertTo-Json
 
-# Test daily breakdown endpoint
-Write-Output "`n--- Daily Breakdown Tests ---"
+# Specific user daily costs
+$response = Invoke-WebRequest -Uri "$baseUrl/admin/users/daily-costs?user_id=$userId" -Method GET
+$response.Content | ConvertFrom-Json | ConvertTo-Json
 
-# User daily costs (last 30 days)
-$response = Invoke-WebRequest -Uri "$baseUrl/admin/users/$userId/costs" -Method GET
-$response.Content | ConvertFrom-Json | Format-List
+# Test guest costs endpoint
+Write-Output "`n--- Guest Costs Endpoint ---"
 
-# User daily costs from specific date to today
-$response = Invoke-WebRequest -Uri "$baseUrl/admin/users/$userId/costs?from_date=2025-09-08" -Method GET
-$response.Content | ConvertFrom-Json | Format-List
+# Guest costs (last 30 days)
+$response = Invoke-WebRequest -Uri "$baseUrl/admin/users/guest/costs" -Method GET
+$response.Content | ConvertFrom-Json | ConvertTo-Json
 
-# User daily costs for specific range
-$response = Invoke-WebRequest -Uri "$baseUrl/admin/users/$userId/costs?from_date=2025-09-08&to_date=2025-09-10" -Method GET
-$response.Content | ConvertFrom-Json | Format-List
+# Guest costs for today
+$response = Invoke-WebRequest -Uri "$baseUrl/admin/users/guest/costs?from_date=2025-09-11&to_date=2025-09-11" -Method GET
+$response.Content | ConvertFrom-Json | ConvertTo-Json
 ```
 
 ---
@@ -332,21 +347,21 @@ $response.Content | ConvertFrom-Json | Format-List
 ## 🎯 **Best Practices**
 
 ### 1. Endpoint Selection
-- **Daily cost breakdown**: Use `/admin/users/{user_id}/costs` for day-by-day analysis
-- **Aggregated costs**: Use `/admin/users/costs` for summary analytics
-- **Single user focus**: Use the path parameter version for detailed analysis
-- **Multi-user reports**: Use the query parameter version for dashboards
+- **High-level overview**: Use `/total-costs` for dashboard summaries
+- **Detailed analysis**: Use `/daily-costs` for day-by-day breakdown
+- **Guest analytics**: Use `/guest/costs` for anonymous user tracking
+- **Structure B benefits**: Daily costs grouped by user for easier processing
 
 ### 2. Parameter Usage
-- **Historical data**: No date parameters for lifetime data
+- **Historical data**: No date parameters for last 30 days default
 - **Single date**: Set `from_date=to_date` for specific day analysis
 - **Date ranges**: Use both parameters for period analysis
-- **User filtering**: Add `user_id` parameter to focus on specific users
+- **User filtering**: Add `user_id` parameter for individual user focus
 
 ### 3. Performance Considerations
-- **Large datasets**: Be cautious with all-users queries
+- **Large datasets**: Structure B format reduces response complexity
 - **Date ranges**: Limit ranges to reasonable periods (≤ 30 days)
-- **Single user queries**: Generally faster and recommended when possible
+- **Single user queries**: Generally faster when focusing on specific users
 
 ### 4. Error Handling
 - Always handle HTTP 422 for validation errors
@@ -358,57 +373,57 @@ $response.Content | ConvertFrom-Json | Format-List
 ## 🔧 **Configuration**
 
 ### Time Windows
-- **Daily breakdown**: Last 30 days default for single user queries
-- **Aggregated costs**: No time limits (returns all available data)
+- **Default range**: Last 30 days for all endpoints
 - **Date ranges**: Recommended maximum of 30 days for performance
+- **Guest tracking**: Uses 'verde-money-onboarding-agent' Langfuse project
 
-### Performance Notes
-- All-users queries may return large datasets
-- Consider pagination for large result sets in the future
-- Date filtering improves query performance
+### Langfuse Projects
+- **Registered users**: Uses supervisor Langfuse project
+- **Guest users**: Uses 'verde-money-onboarding-agent' project
+- **Project isolation**: Separate tracking for different user types
 
 ---
 
 ## 📊 **Common Use Cases**
 
-### Daily Cost Analysis
+### Dashboard Analytics
 ```bash
-# Get user's daily cost breakdown for last 30 days
-GET /admin/users/ba5c5db4-d3fb-4ca8-9445-1c221ea502a8/costs
+# Admin overview - total costs across all users
+GET /admin/users/total-costs
 
-# Get user's daily costs from a specific date to today
-GET /admin/users/ba5c5db4-d3fb-4ca8-9445-1c221ea502a8/costs?from_date=2025-09-01
-
-# Get user's daily costs for a specific range
-GET /admin/users/ba5c5db4-d3fb-4ca8-9445-1c221ea502a8/costs?from_date=2025-09-01&to_date=2025-09-10
+# Guest usage tracking
+GET /admin/users/guest/costs
 ```
 
-### Cost Summary Dashboard
+### Detailed Cost Analysis
 ```bash
-# Get today's costs for all users
-GET /admin/users/costs?from_date=2025-09-10&to_date=2025-09-10
+# Daily breakdown for all users (Structure B)
+GET /admin/users/daily-costs
 
-# Get all users' historical costs (admin overview)
-GET /admin/users/costs
-
-# Get specific user's historical summary
-GET /admin/users/costs?user_id=ba5c5db4-d3fb-4ca8-9445-1c221ea502a8
+# Individual user daily analysis
+GET /admin/users/daily-costs?user_id=ba5c5db4-d3fb-4ca8-9445-1c221ea502a8
 ```
 
-### Cost Investigation & Monitoring
+### Billing & Monitoring
 ```bash
-# Monthly billing calculation
-GET /admin/users/costs?user_id=ba5c5db4-d3fb-4ca8-9445-1c221ea502a8&from_date=2025-09-01&to_date=2025-09-30
+# Monthly billing calculation (total)
+GET /admin/users/total-costs?user_id=ba5c5db4-d3fb-4ca8-9445-1c221ea502a8&from_date=2025-09-01&to_date=2025-09-30
 
-# Weekly trend analysis (summary)
-GET /admin/users/costs?user_id=ba5c5db4-d3fb-4ca8-9445-1c221ea502a8&from_date=2025-09-03&to_date=2025-09-10
+# Monthly billing calculation (daily breakdown)
+GET /admin/users/daily-costs?user_id=ba5c5db4-d3fb-4ca8-9445-1c221ea502a8&from_date=2025-09-01&to_date=2025-09-30
 
-# Weekly trend analysis (daily breakdown)
-GET /admin/users/ba5c5db4-d3fb-4ca8-9445-1c221ea502a8/costs?from_date=2025-09-03&to_date=2025-09-10
+# Today's activity across all users
+GET /admin/users/total-costs?from_date=2025-09-11&to_date=2025-09-11
+GET /admin/users/daily-costs?from_date=2025-09-11&to_date=2025-09-11
 ```
 
 ---
 
-This documentation covers the **2 actual endpoints** that are currently implemented in the Admin Cost API. For any questions or issues, please refer to the API logs or contact the development team.
+This documentation covers the **3 current endpoints** implemented in the Admin Cost API. The API now supports both registered and guest user cost tracking with a clean, consistent interface.
 
-**Note:** This API currently handles **registered users only**. Guest user cost tracking is not yet implemented but may be added in future versions.
+**Key Features:**
+- ✅ **Structure B format** for daily costs (grouped by user)
+- ✅ **Guest user tracking** with dedicated endpoint
+- ✅ **Consistent date handling** across all endpoints
+- ✅ **Simplified response models** with essential fields only
+- ✅ **30-day default ranges** for optimal performance
