@@ -3,8 +3,8 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from app.core.config import config
-from app.db.database_service import get_database_service
 from app.observability.logging_config import get_logger
+from app.repositories.database_service import get_database_service
 
 logger = get_logger(__name__)
 
@@ -102,16 +102,13 @@ class PlaidBillsService:
                 bills = self._parse_bills(result)
 
                 logger.info(
-                    "plaid_bills.retrieved",
-                    user_id=str(user_id),
-                    count=len(bills),
-                    next_due=bills[0].next_payment_due_date.isoformat() if bills else None,
+                    f"plaid_bills.retrieved: user_id={str(user_id)}, count={len(bills)}, next_due={bills[0].next_payment_due_date.isoformat() if bills else None}"
                 )
 
                 return bills
 
         except Exception as e:
-            logger.error("plaid_bills.retrieval_failed", user_id=str(user_id), error=str(e))
+            logger.error(f"plaid_bills.retrieval_failed: {str(e)}", extra={"user_id": str(user_id)})
             return []
 
     def _parse_bills(self, query_result: List[Dict[str, Any]]) -> List[PlaidBill]:

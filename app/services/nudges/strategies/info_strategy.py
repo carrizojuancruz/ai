@@ -3,7 +3,7 @@ from typing import Any, Callable, Dict, Optional
 from uuid import UUID
 
 from app.observability.logging_config import get_logger
-from app.services.nudges.evaluator import NudgeCandidate
+from app.services.nudges.models import NudgeCandidate
 from app.services.nudges.strategies.base import NudgeStrategy
 
 logger = get_logger(__name__)
@@ -47,28 +47,21 @@ class InfoNudgeStrategy(NudgeStrategy):
 
             if not all([nudge_id, notification_text, preview_text]):
                 logger.warning(
-                    "info_strategy.missing_required_fields",
-                    user_id=str(user_id),
-                    nudge_id=nudge_id,
-                    has_text=bool(notification_text),
-                    has_preview=bool(preview_text),
+                    f"info_strategy.missing_required_fields: user_id={str(user_id)}, nudge_id={nudge_id}, has_text={bool(notification_text)}, has_preview={bool(preview_text)}"
                 )
                 return None
 
             evaluator = self.evaluators.get(nudge_id)
             if not evaluator:
                 logger.warning(
-                    "info_strategy.unknown_nudge_id",
-                    nudge_id=nudge_id,
-                    user_id=str(user_id),
-                    available_ids=list(self.evaluators.keys()),
+                    f"info_strategy.unknown_nudge_id: nudge_id={nudge_id}, user_id={str(user_id)}, available_ids={list(self.evaluators.keys())}"
                 )
                 return None
 
             should_send = await evaluator(user_id, context)
 
             if not should_send:
-                logger.debug("info_strategy.condition_not_met", user_id=str(user_id), nudge_id=nudge_id)
+                logger.debug(f"info_strategy.condition_not_met: user_id={str(user_id)}, nudge_id={nudge_id}")
                 return None
 
             priority = self.get_priority({"nudge_id": nudge_id})
@@ -88,7 +81,7 @@ class InfoNudgeStrategy(NudgeStrategy):
 
         except Exception as e:
             logger.error(
-                "info_strategy.evaluation_failed", user_id=str(user_id), nudge_id=context.get("nudge_id"), error=str(e)
+                f"info_strategy.evaluation_failed: user_id={str(user_id)}, nudge_id={context.get('nudge_id')}, error={str(e)}"
             )
             return None
 
@@ -122,4 +115,4 @@ class InfoNudgeStrategy(NudgeStrategy):
         self.evaluators[nudge_id] = evaluator
         self.priority_map[nudge_id] = priority
 
-        logger.info("info_strategy.evaluator_registered", nudge_id=nudge_id, priority=priority)
+        logger.info(f"info_strategy.evaluator_registered: nudge_id={nudge_id}, priority={priority}")

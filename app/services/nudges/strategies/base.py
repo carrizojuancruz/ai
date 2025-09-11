@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 from uuid import UUID
 
-from app.services.nudges.evaluator import NudgeCandidate
+from app.services.nudges.models import NudgeCandidate
 
 
 class NudgeStrategy(ABC):
@@ -32,6 +32,3 @@ class NudgeStrategy(ABC):
         """Validate common conditions (can be overridden)."""
         return True
 
-    async def cleanup(self, user_id: UUID) -> None:
-        """Perform cleanup after evaluation (optional override)."""
-        pass

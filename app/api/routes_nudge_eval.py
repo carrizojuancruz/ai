@@ -11,7 +11,7 @@ from app.services.nudges.evaluator import get_nudge_evaluator, iter_active_users
 from app.services.queue import get_sqs_manager
 
 logger = get_logger(__name__)
-router = APIRouter(prefix="/nudges", tags=["nudges"])
+router = APIRouter(prefix="/nudges", tags=["Nudges"])
 
 
 class EvaluateRequest(BaseModel):
@@ -56,17 +56,14 @@ class UserStatusResponse(BaseModel):
 async def evaluate_nudges(request: EvaluateRequest, background_tasks: BackgroundTasks) -> EvaluateResponse:
     try:
         logger.info(
-            "nudge_eval.request",
-            nudge_type=request.nudge_type,
-            nudge_id=request.nudge_id,
-            has_text=bool(request.notification_text),
+            f"nudge_eval.request: nudge_type={request.nudge_type}, "
+            f"nudge_id={request.nudge_id}, has_text={bool(request.notification_text)}"
         )
 
-        if request.nudge_type == "info_based":
-            if not all([request.nudge_id, request.notification_text, request.preview_text]):
-                raise HTTPException(
-                    status_code=400, detail="info_based nudges require nudge_id, notification_text, and preview_text"
-                )
+        if request.nudge_type == "info_based" and not all([request.nudge_id, request.notification_text, request.preview_text]):
+            raise HTTPException(
+                status_code=400, detail="info_based nudges require nudge_id, notification_text, and preview_text"
+            )
 
         if not config.NUDGES_ENABLED:
             return EvaluateResponse(status="skipped", message="Nudges are currently disabled")
@@ -91,7 +88,7 @@ async def evaluate_nudges(request: EvaluateRequest, background_tasks: Background
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("nudge_eval.failed", nudge_type=request.nudge_type, error=str(e))
+        logger.error(f"nudge_eval.failed: {str(e)} (nudge_type={request.nudge_type})")
         raise HTTPException(status_code=500, detail=f"Failed to start evaluation: {str(e)}") from e
 
 
@@ -101,7 +98,7 @@ async def trigger_nudge_manual(request: ManualTriggerRequest) -> Dict[str, Any]:
         evaluator = get_nudge_evaluator()
 
         if request.force:
-            logger.warning("nudge_eval.manual_force", user_id=str(request.user_id), nudge_type=request.nudge_type)
+            logger.warning(f"nudge_eval.manual_force: user_id={str(request.user_id)}, nudge_type={request.nudge_type}")
 
         result = await evaluator._evaluate_single_user(user_id=request.user_id, nudge_type=request.nudge_type)
 
@@ -112,10 +109,8 @@ async def trigger_nudge_manual(request: ManualTriggerRequest) -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(
-            "nudge_eval.manual_trigger_failed",
-            user_id=str(request.user_id),
-            nudge_type=request.nudge_type,
-            error=str(e),
+            f"nudge_eval.manual_trigger_failed: user_id={str(request.user_id)}, "
+            f"nudge_type={request.nudge_type}, error={str(e)}"
         )
         raise HTTPException(status_code=500, detail=f"Failed to trigger nudge: {str(e)}") from e
 
@@ -156,7 +151,7 @@ async def get_user_nudge_status(user_id: UUID) -> UserStatusResponse:
         )
 
     except Exception as e:
-        logger.error("nudge_eval.status_failed", user_id=str(user_id), error=str(e))
+        logger.error(f"nudge_eval.status_failed: {str(e)} (user_id={str(user_id)})")
         raise HTTPException(status_code=500, detail=f"Failed to get user status: {str(e)}") from e
 
 
@@ -175,7 +170,7 @@ async def get_nudge_health() -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error("nudge_eval.health_check_failed", error=str(e))
+        logger.error(f"nudge_eval.health_check_failed: {str(e)}")
         return {"status": "unhealthy", "error": str(e)}
 
 
@@ -187,7 +182,7 @@ async def _evaluate_all_users(
     preview_text: Optional[str],
 ) -> None:
     try:
-        logger.info("nudge_eval.background_started", task_id=task_id, nudge_type=nudge_type, nudge_id=nudge_id)
+        logger.info(f"nudge_eval.background_started: task_id={task_id}, nudge_type={nudge_type}, nudge_id={nudge_id}")
 
         evaluator = get_nudge_evaluator()
         total_evaluated = 0
@@ -195,7 +190,7 @@ async def _evaluate_all_users(
         total_skipped = 0
 
         async for user_page in iter_active_users():
-            logger.info("nudge_eval.processing_page", task_id=task_id, page_size=len(user_page))
+            logger.info(f"nudge_eval.processing_page: task_id={task_id}, page_size={len(user_page)}")
 
             result = await evaluator.evaluate_nudges_batch(
                 user_ids=user_page,
@@ -210,14 +205,11 @@ async def _evaluate_all_users(
             total_skipped += result["skipped"]
 
         logger.info(
-            "nudge_eval.background_complete",
-            task_id=task_id,
-            nudge_type=nudge_type,
-            total_evaluated=total_evaluated,
-            total_queued=total_queued,
-            total_skipped=total_skipped,
+            f"nudge_eval.background_complete: task_id={task_id}, nudge_type={nudge_type}, "
+            f"total_evaluated={total_evaluated}, total_queued={total_queued}, "
+            f"total_skipped={total_skipped}"
         )
 
     except Exception as e:
-        logger.error("nudge_eval.background_failed", task_id=task_id, nudge_type=nudge_type, error=str(e))
+        logger.error(f"nudge_eval.background_failed: {str(e)} (task_id={task_id}, nudge_type={nudge_type})")
         raise
