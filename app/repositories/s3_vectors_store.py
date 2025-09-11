@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Literal, Optional, Sequence, Tuple, TypeAlias, cast
 from uuid import NAMESPACE_URL, UUID, uuid5
 
@@ -44,6 +45,7 @@ except Exception:  # pragma: no cover
 
         async def abatch(self, ops: Iterable[Op]) -> list[Any]:
             raise NotImplementedError
+
 
 from botocore.client import BaseClient
 from botocore.exceptions import ClientError
@@ -522,6 +524,69 @@ class S3VectorsStore(BaseStore):
         offset: int = 0,
     ) -> list[SearchItem]:
         return self.search_by_filter(namespace, filter, limit, offset)
+
+    def get_random_recent_high_importance(
+        self,
+        user_id: str,
+        *,
+        include_current_week: bool = True,
+        fallback_to_med: bool = True,
+        limit: int = 50,
+    ) -> dict[str, Any] | None:
+        """Return one random high-importance semantic memory from last week.
+
+        - Filters by bucket_week for the last ISO week (YYYY-%W)
+        - Optionally includes current week as well
+        - Falls back to medium importance if none found (optional)
+        """
+        namespace: Namespace = (user_id, "semantic")
+
+        now = datetime.now(tz=timezone.utc)
+        last_week = now - timedelta(days=7)
+        weeks: list[str] = [last_week.strftime("%Y-%W")]
+        if include_current_week:
+            weeks.append(now.strftime("%Y-%W"))
+
+        candidates: list[SearchItem] = []
+        for wk in weeks:
+            candidates.extend(
+                self.search_by_filter(
+                    namespace,
+                    {"importance_bin": "high", "bucket_week": wk},
+                    limit=limit,
+                )
+            )
+
+        if not candidates and fallback_to_med:
+            for wk in weeks:
+                candidates.extend(
+                    self.search_by_filter(
+                        namespace,
+                        {"importance_bin": "med", "bucket_week": wk},
+                        limit=limit,
+                    )
+                )
+
+        if not candidates:
+            return None
+
+        chosen = random.choice(candidates)
+        return getattr(chosen, "value", None) or None
+
+    async def aget_random_recent_high_importance(
+        self,
+        user_id: str,
+        *,
+        include_current_week: bool = True,
+        fallback_to_med: bool = True,
+        limit: int = 50,
+    ) -> dict[str, Any] | None:
+        return self.get_random_recent_high_importance(
+            user_id,
+            include_current_week=include_current_week,
+            fallback_to_med=fallback_to_med,
+            limit=limit,
+        )
 
     def update_metadata(
         self,

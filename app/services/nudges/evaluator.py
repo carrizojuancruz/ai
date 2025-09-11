@@ -196,7 +196,7 @@ async def iter_active_users(
     # This is mocked data for testing
     mock_users = [
         "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8",
-        "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "5fbcf7ba-bf83-47e0-b8f5-b46cf9cec0f6",
         "98765432-1234-5678-90ab-cdef12345678",
     ]
 

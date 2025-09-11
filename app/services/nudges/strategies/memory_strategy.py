@@ -32,35 +32,17 @@ class MemoryNudgeStrategy(NudgeStrategy):
         logger.debug(f"memory_strategy.evaluation_started: user_id={str(user_id)}")
 
         try:
-            importance_filter = context.get("importance", "high")
-            topic_filter = context.get("topic")
+            selected_memory = await self.s3_vectors.aget_random_recent_high_importance(str(user_id))
 
-            filter_dict = {"user_id": str(user_id), "importance_bin": importance_filter}
-
-            if topic_filter:
-                filter_dict["topic_key"] = topic_filter
-
-            logger.debug(
-                f"memory_strategy.searching_memories: user_id={str(user_id)}, filters={filter_dict}, limit=20"
-            )
-
-            memories = await self.s3_vectors.search_by_filter(filter_dict=filter_dict, limit=20)
-
-            if not memories:
-                logger.info(f"memory_strategy.no_memories_found: user_id={str(user_id)}, filters={filter_dict}")
+            if not selected_memory:
+                logger.info(f"memory_strategy.no_memories_found: user_id={str(user_id)}, source=recent_high_importance")
                 return None
-
-            logger.info(
-                f"memory_strategy.memories_found: user_id={str(user_id)}, count={len(memories)}, first_memory_id={memories[0].get('id') if memories else None}"
-            )
-
-            selected_memory = random.choice(memories)
 
             logger.debug(
                 f"memory_strategy.memory_selected: user_id={str(user_id)}, memory_id={selected_memory.get('id')}, topic={selected_memory.get('topic_key')}, importance={selected_memory.get('importance_bin')}"
             )
 
-            memory_text = selected_memory.get("text", "")[:100]
+            memory_text = (selected_memory.get("summary") or "")[:100]
             template = random.choice(self.memory_templates)
             notification_text = template.format(memory=memory_text)
 
