@@ -43,7 +43,7 @@ class PlaidBill:
             "last_payment_date": self.last_payment_date.isoformat() if self.last_payment_date else None,
             "last_payment_amount": self.last_payment_amount,
             "days_until_due": self.days_until_due,
-            "account_id": self.account_id,
+            "account_id": str(self.account_id) if self.account_id else None,
             "is_overdue": self.is_overdue,
         }
 
@@ -84,9 +84,9 @@ class PlaidBillsService:
                 WHERE user_id = :user_id
                     AND next_payment_due_date IS NOT NULL
                     AND next_payment_due_date > CURRENT_DATE
-                    AND next_payment_due_date <= CURRENT_DATE + INTERVAL :window_days
+                    AND next_payment_due_date <= CURRENT_DATE + INTERVAL '35 days'
                     AND is_active = true
-                    AND account_type IN :account_types
+                    AND account_type = ANY(:account_types)
                 ORDER BY next_payment_due_date ASC
                 """
 
@@ -94,8 +94,7 @@ class PlaidBillsService:
                     query,
                     {
                         "user_id": str(user_id),
-                        "window_days": f"{self.window_days} days",
-                        "account_types": self.SUPPORTED_ACCOUNT_TYPES,
+                        "account_types": list(self.SUPPORTED_ACCOUNT_TYPES),
                     },
                 )
 

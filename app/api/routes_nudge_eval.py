@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 
 from app.core.config import config
 from app.observability.logging_config import get_logger
-from app.services.nudges.activity_counter import get_activity_counter
 from app.services.nudges.evaluator import get_nudge_evaluator, iter_active_users
 from app.services.queue import get_sqs_manager
 
@@ -40,16 +39,6 @@ class ManualTriggerRequest(BaseModel):
     priority_override: Optional[int] = None
 
 
-class UserStatusResponse(BaseModel):
-    """User's nudge status."""
-
-    user_id: UUID
-    nudges_today: int
-    nudges_this_week: int
-    last_nudge: Optional[str] = None
-    next_eligible: Optional[str] = None
-    in_cooldown: bool = False
-    queued_nudges: int = 0
 
 
 @router.post("/evaluate", response_model=EvaluateResponse)
@@ -115,44 +104,6 @@ async def trigger_nudge_manual(request: ManualTriggerRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Failed to trigger nudge: {str(e)}") from e
 
 
-@router.get("/status/{user_id}", response_model=UserStatusResponse)
-async def get_user_nudge_status(user_id: UUID) -> UserStatusResponse:
-    try:
-        activity_counter = get_activity_counter()
-        sqs_manager = get_sqs_manager()
-
-        stats = await activity_counter.get_nudge_stats(user_id)
-
-        in_cooldown = False
-        for nudge_type in ["static_bill", "memory_icebreaker", "info_based"]:
-            if await activity_counter.is_in_cooldown(user_id, nudge_type):
-                in_cooldown = True
-                break
-
-        queue_depth = await sqs_manager.get_queue_depth()
-
-        from datetime import datetime, timedelta
-
-        next_eligible = None
-        if stats.nudges_today >= config.NUDGE_MAX_PER_DAY:
-            tomorrow = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
-            next_eligible = tomorrow.isoformat()
-        elif in_cooldown:
-            next_eligible = (datetime.now() + timedelta(days=config.NUDGE_MEMORY_COOLDOWN_DAYS)).isoformat()
-
-        return UserStatusResponse(
-            user_id=user_id,
-            nudges_today=stats.nudges_today,
-            nudges_this_week=stats.nudges_this_week,
-            last_nudge=stats.last_nudge.isoformat() if stats.last_nudge else None,
-            next_eligible=next_eligible,
-            in_cooldown=in_cooldown,
-            queued_nudges=min(queue_depth, 10),
-        )
-
-    except Exception as e:
-        logger.error(f"nudge_eval.status_failed: {str(e)} (user_id={str(user_id)})")
-        raise HTTPException(status_code=500, detail=f"Failed to get user status: {str(e)}") from e
 
 
 @router.get("/health", response_model=Dict[str, Any])

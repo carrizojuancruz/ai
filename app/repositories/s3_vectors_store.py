@@ -626,7 +626,16 @@ class S3VectorsStore(BaseStore):
         if not candidates:
             return None
 
-        chosen = random.choice(candidates)
+        def sort_key(candidate):
+            importance_bin = candidate.value.get("importance_bin", "low")
+            bin_priority = {"high": 3, "med": 2, "low": 1}.get(importance_bin, 0)
+            importance = candidate.value.get("importance", 0)
+            created_at = candidate.created_at or "1970-01-01T00:00:00+00:00"  # Fallback for None
+            return (bin_priority, importance, created_at)
+
+        candidates.sort(key=sort_key, reverse=True)
+
+        chosen = candidates[0]
         return getattr(chosen, "value", None) or None
 
     async def aget_random_recent_high_importance(

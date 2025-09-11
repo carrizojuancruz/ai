@@ -66,7 +66,7 @@ class NudgeEvaluator:
                     )
 
                     message_id = await self._queue_nudge(candidate)
-                    if hasattr(strategy, 'cleanup'):
+                    if hasattr(strategy, "cleanup"):
                         await strategy.cleanup(user_id)
 
                     logger.info(
@@ -104,6 +104,8 @@ class NudgeEvaluator:
         return {"evaluated": evaluated, "queued": queued, "skipped": skipped, "results": results}
 
     async def _queue_nudge(self, candidate: NudgeCandidate) -> str:
+        channel = "app" if candidate.nudge_type == "memory_icebreaker" else "push"
+
         message = NudgeMessage(
             user_id=candidate.user_id,
             nudge_type=candidate.nudge_type,
@@ -113,6 +115,7 @@ class NudgeEvaluator:
                 "preview_text": candidate.preview_text,
                 "metadata": candidate.metadata,
             },
+            channel=channel,
         )
 
         logger.debug(
@@ -122,13 +125,9 @@ class NudgeEvaluator:
         message_id = await self.sqs_manager.enqueue_nudge(message)
         await self.activity_counter.increment_nudge_count(candidate.user_id, candidate.nudge_type)
 
-        logger.debug(
-            f"evaluator.nudge_queued_successfully: user_id={str(candidate.user_id)}, message_id={message_id}"
-        )
+        logger.debug(f"evaluator.nudge_queued_successfully: user_id={str(candidate.user_id)}, message_id={message_id}")
 
         return message_id
-
-
 
     def register_custom_strategy(self, nudge_type: str, strategy_class):
         self.strategy_registry.register_strategy_class(nudge_type, strategy_class)
