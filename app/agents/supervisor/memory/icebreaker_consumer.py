@@ -80,7 +80,48 @@ Natural icebreaker:"""
         return None
 
 
+async def debug_icebreaker_flow(user_id: str) -> dict:
+    try:
+        from uuid import UUID
+
+        user_uuid = UUID(user_id)
+
+        logger.info(f"debug_icebreaker_flow.start: user_id={user_uuid}")
+
+        from app.services.nudges.sqs_consumer import get_sqs_consumer
+
+        sqs_consumer = get_sqs_consumer()
+
+        logger.info(f"debug_icebreaker_flow.sqs_consumer: available={sqs_consumer is not None}")
+
+        all_nudges = await sqs_consumer.poll_nudges()
+        logger.info(f"debug_icebreaker_flow.all_nudges: count={len(all_nudges)}")
+
+        icebreakers = [n for n in all_nudges if n.nudge_type == "memory_icebreaker"]
+        logger.info(f"debug_icebreaker_flow.icebreakers: count={len(icebreakers)}")
+
+        user_icebreakers = [n for n in icebreakers if n.user_id == str(user_uuid)]
+        logger.info(f"debug_icebreaker_flow.user_icebreakers: count={len(user_icebreakers)}")
+
+        if user_icebreakers:
+            best = user_icebreakers[0]
+            logger.info(f"debug_icebreaker_flow.best_nudge: id={best.message_id}, priority={best.priority}")
+            logger.info(f"debug_icebreaker_flow.best_payload: {best.nudge_payload}")
+
+        return {
+            "all_nudges": len(all_nudges),
+            "icebreakers": len(icebreakers),
+            "user_icebreakers": len(user_icebreakers),
+            "best_nudge": user_icebreakers[0].message_id if user_icebreakers else None,
+        }
+
+    except Exception as e:
+        logger.error(f"debug_icebreaker_flow.error: {str(e)}", exc_info=True)
+        return {"error": str(e)}
+
+
 async def icebreaker_consumer(state: MessagesState, config: RunnableConfig) -> dict:
+    user_id = None
     try:
         user_id = get_config_value(config, "user_id")
         if not user_id:
@@ -92,8 +133,19 @@ async def icebreaker_consumer(state: MessagesState, config: RunnableConfig) -> d
 
         logger.info(f"icebreaker_consumer.starting: user_id={user_id}")
 
-        processor = get_icebreaker_processor()
-        icebreaker_text = await processor.process_icebreaker_for_user(user_id)
+        try:
+            processor = get_icebreaker_processor()
+            logger.debug(f"icebreaker_consumer.processor_created: user_id={user_id}")
+        except Exception as e:
+            logger.error(f"icebreaker_consumer.processor_error: user_id={user_id}, error={str(e)}")
+            return {}
+
+        try:
+            icebreaker_text = await processor.process_icebreaker_for_user(user_id)
+            logger.debug(f"icebreaker_consumer.processed: user_id={user_id}, has_text={bool(icebreaker_text)}")
+        except Exception as e:
+            logger.error(f"icebreaker_consumer.process_error: user_id={user_id}, error={str(e)}")
+            return {}
 
         if not icebreaker_text:
             logger.info(f"icebreaker_consumer.no_icebreaker: user_id={user_id}, continuing normally")
@@ -101,7 +153,14 @@ async def icebreaker_consumer(state: MessagesState, config: RunnableConfig) -> d
 
         logger.info(f"icebreaker_consumer.found_icebreaker: user_id={user_id}, raw_text={icebreaker_text[:100]}...")
 
-        icebreaker_context = await _create_natural_icebreaker(icebreaker_text, user_id)
+        try:
+            icebreaker_context = await _create_natural_icebreaker(icebreaker_text, user_id)
+            logger.debug(
+                f"icebreaker_consumer.llm_processed: user_id={user_id}, has_context={bool(icebreaker_context)}"
+            )
+        except Exception as e:
+            logger.error(f"icebreaker_consumer.llm_error: user_id={user_id}, error={str(e)}")
+            return {}
 
         if not icebreaker_context:
             logger.warning(f"icebreaker_consumer.llm_failed: user_id={user_id}, continuing without icebreaker")
@@ -121,6 +180,7 @@ async def icebreaker_consumer(state: MessagesState, config: RunnableConfig) -> d
 
     except Exception as e:
         logger.error(
-            f"icebreaker_consumer.error: user_id={user_id if 'user_id' in locals() else 'unknown'}, error={str(e)}"
+            f"icebreaker_consumer.critical_error: user_id={user_id if user_id else 'unknown'}, error={str(e)}",
+            exc_info=True,
         )
         return {}

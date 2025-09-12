@@ -363,9 +363,46 @@ class SupervisorService:
 
         prior_summary = await self._get_prior_conversation_summary(session_store, str(uid), thread_id)
 
-        user_context = (await session_store.get_session(thread_id) or {}).get("user_context", {})
-        welcome = await generate_personalized_welcome(user_context, prior_summary)
-        await queue.put({"event": "token.delta", "data": {"text": welcome}})
+        logger.info(f"[SUPERVISOR] Generating welcome message with icebreaker support for user {uid}")
+
+        graph: CompiledStateGraph = get_supervisor_graph()
+        configurable = {
+            "thread_id": thread_id,
+            "session_id": thread_id,
+            "user_id": str(uid),
+            "user_context": ctx.model_dump(mode="json"),
+        }
+
+        initial_message = "Hello"
+
+        welcome_parts = []
+        async for event in graph.astream_events(
+            {"messages": [{"role": "user", "content": initial_message}]},
+            version="v2",
+            config={
+                "callbacks": [langfuse_handler],
+                "configurable": configurable,
+                "thread_id": thread_id,
+            },
+            stream_mode="values",
+            subgraphs=True,
+        ):
+            etype = event.get("event")
+            data = event.get("data") or {}
+
+            if etype == "on_chat_model_stream":
+                chunk = data.get("chunk")
+                out = self._content_to_text(chunk)
+                if out:
+                    out = self._strip_guardrail_marker(out)
+                if out and not self._is_injected_context(out):
+                    welcome_parts.append(out)
+                    await queue.put({"event": "token.delta", "data": {"text": out}})
+
+        welcome = "".join(welcome_parts).strip() if welcome_parts else await generate_personalized_welcome(
+            (await session_store.get_session(thread_id) or {}).get("user_context", {}),
+            prior_summary
+        )
 
         logger.info(f"Initialize complete for user {uid}: thread={thread_id}, has_prior_summary={bool(prior_summary)}")
 

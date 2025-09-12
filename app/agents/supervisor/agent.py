@@ -81,9 +81,9 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     builder.add_node("goal_agent", goal_agent)
 
     # --- Define edges between nodes ---
-    builder.add_edge(START, "memory_hotpath")
-    builder.add_edge("memory_hotpath", "icebreaker_consumer")
-    builder.add_edge("icebreaker_consumer", "memory_context")
+    builder.add_edge(START, "icebreaker_consumer")
+    builder.add_edge("icebreaker_consumer", "memory_hotpath")
+    builder.add_edge("memory_hotpath", "memory_context")
     builder.add_edge("memory_context", "supervisor")
     builder.add_edge("finance_router", "supervisor")
     builder.add_edge("finance_agent", "supervisor")

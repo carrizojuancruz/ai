@@ -80,6 +80,10 @@ class SqsConsumer:
         try:
             logger.debug(f"nudge_consumer.polling: max_messages={max_messages or self.max_messages}")
 
+            if not self.sqs_manager:
+                logger.error("nudge_consumer.no_sqs_manager: SQS manager not initialized")
+                return []
+
             messages = await self.sqs_manager.receive_messages(max_messages=max_messages or self.max_messages)
 
             logger.debug(f"nudge_consumer.raw_messages: count={len(messages)}")
@@ -103,7 +107,9 @@ class SqsConsumer:
                         )
                 except Exception as e:
                     parse_error_count += 1
-                    logger.error(f"nudge_consumer.parse_error: {str(e)}")
+                    logger.error(
+                        f"nudge_consumer.parse_error: message={message.get('MessageId', 'unknown')}, error={str(e)}"
+                    )
                     continue
 
             logger.info(
@@ -113,7 +119,7 @@ class SqsConsumer:
             return nudges
 
         except Exception as e:
-            logger.error(f"nudge_consumer.poll_failed: {str(e)}")
+            logger.error(f"nudge_consumer.poll_failed: error={str(e)}", exc_info=True)
             return []
 
     async def delete_nudge(self, receipt_handle: str) -> bool:

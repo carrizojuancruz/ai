@@ -81,7 +81,9 @@ class SQSManager:
             )
             return message_id
         except Exception as e:
-            logger.error(f"sqs.enqueue_failed: {str(e)}", extra={"user_id": nudge.user_id, "nudge_type": nudge.nudge_type})
+            logger.error(
+                f"sqs.enqueue_failed: {str(e)}", extra={"user_id": nudge.user_id, "nudge_type": nudge.nudge_type}
+            )
             raise
 
     async def _mark_as_replaced(self, dedup_key: str) -> None:
@@ -95,7 +97,7 @@ class SQSManager:
         max_messages = max_messages or config.SQS_MAX_MESSAGES
 
         logger.debug(
-            f"sqs.receive_attempt: max_messages={max_messages}, "
+            f"sqs.receive_attempt: max_messages={max_messages}, queue_url={self.queue_url}, "
             f"visibility_timeout={config.SQS_VISIBILITY_TIMEOUT}, wait_time={config.SQS_WAIT_TIME_SECONDS}"
         )
 
@@ -114,6 +116,16 @@ class SQSManager:
                 return []
 
             logger.debug(f"sqs.raw_messages_received: count={len(messages)}")
+
+            for i, message in enumerate(messages):
+                message_id = message.get("MessageId", "unknown")
+                attributes = message.get("MessageAttributes", {})
+                nudge_type = attributes.get("NudgeType", {}).get("StringValue", "unknown")
+                user_id = attributes.get("UserId", {}).get("StringValue", "unknown")
+                priority = attributes.get("Priority", {}).get("StringValue", "1")
+                logger.debug(
+                    f"sqs.message_{i}: id={message_id}, type={nudge_type}, user={user_id}, priority={priority}"
+                )
 
             sorted_messages = sorted(
                 messages,
@@ -139,7 +151,7 @@ class SQSManager:
             return sorted_messages
         except Exception as e:
             logger.error(
-                f"sqs.receive_failed: {str(e)} (type: {type(e).__name__}), queue_url={self.queue_url}"
+                f"sqs.receive_failed: {str(e)} (type: {type(e).__name__}), queue_url={self.queue_url}", exc_info=True
             )
             raise
 
@@ -152,8 +164,7 @@ class SQSManager:
             logger.info(f"sqs.message_deleted: receipt_handle={receipt_handle[:20]}...")
         except Exception as e:
             logger.error(
-                f"sqs.delete_failed: receipt_handle={receipt_handle[:20]}..., "
-                f"error={str(e)} (type: {type(e).__name__})"
+                f"sqs.delete_failed: receipt_handle={receipt_handle[:20]}..., error={str(e)} (type: {type(e).__name__})"
             )
             raise
 
