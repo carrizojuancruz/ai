@@ -116,13 +116,11 @@ if st.session_state.thread_id is not None:
                             message_placeholder.markdown(escaped_response + "▌")
                     elif event.event == "source.search.start":
                         data = json.loads(event.data)
-                        tool_name = data.get("tool")
                         # Start suppressing tokens when agent tool starts
                         suppress_tokens = True
                         full_response = ""
                     elif event.event == "source.search.end":
                         data = json.loads(event.data)
-                        tool_name = data.get("tool")
                         suppress_tokens = False
                     elif event.event in ["tool.start", "tool.end"]:
                         data = json.loads(event.data)

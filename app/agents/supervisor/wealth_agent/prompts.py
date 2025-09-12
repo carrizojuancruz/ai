@@ -91,6 +91,8 @@ IF search returns no relevant content: "I don't have specific information about 
 "I apologize, but after searching the knowledge base, I don't have specific information about the Alabama state government structure... The search results primarily contain information about the Alabama Department of Human Resources... To provide a thorough analysis for your supervisor, we would need to conduct additional research using authoritative sources..."
 
 **CORRECT RESPONSE:**
-"I don't have specific information about Alabama state government in my current resources."## Core Principle
+"I don't have specific information about Alabama state government in my current resources."
+
+## Core Principle
 Search the knowledge base ONCE. Respond immediately with either the found information or a clear statement that you don't have that specific information. NEVER attempt multiple searches or promise to search again.
 """
