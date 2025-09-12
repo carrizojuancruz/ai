@@ -56,9 +56,7 @@ def _collect_recent_user_texts(messages: list[Any], max_messages: int = 3) -> li
 
 def _trigger_decide(text: str) -> dict[str, Any]:
     bedrock = get_bedrock_runtime_client()
-    allowed_categories = (
-        "Finance, Budget, Goals, Personal, Education, Conversation_Summary, Other"
-    )
+    allowed_categories = "Finance, Budget, Goals, Personal, Education, Conversation_Summary, Other"
     instr = (
         "You classify whether to CREATE a user memory from recent user messages.\n"
         "This node ONLY creates semantic memories (durable, re-usable facts).\n"
@@ -81,13 +79,13 @@ def _trigger_decide(text: str) -> dict[str, Any]:
         "- If the input mixes time-bound details with a durable fact, EXTRACT ONLY the durable fact and DROP time phrasing.\n"
         "- Choose category from: [" + allowed_categories + "].\n"
         "- summary must be 1–2 sentences, concise and neutral (third person).\n"
-        "- Output ONLY strict JSON: {\"should_create\": bool, \"type\": \"semantic\", \"category\": string, \"summary\": string, \"importance\": 1..5}.\n"
+        '- Output ONLY strict JSON: {"should_create": bool, "type": "semantic", "category": string, "summary": string, "importance": 1..5}.\n'
         "\n"
         "Examples (create):\n"
-        "- Input: 'Please remember my name is Ana' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Personal\", \"summary\": \"User's preferred name is Ana.\", \"importance\": 2}\n"
-        "- Input: 'My cat just turned 4 today' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Personal\", \"summary\": \"User's cat is 4 years old.\", \"importance\": 3}\n"
-        "- Input: 'I prefer email over phone calls' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Personal\", \"summary\": \"User prefers email communication over calls.\", \"importance\": 2}\n"
-        "- Input: 'We're saving for a house down payment this year' -> {\"should_create\": true, \"type\": \"semantic\", \"category\": \"Finance\", \"summary\": \"User is saving for a house down payment.\", \"importance\": 3}\n"
+        '- Input: \'Please remember my name is Ana\' -> {"should_create": true, "type": "semantic", "category": "Personal", "summary": "User\'s preferred name is Ana.", "importance": 2}\n'
+        '- Input: \'My cat just turned 4 today\' -> {"should_create": true, "type": "semantic", "category": "Personal", "summary": "User\'s cat is 4 years old.", "importance": 3}\n'
+        '- Input: \'I prefer email over phone calls\' -> {"should_create": true, "type": "semantic", "category": "Personal", "summary": "User prefers email communication over calls.", "importance": 2}\n'
+        '- Input: \'We\'re saving for a house down payment this year\' -> {"should_create": true, "type": "semantic", "category": "Finance", "summary": "User is saving for a house down payment.", "importance": 3}\n'
         "\n"
         "Examples (do not create here):\n"
         "- Input: 'We celebrated at the park today' -> {\"should_create\": false}\n"
@@ -440,7 +438,7 @@ def _same_fact_classify(existing_summary: str, candidate_summary: str, category:
         "- 'Lives in Austin.' vs 'Moved to Dallas.' -> same_fact=false (different locations, not a numeric update)\n"
         "- 'Luna is a cat.' vs 'Luna is a dog.' -> same_fact=false (conflicting species)\n"
         "\n"
-        "Output: Return STRICT JSON only: {\"same_fact\": true|false}. No extra text.\n"
+        'Output: Return STRICT JSON only: {"same_fact": true|false}. No extra text.\n'
         f"Category: {category[:64]}\n"
         f"Existing: {existing_summary[:500]}\n"
         f"Candidate: {candidate_summary[:500]}\n"
@@ -589,25 +587,8 @@ def _derive_nudge_metadata(category: str, summary: str, importance: int) -> dict
     else:
         metadata["importance_bin"] = "low"
 
-    metadata["bucket_week"] = now.strftime("%Y-%W")
-
-    numbers = re.findall(r"\d+(?:\.\d+)?", summary)
-    if numbers and topic_key in ["spending_pattern", "budget_status"]:
-        try:
-            amounts = [float(n) for n in numbers]
-            if amounts:
-                metadata["amount"] = max(amounts)
-                if topic_key == "spending_pattern":
-                    metadata["trailing_30d_spend"] = max(amounts)
-        except ValueError:
-            pass
-
-    percent_match = re.search(r"(\d+(?:\.\d+)?)\s*%", summary)
-    if percent_match and topic_key in ["goal_active", "budget_status"]:
-        with contextlib.suppress(ValueError):
-            metadata["progress_pct"] = float(percent_match.group(1))
-
     return metadata
+
 
 # Combined regex pattern for time sanitization (single pass)
 _TIME_SANITIZATION_PATTERN = re.compile(
@@ -729,12 +710,9 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
         "type": "semantic",
         "summary": summary,
         "category": category,
-        "tags": [],
         "source": "chat",
         "importance": importance,
-        "pinned": False,
         "created_at": now,
-        "last_accessed": now,
         **nudge_metadata,
     }
 
@@ -773,6 +751,4 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
     )
     ctx = get_config_value(config, "user_context") or {}
     prof = _build_profile_line(ctx) if isinstance(ctx, dict) else None
-    return ({"messages": [AIMessage(content=prof)]} if prof else {})
-
-
+    return {"messages": [AIMessage(content=prof)]} if prof else {}
