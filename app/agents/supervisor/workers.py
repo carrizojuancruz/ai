@@ -38,7 +38,7 @@ async def wealth_agent(state: MessagesState) -> dict[str, Any]:
         wealth_agent = compile_wealth_agent_graph()
         result = await wealth_agent.ainvoke(state)
         logger.info(f"Wealth agent result: {result}")
-        
+
         # Extract the wealth agent's response - get the LAST assistant message
         wealth_response = ""
         if "messages" in result:
@@ -48,7 +48,7 @@ async def wealth_agent(state: MessagesState) -> dict[str, Any]:
                     assistant_messages.append(msg.get("content", ""))
                 elif hasattr(msg, "content") and getattr(msg, "name", None) == "wealth_agent":
                     assistant_messages.append(str(msg.content))
-            
+
             # Get the last assistant message (the final response after search)
             if assistant_messages:
                 wealth_response = assistant_messages[-1]
@@ -56,7 +56,7 @@ async def wealth_agent(state: MessagesState) -> dict[str, Any]:
         # Create proper handoff messages to signal completion to supervisor
         from app.agents.supervisor.handoff import create_handoff_back_messages
         handoff_messages = create_handoff_back_messages("wealth_agent", "supervisor")
-        
+
         return {
             "messages": [
                 {"role": "assistant", "content": wealth_response, "name": "wealth_agent"},

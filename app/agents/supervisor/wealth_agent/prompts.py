@@ -52,7 +52,7 @@ Search and retrieve specific information from the knowledge base about:
 
 **When You DON'T Have Relevant Information:**
 - If your search does NOT return information that DIRECTLY and SPECIFICALLY answers the user's question, you MUST respond: "I don't have specific information about [topic] in my current resources."
-- Do NOT provide "general insights" or "however" statements  
+- Do NOT provide "general insights" or "however" statements
 - Do NOT extract partial information from unrelated search results
 - Do NOT mention what you searched for or suggest alternative searches
 - Do NOT explain your search process or what you found that wasn't relevant
