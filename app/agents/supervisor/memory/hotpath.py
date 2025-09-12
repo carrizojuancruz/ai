@@ -547,7 +547,7 @@ def _derive_nudge_metadata(category: str, summary: str, importance: int) -> dict
     from datetime import datetime, timezone
 
     metadata = {}
-    now = datetime.now(tz=timezone.utc)
+    datetime.now(tz=timezone.utc)
 
     topic_key = "general"
     summary_lower = summary.lower()
