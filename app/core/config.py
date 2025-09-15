@@ -51,7 +51,6 @@ class Config:
     DEBUG: bool = os.getenv("DEBUG", "false").lower() in {"true", "1", "yes", "on"}
 
     # AI Models Configuration
-    AGENT_MODEL_ID: str = os.getenv("AGENT_MODEL_ID", "global.anthropic.claude-sonnet-4-20250514-v1:0")
     EMBEDDINGS_MODEL_ID: str = os.getenv("EMBEDDINGS_MODEL_ID", "amazon.titan-embed-text-v2:0")
     BEDROCK_MODEL_ID: str = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20240620-v1:0")
     BEDROCK_EMBED_MODEL_ID: str = os.getenv("BEDROCK_EMBED_MODEL_ID", "amazon.titan-embed-text-v2:0")

@@ -5,7 +5,7 @@ import logging
 from typing import Any, Optional
 from uuid import UUID
 
-from langchain_aws import ChatBedrock
+from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 from langgraph.graph import MessagesState
@@ -79,22 +79,22 @@ class FinanceAgent:
 
         # Initialize Bedrock models
         region = config.AWS_REGION
-        sonnet_model_id = config.BEDROCK_MODEL_ID
+        llm_model_id = config.BEDROCK_MODEL_ID
 
         guardrails = {
-            "guardrailIdentifier": config.BEDROCK_GUARDRAIL_ID,
-            "guardrailVersion": str(config.BEDROCK_GUARDRAIL_VERSION),
-            "trace": True,
+            "guardrailIdentifier": "arn:aws:bedrock:us-west-2:905418355862:guardrail/nqa94s84lt6u",
+            "guardrailVersion": "DRAFT",
+            "trace": "enabled",
         }
 
-        logger.info(f"Creating Bedrock ChatBedrock client for model {sonnet_model_id}")
+        logger.info(f"Creating Bedrock ChatBedrock client for model {llm_model_id}")
 
-        # Primary model for SQL generation (Sonnet)
-        self.sql_generator = ChatBedrock(
-            model_id=sonnet_model_id,
-            region_name=region,
-            guardrails=guardrails
-        )
+        self.sql_generator = ChatBedrockConverse(
+        model_id="openai.gpt-oss-120b-1:0",
+        region_name="us-west-2",
+        temperature=0.2,
+        guardrail_config=guardrails,
+    )
 
         logger.info("FinanceAgent initialization completed")
         # Lightweight per-user cache for prompt grounding samples
@@ -461,8 +461,7 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[st
         return {
             "messages": [
                 {"role": "assistant", "content": analysis_response, "name": "finance_agent"},
-                handoff_messages[0],  # AIMessage signaling completion
-                handoff_messages[1],  # ToolMessage confirming return
+                handoff_messages[0],  # AIMessage signaling completion (no tool_calls)
             ]
         }
 
@@ -476,6 +475,5 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[st
             "messages": [
                 {"role": "assistant", "content": error_analysis, "name": "finance_agent"},
                 handoff_messages[0],
-                handoff_messages[1],
             ]
         }
