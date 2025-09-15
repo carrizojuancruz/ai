@@ -91,13 +91,13 @@ if st.session_state.thread_id is not None:
                 is_first_delta = True
                 sources = []
                 welcome_message = st.session_state.messages[0]['content']
+                suppress_tokens = False
 
                 for event in client.events():
                     if event.event == "token.delta":
                         data = json.loads(event.data)
                         text_delta = data.get("text", "")
                         sources = data.get("sources", [])
-                        print(f"Sources: {sources}")
 
                         if is_first_delta and text_delta.strip() == welcome_message.strip():
                             is_first_delta = False
@@ -109,17 +109,20 @@ if st.session_state.thread_id is not None:
                            text_delta.strip().startswith("Relevant context for tailoring this turn:"):
                             continue
 
-                        if len(text_delta) >= len(full_response) and text_delta.startswith(full_response):
-                            full_response = text_delta
-                        elif len(text_delta) < len(full_response) and full_response.endswith(text_delta):
-                            continue
-                        else:
+                        # Only accumulate tokens when not suppressed (final response after tool completion)
+                        if not suppress_tokens:
                             full_response += text_delta
-
-                        # Escape currency $ while preserving LaTeX math expressions
-                        escaped_response = escape_currency_dollars(full_response)
-                        message_placeholder.markdown(escaped_response + "▌")
-                    elif event.event == "tool.start" or event.event == "tool.end":
+                            escaped_response = escape_currency_dollars(full_response)
+                            message_placeholder.markdown(escaped_response + "▌")
+                    elif event.event == "source.search.start":
+                        data = json.loads(event.data)
+                        # Start suppressing tokens when agent tool starts
+                        suppress_tokens = True
+                        full_response = ""
+                    elif event.event == "source.search.end":
+                        data = json.loads(event.data)
+                        suppress_tokens = False
+                    elif event.event in ["tool.start", "tool.end"]:
                         data = json.loads(event.data)
                         tool_name = data.get("tool")
                     elif event.event == "step.update":
@@ -127,7 +130,6 @@ if st.session_state.thread_id is not None:
                         if data.get("status") == "presented":
                             break
 
-                # Escape currency $ while preserving LaTeX math expressions
                 escaped_response = escape_currency_dollars(full_response)
                 message_placeholder.markdown(escaped_response)
 

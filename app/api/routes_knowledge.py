@@ -2,7 +2,14 @@ from fastapi import APIRouter, HTTPException
 
 from app.knowledge.service import KnowledgeService
 
-from .schemas.knowledge import SearchRequest, SearchResponse, SourceDetailsResponse, SourceResponse, SourcesResponse
+from .schemas.knowledge import (
+    DeleteAllVectorsResponse,
+    SearchRequest,
+    SearchResponse,
+    SourceDetailsResponse,
+    SourceResponse,
+    SourcesResponse,
+)
 
 router = APIRouter(prefix="/knowledge", tags=["Knowledge Base"])
 
@@ -79,3 +86,24 @@ async def get_source_details(source_id: str) -> SourceDetailsResponse:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get details: {str(e)}") from e
+
+
+@router.delete("/vectors", response_model=DeleteAllVectorsResponse)
+async def delete_all_vectors() -> DeleteAllVectorsResponse:
+    """Delete ALL vectors from the knowledge base index. WARNING: This operation cannot be undone."""
+    try:
+        knowledge_service = KnowledgeService()
+        result = knowledge_service.delete_all_vectors()
+
+        return DeleteAllVectorsResponse(
+            success=result["success"],
+            vectors_deleted=result["vectors_deleted"],
+            message=result["message"],
+            vectors_failed=result.get("vectors_failed"),
+            error=result.get("error")
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete all vectors: {str(e)}"
+        ) from e
