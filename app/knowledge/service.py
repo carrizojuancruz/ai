@@ -20,6 +20,32 @@ class KnowledgeService:
         self.document_service = DocumentService()
         self.crawler_service = CrawlerService()
 
+    def delete_all_vectors(self) -> Dict[str, Any]:
+        """Delete ALL vectors from the knowledge base."""
+        deletion_result = self.vector_store_service.delete_all_vectors()
+
+        if deletion_result["success"]:
+            try:
+                self.source_repository.delete_all()
+                logger.info("Successfully cleared all sources from repository")
+            except Exception as e:
+                logger.warning(f"Failed to clear sources repository: {str(e)}")
+
+            logger.info("Successfully deleted all vectors from knowledge base")
+            return {
+                "success": True,
+                "vectors_deleted": deletion_result["vectors_deleted"],
+                "message": deletion_result["message"]
+            }
+        else:
+            logger.error(f"Failed to delete all vectors: {deletion_result['message']}")
+            return {
+                "success": False,
+                "error": deletion_result["message"],
+                "vectors_deleted": deletion_result["vectors_deleted"],
+                "vectors_failed": deletion_result["vectors_failed"]
+            }
+
     def delete_source(self, source: Source) -> Dict[str, Any]:
         """Delete a source from the knowledge base."""
         deletion_result = self.vector_store_service.delete_documents_by_source_id(source.id)
@@ -41,15 +67,19 @@ class KnowledgeService:
 
         crawl_result = await self.crawler_service.crawl_source(source)
         documents = crawl_result.get("documents", [])
+        crawl_error = crawl_result.get("error")
 
         if not documents:
             logger.info(f"No documents found during crawl for {source.url}")
+            error_message = crawl_result.get("message", "No documents found during crawl")
             return {
                 "source_url": source.url,
                 "success": True,
-                "message": "No documents found during crawl",
+                "message": error_message,
+                "crawl_error": crawl_error,
                 "is_new_source": False,
-                "documents_added": 0
+                "documents_added": 0,
+                "documents_processed": 0
             }
 
         logger.info(f"Processing {len(documents)} documents from {source.url}")
@@ -75,7 +105,8 @@ class KnowledgeService:
                     "success": True,
                     "message": "No changes detected",
                     "is_new_source": False,
-                    "documents_added": 0
+                    "documents_added": 0,
+                    "documents_processed": len(documents)
                 }
 
             logger.info(f"Source {source.url} needs reindexing - deleting old documents")
@@ -87,7 +118,8 @@ class KnowledgeService:
                     "success": False,
                     "message": f"Failed to delete existing documents: {delete_result['error']['message']}",
                     "is_new_source": False,
-                    "documents_added": 0
+                    "documents_added": 0,
+                    "documents_processed": len(documents)
                 }
 
         logger.info(f"Generating embeddings for {len(chunks)} chunks from {source.url}")
@@ -114,6 +146,7 @@ class KnowledgeService:
         result = {
             "success": True,
             "documents_added": len(chunks),
+            "documents_processed": len(documents),
             "source_url": source.url,
             "is_new_source": not is_update,
             "processing_time_seconds": round(processing_time, 2)

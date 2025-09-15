@@ -51,6 +51,96 @@ class S3VectorStoreService:
             logger.error(f"Failed to store vectors: {str(e)}")
             raise
 
+    def delete_all_vectors(self) -> dict[str, any]:
+        """Delete ALL vectors from the index."""
+        try:
+            vector_keys = self._get_all_vector_keys()
+
+            if not vector_keys:
+                logger.info("No vectors found in index")
+                return {
+                    "success": True,
+                    "vectors_found": 0,
+                    "vectors_deleted": 0,
+                    "message": "No vectors found to delete"
+                }
+
+            batch_size = 100
+            deleted_count = 0
+            failed_keys = []
+
+            for i in range(0, len(vector_keys), batch_size):
+                batch_keys = vector_keys[i:i + batch_size]
+                try:
+                    self.client.delete_vectors(
+                        vectorBucketName=self.bucket_name,
+                        indexName=self.index_name,
+                        keys=batch_keys
+                    )
+                    deleted_count += len(batch_keys)
+                    logger.info(f"Deleted batch {i//batch_size + 1}: {len(batch_keys)} vectors")
+                except Exception as batch_error:
+                    logger.error(f"Failed to delete batch {i//batch_size + 1}: {str(batch_error)}")
+                    failed_keys.extend(batch_keys)
+
+            total_found = len(vector_keys)
+            success = deleted_count > 0 and len(failed_keys) == 0
+
+            result = {
+                "success": success,
+                "vectors_found": total_found,
+                "vectors_deleted": deleted_count,
+                "vectors_failed": len(failed_keys)
+            }
+
+            if success:
+                result["message"] = f"Successfully deleted all {deleted_count} vectors from index"
+                logger.info(f"Successfully deleted all {deleted_count} vectors from index")
+            elif deleted_count > 0:
+                result["message"] = f"Partially successful: deleted {deleted_count}/{total_found} vectors"
+                result["failed_keys"] = failed_keys
+                logger.warning(f"Partially deleted vectors from index: {deleted_count}/{total_found}")
+            else:
+                result["message"] = "Failed to delete any vectors"
+                result["failed_keys"] = failed_keys
+                logger.error("Failed to delete any vectors from index")
+
+            return result
+        except Exception as e:
+            logger.error(f"Failed to delete all vectors from index: {str(e)}")
+            return {
+                "success": False,
+                "vectors_found": 0,
+                "vectors_deleted": 0,
+                "vectors_failed": 0,
+                "message": f"Deletion process failed: {str(e)}"
+            }
+
+    def _get_all_vector_keys(self) -> list[str]:
+        """Get all vector keys from the index."""
+        vector_keys = []
+        try:
+            paginator = self.client.get_paginator('list_vectors')
+            page_iterator = paginator.paginate(
+                vectorBucketName=self.bucket_name,
+                indexName=self.index_name,
+                returnMetadata=False,
+                returnData=False,
+                PaginationConfig={'PageSize': 1000}
+            )
+
+            for page in page_iterator:
+                for vector in page.get('vectors', []):
+                    key = vector.get('key')
+                    if key:
+                        vector_keys.append(key)
+
+            logger.info(f"Found {len(vector_keys)} total vectors in index")
+            return vector_keys
+        except Exception as e:
+            logger.error(f"Failed to get all vector keys: {str(e)}")
+            return []
+
     def delete_documents_by_source_id(self, source_id: str) -> dict[str, any]:
         """Delete all documents for a given source_id."""
         try:
