@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from langchain_aws import ChatBedrock
+from langchain_aws import ChatBedrockConverse
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -40,12 +40,17 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     guardrail_version = str(config.BEDROCK_GUARDRAIL_VERSION)
 
     guardrails = {
-        "guardrailIdentifier": guardrail_id,
-        "guardrailVersion": guardrail_version,
-        "trace": True,
+        "guardrailIdentifier": "arn:aws:bedrock:us-west-2:905418355862:guardrail/nqa94s84lt6u",
+        "guardrailVersion": "DRAFT",
+        "trace": "enabled",
     }
-    logger.info(f"Guardrails: {guardrails}")
-    chat_bedrock = ChatBedrock(model_id=model_id, region_name=region, guardrails=guardrails)
+
+    chat_bedrock = ChatBedrockConverse(
+        model_id="openai.gpt-oss-120b-1:0",
+        region_name="us-west-2",
+        temperature=0.4,
+        guardrail_config=guardrails,
+    )
     checkpointer = MemorySaver()
 
     supervisor_agent_with_description = create_react_agent(

@@ -36,7 +36,7 @@ def compile_goal_agent_graph() -> CompiledStateGraph:
     guardrails = {
         "guardrailIdentifier": guardrail_id,
         "guardrailVersion": guardrail_version,
-        "trace": True,
+        "trace": "enabled",
     }
     logger.info(f"[GOAL_AGENT] Guardrails: {guardrails}")
 

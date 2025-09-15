@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from datetime import datetime, timezone, tzinfo
 from typing import Any
 
@@ -158,12 +159,23 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
         query_text = (user_text or "").strip() or "personal profile"
         logger.info("memory_context.query: user_id=%s query=%s", user_id, (query_text[:200]))
 
-        sem, epi = await asyncio.gather(
-            asyncio.to_thread(store.search, (user_id, "semantic"), query=query_text, filter=None, limit=CONTEXT_TOPK),
-            asyncio.to_thread(
-                store.search, (user_id, "episodic"), query=query_text, filter=None, limit=max(3, CONTEXT_TOPK // 2)
-            ),
+        t0s = time.perf_counter()
+        # Time semantic search separately
+        t0_sem = time.perf_counter()
+        sem = await asyncio.to_thread(store.search, (user_id, "semantic"), query=query_text, filter=None, limit=CONTEXT_TOPK)
+        t1_sem = time.perf_counter()
+        logger.info("memory_context.semantic.done ms=%d results=%d", int((t1_sem - t0_sem) * 1000), len(sem or []))
+
+        # Time episodic search separately
+        t0_epi = time.perf_counter()
+        epi = await asyncio.to_thread(
+            store.search, (user_id, "episodic"), query=query_text, filter=None, limit=max(3, CONTEXT_TOPK // 2)
         )
+        t1_epi = time.perf_counter()
+        logger.info("memory_context.episodic.done ms=%d results=%d", int((t1_epi - t0_epi) * 1000), len(epi or []))
+
+        t1s = time.perf_counter()
+        logger.info("memory_context.search.total ms=%d", int((t1s - t0s) * 1000))
 
         logger.info("memory_context.results: sem=%d epi=%d", len(sem or []), len(epi or []))
         score = _score_factory(w)

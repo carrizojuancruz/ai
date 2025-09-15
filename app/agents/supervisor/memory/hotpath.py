@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import time
 import logging
 import re
 import unicodedata
@@ -96,11 +97,15 @@ def _trigger_decide(text: str) -> dict[str, Any]:
     )
     prompt = f"{instr}\nRecentMessages:\n{text[:1000]}\nJSON:"
     try:
+        t0 = time.perf_counter()
+        logger.info("memory.llm.trigger.start model=%s text_len=%d", MODEL_ID, len(text or ""))
         body_payload = {
             "messages": [{"role": "user", "content": [{"text": prompt}]}],
             "inferenceConfig": {"temperature": 0.0, "topP": 0.1, "maxTokens": 96, "stopSequences": []},
         }
         res = bedrock.invoke_model(modelId=MODEL_ID, body=json.dumps(body_payload))
+        t1 = time.perf_counter()
+        logger.info("memory.llm.trigger.done ms=%d", int((t1 - t0) * 1000))
         body = res.get("body")
         txt = body.read().decode("utf-8") if hasattr(body, "read") else str(body)
         data = json.loads(txt)
@@ -137,8 +142,21 @@ def _trigger_decide(text: str) -> dict[str, Any]:
 
 def _search_neighbors(store: Any, namespace: tuple[str, ...], summary: str, category: str) -> list[Any]:
     try:
+        t0 = time.perf_counter()
+        ns0_present = bool(namespace and namespace[0])
+        ns1 = namespace[1] if len(namespace) > 1 else ""
+        logger.info(
+            "memory.store.search.start ns0_set=%s ns1=%s topk=%d has_filter=%s",
+            ns0_present,
+            ns1,
+            MERGE_TOPK,
+            True,
+        )
         neighbors = store.search(namespace, query=summary, filter={"category": category}, limit=MERGE_TOPK)
+        t1 = time.perf_counter()
+        logger.info("memory.store.search.done ms=%d results=%d", int((t1 - t0) * 1000), len(neighbors or []))
     except Exception:
+        logger.exception("memory.store.search.error")
         neighbors = []
     return neighbors
 
@@ -153,7 +171,13 @@ def _do_update(
         except Exception:
             base_value = None
     if base_value is None:
+        t0g = time.perf_counter()
+        ns0_present = bool(namespace and namespace[0])
+        ns1 = namespace[1] if len(namespace) > 1 else ""
+        logger.info("memory.store.get.start ns0_set=%s ns1=%s", ns0_present, ns1)
         existing = store.get(namespace, existing_key)
+        t1g = time.perf_counter()
+        logger.info("memory.store.get.done ms=%d found=%s", int((t1g - t0g) * 1000), bool(existing))
         if not existing:
             return
         base_value = dict(existing.value)
@@ -161,7 +185,11 @@ def _do_update(
     merged["last_accessed"] = _utc_now_iso()
     if summary and len(summary) > len(merged.get("summary", "")):
         merged["summary"] = summary
+    t0p = time.perf_counter()
+    logger.info("memory.store.put.start ns0_set=%s ns1=%s mode=update", ns0_present, ns1)
     store.put(namespace, existing_key, merged, index=["summary"])  # re-embed
+    t1p = time.perf_counter()
+    logger.info("memory.store.put.done ms=%d", int((t1p - t0p) * 1000))
 
 
 def _do_recreate(
@@ -196,8 +224,18 @@ def _do_recreate(
     except Exception:
         pass
     new_val["summary"] = composed
+    ns0_present = bool(namespace and namespace[0])
+    ns1 = namespace[1] if len(namespace) > 1 else ""
+    t0p = time.perf_counter()
+    logger.info("memory.store.put.start ns0_set=%s ns1=%s mode=recreate", ns0_present, ns1)
     store.put(namespace, new_id, new_val, index=["summary"])  # embed
+    t1p = time.perf_counter()
+    logger.info("memory.store.put.done ms=%d", int((t1p - t0p) * 1000))
+    t0d = time.perf_counter()
+    logger.info("memory.store.delete.start ns0_set=%s ns1=%s", ns0_present, ns1)
     store.delete(namespace, existing_key)
+    t1d = time.perf_counter()
+    logger.info("memory.store.delete.done ms=%d", int((t1d - t0d) * 1000))
     return new_id
 
 
@@ -380,7 +418,13 @@ async def _write_semantic_memory(
             if int(candidate_value.get("importance") or 1) < SEMANTIC_MIN_IMPORTANCE:
                 logger.info("memory.skip: below_min_importance=%s", SEMANTIC_MIN_IMPORTANCE)
             else:
+                t0p = time.perf_counter()
+                ns0_present = bool(namespace and namespace[0])
+                ns1 = namespace[1] if len(namespace) > 1 else ""
+                logger.info("memory.store.put.start ns0_set=%s ns1=%s mode=create", ns0_present, ns1)
                 store.put(namespace, candidate_value["id"], candidate_value, index=["summary"])  # async context
+                t1p = time.perf_counter()
+                logger.info("memory.store.put.done ms=%d", int((t1p - t0p) * 1000))
                 logger.info("memory.create: id=%s type=%s category=%s", candidate_value["id"], "semantic", category)
 
                 asyncio.create_task(_profile_sync_from_memory(user_id, thread_id, candidate_value))
@@ -444,11 +488,15 @@ def _same_fact_classify(existing_summary: str, candidate_summary: str, category:
         f"Candidate: {candidate_summary[:500]}\n"
     )
     try:
+        t0 = time.perf_counter()
+        logger.info("memory.llm.samefact.start model=%s", MODEL_ID)
         body_payload = {
             "messages": [{"role": "user", "content": [{"text": prompt}]}],
             "inferenceConfig": {"temperature": 0.0, "topP": 0.1, "maxTokens": 128, "stopSequences": []},
         }
         res = bedrock.invoke_model(modelId=MODEL_ID, body=json.dumps(body_payload))
+        t1 = time.perf_counter()
+        logger.info("memory.llm.samefact.done ms=%d", int((t1 - t0) * 1000))
         body = res.get("body")
         txt = body.read().decode("utf-8") if hasattr(body, "read") else str(body)
         data = json.loads(txt)
@@ -495,11 +543,15 @@ def _compose_summaries(existing_summary: str, candidate_summary: str, category: 
         f"New: {candidate_summary[:500]}\n"
     )
     try:
+        t0 = time.perf_counter()
+        logger.info("memory.llm.compose.start model=%s", MODEL_ID)
         body_payload = {
             "messages": [{"role": "user", "content": [{"text": prompt}]}],
             "inferenceConfig": {"temperature": 0.2, "topP": 0.5, "maxTokens": 160, "stopSequences": []},
         }
         res = bedrock.invoke_model(modelId=MODEL_ID, body=json.dumps(body_payload))
+        t1 = time.perf_counter()
+        logger.info("memory.llm.compose.done ms=%d", int((t1 - t0) * 1000))
         body = res.get("body")
         txt = body.read().decode("utf-8") if hasattr(body, "read") else str(body)
         data = json.loads(txt)

@@ -28,7 +28,7 @@ def compile_wealth_agent_graph() -> CompiledStateGraph:
     guardrails = {
         "guardrailIdentifier": guardrail_id,
         "guardrailVersion": guardrail_version,
-        "trace": True,
+        "trace": "enabled",
     }
     logger.info(f"[WEALTH_AGENT] Guardrails: {guardrails}")
 
