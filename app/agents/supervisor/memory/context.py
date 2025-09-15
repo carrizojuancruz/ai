@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 CONTEXT_TOPK = config.MEMORY_CONTEXT_TOPK
 CONTEXT_TOPN = config.MEMORY_CONTEXT_TOPN
 RERANK_WEIGHTS_RAW = config.MEMORY_RERANK_WEIGHTS
-PROCEDURAL_TOPK = getattr(config, "MEMORY_PROCEDURAL_TOPK", 3)
-PROCEDURAL_MIN_SCORE = float(getattr(config, "MEMORY_PROCEDURAL_MIN_SCORE", 0.45))
+PROCEDURAL_TOPK = config.MEMORY_PROCEDURAL_TOPK
+PROCEDURAL_MIN_SCORE = float(config.MEMORY_PROCEDURAL_MIN_SCORE)
 
 
 def _extract_user_text(messages: list[Any]) -> str | None:
