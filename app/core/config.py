@@ -40,6 +40,10 @@ class Config:
     MEMORY_CONTEXT_TOPN: int = int(os.getenv("MEMORY_CONTEXT_TOPN", "5"))
     MEMORY_RERANK_WEIGHTS: str = os.getenv("MEMORY_RERANK_WEIGHTS", "sim=0.55,imp=0.20,recency=0.15,pinned=0.10")
 
+    # Procedural Memory (Supervisor) Configuration
+    MEMORY_PROCEDURAL_TOPK: int = int(os.getenv("MEMORY_PROCEDURAL_TOPK", "3"))
+    MEMORY_PROCEDURAL_MIN_SCORE: float = float(os.getenv("MEMORY_PROCEDURAL_MIN_SCORE", "0.45"))
+
     # AWS Configuration
     AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
     AWS_DEFAULT_REGION: str = os.getenv("AWS_DEFAULT_REGION", "us-east-1")

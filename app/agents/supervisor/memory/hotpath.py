@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
-import time
 import logging
 import re
+import time
 import unicodedata
 from json import JSONDecodeError
 from typing import Any
