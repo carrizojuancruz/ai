@@ -147,6 +147,64 @@ async def _timed_search(store: Any, namespace: tuple[str, str], *, query: str, l
     return results
 
 
+def _extract_routing_examples(proc: list[Any] | None) -> list[str]:
+    """Extract routing examples from procedural memories with proper error handling.
+
+    Args:
+        proc: List of procedural memory items
+
+    Returns:
+        List of formatted routing example strings
+
+    """
+    if not proc:
+        return []
+
+    routing_examples: list[str] = []
+
+    for it in proc[:int(PROCEDURAL_TOPK)]:
+        try:
+            score_val = _safe_extract_score(it)
+            if score_val < PROCEDURAL_MIN_SCORE:
+                continue
+
+            summary_text = _safe_extract_summary(it)
+            if not summary_text:
+                continue
+
+            if len(summary_text) > 240:
+                summary_text = summary_text[:237] + "..."
+
+            routing_examples.append(f"Example: {summary_text}")
+
+        except (AttributeError, TypeError) as e:
+            logger.debug("Skipping invalid procedural memory item: %s", e)
+            continue
+
+    return routing_examples
+
+
+def _safe_extract_score(item: Any) -> float:
+    """Safely extract score from memory item with specific exception handling."""
+    try:
+        raw_score = getattr(item, "score", 0.0) or 0.0
+        return float(raw_score)
+    except (ValueError, TypeError) as e:
+        logger.debug("Failed to convert score to float: %s", e)
+        return 0.0
+
+
+def _safe_extract_summary(item: Any) -> str:
+    """Safely extract summary text from memory item."""
+    try:
+        val = getattr(item, "value", {}) or {}
+        summary_text = str(val.get("summary") or "").strip()
+        return summary_text
+    except (AttributeError, TypeError) as e:
+        logger.debug("Failed to extract summary: %s", e)
+        return ""
+
+
 def _build_context_response(bullets: list[str], config: RunnableConfig, routing_examples: list[str] | None = None) -> dict:
     user_tz: tzinfo = _resolve_user_tz_from_config(config)
     now_local = datetime.now(tz=user_tz)
@@ -210,24 +268,7 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
         bullets = _items_to_bullets(epi_sorted, merged_sem, CONTEXT_TOPN, user_tz)
         logger.info("memory_context.bullets.count: %d", len(bullets))
 
-        routing_examples: list[str] = []
-        try:
-            for it in (proc or [])[: int(PROCEDURAL_TOPK)]:
-                try:
-                    score_val = float(getattr(it, "score", 0.0) or 0.0)
-                except Exception:
-                    score_val = 0.0
-                if score_val < float(PROCEDURAL_MIN_SCORE):
-                    continue
-                val = getattr(it, "value", {}) or {}
-                summary_text = str(val.get("summary") or "").strip()
-                if not summary_text:
-                    continue
-                if len(summary_text) > 240:
-                    summary_text = summary_text[:237] + "..."
-                routing_examples.append(f"Example: {summary_text}")
-        except Exception:
-            routing_examples = []
+        routing_examples = _extract_routing_examples(proc)
     except Exception:
         pass
 
