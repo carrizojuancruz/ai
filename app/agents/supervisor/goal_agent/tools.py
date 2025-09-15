@@ -8,12 +8,14 @@ from uuid import UUID, uuid4
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
+from app.services.external_context.http_client import FOSHttpClient
 from app.utils.tools import get_config_value
 
 from .models import Audit, Goal, GoalStatus, GoalStatusInfo
 
 # In-memory store: multiple goals per user_id
 _GOALS: List[Goal] = []
+HTTP_CLIENT = FOSHttpClient()
 
 def _now() -> datetime:
     return datetime.now()
@@ -28,6 +30,7 @@ def _get_user_goals(user_id: str) -> List[Goal]:
 def _save_user_goal(goal: Goal) -> None:
     """Save goals for a user."""
     _GOALS.append(goal)
+
 
 def _update_user_goal(goal: Goal) -> None:
     """Update a goal for a user."""
@@ -48,18 +51,6 @@ def _get_goal_by_id(user_id: str, goal_id: str) -> Goal | None:
 def _get_in_pending_goal(user_id: str) -> Goal:
     """Get a pending goal for a user."""
     return [g for g in _get_user_goals(user_id) if g.status == GoalStatus.PENDING]
-
-# @tool(
-#     name_or_callable="get_goal_requirements",
-#     description="Get the requirements for a goal",
-# )
-# def get_goal_requirements() -> dict[str, Any]:
-#     """Get the requirements for a goal This is infered from the Goal Model."""
-#     goal_json = Goal.model_json_schema()
-#     goal_json = json.loads(goal_json)
-#     # Remove the user_id field
-#     goal_json.pop("user_id")
-#     return goal_json
 
 @tool(
     name_or_callable="create_goal",
