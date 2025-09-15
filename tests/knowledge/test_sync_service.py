@@ -1,5 +1,5 @@
-from unittest.mock import AsyncMock, Mock
 from dataclasses import dataclass
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
