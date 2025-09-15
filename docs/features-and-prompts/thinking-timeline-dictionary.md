@@ -14,13 +14,13 @@ The dictionary maps each type of agent or internal process with:
 
 | Type | Definition | if current | if completed |
 |------|------------|------------|--------------|
-| Step Planning | Deciding what the next step is | **Option 1:** "I'm Thinking... "<br>**Option 2:** "Hmm, let me think this through..."<br>**Option 3:** "Let me figure out the best approach..." | **Option 1:** "I thought for a moment"<br>**Option 2:** "Aha! Got the next step lined up."<br>**Option 3:** "Perfect! I've got a plan." |
-| BudgetAgent | BudgetAgent call | **Option 1:** "Let me peek into the budget for a sec..."<br>**Option 2:** "Peeking into your financial snapshot real quick..."<br>**Option 3:** "Taking a quick look at your budget..." | **Option 1:** "Budget checked"<br>**Option 2:** "All set, financial snapshot checked!"<br>**Option 3:** "Done! Budget analysis complete." |
-| BudgetAgent | BudgetAgent query for financial information | **Option 1:** "I'm going over your budget numbers..."<br>**Option 2:** "Running the numbers behind the scenes..."<br>**Option 3:** "Crunching your financial data..." | **Option 1:** "Got it! Budget figures are ready"<br>**Option 2:** "Got it! Your numbers are ready to roll."<br>**Option 3:** "All done! Your budget insights are ready." |
-| FinanceAgent | FinanceAgent call | **Option 1:** "I'm diving into the financial picture..."<br>**Option 2:** "Peeking into your financial snapshot real quick..."<br>**Option 3:** "Analyzing your financial landscape..." | **Option 1:** "I've got a scan on the finances."<br>**Option 2:** "All set, financial snapshot checked!"<br>**Option 3:** "Financial analysis complete!" |
-| Finance Agent | FinanceAgent query to Knowledge Base | **Option 1:** "I'm checking my financial references..."<br>**Option 2:** "Flipping through my financial notes..."<br>**Option 3:** "Looking up financial guidance..." | **Option 1:** "I've gone trough the financial references."<br>**Option 2:** "All done, notes found and ready."<br>**Option 3:** "Found the financial insights you need!" |
-| Education & Wealth CoachAgent | Education & Wealth CoachAgent call | **Option 1:** "Let me switch to guide mode for this one..."<br>**Option 2:** "Switching on brainy mode..."<br>**Option 3:** "Activating my coaching expertise..." | **Option 1:** "Here we go, a clear explanation ready"<br>**Option 2:** "All set, here's the wisdom straight up."<br>**Option 3:** "Ready! Here's your personalized guidance." |
-| Education & Wealth CoachAgent | E&WCA query to KB or notes | **Option 1:** "I'm pulling together some articles..."<br>**Option 2:** "Gathering some helpful info for you..."<br>**Option 3:** "Collecting relevant resources..." | **Option 1:** "Found them useful info in hand"<br>**Option 2:** "All set, found some useful insights you can use."<br>**Option 3:** "Perfect! I've gathered some valuable resources." |
+| Step Planning | Deciding what the next step is | **Option 1:** "Just a sec, I'm thinking... "<br>**Option 2:** "Let me think this through..."<br>**Option 3:** "Let me figure out the best approach..." | **Option 1:** "All set with the next move"<br>**Option 2:** "Next step's ready to roll"<br>**Option 3:** "All mapped out!" |
+| BudgetAgent | BudgetAgent call | **Option 1:** "Reviewing your goals..."<br>**Option 2:** "Checking progress on your goals..."<br>**Option 3:** "Analyzing your goals to see the path ahead..." | **Option 1:** "Goals checked!"<br>**Option 2:** "Goals check-in finished"<br>**Option 3:** "I've completed your goals review" |
+| BudgetAgent | BudgetAgent query for financial information | **Option 1:** "Analyzing your goals with financial data..."<br>**Option 2:** "Checking your goals against your info..."<br>**Option 3:** "Reviewing your info to track goals..." | **Option 1:** "Your goals just got a money check-up"<br>**Option 2:** "Goals insights ready"<br>**Option 3:** "Fresh insights on your goals are ready" |
+| FinanceAgent | FinanceAgent call | **Option 1:** "Diving into your financial snapshot..."<br>**Option 2:** "Taking a quick look at your finances..."<br>**Option 3:** "Analyzing your financial info..." | **Option 1:** "I've scanned your finances."<br>**Option 2:** "Financial snapshot checked!"<br>**Option 3:** "Financial analysis complete!" |
+| Finance Agent | FinanceAgent query to Knowledge Base | **Option 1:** "Checking my financial references..."<br>**Option 2:** "Flipping through my financial notes..."<br>**Option 3:** "Looking up financial guidance..." | **Option 1:** "Financial references checked"<br>**Option 2:** "Notes found and ready"<br>**Option 3:** "Found the insights you need!" |
+| Education & Wealth CoachAgent | Education & Wealth CoachAgent call | **Option 1:** "Switching to guide mode for a sec..."<br>**Option 2:** "Switching to brainy mode..."<br>**Option 3:** "Activating coaching expertise..." | **Option 1:** "Knowledge mode activated"<br>**Option 2:** "Wisdom mode activated"<br>**Option 3:** "Learning mode ready to roll" |
+| Education & Wealth CoachAgent | E&WCA query to KB or notes | **Option 1:** "Pulling together some articles..."<br>**Option 2:** "Gathering helpful info for you..."<br>**Option 3:** "Collecting relevant resources..." | **Option 1:** "Helpful resources pulled together"<br>**Option 2:** "Found some info you can use"<br>**Option 3:** "Your learning notes are ready to go" |
 
 ## Dictionary Usage
 
@@ -65,10 +65,58 @@ The system can choose phrases using:
 - **Message Replacement**: Once the process completes, the status message is replaced by the response stream
 - **Persistent Access**: Users can still access the completed status message through an icon in the thinking-timeline within the response detail
 - **State History**: Maintains a record of all process states for transparency and debugging
+- **Intermediate Text Steps**: All intermediate text steps are permanently recorded in the timeline, creating a complete audit trail of Vera's thinking process
 
 ### Transitions
 - **Smooth**: Messages guide user through the process
 - **Contextual**: Each message relates to the specific agent action
+
+## Intermediate Text Steps & Timeline Persistence
+
+### Text Step Recording
+Every intermediate text step that occurs during agent processing is **permanently recorded** in the thinking timeline. This includes:
+
+- **Agent State Messages**: All current and completed state phrases from the dictionary
+- **Processing Steps**: Internal reasoning and decision-making text
+- **Context Switching**: Transitions between different agents or processes
+- **Error Handling**: Any error messages or recovery steps
+- **Debug Information**: Technical details for troubleshooting (when enabled)
+
+### Timeline Structure
+The thinking timeline maintains a chronological record of:
+
+1. **During the process**: Users see steps in real-time
+2. **Upon completion**: Steps are saved in the timeline
+3. **Later access**: Users can view the complete process whenever they want
+
+### What Gets Recorded
+- ✅ **State messages** (e.g., "Just a sec, I'm thinking...", "Goals checked!")
+- ✅ **Processing steps** (e.g., "Reviewing your goals...")
+- ✅ **Agent switches** (e.g., "Switching to guide mode for a sec...")
+
+
+### User Experience
+- **Transparency**: Users see exactly how Vera arrived at her response
+- **Trust**: Complete visibility into the reasoning process
+- **Learning**: Users understand Vera's decision-making patterns
+
+### Practical Example
+
+**User asks**: "How much should I save for retirement?"
+
+**Timeline the user sees**:
+```
+⏳ "Just a sec, I'm thinking..."
+✅ "All set with the next move"
+⏳ "Reviewing your goals..."
+✅ "Goals checked!"
+⏳ "Checking my financial references..."
+✅ "Found the insights you need!"
+⏳ "Switching to guide mode for a sec..."
+✅ "Knowledge mode activated"
+```
+
+**Result**: The user sees each step of the process and can expand the timeline to view all detailed steps.
 
 ## Extensibility
 
@@ -82,31 +130,58 @@ This scheme is designed to grow with new agents and processes:
 ### Suggested Data Structure
 ```json
 {
-  "agent_states": {
-    "planning": {
-      "current": [
-        "I'm Thinking... ",
-        "Hmm, let me think this through...",
-        "Let me figure out the best approach..."
-      ],
-      "completed": [
-        "I thought for a moment",
-        "Aha! Got the next step lined up.",
-        "Perfect! I've got a plan."
-      ]
+  "user_message": "How much should I save for retirement?",
+  "thinking_timeline": [
+    {
+      "step": 1,
+      "message": "Just a sec, I'm thinking...",
+      "status": "active",
+      "timestamp": "2024-01-15T10:30:15Z"
     },
-    "budget_agent": {
-      "current": [
-        "Let me peek into the budget for a sec...",
-        "Peeking into your financial snapshot real quick...",
-        "Taking a quick look at your budget..."
-      ],
-      "completed": [
-        "Budget checked",
-        "All set, financial snapshot checked!",
-        "Done! Budget analysis complete."
-      ]
+    {
+      "step": 2,
+      "message": "All set with the next move",
+      "status": "completed",
+      "timestamp": "2024-01-15T10:30:16Z"
+    },
+    {
+      "step": 3,
+      "message": "Reviewing your goals...",
+      "status": "active",
+      "timestamp": "2024-01-15T10:30:17Z"
+    },
+    {
+      "step": 4,
+      "message": "Goals checked!",
+      "status": "completed",
+      "timestamp": "2024-01-15T10:30:18Z"
+    },
+    {
+      "step": 5,
+      "message": "Checking my financial references...",
+      "status": "active",
+      "timestamp": "2024-01-15T10:30:19Z"
+    },
+    {
+      "step": 6,
+      "message": "Found the insights you need!",
+      "status": "completed",
+      "timestamp": "2024-01-15T10:30:20Z"
+    },
+    {
+      "step": 7,
+      "message": "Switching to guide mode for a sec...",
+      "status": "active",
+      "timestamp": "2024-01-15T10:30:21Z"
+    },
+    {
+      "step": 8,
+      "message": "Knowledge mode activated",
+      "status": "completed",
+      "timestamp": "2024-01-15T10:30:22Z"
     }
-  }
+  ],
+  "final_response": "Based on your current budget and financial goals, I recommend saving 15-20% of your income for retirement. This would put you on track to maintain your current lifestyle..."
 }
 ```
+

@@ -222,19 +222,6 @@ Existing memories can be updated when:
 - Bulk selection
 - Intuitive navigation
 
-### 2. Accessibility
-
-- Adequate contrast on all elements
-- Appropriate tap sizes
-- Keyboard navigation
-- Descriptive labels for screen readers
-
-### 3. Responsive Design
-
-- Interface optimized for mobile devices
-- Adaptive layout for tablet/desktop
-- Intuitive touch gestures
-
 ## Memory System Alignment
 
 ### LangGraph Store Integration
