@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import List, Optional
 
@@ -60,7 +60,7 @@ class SourceRepository(SourceRepositoryInterface):
 
     def upsert(self, source: Source) -> None:
         """Insert or update a source."""
-        source.last_sync = datetime.utcnow().replace(microsecond=0)
+        source.last_sync = datetime.now(UTC).replace(microsecond=0)
 
         existing = self.find_by_url(source.url)
         if existing:
