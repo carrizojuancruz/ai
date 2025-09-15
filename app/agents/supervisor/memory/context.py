@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 CONTEXT_TOPK = config.MEMORY_CONTEXT_TOPK
 CONTEXT_TOPN = config.MEMORY_CONTEXT_TOPN
 RERANK_WEIGHTS_RAW = config.MEMORY_RERANK_WEIGHTS
+PROCEDURAL_TOPK = getattr(config, "MEMORY_PROCEDURAL_TOPK", 3)
+PROCEDURAL_MIN_SCORE = float(getattr(config, "MEMORY_PROCEDURAL_MIN_SCORE", 0.45))
 
 
 def _extract_user_text(messages: list[Any]) -> str | None:
@@ -137,11 +139,21 @@ def _resolve_user_tz_from_config(config: RunnableConfig) -> tzinfo:
         return timezone.utc
 
 
-def _build_context_response(bullets: list[str], config: RunnableConfig) -> dict:
+async def _timed_search(store: Any, namespace: tuple[str, str], *, query: str, limit: int, label: str) -> list[Any]:
+    t0 = time.perf_counter()
+    results = await asyncio.to_thread(store.search, namespace, query=query, filter=None, limit=limit)
+    t1 = time.perf_counter()
+    logger.info("memory_context.%s.done ms=%d results=%d", label, int((t1 - t0) * 1000), len(results or []))
+    return results
+
+
+def _build_context_response(bullets: list[str], config: RunnableConfig, routing_examples: list[str] | None = None) -> dict:
     user_tz: tzinfo = _resolve_user_tz_from_config(config)
     now_local = datetime.now(tz=user_tz)
     date_bullet = f"Now: {now_local.strftime('%Y-%m-%d %H:%M %Z')}"
     all_bullets = ([date_bullet] if date_bullet else []) + bullets
+    if routing_examples:
+        all_bullets.extend(["", "Few shot Routing examples:"] + routing_examples)
     context_str = "Relevant context for tailoring this turn:\n- " + "\n- ".join(all_bullets)
     return {"messages": [AIMessage(content=context_str)]}
 
@@ -160,24 +172,23 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
         logger.info("memory_context.query: user_id=%s query=%s", user_id, (query_text[:200]))
 
         t0s = time.perf_counter()
-        # Time semantic search separately
-        t0_sem = time.perf_counter()
-        sem = await asyncio.to_thread(store.search, (user_id, "semantic"), query=query_text, filter=None, limit=CONTEXT_TOPK)
-        t1_sem = time.perf_counter()
-        logger.info("memory_context.semantic.done ms=%d results=%d", int((t1_sem - t0_sem) * 1000), len(sem or []))
-
-        # Time episodic search separately
-        t0_epi = time.perf_counter()
-        epi = await asyncio.to_thread(
-            store.search, (user_id, "episodic"), query=query_text, filter=None, limit=max(3, CONTEXT_TOPK // 2)
+        sem_task = _timed_search(
+            store, (user_id, "semantic"), query=query_text, limit=int(CONTEXT_TOPK), label="semantic"
         )
-        t1_epi = time.perf_counter()
-        logger.info("memory_context.episodic.done ms=%d results=%d", int((t1_epi - t0_epi) * 1000), len(epi or []))
-
+        epi_task = _timed_search(
+            store, (user_id, "episodic"), query=query_text, limit=int(max(3, CONTEXT_TOPK // 2)), label="episodic"
+        )
+        proc_task = _timed_search(
+            store,
+            ("system", "supervisor_procedural"),
+            query=query_text,
+            limit=int(PROCEDURAL_TOPK),
+            label="procedural",
+        )
+        sem, epi, proc = await asyncio.gather(sem_task, epi_task, proc_task)
         t1s = time.perf_counter()
         logger.info("memory_context.search.total ms=%d", int((t1s - t0s) * 1000))
-
-        logger.info("memory_context.results: sem=%d epi=%d", len(sem or []), len(epi or []))
+        logger.info("memory_context.results: sem=%d epi=%d proc=%d", len(sem or []), len(epi or []), len(proc or []))
         score = _score_factory(w)
         merged_sem = _merge_semantic_items(sem, CONTEXT_TOPN, score)
         try:
@@ -198,9 +209,28 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
         user_tz = _resolve_user_tz_from_config(config)
         bullets = _items_to_bullets(epi_sorted, merged_sem, CONTEXT_TOPN, user_tz)
         logger.info("memory_context.bullets.count: %d", len(bullets))
+
+        routing_examples: list[str] = []
+        try:
+            for it in (proc or [])[: int(PROCEDURAL_TOPK)]:
+                try:
+                    score_val = float(getattr(it, "score", 0.0) or 0.0)
+                except Exception:
+                    score_val = 0.0
+                if score_val < float(PROCEDURAL_MIN_SCORE):
+                    continue
+                val = getattr(it, "value", {}) or {}
+                summary_text = str(val.get("summary") or "").strip()
+                if not summary_text:
+                    continue
+                if len(summary_text) > 240:
+                    summary_text = summary_text[:237] + "..."
+                routing_examples.append(f"Example: {summary_text}")
+        except Exception:
+            routing_examples = []
     except Exception:
         pass
 
     if not locals().get("bullets"):
         return {}
-    return _build_context_response(bullets, config)
+    return _build_context_response(bullets, config, routing_examples)
