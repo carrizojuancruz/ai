@@ -10,6 +10,12 @@ from botocore.exceptions import ClientError, NoCredentialsError
 
 logger = logging.getLogger(__name__)
 
+# Constants for secret keys
+AURORA_SECRET_ARN_KEY = "AURORA_SECRET_ARN"
+FOS_AI_SECRET_ARN_KEY = "FOS_AI_SECRET_ARN"
+DATABASE_USER_KEY = "DATABASE_USER"
+DATABASE_PASSWORD_KEY = "DATABASE_PASSWORD"
+
 class AWSConfig:
     """AWSConfig class for managing AWS configuration and secrets."""
 
@@ -19,121 +25,116 @@ class AWSConfig:
         self.secrets_arn = secrets_arn
 
     def get_secrets_manager_values(self) -> dict[str, Any]:
-        """Get secrets from AWS Secrets Manager."""
+        """Get secrets from AWS Secrets Manager with nested secret support."""
         if not self.secrets_arn:
             logger.info("No FOS_SECRETS_ID provided, using local environment variables")
-            return
-        secret_data = {}
-        try:
-            client = self.session.client(service_name="secretsmanager", region_name=self.region)
-            response = client.get_secret_value(SecretId=self.secrets_arn)
-            if "SecretString" in response:
-                secret_string = response["SecretString"]
-                secret_data = json.loads(secret_string)
-                logger.info("Successfully loaded %d secrets from AWS Secrets Manager", len(secret_data))
+            return {}
 
-                # Check if AURORA_SECRET_ARN is in the secrets
-                if "AURORA_SECRET_ARN" in secret_data:
-                    aurora_secret_arn = secret_data["AURORA_SECRET_ARN"]
-                    logger.info("Found AURORA_SECRET_ARN, fetching database credentials")
+        client = self._setup_aws_client()
+        secret_data = self._fetch_secret(client, self.secrets_arn, "main")
 
-                    # Fetch the Aurora secret
-                    aurora_credentials = self._fetch_aurora_credentials(client, aurora_secret_arn)
-                    if aurora_credentials:
-                        # Add database credentials to secret_data
-                        secret_data["DATABASE_USER"] = aurora_credentials.get("username")
-                        secret_data["DATABASE_PASSWORD"] = aurora_credentials.get("password")
-                        logger.info("Successfully loaded database credentials from Aurora secret")
-            else:
-                logger.error("Secret does not contain a SecretString")
-        except ClientError as e:
-            logger.error("Error retrieving secret: %s", e)
-        except json.JSONDecodeError as e:
-            logger.error("Failed to parse secret JSON: %s", e)
+        if secret_data:
+            secret_data = self._process_nested_secrets(client, secret_data)
+
         return secret_data
 
-    def _fetch_aurora_credentials(self, client, aurora_secret_arn: str) -> dict[str, Any]:
-        """Fetch Aurora database credentials from the provided secret ARN."""
+    def _setup_aws_client(self):
+        """Create and configure AWS Secrets Manager client."""
+        return self.session.client(service_name="secretsmanager", region_name=self.region)
+
+    def _fetch_secret(self, client, secret_arn: str, secret_name: str) -> dict[str, Any]:
+        """Fetch and parse any secret."""
         try:
-            response = client.get_secret_value(SecretId=aurora_secret_arn)
-            if "SecretString" in response:
-                secret_string = response["SecretString"]
-                aurora_secret = json.loads(secret_string)
-                logger.debug("Successfully fetched Aurora credentials")
-                return aurora_secret
-            else:
-                logger.error("Aurora secret does not contain a SecretString")
+            response = client.get_secret_value(SecretId=secret_arn)
+            if "SecretString" not in response:
+                logger.error("%s secret does not contain a SecretString", secret_name)
                 return {}
+
+            secret_data = json.loads(response["SecretString"])
+            logger.info("Successfully loaded %s secret with %d variables", secret_name, len(secret_data))
+            return secret_data
+
         except ClientError as e:
-            logger.error("Error retrieving Aurora secret: %s", e)
+            logger.error("Error retrieving %s secret: %s", secret_name, e)
             return {}
         except json.JSONDecodeError as e:
-            logger.error("Failed to parse Aurora secret JSON: %s", e)
+            logger.error("Failed to parse %s secret JSON: %s", secret_name, e)
             return {}
 
+    def _process_nested_secrets(self, client, secret_data: dict[str, Any]) -> dict[str, Any]:
+        """Process nested secrets (Aurora and FOS_AI) with proper priority."""
+        # Process Aurora credentials (specific mapping)
+        if AURORA_SECRET_ARN_KEY in secret_data:
+            aurora_credentials = self._fetch_secret(client, secret_data[AURORA_SECRET_ARN_KEY], "Aurora")
+            if aurora_credentials:
+                secret_data[DATABASE_USER_KEY] = aurora_credentials.get("username")
+                secret_data[DATABASE_PASSWORD_KEY] = aurora_credentials.get("password")
+                logger.info("Successfully mapped Aurora credentials to database variables")
+
+        # Process FOS_AI secret (overrides everything - highest priority)
+        if FOS_AI_SECRET_ARN_KEY in secret_data:
+            fos_ai_secret = self._fetch_secret(client, secret_data[FOS_AI_SECRET_ARN_KEY], "FOS_AI")
+            if fos_ai_secret:
+                secret_data.update(fos_ai_secret)
+                logger.info("Successfully applied FOS_AI secret variables (with priority)")
+
+        return secret_data
+
+
+
 def load_aws_secrets() -> None:
-    """Load AWS secrets from AWS Secrets Manager."""
+    """Load AWS secrets from AWS Secrets Manager and apply to environment."""
     secret_id = os.getenv("FOS_SECRETS_ID")
     if not secret_id:
         logger.info("No FOS_SECRETS_ID provided, using local environment variables")
         return
 
-    region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
+    region = _get_aws_region()
 
     try:
-        session = boto3.session.Session()
-        client = session.client(service_name="secretsmanager", region_name=region)
-        logger.info(f"Loading secrets from AWS Secrets Manager: {secret_id}")
-        response = client.get_secret_value(SecretId=secret_id)
-        if "SecretString" in response:
-            secret_string = response["SecretString"]
-        else:
-            logger.error("Binary secrets are not supported")
-            return
-        secret_data = json.loads(secret_string)
+        aws_config = AWSConfig(region=region, secrets_arn=secret_id)
+        secret_data = aws_config.get_secrets_manager_values()
 
-        # Check if AURORA_SECRET_ARN is in the secrets
-        if "AURORA_SECRET_ARN" in secret_data:
-            aurora_secret_arn = secret_data["AURORA_SECRET_ARN"]
-            logger.info("Found AURORA_SECRET_ARN, fetching database credentials")
+        if secret_data:
+            _apply_secrets_to_environment(secret_data, region)
 
-            try:
-                # Fetch the Aurora secret
-                aurora_response = client.get_secret_value(SecretId=aurora_secret_arn)
-                if "SecretString" in aurora_response:
-                    aurora_secret = json.loads(aurora_response["SecretString"])
-                    # Add database credentials to secret_data
-                    secret_data["DATABASE_USER"] = aurora_secret.get("username")
-                    secret_data["DATABASE_PASSWORD"] = aurora_secret.get("password")
-                    logger.info("Successfully loaded database credentials from Aurora secret")
-            except ClientError as e:
-                logger.error(f"Error retrieving Aurora secret: {e}")
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse Aurora secret JSON: {e}")
-
-        loaded_count = 0
-        for key, value in secret_data.items():
-            os.environ[key] = str(value)
-            logger.debug(f"Set environment variable: {key} (overwritten if existed)")
-            loaded_count += 1
-        logger.info(f"Successfully loaded {loaded_count} secrets from AWS Secrets Manager")
-        if "AWS_REGION" not in os.environ and "AWS_DEFAULT_REGION" not in os.environ:
-            os.environ["AWS_DEFAULT_REGION"] = region
-            logger.info(f"Set AWS_DEFAULT_REGION to {region}")
     except NoCredentialsError:
         logger.warning("AWS credentials not found, skipping Secrets Manager loading")
     except ClientError as e:
-        error_code = e.response["Error"]["Code"]
-        if error_code == "ResourceNotFoundException":
-            logger.error(f"Secret {secret_id} not found")
-        elif error_code == "AccessDeniedException":
-            logger.error(f"Access denied to secret {secret_id}")
-        else:
-            logger.error(f"Error retrieving secret: {e}")
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse secret JSON: {e}")
+        _handle_client_error(e, secret_id)
     except Exception as e:
-        logger.error(f"Unexpected error loading secrets: {e}")
+        logger.error("Unexpected error loading secrets: %s", e)
+
+
+def _get_aws_region() -> str:
+    """Get AWS region from environment variables."""
+    return os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
+
+
+def _apply_secrets_to_environment(secret_data: dict[str, Any], region: str) -> None:
+    """Apply secret data to environment variables."""
+    loaded_count = 0
+    for key, value in secret_data.items():
+        os.environ[key] = str(value)
+        logger.debug("Set environment variable: %s", key)
+        loaded_count += 1
+
+    logger.info("Successfully loaded %d secrets from AWS Secrets Manager", loaded_count)
+
+    if "AWS_REGION" not in os.environ and "AWS_DEFAULT_REGION" not in os.environ:
+        os.environ["AWS_DEFAULT_REGION"] = region
+        logger.info("Set AWS_DEFAULT_REGION to %s", region)
+
+
+def _handle_client_error(error: ClientError, secret_id: str) -> None:
+    """Handle AWS client errors with specific error codes."""
+    error_code = error.response["Error"]["Code"]
+    if error_code == "ResourceNotFoundException":
+        logger.error("Secret %s not found", secret_id)
+    elif error_code == "AccessDeniedException":
+        logger.error("Access denied to secret %s", secret_id)
+    else:
+        logger.error("Error retrieving secret: %s", error)
 
 
 def configure_aws_environment() -> dict[str, Any]:
