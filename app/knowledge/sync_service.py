@@ -6,6 +6,7 @@ from typing import Any, Dict
 from app.knowledge.models import Source
 from app.services.external_context.sources.repository import ExternalSourcesRepository
 
+from .crawl_logger import CrawlLogger
 from .service import KnowledgeService
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ class KnowledgeBaseSyncService:
     def __init__(self):
         self.external_repo = ExternalSourcesRepository()
         self.kb_service = KnowledgeService()
+        self.crawl_logger = CrawlLogger()
         self.default_max_pages = 20
         self.default_recursion_depth = 2
 
@@ -56,6 +58,7 @@ class KnowledgeBaseSyncService:
 
         if enabled_sources:
             logger.info(f"Processing {len(enabled_sources)} source{'s' if len(enabled_sources) != 1 else ''}")
+            self.crawl_logger.log_sync_start(len(external_sources), len(enabled_sources))
 
         for external_source in enabled_sources:
             logger.info(f"Processing: {external_source.url}")
@@ -88,21 +91,39 @@ class KnowledgeBaseSyncService:
                         "cause": "Sync failed"
                     })
                     logger.error(f"Sync failed: {external_source.url}")
+                    self.crawl_logger.log_error(external_source.url, "Sync failed", "Internal processing error")
                     continue
 
                 chunks_added = result.get("documents_added", 0)
+                documents_processed = result.get("documents_processed", 0)
+                result_message = result.get("message", "")
+                crawl_error = result.get("crawl_error")
 
                 if result["is_new_source"]:
                     sources_created += 1
                     total_chunks_created += chunks_added
                     logger.info(f"Created: {external_source.url} (+{chunks_added} chunks)")
+                    self.crawl_logger.log_success(external_source.url, documents_processed, chunks_added, True)
                 elif chunks_added > 0:
                     sources_updated += 1
                     total_chunks_created += chunks_added
                     logger.info(f"Updated: {external_source.url} (+{chunks_added} chunks)")
+                    self.crawl_logger.log_success(external_source.url, documents_processed, chunks_added, False)
+                elif crawl_error or "No documents found during crawl" in result_message:
+                    # This is actually a crawling error, not "no changes"
+                    sources_errors += 1
+                    error_detail = crawl_error if crawl_error else "No documents found during crawl"
+                    sync_failures.append({
+                        "url": external_source.url,
+                        "cause": "Crawling failed"
+                    })
+                    logger.error(f"Crawl failed for {external_source.url}: {error_detail}")
+                    self.crawl_logger.log_error(external_source.url, error_detail, "Crawling failed")
                 else:
+                    # This is actual "no changes" (content hash matched)
                     sources_no_changes += 1
                     logger.info(f"No changes: {external_source.url}")
+                    self.crawl_logger.log_success(external_source.url, documents_processed, 0, False)
 
             except Exception as e:
                 sources_errors += 1
@@ -123,6 +144,7 @@ class KnowledgeBaseSyncService:
                     "cause": cause
                 })
                 logger.error(f"Sync failed for {external_source.url}: {error_msg}")
+                self.crawl_logger.log_error(external_source.url, error_msg, cause)
 
         if external_sources_available:
             if limit is not None:
@@ -139,6 +161,7 @@ class KnowledgeBaseSyncService:
                 if deletion_result["success"]:
                     sources_deleted += 1
                     logger.info(f"Deleted source: {source.url}")
+                    self.crawl_logger.log_deletion(source.url, True)
                 else:
                     sources_errors += 1
                     sync_failures.append({
@@ -146,6 +169,7 @@ class KnowledgeBaseSyncService:
                         "cause": "Deletion failed"
                     })
                     logger.error(f"Failed to delete source {source.url}")
+                    self.crawl_logger.log_deletion(source.url, False)
         else:
             logger.warning("Skipping deletions - external sources unavailable")
 
@@ -174,6 +198,12 @@ class KnowledgeBaseSyncService:
             f"Created {sources_created}, Updated {sources_updated}, "
             f"Unchanged {sources_no_changes}, Deleted {sources_deleted}, "
             f"Errors {sources_errors}, Chunks {total_chunks_created}{deletion_info}"
+        )
+
+        # Log sync completion to crawl log
+        self.crawl_logger.log_sync_complete(
+            sources_created, sources_updated, sources_no_changes,
+            sources_deleted, sources_errors, total_time
         )
 
         if sync_failures:

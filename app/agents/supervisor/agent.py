@@ -30,7 +30,8 @@ def compile_supervisor_graph() -> CompiledStateGraph:
         agent_name="goal_agent", description="Assign task to the goal agent for financial objectives."
     )
     assign_to_wealth_agent_with_description = create_task_description_handoff_tool(
-        agent_name="wealth_agent", description="Assign task to a wealth agent."
+        agent_name="wealth_agent",
+        description="Assign task to a wealth agent for personal finance education: credit building, budgeting, debt management, emergency funds, financial literacy, government programs, consumer protection, and money management guidance."
     )
 
     region = config.AWS_REGION

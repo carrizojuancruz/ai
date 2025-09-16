@@ -50,3 +50,13 @@ class SourceDetailsResponse(BaseModel):
     source: SourceResponse
     total_chunks: int
     chunks: list[ChunkData]
+
+
+class DeleteAllVectorsResponse(BaseModel):
+    """Response model for delete all vectors operation."""
+
+    success: bool
+    vectors_deleted: int
+    message: str
+    vectors_failed: Optional[int] = None
+    error: Optional[str] = None

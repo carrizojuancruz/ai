@@ -76,3 +76,11 @@ class SourceRepository(SourceRepositoryInterface):
                 self.save_all(sources)
                 return True
         return False
+
+    def delete_all(self) -> bool:
+        """Delete all sources from the repository."""
+        try:
+            self.save_all([])
+            return True
+        except Exception:
+            return False

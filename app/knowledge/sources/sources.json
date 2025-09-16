@@ -1,40 +1,5 @@
 [
   {
-    "id": "5d6ddad221f4930e",
-    "name": "211.org",
-    "url": "http://211.org",
-    "enabled": true,
-    "type": "Information Service",
-    "category": "Personal Finance",
-    "description": "Information and referrals for social services",
-    "include_path_patterns": "",
-    "exclude_path_patterns": "",
-    "total_max_pages": 20,
-    "recursion_depth": 2,
-    "last_sync": "2025-09-10T14:42:58",
-    "total_chunks": 113,
-    "section_urls": [
-      "http://211.org/partner-us/our-partners",
-      "http://211.org/about-us",
-      "http://211.org/about-us/your-local-211",
-      "http://211.org/about-us/meet-our-people",
-      "http://211.org/get-help/healthcare-expenses",
-      "http://211.org",
-      "http://211.org/get-help/food-programs-food-benefits",
-      "http://211.org/get-help/utilities-expenses",
-      "http://211.org/get-help/disaster-recovery",
-      "http://211.org/about-us/blog",
-      "http://211.org/get-help/housing-expenses",
-      "http://211.org/homepage",
-      "http://211.org/privacy-policy-terms-and-conditions",
-      "http://211.org/get-help/mental-health",
-      "http://211.org/211",
-      "http://211.org/partner-us-0",
-      "http://211.org/get-help/i-need-help-paying-my-bills",
-      "http://211.org/"
-    ]
-  },
-  {
     "id": "8535605d22f01cf3",
     "name": "988 Suicide & Crisis Lifeline",
     "url": "https://988lifeline.org",
@@ -46,10 +11,351 @@
     "exclude_path_patterns": "",
     "total_max_pages": 20,
     "recursion_depth": 2,
-    "last_sync": "2025-09-10T14:43:15",
+    "last_sync": "2025-09-11T22:33:51",
     "total_chunks": 4,
     "section_urls": [
       "https://988lifeline.org"
+    ]
+  },
+  {
+    "id": "8973a61b53d85cdb",
+    "name": "Alabama Housing Finance Authority",
+    "url": "https://www.ahfa.com",
+    "enabled": true,
+    "type": "State Government",
+    "category": "State Services",
+    "description": "Alabama housing finance and assistance",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-11T22:34:53",
+    "total_chunks": 3,
+    "section_urls": [
+      "https://www.ahfa.com"
+    ]
+  },
+  {
+    "id": "eb5b2c3e7b5c8fc0",
+    "name": "Alaska Housing Finance Corporation",
+    "url": "https://www.ahfc.us",
+    "enabled": true,
+    "type": "State Government",
+    "category": "State Services",
+    "description": "Alaska housing finance and programs",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-12T01:06:29",
+    "total_chunks": 3,
+    "section_urls": [
+      "https://www.ahfc.us"
+    ]
+  },
+  {
+    "id": "89f913cf9456f154",
+    "name": "Anxiety and Depression Association (ADAA)",
+    "url": "https://adaa.org/",
+    "enabled": true,
+    "type": "Non-Profit Organization",
+    "category": "Mental Health",
+    "description": "Resources for anxiety and depression",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-12T01:53:51",
+    "total_chunks": 16,
+    "section_urls": [
+      "https://adaa.org/"
+    ]
+  },
+  {
+    "id": "b62627382a899705",
+    "name": "Arizona Department of Economic Security",
+    "url": "https://des.az.gov",
+    "enabled": true,
+    "type": "State Government",
+    "category": "State Services",
+    "description": "Arizona social services and economic support",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-12T01:54:18",
+    "total_chunks": 14,
+    "section_urls": [
+      "https://des.az.gov"
+    ]
+  },
+  {
+    "id": "5d6ddad221f4930e",
+    "name": "211.org",
+    "url": "http://211.org",
+    "enabled": true,
+    "type": "Information Service",
+    "category": "Personal Finance",
+    "description": "Information and referrals for social services",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-12T02:07:12",
+    "total_chunks": 104,
+    "section_urls": [
+      "http://211.org/homepage",
+      "http://211.org/about-us/your-local-211",
+      "http://211.org",
+      "http://211.org/contact-us",
+      "http://211.org/get-help/utilities-expenses",
+      "http://211.org/",
+      "http://211.org/get-help/caregiver-resources",
+      "http://211.org/get-help/substance-use",
+      "http://211.org/get-help/healthcare-expenses",
+      "http://211.org/partner-us/our-partners",
+      "http://211.org/about-us",
+      "http://211.org/privacy-policy-terms-and-conditions",
+      "http://211.org/get-help/food-programs-food-benefits",
+      "http://211.org/211",
+      "http://211.org/partner-us-0",
+      "http://211.org/get-help/housing-expenses",
+      "http://211.org/about-us/blog"
+    ]
+  },
+  {
+    "id": "da8c24274206b8f7",
+    "name": "Alaska Department of Family and Community Services",
+    "url": "https://dfcs.alaska.gov",
+    "enabled": true,
+    "type": "State Government",
+    "category": "State Services",
+    "description": "Alaska social services and family support",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-12T02:11:22",
+    "total_chunks": 7,
+    "section_urls": [
+      "https://dfcs.alaska.gov"
+    ]
+  },
+  {
+    "id": "ad201ad803abda78",
+    "name": "American Psychological Association (APA)",
+    "url": "http://apa.org/helpcenter",
+    "enabled": true,
+    "type": "Professional Organization",
+    "category": "Mental Health",
+    "description": "APA help center resources",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-12T02:11:52",
+    "total_chunks": 1,
+    "section_urls": [
+      "http://apa.org/helpcenter"
+    ]
+  },
+  {
+    "id": "a8de4c733c865794",
+    "name": "AnnualCreditReport.com",
+    "url": "https://www.annualcreditreport.com/index.action",
+    "enabled": true,
+    "type": "Government Tool",
+    "category": "Credit & Debt",
+    "description": "Request Equifax, Experian, and TransUnion reports",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-12T02:13:27",
+    "total_chunks": 88,
+    "section_urls": [
+      "https://www.annualcreditreport.com/privacy.action",
+      "https://www.annualcreditreport.com/requestingReportsInSpecialSituations.action",
+      "https://www.annualcreditreport.com/gettingReports.action",
+      "https://www.annualcreditreport.com/inaccuraciesInReporting.action",
+      "https://www.annualcreditreport.com/requestingReportsInAlternativeFormats.action",
+      "https://www.annualcreditreport.com/dataBreachBasics.action",
+      "https://www.annualcreditreport.com/yourRights.action",
+      "https://www.annualcreditreport.com/index.action",
+      "https://www.annualcreditreport.com/securityFreezeBasics.action",
+      "https://www.annualcreditreport.com/whatIsCreditReport.action",
+      "https://www.annualcreditreport.com/termsOfUse.action",
+      "https://www.annualcreditreport.com/security.action",
+      "https://www.annualcreditreport.com/requestReport/landingPage.action",
+      "https://www.annualcreditreport.com/filingADispute.action",
+      "https://www.annualcreditreport.com/generalQuestions.action",
+      "https://www.annualcreditreport.com/protectYourIdentity.action",
+      "https://www.annualcreditreport.com/aboutThisSite.action",
+      "https://www.annualcreditreport.com/reviewYourReport.action",
+      "https://www.annualcreditreport.com/policies.action",
+      "https://www.annualcreditreport.com/accessibility.action"
+    ]
+  },
+  {
+    "id": "5fd63b08c4f856e9",
+    "name": "Arizona Department of Housing",
+    "url": "https://housing.az.gov",
+    "enabled": true,
+    "type": "State Government",
+    "category": "State Services",
+    "description": "Arizona housing and community development",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-12T02:14:22",
+    "total_chunks": 5,
+    "section_urls": [
+      "https://housing.az.gov"
+    ]
+  },
+  {
+    "id": "bd299cad30c2cb3c",
+    "name": "Arkansas Department of Human Services",
+    "url": "https://humanservices.arkansas.gov",
+    "enabled": true,
+    "type": "State Government",
+    "category": "State Services",
+    "description": "Arkansas social services and human resources",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-12T02:14:48",
+    "total_chunks": 25,
+    "section_urls": [
+      "https://humanservices.arkansas.gov"
+    ]
+  },
+  {
+    "id": "14ded1ee0a733de8",
+    "name": "Arkansas Development Finance Authority",
+    "url": "https://www.arkansas.gov/adfa",
+    "enabled": true,
+    "type": "State Government",
+    "category": "State Services",
+    "description": "Arkansas development finance and housing",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-12T02:15:11",
+    "total_chunks": 3,
+    "section_urls": [
+      "https://www.arkansas.gov/adfa"
+    ]
+  },
+  {
+    "id": "77b884b7b3399fb0",
+    "name": "Benefits.gov - Benefit Finder",
+    "url": "https://www.benefits.gov/",
+    "enabled": true,
+    "type": "Government Tool",
+    "category": "Crisis Resources",
+    "description": "Questionnaire to screen for federal and state benefits",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-12T02:15:30",
+    "total_chunks": 3,
+    "section_urls": [
+      "https://www.benefits.gov/"
+    ]
+  },
+  {
+    "id": "9b2b94e7614d0bf8",
+    "name": "California Department of Social Services",
+    "url": "https://www.cdss.ca.gov",
+    "enabled": true,
+    "type": "State Government",
+    "category": "State Services",
+    "description": "California social services and support programs",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-12T02:20:35",
+    "total_chunks": 15,
+    "section_urls": [
+      "https://www.cdss.ca.gov"
+    ]
+  },
+  {
+    "id": "7218b1f2e91f33e1",
+    "name": "CareerOneStop (U.S. Dept of Labor)",
+    "url": "https://www.careeronestop.org",
+    "enabled": true,
+    "type": "Government Portal",
+    "category": "Career Development",
+    "description": "Comprehensive career development portal sponsored by DOL",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-12T02:21:22",
+    "total_chunks": 1,
+    "section_urls": [
+      "https://www.careeronestop.org"
+    ]
+  },
+  {
+    "id": "6910db12a5b17b4e",
+    "name": "CFPB - Bill Calendar",
+    "url": "https://files.consumerfinance.gov/f/documents/cfpb_well-being_bill-calendar.pdf",
+    "enabled": true,
+    "type": "Government Tool",
+    "category": "Budgeting",
+    "description": "Plot bill due dates vs. paydays to avoid late fees",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-12T02:21:29",
+    "total_chunks": 3,
+    "section_urls": [
+      "https://files.consumerfinance.gov/f/documents/cfpb_well-being_bill-calendar.pdf"
+    ]
+  },
+  {
+    "id": "236bc47ec0e8f793",
+    "name": "CFPB - Debt collector rights",
+    "url": "https://www.consumerfinance.gov/ask-cfpb/what-should-i-do-when-a-debt-collector-contacts-me-en-1695/",
+    "enabled": true,
+    "type": "Government Guide",
+    "category": "Credit & Debt",
+    "description": "Know your rights; links to sample letters",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-12T02:27:25",
+    "total_chunks": 11,
+    "section_urls": [
+      "https://www.consumerfinance.gov/ask-cfpb/what-should-i-do-when-a-debt-collector-contacts-me-en-1695/"
+    ]
+  },
+  {
+    "id": "9a99b7bdd3cbe3b2",
+    "name": "CFPB - Dispute credit report errors",
+    "url": "https://www.consumerfinance.gov/ask-cfpb/how-do-i-dispute-an-error-on-my-credit-report-en-314/",
+    "enabled": true,
+    "type": "Government Guide",
+    "category": "Credit & Debt",
+    "description": "Steps to correct inaccurate information",
+    "include_path_patterns": "",
+    "exclude_path_patterns": "",
+    "total_max_pages": 20,
+    "recursion_depth": 2,
+    "last_sync": "2025-09-12T02:32:49",
+    "total_chunks": 12,
+    "section_urls": [
+      "https://www.consumerfinance.gov/ask-cfpb/how-do-i-dispute-an-error-on-my-credit-report-en-314/"
     ]
   }
 ]
