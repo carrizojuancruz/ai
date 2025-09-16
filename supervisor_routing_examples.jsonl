@@ -1,0 +1,15 @@
+{"summary":"When user asks 'How much did I spend on groceries last week?', route to finance_agent. Rationale: transaction analysis.","category":"Routing","key":"routing_example_groceries_week"}
+{"summary":"When user asks 'What's my checking account balance?', route to finance_agent. Rationale: account balance query.","category":"Routing","key":"routing_example_checking_balance"}
+{"summary":"When user asks 'Show me my spending by category this month', route to finance_agent. Rationale: category aggregation.","category":"Routing","key":"routing_example_spending_by_category"}
+{"summary":"When user asks 'How much did I spend at McDonald's in the last 6 months?', route to finance_agent. Rationale: merchant filter over time window.","category":"Routing","key":"routing_example_merchant_six_months"}
+{"summary":"When user asks 'How do I build good credit?', route to wealth_agent. Rationale: financial education.","category":"Routing","key":"routing_example_build_credit"}
+{"summary":"When user says 'I don't know how to budget. Where do I start?', route to wealth_agent. Rationale: budgeting education.","category":"Routing","key":"routing_example_budget_start"}
+{"summary":"When user asks 'I need help with government assistance programs in Alaska', route to wealth_agent. Rationale: program guidance.","category":"Routing","key":"routing_example_gov_programs_ak"}
+{"summary":"When user says 'I want to save $1000 for vacation by July 1st', route to goal_agent. Rationale: goals CRUD.","category":"Routing","key":"routing_example_create_goal"}
+{"summary":"When user asks 'Can I change my savings goal to $1500?', route to goal_agent. Rationale: goal modification.","category":"Routing","key":"routing_example_modify_goal"}
+{"summary":"When user asks 'How am I doing with my savings goal?', route to goal_agent. Rationale: goal status/progress.","category":"Routing","key":"routing_example_goal_status"}
+{"summary":"When user asks 'What's my overall financial health?', route to finance_agent. Rationale: multi-metric analysis.","category":"Routing","key":"routing_example_financial_health"}
+{"summary":"When user asks 'What's my debt-to-income ratio?', route to finance_agent. Rationale: DTI computation.","category":"Routing","key":"routing_example_dti"}
+{"summary":"When user asks 'How much should I have in emergency savings?', route to finance_agent. Rationale: emergency fund target.","category":"Routing","key":"routing_example_emergency_fund"}
+{"summary":"When user asks 'How are my spending trends this year?', route to finance_agent. Rationale: YTD trend analysis.","category":"Routing","key":"routing_example_spending_trends"}
+{"summary":"When user asks 'Am I spending too much on housing?', route to finance_agent. Rationale: housing % of income.","category":"Routing","key":"routing_example_housing_pct"}
