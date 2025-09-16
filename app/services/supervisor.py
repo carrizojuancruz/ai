@@ -51,9 +51,7 @@ logger.info(
 
 # Warn if Langfuse env is missing so callbacks would be disabled silently
 if not config.is_langfuse_supervisor_enabled():
-    logger.warning(
-        "Langfuse env vars missing or incomplete; callback tracing will be disabled"
-    )
+    logger.warning("Langfuse env vars missing or incomplete; callback tracing will be disabled")
 
 
 class SupervisorService:
@@ -97,7 +95,6 @@ class SupervisorService:
         except Exception as e:
             logger.error(f"[SUPERVISOR] Failed to export user context: {e}")
             return False
-
 
     def _strip_guardrail_marker(self, text: str) -> str:
         if not isinstance(text, str):
@@ -365,46 +362,32 @@ class SupervisorService:
 
         logger.info(f"[SUPERVISOR] Generating welcome message with icebreaker support for user {uid}")
 
-        graph: CompiledStateGraph = get_supervisor_graph()
-        configurable = {
-            "thread_id": thread_id,
-            "session_id": thread_id,
-            "user_id": str(uid),
-            "user_context": ctx.model_dump(mode="json"),
-        }
+        icebreaker_used: bool = False
+        welcome: str = ""
+        try:
+            from app.agents.supervisor.memory.icebreaker_consumer import _create_natural_icebreaker
+            from app.services.nudges.icebreaker_processor import get_icebreaker_processor
 
-        initial_message = "Hello"
+            processor = get_icebreaker_processor()
+            raw_icebreaker = await processor.process_icebreaker_for_user(uid)
 
-        welcome_parts = []
-        async for event in graph.astream_events(
-            {"messages": [{"role": "user", "content": initial_message}]},
-            version="v2",
-            config={
-                "callbacks": [langfuse_handler],
-                "configurable": configurable,
-                "thread_id": thread_id,
-            },
-            stream_mode="values",
-            subgraphs=True,
-        ):
-            etype = event.get("event")
-            data = event.get("data") or {}
+            if raw_icebreaker and raw_icebreaker.strip():
+                natural = await _create_natural_icebreaker(raw_icebreaker.strip(), uid)
+                if natural and natural.strip():
+                    welcome = natural.strip()
+                    icebreaker_used = True
+                    logger.info(f"[SUPERVISOR] Using icebreaker as welcome for user {uid}")
+        except Exception as e:
+            logger.warning(f"[SUPERVISOR] Icebreaker path failed for user {uid}: {e}")
 
-            if etype == "on_chat_model_stream":
-                chunk = data.get("chunk")
-                out = self._content_to_text(chunk)
-                if out:
-                    out = self._strip_guardrail_marker(out)
-                if out and not self._is_injected_context(out):
-                    welcome_parts.append(out)
-                    await queue.put({"event": "token.delta", "data": {"text": out}})
+        if not welcome:
+            user_ctx_for_welcome = (await session_store.get_session(thread_id) or {}).get("user_context", {})
+            welcome = await generate_personalized_welcome(user_ctx_for_welcome, prior_summary)
+            logger.info(f"[SUPERVISOR] No icebreaker available; graph not run on initialize for user {uid}")
 
-        welcome = "".join(welcome_parts).strip() if welcome_parts else await generate_personalized_welcome(
-            (await session_store.get_session(thread_id) or {}).get("user_context", {}),
-            prior_summary
+        logger.info(
+            f"Initialize complete for user {uid}: thread={thread_id}, has_prior_summary={bool(prior_summary)}, icebreaker_used={icebreaker_used}"
         )
-
-        logger.info(f"Initialize complete for user {uid}: thread={thread_id}, has_prior_summary={bool(prior_summary)}")
 
         await queue.put({"event": "message.completed", "data": {"text": welcome}})
 
@@ -413,6 +396,7 @@ class SupervisorService:
                 import asyncio
 
                 from app.core.app_state import get_finance_agent
+
                 fa = get_finance_agent()
                 asyncio.create_task(fa._fetch_shallow_samples(uid))
             except Exception:
@@ -477,7 +461,6 @@ class SupervisorService:
             etype = event.get("event")
             data = event.get("data") or {}
 
-
             if name == "supervisor" and etype == "on_chain_start":
                 supervisor_active = True
             elif name == "supervisor" and etype == "on_chain_end":
@@ -496,14 +479,16 @@ class SupervisorService:
                     elif tool_name == "transfer_to_wealth_agent":
                         description = _get_random_wealth_current()
 
-                    await q.put({
-                        "event": "source.search.start",
-                        "data": {
-                            "tool": tool_name,
-                            "source": tool_name.replace("transfer_to_", "").replace("_", " ").title(),
-                            "description": description,
+                    await q.put(
+                        {
+                            "event": "source.search.start",
+                            "data": {
+                                "tool": tool_name,
+                                "source": tool_name.replace("transfer_to_", "").replace("_", " ").title(),
+                                "description": description,
+                            },
                         }
-                    })
+                    )
                     suppress_streaming = True
                     continue
 
@@ -535,10 +520,21 @@ class SupervisorService:
                     if isinstance(output, dict):
                         messages = output.get("messages")
                         if isinstance(messages, list) and messages:
-                            last_tool = next((m for m in messages if (getattr(m, "name", None) or getattr(m, "tool_name", "")).startswith("transfer_back_to_")), None)
+                            last_tool = next(
+                                (
+                                    m
+                                    for m in messages
+                                    if (getattr(m, "name", None) or getattr(m, "tool_name", "")).startswith(
+                                        "transfer_back_to_"
+                                    )
+                                ),
+                                None,
+                            )
                             if last_tool:
                                 back_tool: str = getattr(last_tool, "name", None) or getattr(last_tool, "tool_name", "")
-                                tool_call_id = getattr(last_tool, "tool_call_id", None) or getattr(last_tool, "id", None)
+                                tool_call_id = getattr(last_tool, "tool_call_id", None) or getattr(
+                                    last_tool, "id", None
+                                )
                                 dedupe_key = f"{back_tool}:{tool_call_id or 'noid'}"
                                 if dedupe_key not in emitted_handoff_back_keys:
                                     emitted_handoff_back_keys.add(dedupe_key)
@@ -550,15 +546,20 @@ class SupervisorService:
                                     elif current_agent_tool == "transfer_to_wealth_agent":
                                         description = _get_random_wealth_completed()
 
-                                    supervisor_name = back_tool.replace("transfer_back_to_", "").replace("_", " ").title() or "Supervisor"
-                                    await q.put({
-                                        "event": "source.search.end",
-                                        "data": {
-                                            "tool": back_tool,
-                                            "source": supervisor_name,
-                                            "description": description,
+                                    supervisor_name = (
+                                        back_tool.replace("transfer_back_to_", "").replace("_", " ").title()
+                                        or "Supervisor"
+                                    )
+                                    await q.put(
+                                        {
+                                            "event": "source.search.end",
+                                            "data": {
+                                                "tool": back_tool,
+                                                "source": supervisor_name,
+                                                "description": description,
+                                            },
                                         }
-                                    })
+                                    )
                                     suppress_streaming = False
                                     current_agent_tool = None
                 except Exception:

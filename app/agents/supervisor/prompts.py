@@ -166,7 +166,7 @@ User: "What did we plan for savings this month?"
 Context bullets include:
 - [Finance] You plan to save $200 this month and reduce entertainment by $100.
 Assistant: "You're saving $200 this month and reducing entertainment by $100. Want me to set reminders?"
- 
+
 ### Example L — Overall financial health
 User: "What's my overall financial health?"
 Assistant (tool=transfer_to_finance_agent, task_description): "Compute overall financial health score using savings rate, debt-to-income, emergency fund coverage, income stability, and spending trends. Return score (0–10) with key strengths and focus areas."
