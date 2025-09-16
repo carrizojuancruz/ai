@@ -1,6 +1,9 @@
 import asyncio
+import logging
 from typing import Any, AsyncIterator, Dict, List
 from uuid import UUID
+
+import httpx
 
 from app.core.config import config
 from app.observability.logging_config import get_logger
@@ -149,23 +152,69 @@ def get_nudge_evaluator() -> NudgeEvaluator:
 async def iter_active_users(
     *, page_size: int = None, max_pages: int = None, timeout_ms: int = None
 ) -> AsyncIterator[List[str]]:
-    page_size = page_size or config.FOS_USERS_PAGE_SIZE
-    max_pages = max_pages or config.FOS_USERS_MAX_PAGES
+    page_size = page_size or getattr(config, "FOS_USERS_PAGE_SIZE", 100)
+    max_pages = max_pages or getattr(config, "FOS_USERS_MAX_PAGES", 10)
 
-    # TODO: Replace with actual FOS API call
-    # This is mocked data for testing
-    mock_users = [
-        "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8",
-        "5fbcf7ba-bf83-47e0-b8f5-b46cf9cec0f6",
-        "98765432-1234-5678-90ab-cdef12345678",
-    ]
+    if not config.FOS_SERVICE_URL:
+        raise ValueError("FOS_SERVICE_URL not configured")
 
-    for i in range(0, len(mock_users), page_size):
-        if max_pages and i // page_size >= max_pages:
-            break
+    base_url = config.FOS_SERVICE_URL.rstrip("/")
+    url = f"{base_url}/admin/users"
 
-        page = mock_users[i : i + page_size]
-        if page:
-            yield page
+    skip = 0
+    pages_yielded = 0
 
-        await asyncio.sleep(0.1)
+    headers = {}
+    if config.FOS_API_KEY:
+        headers["Authorization"] = f"Bearer {config.FOS_API_KEY}"
+    elif config.FOS_SECRETS_ID:
+        logger.warning("FOS_SECRETS_ID configured but secret fetching not implemented")
+
+    async with httpx.AsyncClient(timeout=timeout_ms or 30.0) as client:
+        while True:
+            if max_pages and pages_yielded >= max_pages:
+                break
+
+            params = {"skip": skip, "limit": page_size, "is_active": True}
+
+            logger.debug(f"Fetching users page: skip={skip}, limit={page_size}")
+
+            try:
+                response = await client.get(url, params=params, headers=headers)
+                response.raise_for_status()
+
+                users_data = response.json()
+                if not users_data:
+                    logger.debug("No more users found, stopping pagination")
+                    break
+
+                if users_data and logger.isEnabledFor(logging.DEBUG):
+                    first_user = users_data[0]
+                    logger.debug(f"First user object keys: {list(first_user.keys()) if isinstance(first_user, dict) else 'Not a dict'}")
+                    logger.debug(f"First user ID field: {first_user.get('id') if isinstance(first_user, dict) else 'N/A'}")
+
+                user_ids = [user.get("id") for user in users_data if user.get("id")]
+
+                if not user_ids:
+                    logger.warning(f"No valid user IDs found in response. Users data: {users_data[:2] if users_data else 'empty'}")
+                    break
+
+                logger.info(f"Fetched {len(user_ids)} active users (page {pages_yielded + 1})")
+                yield user_ids
+
+                pages_yielded += 1
+                skip += page_size
+
+                if len(users_data) < page_size:
+                    logger.debug("Received fewer users than requested, reached end of data")
+                    break
+
+            except httpx.HTTPStatusError as e:
+                logger.error(f"HTTP error fetching users: {e.response.status_code} - {e.response.text}")
+                raise
+            except httpx.RequestError as e:
+                logger.error(f"Request error fetching users: {e}")
+                raise
+            except Exception as e:
+                logger.error(f"Unexpected error fetching users: {e}")
+                raise
