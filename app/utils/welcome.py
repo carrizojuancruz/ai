@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from typing import Any
@@ -10,11 +9,7 @@ from app.core.config import config
 
 
 def _format_user_context_for_prompt(user_context: dict[str, Any]) -> str:
-    name = (
-        user_context.get("identity", {}).get("preferred_name")
-        or user_context.get("preferred_name")
-        or "there"
-    )
+    name = user_context.get("identity", {}).get("preferred_name") or user_context.get("preferred_name") or "there"
     tone = user_context.get("tone", "friendly")
     locale = user_context.get("locale", "en-US")
     goals = user_context.get("goals", [])
@@ -22,11 +17,14 @@ def _format_user_context_for_prompt(user_context: dict[str, Any]) -> str:
     return f"name={name}; tone={tone}; locale={locale}; goals={goals_str}"
 
 
-async def generate_personalized_welcome(user_context: dict[str, Any], prior_summary: Any | None = None) -> str:
+async def generate_personalized_welcome(
+    user_context: dict[str, Any],
+    prior_summary: Any | None = None,
+    icebreaker_hint: str | None = None,
+) -> str:
     region = config.get_aws_region()
-    model_id = config.BEDROCK_MODEL_ID
+    model_id = getattr(config, "MEMORY_TINY_LLM_MODEL_ID", None) or config.BEDROCK_MODEL_ID
     if not region:
-        # Fallback if Bedrock is not configured
         name = user_context.get("identity", {}).get("preferred_name") or "there"
         return f"Hi {name}! I’m Vera. Tell me what you need and I’ll route it to the right assistant."
 
@@ -37,6 +35,8 @@ async def generate_personalized_welcome(user_context: dict[str, Any], prior_summ
         "Greet the user personally if a name is available.\n"
         "Keep the welcome to one short sentence (<= 30 words).\n"
         "If a brief summary of the LAST conversation is provided, optionally and subtly invite continuing it, in the SAME sentence.\n"
+        "If an icebreaker hint is provided, naturally weave it into the single sentence without saying 'memory', 'nudge', or 'icebreaker'.\n"
+        "Use 'you' (second person), never third person.\n"
         "Do not include emojis. Do not ask multiple questions."
     )
     context_str = _format_user_context_for_prompt(user_context)
@@ -45,10 +45,13 @@ async def generate_personalized_welcome(user_context: dict[str, Any], prior_summ
         last_gist = prior_summary.get("short_one_liner")
     elif isinstance(prior_summary, str):
         last_gist = prior_summary
+    parts: list[str] = [f"User context: {context_str}."]
     if isinstance(last_gist, str) and last_gist.strip():
-        human = f"User context: {context_str}. Summary of our last conversation: {last_gist.strip()}. Compose the welcome."
-    else:
-        human = f"User context: {context_str}. Compose the welcome."
+        parts.append(f"Last conversation: {last_gist.strip()}.")
+    if isinstance(icebreaker_hint, str) and icebreaker_hint.strip():
+        parts.append(f"Icebreaker hint: {icebreaker_hint.strip()}.")
+    parts.append("Compose the welcome.")
+    human = " ".join(parts)
 
     try:
         msg = await chat.ainvoke([SystemMessage(content=system), HumanMessage(content=human)])
@@ -61,7 +64,6 @@ async def generate_personalized_welcome(user_context: dict[str, Any], prior_summ
     # Fallback
     name = user_context.get("identity", {}).get("preferred_name") or "there"
     return f"Hi {name}! I’m Vera. How can I help you today?"
-
 
 
 async def call_llm(system: str | None, prompt: str) -> str:
