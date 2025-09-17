@@ -138,7 +138,6 @@ async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, 
             "messages": [
                 {"role": "assistant", "content": analysis_response, "name": "goal_agent"},
                 handoff_messages[0],
-                handoff_messages[1]
             ]
         }
 
