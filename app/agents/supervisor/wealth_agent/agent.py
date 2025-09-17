@@ -28,10 +28,8 @@ def compile_wealth_agent_graph() -> CompiledStateGraph:
     logger.info(f"[WEALTH_AGENT] Guardrails: {guardrails}")
 
     chat_bedrock = ChatBedrockConverse(
-        model_id="openai.gpt-oss-120b-1:0",
-        region_name="us-west-2",
-        temperature=0.2,
-        guardrail_config=guardrails)
+        model_id="openai.gpt-oss-120b-1:0", region_name="us-west-2", temperature=0.2, guardrail_config=guardrails
+    )
 
     wealth_agent = create_react_agent(
         model=chat_bedrock,

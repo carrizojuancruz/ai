@@ -89,11 +89,11 @@ class FinanceAgent:
         logger.info(f"Creating Bedrock ChatBedrock client for model {llm_model_id}")
 
         self.sql_generator = ChatBedrockConverse(
-        model_id="openai.gpt-oss-120b-1:0",
-        region_name="us-west-2",
-        temperature=0.2,
-        guardrail_config=guardrails,
-    )
+            model_id="openai.gpt-oss-120b-1:0",
+            region_name="us-west-2",
+            temperature=0.2,
+            guardrail_config=guardrails,
+        )
 
         logger.info("FinanceAgent initialization completed")
         # Lightweight per-user cache for prompt grounding samples
@@ -105,7 +105,6 @@ class FinanceAgent:
         Returns compact JSON arrays as strings for embedding in the prompt.
         """
         try:
-
             cached_pair = get_finance_samples(user_id)
             if cached_pair:
                 return cached_pair
@@ -160,6 +159,7 @@ class FinanceAgent:
                     "cached_at": now,
                 }
                 from contextlib import suppress
+
                 with suppress(Exception):
                     set_finance_samples(user_id, tx_json, acct_json)
                 return tx_json, acct_json
@@ -174,11 +174,11 @@ class FinanceAgent:
 
         serialized = {}
         for k, v in row.items():
-            if hasattr(v, 'is_finite'):  # Decimal
+            if hasattr(v, "is_finite"):  # Decimal
                 serialized[k] = float(v)
             elif isinstance(v, datetime.date):  # date/datetime
                 serialized[k] = v.isoformat()
-            elif isinstance(v, UUID) or hasattr(v, '__class__') and 'UUID' in str(type(v)):  # UUID objects
+            elif isinstance(v, UUID) or hasattr(v, "__class__") and "UUID" in str(type(v)):  # UUID objects
                 serialized[k] = str(v)
             else:
                 serialized[k] = v
@@ -187,7 +187,8 @@ class FinanceAgent:
     def _rows_to_json(self, rows: list[dict[str, Any]]) -> str:
         """Convert serialized rows to JSON string."""
         import json
-        return json.dumps(rows, ensure_ascii=False, separators=(',', ':'))
+
+        return json.dumps(rows, ensure_ascii=False, separators=(",", ":"))
 
     async def _create_system_prompt(self, user_id: UUID) -> str:
         """Create the system prompt for the finance agent."""
@@ -354,7 +355,7 @@ class FinanceAgent:
         ✅ Column names match schema exactly
         ✅ Amount sign convention verified (positive = spending)
 
-        Today's date: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d')}"""
+        Today's date: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")}"""
 
     async def _create_agent_with_tools(self, user_id: UUID):
         """Create a LangGraph agent with SQL tools for the given user."""
@@ -371,11 +372,7 @@ class FinanceAgent:
         logger.info(f"Initializing LangGraph agent with tools for user {user_id}")
 
         system_prompt = await self._create_system_prompt(user_id)
-        agent = create_react_agent(
-            model=self.sql_generator,
-            tools=tools,
-            prompt=system_prompt
-        )
+        agent = create_react_agent(model=self.sql_generator, tools=tools, prompt=system_prompt)
 
         logger.info(f"LangGraph agent created successfully for user {user_id}")
         return agent
@@ -394,9 +391,7 @@ class FinanceAgent:
                 logger.info(f"Using cached LangGraph agent for user {user_id}")
 
             # Prepare the conversation
-            messages = [
-                HumanMessage(content=query)
-            ]
+            messages = [HumanMessage(content=query)]
 
             # Run the agent
             logger.info(f"Starting LangGraph agent execution for user {user_id}")
@@ -413,8 +408,6 @@ class FinanceAgent:
         except Exception as e:
             logger.error(f"Finance agent error for user {user_id}: {e}")
             return "I encountered an error while processing your financial query. Please try again."
-
-
 
 
 async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
