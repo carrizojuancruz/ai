@@ -42,7 +42,7 @@ class BedrockLLM(LLM):
             messages.append(SystemMessage(content=system))
         messages.append(HumanMessage(content=prompt))
         response = self.chat_model.invoke(messages, config={"callbacks": self._callbacks} if self._callbacks else None)
-        return response.content
+        return _content_to_text(getattr(response, "content", ""))
 
     async def generate_stream(
         self,
@@ -58,7 +58,9 @@ class BedrockLLM(LLM):
             messages, config={"callbacks": self._callbacks} if self._callbacks else None
         ):
             if hasattr(chunk, "content") and chunk.content:
-                yield chunk.content
+                text_part = _content_to_text(chunk.content)
+                if text_part:
+                    yield text_part
 
     def extract(
         self,
@@ -95,3 +97,24 @@ def _safe_parse_json(raw: str) -> dict[str, Any]:
             except Exception:
                 return {}
         return {}
+
+
+def _content_to_text(content: Any) -> str:
+    """Normalize Bedrock message content to a plain string.
+
+    Bedrock Converse may return content as a list of content blocks.
+    This flattens strings and common dict blocks with 'text' fields.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                text_val = item.get("text") or item.get("content") or item.get("input_text")
+                if isinstance(text_val, str):
+                    parts.append(text_val)
+        return "".join(parts)
+    return str(content) if content is not None else ""
