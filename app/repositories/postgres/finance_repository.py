@@ -26,9 +26,7 @@ class FinanceRepository:
     async def user_has_any_accounts(self, user_id: UUID) -> bool:
         """Return True if the user has any connected accounts, else False."""
         try:
-            query = text(
-                f"SELECT 1 FROM {FinanceTables.ACCOUNTS} WHERE user_id = :user_id LIMIT 1"
-            )
+            query = text(f"SELECT 1 FROM {FinanceTables.ACCOUNTS} WHERE user_id = :user_id LIMIT 1")
             result = await self.session.execute(query, {"user_id": str(user_id)})
             return bool(result.first())
         except Exception as exec_error:
@@ -36,27 +34,27 @@ class FinanceRepository:
             await self.session.rollback()
             return False
 
-    async def execute_query(self, query: str, user_id: UUID) -> Optional[list[dict]]:
-        """Execute a SQL query with user isolation."""
+    async def execute_query(self, query: str, parameters: dict) -> Optional[list[dict]]:
+        """Execute a SQL query with parameters."""
         try:
-            logger.info(f"FinanceRepository executing SQL for user {user_id}: {query}...")
+            logger.info(f"FinanceRepository executing SQL for user {parameters}: {query}...")
 
-            # Execute the query with user_id parameter
-            logger.info(f"Sending query to database for user {user_id}")
-            result = await self.session.execute(text(query), {"user_id": str(user_id)})
-            logger.info(f"Query executed, fetching results for user {user_id}")
+            # Execute the query with provided parameters
+            logger.info(f"Sending query to database for user {parameters}")
+            result = await self.session.execute(text(query), parameters)
+            logger.info(f"Query executed, fetching results for user {parameters}")
             rows = result.fetchall()
-            logger.info(f"Fetched {len(rows) if rows else 0} rows for user {user_id}")
+            logger.info(f"Fetched {len(rows) if rows else 0} rows for user {parameters}")
 
             if not rows:
                 return []
 
             # Convert to list of dictionaries
             formatted_rows = [dict(row._mapping) for row in rows]
-            logger.info(f"Successfully formatted {len(formatted_rows)} rows for user {user_id}")
+            logger.info(f"Successfully formatted {len(formatted_rows)} rows for user {parameters}")
             return formatted_rows
 
         except Exception as exec_error:
-            logger.error(f"SQL execution error for user {user_id}: {exec_error}")
+            logger.error(f"SQL execution error for user {parameters}: {exec_error}")
             await self.session.rollback()
             raise exec_error

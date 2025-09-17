@@ -51,9 +51,7 @@ logger.info(
 
 # Warn if Langfuse env is missing so callbacks would be disabled silently
 if not config.is_langfuse_supervisor_enabled():
-    logger.warning(
-        "Langfuse env vars missing or incomplete; callback tracing will be disabled"
-    )
+    logger.warning("Langfuse env vars missing or incomplete; callback tracing will be disabled")
 
 
 class SupervisorService:
@@ -98,7 +96,6 @@ class SupervisorService:
             logger.error(f"[SUPERVISOR] Failed to export user context: {e}")
             return False
 
-
     def _strip_guardrail_marker(self, text: str) -> str:
         if not isinstance(text, str):
             return ""
@@ -106,14 +103,13 @@ class SupervisorService:
         if start != -1:
             return text[:start].rstrip()
         return text
+
     def _is_injected_context(self, text: str) -> bool:
         if not isinstance(text, str):
             return False
         t = text.strip()
-        return (
-            t.startswith("CONTEXT_PROFILE:")
-            or t.startswith("Relevant context for tailoring this turn:")
-        )
+        return t.startswith("CONTEXT_PROFILE:") or t.startswith("Relevant context for tailoring this turn:")
+
     def _content_to_text(self, value: Any) -> str:
         if value is None:
             return ""
@@ -136,20 +132,28 @@ class SupervisorService:
             return "".join(parts)
         return ""
 
-    def _add_source_from_tool_end(self, sources: list[dict[str, Any]], name: str, data: dict[str, Any]) -> list[dict[str, Any]]:
+    def _add_source_from_tool_end(
+        self, sources: list[dict[str, Any]], name: str, data: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Add the source to the sources list from the tool end event."""
         if "output" not in data:
             return sources
 
         output = data["output"]
 
-        if hasattr(output, '__class__') and 'coroutine' in str(output.__class__).lower():
+        if hasattr(output, "__class__") and "coroutine" in str(output.__class__).lower():
             logger.warning(f"[SUPERVISOR] Tool {name} returned unawaited coroutine: {output}")
             return sources
 
-        content = output.content if hasattr(output, "content") else output.get("content", output) if isinstance(output, dict) else output
+        content = (
+            output.content
+            if hasattr(output, "content")
+            else output.get("content", output)
+            if isinstance(output, dict)
+            else output
+        )
 
-        if hasattr(content, '__class__') and 'coroutine' in str(content.__class__).lower():
+        if hasattr(content, "__class__") and "coroutine" in str(content.__class__).lower():
             logger.warning(f"[SUPERVISOR] Tool {name} content is unawaited coroutine: {content}")
             return sources
 
@@ -163,7 +167,13 @@ class SupervisorService:
                         sources.append(new_source)
                 return sources
 
-        items = content if isinstance(content, list) else [content] if isinstance(content, dict) and "source" in content else []
+        items = (
+            content
+            if isinstance(content, list)
+            else [content]
+            if isinstance(content, dict) and "source" in content
+            else []
+        )
 
         sources_added = 0
         for item in items:
@@ -171,13 +181,14 @@ class SupervisorService:
                 continue
 
             source_content = item["source"]
-            if not source_content or not isinstance(source_content, str) or 'coroutine' in str(type(source_content)).lower():
+            if (
+                not source_content
+                or not isinstance(source_content, str)
+                or "coroutine" in str(type(source_content)).lower()
+            ):
                 continue
 
-            new_source = {
-                "name": get_source_name(name),
-                "url": source_content
-            }
+            new_source = {"name": get_source_name(name), "url": source_content}
 
             metadata = item.get("metadata", {})
             if isinstance(metadata, dict):
@@ -185,7 +196,7 @@ class SupervisorService:
                     ("name", "source_name"),
                     ("type", "type"),
                     ("category", "category"),
-                    ("description", "description")
+                    ("description", "description"),
                 ]:
                     if metadata.get(key):
                         new_source[meta_key] = metadata[key]
@@ -199,7 +210,9 @@ class SupervisorService:
 
         return sources
 
-    async def _find_latest_prior_thread(self, session_store: InMemorySessionStore, user_id: str, exclude_thread_id: str) -> Optional[str]:
+    async def _find_latest_prior_thread(
+        self, session_store: InMemorySessionStore, user_id: str, exclude_thread_id: str
+    ) -> Optional[str]:
         """Find the most recent previous thread for this user (excluding current thread)."""
         user_threads = await session_store.get_user_threads(user_id)
 
@@ -282,7 +295,9 @@ class SupervisorService:
 
         return None
 
-    async def _get_prior_conversation_summary(self, session_store: InMemorySessionStore, user_id: str, current_thread_id: str) -> Optional[str]:
+    async def _get_prior_conversation_summary(
+        self, session_store: InMemorySessionStore, user_id: str, current_thread_id: str
+    ) -> Optional[str]:
         """Get summary of the most recent prior conversation for this user."""
         try:
             prior_thread_id = await self._find_latest_prior_thread(session_store, user_id, current_thread_id)
@@ -345,11 +360,34 @@ class SupervisorService:
 
         prior_summary = await self._get_prior_conversation_summary(session_store, str(uid), thread_id)
 
-        user_context = (await session_store.get_session(thread_id) or {}).get("user_context", {})
-        welcome = await generate_personalized_welcome(user_context, prior_summary)
-        await queue.put({"event": "token.delta", "data": {"text": welcome}})
+        logger.info(f"[SUPERVISOR] Generating welcome message with icebreaker support for user {uid}")
 
-        logger.info(f"Initialize complete for user {uid}: thread={thread_id}, has_prior_summary={bool(prior_summary)}")
+        icebreaker_used: bool = False
+        welcome: str = ""
+        try:
+            from app.agents.supervisor.memory.icebreaker_consumer import _create_natural_icebreaker
+            from app.services.nudges.icebreaker_processor import get_icebreaker_processor
+
+            processor = get_icebreaker_processor()
+            raw_icebreaker = await processor.process_icebreaker_for_user(uid)
+
+            if raw_icebreaker and raw_icebreaker.strip():
+                natural = await _create_natural_icebreaker(raw_icebreaker.strip(), uid)
+                if natural and natural.strip():
+                    welcome = natural.strip()
+                    icebreaker_used = True
+                    logger.info(f"[SUPERVISOR] Using icebreaker as welcome for user {uid}")
+        except Exception as e:
+            logger.warning(f"[SUPERVISOR] Icebreaker path failed for user {uid}: {e}")
+
+        if not welcome:
+            user_ctx_for_welcome = (await session_store.get_session(thread_id) or {}).get("user_context", {})
+            welcome = await generate_personalized_welcome(user_ctx_for_welcome, prior_summary)
+            logger.info(f"[SUPERVISOR] No icebreaker available; graph not run on initialize for user {uid}")
+
+        logger.info(
+            f"Initialize complete for user {uid}: thread={thread_id}, has_prior_summary={bool(prior_summary)}, icebreaker_used={icebreaker_used}"
+        )
 
         await queue.put({"event": "message.completed", "data": {"text": welcome}})
 
@@ -358,6 +396,7 @@ class SupervisorService:
                 import asyncio
 
                 from app.core.app_state import get_finance_agent
+
                 fa = get_finance_agent()
                 asyncio.create_task(fa._fetch_shallow_samples(uid))
             except Exception:
@@ -367,7 +406,7 @@ class SupervisorService:
             "thread_id": thread_id,
             "welcome": welcome,
             "sse_url": f"/supervisor/sse/{thread_id}",
-            "prior_conversation_summary": prior_summary
+            "prior_conversation_summary": prior_summary,
         }
 
     async def process_message(self, *, thread_id: str, text: str) -> None:
@@ -384,14 +423,10 @@ class SupervisorService:
         sources = []
 
         conversation_messages = session_ctx.get("conversation_messages", [])
-        conversation_messages.append({
-            "role": "user",
-            "content": text.strip(),
-            "sources": sources
-        })
+        conversation_messages.append({"role": "user", "content": text.strip(), "sources": sources})
         assistant_response_parts = []
 
-                # Refresh UserContext from external FOS service each turn to avoid stale profile
+        # Refresh UserContext from external FOS service each turn to avoid stale profile
         user_id = session_ctx.get("user_id")
         if user_id:
             uid = UUID(user_id)
@@ -422,11 +457,9 @@ class SupervisorService:
             stream_mode="values",
             subgraphs=True,
         ):
-
             name = event.get("name")
             etype = event.get("event")
             data = event.get("data") or {}
-
 
             if name == "supervisor" and etype == "on_chain_start":
                 supervisor_active = True
@@ -446,14 +479,16 @@ class SupervisorService:
                     elif tool_name == "transfer_to_wealth_agent":
                         description = _get_random_wealth_current()
 
-                    await q.put({
-                        "event": "source.search.start",
-                        "data": {
-                            "tool": tool_name,
-                            "source": tool_name.replace("transfer_to_", "").replace("_", " ").title(),
-                            "description": description,
+                    await q.put(
+                        {
+                            "event": "source.search.start",
+                            "data": {
+                                "tool": tool_name,
+                                "source": tool_name.replace("transfer_to_", "").replace("_", " ").title(),
+                                "description": description,
+                            },
                         }
-                    })
+                    )
                     suppress_streaming = True
                     continue
 
@@ -480,16 +515,26 @@ class SupervisorService:
                 if name and not name.startswith("transfer_to_"):
                     await q.put({"event": "tool.end", "data": {"tool": name}})
             elif etype == "on_chain_end":
-
                 try:
                     output = data.get("output", {})
                     if isinstance(output, dict):
                         messages = output.get("messages")
                         if isinstance(messages, list) and messages:
-                            last_tool = next((m for m in messages if (getattr(m, "name", None) or getattr(m, "tool_name", "")).startswith("transfer_back_to_")), None)
+                            last_tool = next(
+                                (
+                                    m
+                                    for m in messages
+                                    if (getattr(m, "name", None) or getattr(m, "tool_name", "")).startswith(
+                                        "transfer_back_to_"
+                                    )
+                                ),
+                                None,
+                            )
                             if last_tool:
                                 back_tool: str = getattr(last_tool, "name", None) or getattr(last_tool, "tool_name", "")
-                                tool_call_id = getattr(last_tool, "tool_call_id", None) or getattr(last_tool, "id", None)
+                                tool_call_id = getattr(last_tool, "tool_call_id", None) or getattr(
+                                    last_tool, "id", None
+                                )
                                 dedupe_key = f"{back_tool}:{tool_call_id or 'noid'}"
                                 if dedupe_key not in emitted_handoff_back_keys:
                                     emitted_handoff_back_keys.add(dedupe_key)
@@ -501,22 +546,29 @@ class SupervisorService:
                                     elif current_agent_tool == "transfer_to_wealth_agent":
                                         description = _get_random_wealth_completed()
 
-                                    supervisor_name = back_tool.replace("transfer_back_to_", "").replace("_", " ").title() or "Supervisor"
-                                    await q.put({
-                                        "event": "source.search.end",
-                                        "data": {
-                                            "tool": back_tool,
-                                            "source": supervisor_name,
-                                            "description": description,
+                                    supervisor_name = (
+                                        back_tool.replace("transfer_back_to_", "").replace("_", " ").title()
+                                        or "Supervisor"
+                                    )
+                                    await q.put(
+                                        {
+                                            "event": "source.search.end",
+                                            "data": {
+                                                "tool": back_tool,
+                                                "source": supervisor_name,
+                                                "description": description,
+                                            },
                                         }
-                                    })
+                                    )
                                     suppress_streaming = False
                                     current_agent_tool = None
                 except Exception:
                     pass
 
         try:
-            final_text = "".join(assistant_response_parts).strip() if assistant_response_parts else (final_text_candidate or "")
+            final_text = (
+                "".join(assistant_response_parts).strip() if assistant_response_parts else (final_text_candidate or "")
+            )
             if final_text:
                 await q.put({"event": "message.completed", "data": {"content": final_text}})
         except Exception:
@@ -529,11 +581,9 @@ class SupervisorService:
             if assistant_response_parts:
                 assistant_response = "".join(assistant_response_parts).strip()
                 if assistant_response:
-                    conversation_messages.append({
-                        "role": "assistant",
-                        "content": assistant_response,
-                        "sources": sources
-                    })
+                    conversation_messages.append(
+                        {"role": "assistant", "content": assistant_response, "sources": sources}
+                    )
 
             session_ctx["conversation_messages"] = conversation_messages
             await session_store.set_session(thread_id, session_ctx)

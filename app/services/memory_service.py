@@ -27,8 +27,13 @@ class MemoryService:
         self._store = None
 
     def _validate_config(self) -> None:
-        """Validate S3 configuration."""
-        missing = config.validate_required_s3_vars()
+        """Validate S3 configuration for memory service."""
+        required_vars = {
+            "S3V_BUCKET": config.S3V_BUCKET,
+            "S3V_INDEX_MEMORY": config.S3V_INDEX_MEMORY,
+            "AWS_REGION": config.get_aws_region(),
+        }
+        missing = [name for name, value in required_vars.items() if not value]
         if missing:
             raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
 
