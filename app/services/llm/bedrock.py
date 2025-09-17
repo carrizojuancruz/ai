@@ -4,7 +4,7 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any
 
-from langchain_aws import ChatBedrock
+from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.core.config import config
@@ -19,13 +19,10 @@ class BedrockLLM(LLM):
             raise RuntimeError("AWS_REGION (or AWS_DEFAULT_REGION) is required for Bedrock provider")
         self.model_id = config.BEDROCK_MODEL_ID
         self.temperature = config.LLM_TEMPERATURE
-        self.chat_model = ChatBedrock(
+        self.chat_model = ChatBedrockConverse(
             model_id=self.model_id,
             region_name=region,
-            model_kwargs={
-                "temperature": self.temperature,
-                "max_tokens": 400,
-            },
+            temperature=self.temperature,
         )
         self._callbacks: list[Any] | None = None
 
