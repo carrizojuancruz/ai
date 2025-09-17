@@ -348,22 +348,6 @@ class S3VectorsStore(BaseStore):
             payload["topic_key"] = value["topic_key"]
         if "importance_bin" in value:
             payload["importance_bin"] = value["importance_bin"]
-        if "bucket_week" in value:
-            payload["bucket_week"] = value["bucket_week"]
-        if "valid_until" in value:
-            payload["valid_until"] = value["valid_until"]
-        if "nudge_cooldown_until" in value:
-            payload["nudge_cooldown_until"] = value["nudge_cooldown_until"]
-        if "provider" in value:
-            payload["provider"] = value["provider"]
-        if "progress_pct" in value:
-            payload["progress_pct"] = value["progress_pct"]
-        if "budget_used_pct" in value:
-            payload["budget_used_pct"] = value["budget_used_pct"]
-        if "trailing_30d_spend" in value:
-            payload["trailing_30d_spend"] = value["trailing_30d_spend"]
-        if "baseline_30d_spend" in value:
-            payload["baseline_30d_spend"] = value["baseline_30d_spend"]
 
         self._s3v.put_vectors(
             vectorBucketName=self._bucket,
