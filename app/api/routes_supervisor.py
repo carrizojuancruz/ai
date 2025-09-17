@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.agents.supervisor.memory.icebreaker_consumer import debug_icebreaker_flow
 from app.core.app_state import get_sse_queue
 from app.services.supervisor import supervisor_service
 
@@ -67,10 +68,34 @@ async def supervisor_sse(thread_id: str, request: Request) -> StreamingResponse:
                 else:
                     yield f"data: {json.dumps(item)}\n\n"
         finally:
-            # Clean up SSE queue when client disconnects
             from app.core.app_state import drop_sse_queue
+
             drop_sse_queue(thread_id)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
+@router.get("/debug/icebreaker/{user_id}")
+async def debug_icebreaker(user_id: str) -> dict:
+    try:
+        result = await debug_icebreaker_flow(user_id)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Debug failed: {str(e)}") from e
+
+
+@router.post("/debug/test-icebreaker")
+async def test_icebreaker_flow(payload: SupervisorInitializePayload) -> dict:
+    try:
+        from app.services.supervisor import supervisor_service
+
+        result = await supervisor_service.initialize(user_id=payload.user_id)
+
+        return {
+            "status": "success",
+            "thread_id": result["thread_id"],
+            "welcome": result["welcome"],
+            "message": "Check logs for icebreaker processing details",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Test failed: {str(e)}") from e

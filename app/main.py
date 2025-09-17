@@ -17,6 +17,7 @@ from .api.routes_crawl import router as crawl_router
 from .api.routes_cron import router as cron_router
 from .api.routes_guest import router as guest_router
 from .api.routes_knowledge import router as knowledge_router
+from .api.routes_nudge_eval import router as nudge_eval_router
 from .api.routes_supervisor import router as supervisor_router
 from .core.config import config
 from .observability.logging_config import configure_logging, get_logger
@@ -32,6 +33,7 @@ async def lifespan(app: FastAPI):
     # Initialize database connection on startup
     try:
         from app.db.session import _get_engine
+
         _get_engine()  # This will create the engine and start health checks
         logger.info("Database connection initialized successfully")
     except Exception as e:
@@ -41,6 +43,7 @@ async def lifespan(app: FastAPI):
     # Warm up AWS clients to avoid first-request latency
     try:
         from app.core.app_state import warmup_aws_clients
+
         await warmup_aws_clients()
         logger.info("AWS clients warmed up successfully")
     except Exception as e:
@@ -48,6 +51,7 @@ async def lifespan(app: FastAPI):
 
     try:
         from app.core.app_state import start_finance_agent_cleanup_task
+
         await start_finance_agent_cleanup_task()
         logger.info("Finance agent cleanup task started successfully")
     except Exception as e:
@@ -60,6 +64,7 @@ async def lifespan(app: FastAPI):
 
         try:
             from app.db.session import dispose_engine
+
             await dispose_engine()
             logger.info("Database connections disposed successfully")
         except Exception as e:
@@ -67,6 +72,7 @@ async def lifespan(app: FastAPI):
 
         try:
             from app.core.app_state import dispose_aws_clients
+
             dispose_aws_clients()
             logger.info("AWS clients disposed successfully")
         except Exception as e:
@@ -74,6 +80,7 @@ async def lifespan(app: FastAPI):
 
         try:
             from app.core.app_state import dispose_finance_agent_cleanup_task
+
             dispose_finance_agent_cleanup_task()
             logger.info("Finance agent cleanup task disposed successfully")
         except Exception as e:
@@ -144,7 +151,7 @@ async def database_health_check() -> dict:
             "database": {
                 "connection_healthy": is_healthy,
                 "pool_stats": stats,
-            }
+            },
         }
 
         logger.info(f"Database health check: {response['status']}")
@@ -152,13 +159,8 @@ async def database_health_check() -> dict:
 
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
-        return {
-            "status": "error",
-            "database": {
-                "connection_healthy": False,
-                "error": str(e)
-            }
-        }
+        return {"status": "error", "database": {"connection_healthy": False, "error": str(e)}}
+
 
 @app.get("/actual_config")
 async def actual_config() -> dict[str, Any]:
@@ -167,6 +169,7 @@ async def actual_config() -> dict[str, Any]:
 
     return actual_config_data
 
+
 app.include_router(api_router)
 app.include_router(admin_router)
 app.include_router(supervisor_router)
@@ -174,4 +177,5 @@ app.include_router(memories_router)
 app.include_router(guest_router)
 app.include_router(cron_router)
 app.include_router(knowledge_router)
+app.include_router(nudge_eval_router)
 app.include_router(crawl_router)

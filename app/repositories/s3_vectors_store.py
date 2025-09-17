@@ -45,8 +45,11 @@ except Exception:  # pragma: no cover
         async def abatch(self, ops: Iterable[Op]) -> list[Any]:
             raise NotImplementedError
 
+
 from botocore.client import BaseClient
 from botocore.exceptions import ClientError
+
+from app.core.config import config
 
 Namespace = Tuple[str, ...]
 
@@ -341,6 +344,11 @@ class S3VectorsStore(BaseStore):
         if "category" in value:
             payload["category"] = value["category"]  # 8
 
+        if "topic_key" in value:
+            payload["topic_key"] = value["topic_key"]
+        if "importance_bin" in value:
+            payload["importance_bin"] = value["importance_bin"]
+
         self._s3v.put_vectors(
             vectorBucketName=self._bucket,
             indexName=self._index,
@@ -441,6 +449,134 @@ class S3VectorsStore(BaseStore):
             offset=offset,
         )
 
+
+    def get_random_recent_high_importance(
+        self,
+        user_id: str,
+        *,
+        include_current_week: bool = True,
+        fallback_to_med: bool = True,
+        limit: int = None,
+    ) -> dict[str, Any] | None:
+        """Return one random semantic memory with high importance.
+
+        - Filters by importance >= 1 (high importance)
+        - Falls back to any memory if none found (optional)
+        """
+        if limit is None:
+            limit = config.S3V_MAX_TOP_K
+        namespace: Namespace = (user_id, "semantic")
+
+        candidates: list[SearchItem] = []
+
+        dummy_query = "memory"
+        query_vec = self._embed_texts([dummy_query])[0]
+
+        flt = self._build_filter(namespace, {}, include_is_indexed=False)
+        res = self._safe_query_vectors(
+            query_vector=query_vec,
+            top_k=limit,
+            flt=flt,
+            return_distance=False,
+        )
+        vectors = cast(list[dict[str, Any]], res.get("vectors") or [])
+        for v in vectors:
+            md = cast(dict[str, Any], v.get("metadata") or {})
+            raw = cast(str, md.get("value_json") or "")
+            try:
+                value = json.loads(raw) if raw else {}
+            except Exception:
+                value = {}
+            value.update(
+                {
+                    k: v
+                    for k, v in md.items()
+                    if k not in ["value_json", "doc_key", "created_at", "updated_at", "is_indexed", "ns_0", "ns_1"]
+                }
+            )
+            created_at = cast(str, md.get("created_at") or _utc_now_iso())
+            updated_at = cast(str, md.get("updated_at") or created_at)
+            ns0 = cast(str, md.get("ns_0") or "")
+            ns1 = cast(str, md.get("ns_1") or "")
+            ns_list = [ns0] + ([ns1] if ns1 else [])
+            doc_key = cast(str, md.get("doc_key") or "")
+
+            importance = value.get("importance", 0)
+            if importance >= 1:
+                candidates.append(
+                    SearchItem(
+                        value=value,
+                        key=doc_key,
+                        namespace=ns_list,
+                        created_at=created_at,
+                        updated_at=updated_at,
+                        score=None,
+                    )
+                )
+
+        if not candidates and fallback_to_med:
+            for v in vectors:
+                md = cast(dict[str, Any], v.get("metadata") or {})
+                raw = cast(str, md.get("value_json") or "")
+                try:
+                    value = json.loads(raw) if raw else {}
+                except Exception:
+                    value = {}
+                value.update(
+                    {
+                        k: v
+                        for k, v in md.items()
+                        if k not in ["value_json", "doc_key", "created_at", "updated_at", "is_indexed", "ns_0", "ns_1"]
+                    }
+                )
+                created_at = cast(str, md.get("created_at") or _utc_now_iso())
+                updated_at = cast(str, md.get("updated_at") or created_at)
+                ns0 = cast(str, md.get("ns_0") or "")
+                ns1 = cast(str, md.get("ns_1") or "")
+                ns_list = [ns0] + ([ns1] if ns1 else [])
+                doc_key = cast(str, md.get("doc_key") or "")
+                candidates.append(
+                    SearchItem(
+                        value=value,
+                        key=doc_key,
+                        namespace=ns_list,
+                        created_at=created_at,
+                        updated_at=updated_at,
+                        score=None,
+                    )
+                )
+
+        if not candidates:
+            return None
+
+        def sort_key(candidate):
+            importance_bin = candidate.value.get("importance_bin", "low")
+            bin_priority = {"high": 3, "med": 2, "low": 1}.get(importance_bin, 0)
+            importance = candidate.value.get("importance", 0)
+            created_at = candidate.created_at or "1970-01-01T00:00:00+00:00"  # Fallback for None
+            return (bin_priority, importance, created_at)
+
+        candidates.sort(key=sort_key, reverse=True)
+
+        chosen = candidates[0]
+        return getattr(chosen, "value", None) or None
+
+    async def aget_random_recent_high_importance(
+        self,
+        user_id: str,
+        *,
+        include_current_week: bool = True,
+        fallback_to_med: bool = True,
+        limit: int = None,
+    ) -> dict[str, Any] | None:
+        return self.get_random_recent_high_importance(
+            user_id,
+            include_current_week=include_current_week,
+            fallback_to_med=fallback_to_med,
+            limit=limit,
+        )
+
+
     # endregion
 
     def _zero_vector(self) -> list[float]:
@@ -531,3 +667,15 @@ class S3VectorsStore(BaseStore):
         return joined
 
 
+_s3_vectors_store_instance = None
+
+
+def get_s3_vectors_store():
+    global _s3_vectors_store_instance
+
+    if _s3_vectors_store_instance is None:
+        from app.services.memory.store_factory import create_s3_vectors_store_from_env
+
+        _s3_vectors_store_instance = create_s3_vectors_store_from_env()
+
+    return _s3_vectors_store_instance

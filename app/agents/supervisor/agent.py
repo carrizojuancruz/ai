@@ -8,7 +8,7 @@ from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
-from app.agents.supervisor.memory import episodic_capture, memory_context, memory_hotpath
+from app.agents.supervisor.memory import episodic_capture, icebreaker_consumer, memory_context, memory_hotpath
 from app.core.config import config
 from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
@@ -17,6 +17,7 @@ from .prompts import SUPERVISOR_PROMPT
 from .workers import finance_router, goal_agent, wealth_agent
 
 logger = logging.getLogger(__name__)
+
 
 def compile_supervisor_graph() -> CompiledStateGraph:
     assign_to_finance_agent_with_description = create_task_description_handoff_tool(
@@ -61,25 +62,28 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     builder = StateGraph(MessagesState)
 
     # --- Memory and context nodes ---
+    builder.add_node("icebreaker_consumer", icebreaker_consumer)
     builder.add_node("memory_hotpath", memory_hotpath)
     builder.add_node("memory_context", memory_context)
 
     # --- Main supervisor node and destinations ---
     builder.add_node(
-        supervisor_agent_with_description, destinations=("finance_agent", "wealth_agent", "goal_agent", "episodic_capture")
+        supervisor_agent_with_description,
+        destinations=("finance_agent", "wealth_agent", "goal_agent", "episodic_capture"),
     )
-
 
     # --- Specialist agent nodes ---
     builder.add_node("episodic_capture", episodic_capture)
     builder.add_node("finance_router", finance_router)
     from .finance_agent.agent import finance_agent as finance_worker
+
     builder.add_node("finance_agent", finance_worker)
     builder.add_node("wealth_agent", wealth_agent)
     builder.add_node("goal_agent", goal_agent)
 
     # --- Define edges between nodes ---
-    builder.add_edge(START, "memory_hotpath")
+    builder.add_edge(START, "icebreaker_consumer")
+    builder.add_edge("icebreaker_consumer", "memory_hotpath")
     builder.add_edge("memory_hotpath", "memory_context")
     builder.add_edge("memory_context", "supervisor")
     builder.add_edge("finance_router", "supervisor")
@@ -91,5 +95,3 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     store = create_s3_vectors_store_from_env()
     checkpointer = MemorySaver()
     return builder.compile(store=store, checkpointer=checkpointer)
-
-
