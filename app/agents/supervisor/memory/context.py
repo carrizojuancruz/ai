@@ -211,7 +211,7 @@ def _build_context_response(bullets: list[str], config: RunnableConfig, routing_
     date_bullet = f"Now: {now_local.strftime('%Y-%m-%d %H:%M %Z')}"
     all_bullets = ([date_bullet] if date_bullet else []) + bullets
     if routing_examples:
-        all_bullets.extend(["", "Few shot Routing examples:"] + routing_examples)
+        all_bullets.extend(["", "Few-shot Routing examples:\n"] + routing_examples)
     context_str = "Relevant context for tailoring this turn:\n- " + "\n- ".join(all_bullets)
     return {"messages": [AIMessage(content=context_str)]}
 

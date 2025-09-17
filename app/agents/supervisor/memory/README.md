@@ -3,6 +3,8 @@
 This folder contains the memory pipeline for the supervisor graph, split into focused modules.
 
 ### Components
+- Icebreaker consumer: [`icebreaker_consumer.py`](./icebreaker_consumer.py)
+  - `icebreaker_consumer` - Consumes icebreaker nudges from SQS on conversation start
 - Hot path (semantic creation + dedup/merge): [`hotpath.py`](./hotpath.py)
   - `memory_hotpath`
   - `_same_fact_classify`
@@ -17,12 +19,24 @@ This folder contains the memory pipeline for the supervisor graph, split into fo
   - `_utc_now_iso`, `_parse_iso`, `_build_profile_line`
 
 ### End‑to‑end flow
-1) `memory_hotpath` (before supervisor routing)
-   - Collects the last 2–3 user turns and asks a tiny LLM whether to create a semantic memory.
-   - The classifier prompt encodes explicit “DO NOT create” rules (e.g., meta/capability questions).
-   - If no creation, injects a compact profile line built by `_build_profile_line` to ground the turn and exits.
+1) `memory_hotpath` (conversation initialization)
+   - Processes user messages to create/update semantic memories
+   - Collects the last 2–3 user turns and asks a tiny LLM whether to create a semantic memory
+   - The classifier prompt encodes explicit "DO NOT create" rules (e.g., meta/capability questions)
+   - If no creation, injects a compact profile line built by `_build_profile_line` to ground the turn and exits
 
-2) If creation is recommended
+2) `icebreaker_consumer` (after memory creation)
+   - Consumes icebreaker nudges from SQS queue on conversation start
+   - Finds highest priority icebreaker nudge for the user
+   - Uses LLM to create natural, conversational icebreaker text
+   - Injects icebreaker as context for supervisor to use naturally
+   - Cleans up all icebreaker nudges for the user from the queue
+
+3) `memory_context` (before supervisor routing)
+   - Injects relevant memories as context for the supervisor
+   - Builds a compact profile line for personalization
+
+4) If creation is recommended
    - Build a candidate semantic memory (category, summary, importance).
    - Search S3 Vectors for neighbors in the same namespace and category.
    - Dedup/merge strategy (top‑N):
@@ -109,38 +123,46 @@ For implementation details, open the linked modules and look for the functions l
 
 ```mermaid
 flowchart TD
-  A[Start] --> B[memory_hotpath]
-  B --> C[Collect last 2-3 user turns]
-  C --> D{Classifier: should_create?}
-  D -- No --> Q[Inject profile line from user_context]
-  D -- Yes --> F[Build candidate semantic memory]
-  F --> G[Neighbor search topK by category]
-  G --> H{best.score >= auto_update?}
-  H -- Yes --> I{merge_mode == recreate?}
-  I -- Yes --> J[Compose summary; create NEW; delete OLD; emit updated]
-  I -- No --> K[Update existing summary; emit updated]
-  H -- No --> L{Any neighbor >= check_low AND same_fact?}
-  L -- Yes --> I
-  L -- No --> N{importance >= min_importance?}
-  N -- Yes --> O[Create NEW semantic; profile sync; emit created]
-  N -- No --> P[Skip create]
-  J --> Q
-  K --> Q
-  O --> Q
+  A[Start] --> B[icebreaker_consumer]
+  B --> C[Poll SQS for icebreaker nudges]
+  C --> D{Any icebreaker nudges?}
+  D -- No --> E[Continue to memory_hotpath]
+  D -- Yes --> F[Find highest priority icebreaker]
+  F --> G[Inject as first user message]
+  G --> H[Delete all icebreaker nudges from queue]
+  H --> E
+  E --> I[memory_hotpath]
+  I --> J[Collect last 2-3 user turns]
+  J --> K{Classifier: should_create?}
+  K -- No --> Q[Inject profile line from user_context]
+  K -- Yes --> L[Build candidate semantic memory]
+  L --> M[Neighbor search topK by category]
+  M --> N{best.score >= auto_update?}
+  N -- Yes --> O{merge_mode == recreate?}
+  O -- Yes --> P[Compose summary; create NEW; delete OLD; emit updated]
+  O -- No --> R[Update existing summary; emit updated]
+  N -- No --> S{Any neighbor >= check_low AND same_fact?}
+  S -- Yes --> O
+  S -- No --> T{importance >= min_importance?}
+  T -- Yes --> U[Create NEW semantic; profile sync; emit created]
+  T -- No --> V[Skip create]
   P --> Q
-  Q --> M[memory_context]
-  M --> R[Retrieve sem/epi; rerank; bullets; inject]
-  R --> S[Supervisor agent]
-  S --> T[episodic_capture]
-  T --> U{Cooldown/daily cap OK?}
-  U -- No --> V[Skip episodic]
-  U -- Yes --> W[Summarize conversation via tiny LLM]
-  W --> X{Merge within window and novelty?}
-  X -- Yes --> Y[Update episodic; emit updated; update cooldown]
-  X -- No --> Z[Create episodic; emit created; update cooldown]
-  V --> End
-  Y --> End
-  Z --> End
+  R --> Q
+  U --> Q
+  V --> Q
+  Q --> W[memory_context]
+  W --> X[Retrieve sem/epi; rerank; bullets; inject]
+  X --> Y[Supervisor agent]
+  Y --> Z[episodic_capture]
+  Z --> AA{Cooldown/daily cap OK?}
+  AA -- No --> BB[Skip episodic]
+  AA -- Yes --> CC[Summarize conversation via tiny LLM]
+  CC --> DD{Merge within window and novelty?}
+  DD -- Yes --> EE[Update episodic; emit updated; update cooldown]
+  DD -- No --> FF[Create episodic; emit created; update cooldown]
+  BB --> End
+  EE --> End
+  FF --> End
 ```
 
 

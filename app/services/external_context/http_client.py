@@ -84,3 +84,20 @@ class FOSHttpClient:
         except Exception as e:
             logger.warning(f"FOS API POST failed for {endpoint}: {e}")
             return None
+
+    async def delete(self, endpoint: str) -> Dict[str, Any] | None:
+        """DELETE request to FOS service."""
+        if not self.base_url:
+            return None
+
+        url = f"{self.base_url}{endpoint}"
+        headers = self._build_headers()
+
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.delete(url, headers=headers)
+                resp.raise_for_status()
+                return resp.json()
+        except Exception as e:
+            logger.warning(f"FOS API DELETE failed for {endpoint}: {e}")
+            return None
