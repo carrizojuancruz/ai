@@ -449,66 +449,6 @@ class S3VectorsStore(BaseStore):
             offset=offset,
         )
 
-    def search_by_filter(
-        self,
-        namespace: Namespace,
-        filter: dict[str, Any],
-        limit: int = 10,
-        offset: int = 0,
-    ) -> list[SearchItem]:
-        zero_vec = self._zero_vector()
-        flt = self._build_filter(namespace, filter, include_is_indexed=False)
-        eff_limit = limit + offset if offset else limit
-        res = self._safe_query_vectors(
-            query_vector=zero_vec,
-            top_k=max(1, eff_limit),
-            flt=flt,
-            return_distance=False,
-        )
-        vectors = cast(list[dict[str, Any]], res.get("vectors") or [])
-        iterable = vectors[offset : offset + limit] if offset else vectors
-        items: list[SearchItem] = []
-        for v in iterable:
-            md = cast(dict[str, Any], v.get("metadata") or {})
-            raw = cast(str, md.get("value_json") or "")
-            try:
-                value = json.loads(raw) if raw else {}
-            except Exception:
-                value = {}
-            value.update(
-                {
-                    k: v
-                    for k, v in md.items()
-                    if k not in ["value_json", "doc_key", "created_at", "updated_at", "is_indexed", "ns_0", "ns_1"]
-                }
-            )
-            created_at = cast(str, md.get("created_at") or _utc_now_iso())
-            updated_at = cast(str, md.get("updated_at") or created_at)
-            ns0 = cast(str, md.get("ns_0") or "")
-            ns1 = cast(str, md.get("ns_1") or "")
-            ns_list = [ns0] + ([ns1] if ns1 else [])
-            doc_key = cast(str, md.get("doc_key") or "")
-            items.append(
-                SearchItem(
-                    value=value,
-                    key=doc_key,
-                    namespace=ns_list,
-                    created_at=created_at,
-                    updated_at=updated_at,
-                    metadata=md,
-                    score=None,
-                )
-            )
-        return items
-
-    async def asearch_by_filter(
-        self,
-        namespace: Namespace,
-        filter: dict[str, Any],
-        limit: int = 10,
-        offset: int = 0,
-    ) -> list[SearchItem]:
-        return self.search_by_filter(namespace, filter, limit, offset)
 
     def get_random_recent_high_importance(
         self,
@@ -636,27 +576,6 @@ class S3VectorsStore(BaseStore):
             limit=limit,
         )
 
-    def update_metadata(
-        self,
-        namespace: Namespace,
-        key: str,
-        metadata_update: dict[str, Any],
-    ) -> None:
-        item = self.get(namespace, key)
-        if not item:
-            raise ValueError(f"Item not found: {namespace}/{key}")
-        updated_value = item.value.copy()
-        updated_value.update(metadata_update)
-        updated_value["created_at"] = item.created_at
-        self.put(namespace, key, updated_value)
-
-    async def aupdate_metadata(
-        self,
-        namespace: Namespace,
-        key: str,
-        metadata_update: dict[str, Any],
-    ) -> None:
-        self.update_metadata(namespace, key, metadata_update)
 
     # endregion
 
