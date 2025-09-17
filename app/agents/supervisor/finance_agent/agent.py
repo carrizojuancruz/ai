@@ -78,7 +78,6 @@ class FinanceAgent:
         logger.info("Initializing FinanceAgent with Bedrock models")
 
         # Initialize Bedrock models
-        region = config.AWS_REGION
         llm_model_id = config.BEDROCK_MODEL_ID
 
         guardrails = {

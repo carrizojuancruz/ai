@@ -34,10 +34,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
         description="Assign task to a wealth agent for personal finance education: credit building, budgeting, debt management, emergency funds, financial literacy, government programs, consumer protection, and money management guidance."
     )
 
-    region = config.AWS_REGION
-    model_id = config.BEDROCK_MODEL_ID
-    guardrail_id = config.BEDROCK_GUARDRAIL_ID
-    guardrail_version = str(config.BEDROCK_GUARDRAIL_VERSION)
+    str(config.BEDROCK_GUARDRAIL_VERSION)
 
     guardrails = {
         "guardrailIdentifier": "arn:aws:bedrock:us-west-2:905418355862:guardrail/nqa94s84lt6u",
