@@ -92,10 +92,8 @@ class PlaidBillsService:
 
                 result = await repo.execute_query(
                     query,
-                    {
-                        "user_id": str(user_id),
-                        "account_types": list(self.SUPPORTED_ACCOUNT_TYPES),
-                    },
+                    user_id=str(user_id),
+                    account_types=list(self.SUPPORTED_ACCOUNT_TYPES),
                 )
 
                 bills = self._parse_bills(result)

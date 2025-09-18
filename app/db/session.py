@@ -28,7 +28,8 @@ async def _health_check_connection(engine) -> bool:
             logger.debug("Database health check passed")
         return True
     except Exception as e:
-        logger.warning(f"Database health check failed: {e}")
+        logger.warning(f"Database health check failed: {type(e).__name__}: {str(e)}")
+        logger.warning(f"Connection details - Host: {config.DATABASE_HOST}:{config.DATABASE_PORT}, Database: {config.DATABASE_NAME}")
         logger.debug(f"Health check error details: {type(e).__name__}: {str(e)}")
         return False
 
@@ -141,7 +142,9 @@ def _get_engine():
             logger.info("Database engine created successfully with asyncpg configuration")
 
         except Exception as e:
-            logger.error(f"Database engine creation failed: {e}")
+            logger.error(f"Database engine creation failed: {type(e).__name__}: {str(e)}")
+            logger.error(f"Database connection details - Host: {config.DATABASE_HOST}, Port: {config.DATABASE_PORT}, Database: {config.DATABASE_NAME}, User: {config.DATABASE_USER}")
+            logger.error(f"Full database URL (masked): {DATABASE_URL.replace(DATABASE_URL.split('@')[0].split('://')[-1], '***:***')}")
             raise
     return _engine
 
@@ -174,15 +177,19 @@ async def _create_session_with_retry(max_retries: int = 3) -> AsyncSession:
             await session.execute(text("SELECT 1"))
             return session
         except (OperationalError, DisconnectionError) as e:
-            logger.warning(f"Database session creation failed (attempt {attempt + 1}/{max_retries}): {e}")
+            logger.warning(f"Database session creation failed (attempt {attempt + 1}/{max_retries}): {type(e).__name__}: {str(e)}")
+            logger.warning(f"Connection details - Host: {config.DATABASE_HOST}:{config.DATABASE_PORT}, Database: {config.DATABASE_NAME}")
             if attempt < max_retries - 1:
                 await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                logger.info(f"Retrying in {2 ** attempt} seconds...")
                 continue
             else:
                 logger.error("All database session creation attempts failed")
+                logger.error(f"Final error: {type(e).__name__}: {str(e)}")
                 raise
         except Exception as e:
-            logger.error(f"Unexpected error creating database session: {e}")
+            logger.error(f"Unexpected error creating database session: {type(e).__name__}: {str(e)}")
+            logger.error(f"Connection details - Host: {config.DATABASE_HOST}:{config.DATABASE_PORT}, Database: {config.DATABASE_NAME}")
             raise
 
 

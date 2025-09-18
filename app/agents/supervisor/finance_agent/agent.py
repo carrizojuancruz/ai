@@ -86,8 +86,6 @@ class FinanceAgent:
             "trace": "enabled",
         }
 
-        logger.info(f"Creating Bedrock ChatBedrock client for model {llm_model_id}")
-
         self.sql_generator = ChatBedrockConverse(
             model_id="openai.gpt-oss-120b-1:0",
             region_name="us-west-2",
@@ -142,8 +140,8 @@ class FinanceAgent:
                     f"ORDER BY a.created_at DESC LIMIT {self.MAX_ACCOUNT_SAMPLES}"
                 )
 
-                tx_rows = await repo.execute_query(tx_query, user_id)
-                acct_rows = await repo.execute_query(acct_query, user_id)
+                tx_rows = await repo.execute_query(tx_query, user_id=str(user_id))
+                acct_rows = await repo.execute_query(acct_query, user_id=str(user_id))
 
                 # Convert PostgreSQL/SQLAlchemy types to JSON-serializable types
                 tx_rows_serialized = [self._serialize_sample_row(r) for r in (tx_rows or [])]
@@ -229,6 +227,7 @@ class FinanceAgent:
         7. **DATA VALIDATION**: State clearly if you don't have sufficient data - DO NOT INVENT INFORMATION
         8. **PRIVACY FIRST**: Never return raw SQL queries or raw tool output
         9. **NO GREETINGS/NO NAMES**: Do not greet. Do not mention the user's name. Answer directly.
+        10. **NO COMMENTS**: Do not include comments in the SQL queries.
 
         ## 📊 Table Information & Rules
 
