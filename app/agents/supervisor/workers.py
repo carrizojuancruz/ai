@@ -68,14 +68,15 @@ async def wealth_agent(state: MessagesState) -> dict[str, Any]:
             task_content = str(last_message)
 
         analysis_response = f"""
-        WEALTH AGENT COMPLETE:
+        ===== WEALTH AGENT TASK COMPLETED =====
 
         Task Analyzed: {task_content}...
 
         Analysis Results:
         {wealth_response}
 
-        This wealth agent is provided to the supervisor for final user response formatting.
+        STATUS: WEALTH AGENT ANALYSIS COMPLETE
+        This wealth agent analysis is provided to the supervisor for final user response formatting.
         """
 
         from app.agents.supervisor.handoff import create_handoff_back_messages
