@@ -441,7 +441,7 @@ class SupervisorService:
 
         emitted_handoff_back_keys: set[str] = set()
         current_agent_tool: Optional[str] = None
-        active_handoffs: set[str] = set()  # Track active source.search.start events
+        active_handoffs: set[str] = set()
 
         async for event in graph.astream_events(
             {"messages": [{"role": "user", "content": text}], "sources": sources},
@@ -458,7 +458,6 @@ class SupervisorService:
             etype = event.get("event")
             data = event.get("data") or {}
 
-            # Extract response text from complex content structure
             response_text = ""
             try:
                 if data and 'output' in data and 'messages' in data['output']:
@@ -503,7 +502,6 @@ class SupervisorService:
                     )
                     continue
 
-                # Handle non-transfer tools
                 if name and not name.startswith("transfer_to_"):
                     await q.put({"event": "tool.start", "data": {"tool": name}})
 
@@ -567,7 +565,6 @@ class SupervisorService:
                 # Handle final text streaming for supervisor
                 if name == "supervisor" and response_text:
                     words = response_text.split(" ")
-                    logger.info(f"Token delta event: {event}")
                     for i in range(0, len(words), 3):
                         word_group = " ".join(words[i:i+3])
                         if word_group.strip():
