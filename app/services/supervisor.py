@@ -443,6 +443,11 @@ class SupervisorService:
         current_agent_tool: Optional[str] = None
         active_handoffs: set[str] = set()
 
+        # Quick fix: Track the most recent response from any event
+        latest_response_text: Optional[str] = None
+        response_event_count = 0
+        seen_responses: set[int] = set()  # Track response hashes we've already streamed
+
         async for event in graph.astream_events(
             {"messages": [{"role": "user", "content": text}], "sources": sources},
             version="v2",
@@ -470,6 +475,12 @@ class SupervisorService:
                                     break
                             if response_text:
                                 break
+
+                # Quick fix: Update latest response from any event
+                if response_text:
+                    latest_response_text = response_text
+                    response_event_count += 1
+
             except: # noqa: E722
                 pass
 
@@ -562,9 +573,15 @@ class SupervisorService:
                 except Exception:
                     pass
 
-                # Handle final text streaming for supervisor
-                if name == "supervisor" and response_text:
-                    words = response_text.split(" ")
+                # Quick fix: Only stream when we have the latest response and it's from supervisor
+                if name == "supervisor" and latest_response_text:
+                    # Check if we've already streamed this response
+                    response_hash = hash(latest_response_text.strip())
+                    if response_hash in seen_responses:
+                        return  # Don't process further events
+
+                    seen_responses.add(response_hash)  # Mark as streamed
+                    words = latest_response_text.split(" ")
                     for i in range(0, len(words), 3):
                         word_group = " ".join(words[i:i+3])
                         if word_group.strip():
@@ -573,9 +590,8 @@ class SupervisorService:
 
 
         try:
-            logger.info(f"[DEBUG FINAL TEXT] '{response_text}'")
-            if response_text:
-                await q.put({"event": "message.completed", "data": {"content": response_text}})
+            if latest_response_text:
+                await q.put({"event": "message.completed", "data": {"content": latest_response_text}})
         except Exception:
             pass
 
@@ -583,8 +599,8 @@ class SupervisorService:
         await q.put({"event": "step.update", "data": {"status": "presented", "description": completed_description}})
 
         try:
-            if assistant_response_parts:
-                assistant_response = "".join(assistant_response_parts).strip()
+            if latest_response_text:
+                assistant_response = latest_response_text.strip()
                 if assistant_response:
                     conversation_messages.append(
                         {"role": "assistant", "content": assistant_response, "sources": sources}
