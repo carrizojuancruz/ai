@@ -22,7 +22,6 @@ def _validate_query_security(query: str, user_id: UUID) -> Optional[str]:
     - Disallow SELECT INTO (creates table)
     - Require user_id filter for isolation
     """
-
     # Strip comments first
     cleaned = re.sub(r"--.*$", "", query, flags=re.MULTILINE)
     cleaned = re.sub(r"/\*.*?\*/", "", cleaned, flags=re.DOTALL)

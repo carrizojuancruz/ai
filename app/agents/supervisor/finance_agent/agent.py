@@ -21,7 +21,6 @@ from app.core.app_state import (
     set_cached_finance_agent,
     set_finance_samples,
 )
-from app.core.config import config
 from app.repositories.database_service import get_database_service
 from app.repositories.postgres.finance_repository import FinanceTables
 from app.utils.tools import get_config_value
@@ -78,8 +77,6 @@ class FinanceAgent:
         logger.info("Initializing FinanceAgent with Bedrock models")
 
         # Initialize Bedrock models
-        llm_model_id = config.BEDROCK_MODEL_ID
-
         guardrails = {
             "guardrailIdentifier": "arn:aws:bedrock:us-west-2:905418355862:guardrail/nqa94s84lt6u",
             "guardrailVersion": "DRAFT",

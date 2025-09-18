@@ -501,14 +501,13 @@ class SupervisorService:
                             },
                         }
                     )
-                    suppress_streaming = True
                     continue
 
                 # Handle non-transfer tools
                 if name and not name.startswith("transfer_to_"):
                     await q.put({"event": "tool.start", "data": {"tool": name}})
 
-            
+
             elif etype == "on_tool_end":
                 sources = self._add_source_from_tool_end(sources, name, data)
                 if name and not name.startswith("transfer_to_"):
@@ -530,18 +529,18 @@ class SupervisorService:
                             if last_tool:
                                 agent_name: str = getattr(last_tool, "name", None) or "unknown_agent"
                                 # Create a more robust dedupe key using agent name and current tool
-                                back_tool = f"transfer_back_to_supervisor"  # Standard back tool name
+                                back_tool = "transfer_back_to_supervisor"  # Standard back tool name
                                 dedupe_key = f"{agent_name}:{current_agent_tool or 'unknown'}"
-                                
+
                                 # Only emit source.search.end if we have an active handoff to close
-                                if (dedupe_key not in emitted_handoff_back_keys and 
-                                    current_agent_tool and 
+                                if (dedupe_key not in emitted_handoff_back_keys and
+                                    current_agent_tool and
                                     current_agent_tool in active_handoffs):
-                                    
+
                                     emitted_handoff_back_keys.add(dedupe_key)
                                     # Remove from active handoffs since we're closing it
                                     active_handoffs.discard(current_agent_tool)
-                                    
+
                                     description = "Returned from source"  # fallback
                                     if current_agent_tool == "transfer_to_finance_agent":
                                         description = _get_random_finance_completed()
@@ -561,11 +560,10 @@ class SupervisorService:
                                             },
                                         }
                                     )
-                                    suppress_streaming = False
                                     current_agent_tool = None
                 except Exception:
                     pass
-                
+
                 # Handle final text streaming for supervisor
                 if name == "supervisor" and response_text:
                     words = response_text.split(" ")
