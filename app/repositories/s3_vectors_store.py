@@ -258,9 +258,11 @@ class S3VectorsStore(BaseStore):
 
         flt = self._build_filter(namespace_prefix, filter)
         eff_limit = limit + offset if offset else limit
+        aws_query_limit = 100
+        safe_top_k = max(1, min(eff_limit, min(config.S3V_MAX_TOP_K, aws_query_limit)))
         res = self._safe_query_vectors(
             query_vector=query_vec,
-            top_k=max(1, eff_limit),
+            top_k=safe_top_k,
             flt=flt,
             return_distance=True,
         )
