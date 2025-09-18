@@ -21,7 +21,6 @@ from app.core.app_state import (
     set_cached_finance_agent,
     set_finance_samples,
 )
-from app.core.config import config
 from app.repositories.database_service import get_database_service
 from app.repositories.postgres.finance_repository import FinanceTables
 from app.utils.tools import get_config_value
@@ -78,15 +77,11 @@ class FinanceAgent:
         logger.info("Initializing FinanceAgent with Bedrock models")
 
         # Initialize Bedrock models
-        llm_model_id = config.BEDROCK_MODEL_ID
-
         guardrails = {
             "guardrailIdentifier": "arn:aws:bedrock:us-west-2:905418355862:guardrail/nqa94s84lt6u",
             "guardrailVersion": "DRAFT",
             "trace": "enabled",
         }
-
-        logger.info(f"Creating Bedrock ChatBedrock client for model {llm_model_id}")
 
         self.sql_generator = ChatBedrockConverse(
             model_id="openai.gpt-oss-120b-1:0",
@@ -142,8 +137,8 @@ class FinanceAgent:
                     f"ORDER BY a.created_at DESC LIMIT {self.MAX_ACCOUNT_SAMPLES}"
                 )
 
-                tx_rows = await repo.execute_query(tx_query, user_id)
-                acct_rows = await repo.execute_query(acct_query, user_id)
+                tx_rows = await repo.execute_query(tx_query, user_id=str(user_id))
+                acct_rows = await repo.execute_query(acct_query, user_id=str(user_id))
 
                 # Convert PostgreSQL/SQLAlchemy types to JSON-serializable types
                 tx_rows_serialized = [self._serialize_sample_row(r) for r in (tx_rows or [])]
@@ -229,6 +224,7 @@ class FinanceAgent:
         7. **DATA VALIDATION**: State clearly if you don't have sufficient data - DO NOT INVENT INFORMATION
         8. **PRIVACY FIRST**: Never return raw SQL queries or raw tool output
         9. **NO GREETINGS/NO NAMES**: Do not greet. Do not mention the user's name. Answer directly.
+        10. **NO COMMENTS**: Do not include comments in the SQL queries.
 
         ## 📊 Table Information & Rules
 

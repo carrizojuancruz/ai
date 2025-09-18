@@ -46,7 +46,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
         model_id="openai.gpt-oss-120b-1:0",
         region_name="us-west-2",
         temperature=0.4,
-        guardrail_config=guardrails,
+        guardrail_config=guardrails
     )
     checkpointer = MemorySaver()
 

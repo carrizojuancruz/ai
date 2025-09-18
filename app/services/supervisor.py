@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
@@ -19,10 +20,8 @@ from app.agents.supervisor.i18n import (
     _get_random_wealth_current,
 )
 from app.core.app_state import (
-    get_last_emitted_text,
     get_sse_queue,
     get_supervisor_graph,
-    set_last_emitted_text,
 )
 from app.core.config import config
 from app.models.user import UserContext
@@ -440,11 +439,9 @@ class SupervisorService:
             "user_id": user_id,
         }
 
-        final_text_candidate: Optional[str] = None
-        supervisor_active: bool = False
-        suppress_streaming: bool = False
         emitted_handoff_back_keys: set[str] = set()
         current_agent_tool: Optional[str] = None
+        active_handoffs: set[str] = set()  # Track active source.search.start events
 
         async for event in graph.astream_events(
             {"messages": [{"role": "user", "content": text}], "sources": sources},
@@ -461,15 +458,30 @@ class SupervisorService:
             etype = event.get("event")
             data = event.get("data") or {}
 
-            if name == "supervisor" and etype == "on_chain_start":
-                supervisor_active = True
-            elif name == "supervisor" and etype == "on_chain_end":
-                supervisor_active = False
+            # Extract response text from complex content structure
+            response_text = ""
+            try:
+                if data and 'output' in data and 'messages' in data['output']:
+                    messages_supervisor = data['output']['messages']
+                    for msg in messages_supervisor:
+                        if hasattr(msg, 'content') and isinstance(msg.content, list):
+                            for content_item in msg.content:
+                                if isinstance(content_item, dict) and content_item.get('type') == 'text':
+                                    response_text = content_item.get('text', '')
+                                    break
+                            if response_text:
+                                break
+            except: # noqa: E722
+                pass
+
+
+
 
             if etype == "on_tool_start":
                 tool_name = name
                 if tool_name and tool_name.startswith("transfer_to_"):
                     current_agent_tool = tool_name
+                    active_handoffs.add(tool_name)
 
                     description = "Consulting a source"
                     if tool_name == "transfer_to_finance_agent":
@@ -489,27 +501,13 @@ class SupervisorService:
                             },
                         }
                     )
-                    suppress_streaming = True
                     continue
 
                 # Handle non-transfer tools
                 if name and not name.startswith("transfer_to_"):
                     await q.put({"event": "tool.start", "data": {"tool": name}})
 
-            if etype == "on_chat_model_stream":
-                if not supervisor_active or suppress_streaming:
-                    continue
-                chunk = data.get("chunk")
-                out = self._content_to_text(chunk)
-                if out:
-                    out = self._strip_guardrail_marker(out)
-                if out and not self._is_injected_context(out):
-                    last = get_last_emitted_text(thread_id)
-                    if out != last:
-                        if name not in ["tools"]:
-                            await q.put({"event": "token.delta", "data": {"text": out, "sources": sources}})
-                            set_last_emitted_text(thread_id, out)
-                        assistant_response_parts.append(out)
+
             elif etype == "on_tool_end":
                 sources = self._add_source_from_tool_end(sources, name, data)
                 if name and not name.startswith("transfer_to_"):
@@ -524,20 +522,25 @@ class SupervisorService:
                                 (
                                     m
                                     for m in messages
-                                    if (getattr(m, "name", None) or getattr(m, "tool_name", "")).startswith(
-                                        "transfer_back_to_"
-                                    )
+                                    if (getattr(m, "response_metadata", {}).get("is_handoff_back", False))
                                 ),
                                 None,
                             )
                             if last_tool:
-                                back_tool: str = getattr(last_tool, "name", None) or getattr(last_tool, "tool_name", "")
-                                tool_call_id = getattr(last_tool, "tool_call_id", None) or getattr(
-                                    last_tool, "id", None
-                                )
-                                dedupe_key = f"{back_tool}:{tool_call_id or 'noid'}"
-                                if dedupe_key not in emitted_handoff_back_keys:
+                                agent_name: str = getattr(last_tool, "name", None) or "unknown_agent"
+                                # Create a more robust dedupe key using agent name and current tool
+                                back_tool = "transfer_back_to_supervisor"  # Standard back tool name
+                                dedupe_key = f"{agent_name}:{current_agent_tool or 'unknown'}"
+
+                                # Only emit source.search.end if we have an active handoff to close
+                                if (dedupe_key not in emitted_handoff_back_keys and
+                                    current_agent_tool and
+                                    current_agent_tool in active_handoffs):
+
                                     emitted_handoff_back_keys.add(dedupe_key)
+                                    # Remove from active handoffs since we're closing it
+                                    active_handoffs.discard(current_agent_tool)
+
                                     description = "Returned from source"  # fallback
                                     if current_agent_tool == "transfer_to_finance_agent":
                                         description = _get_random_finance_completed()
@@ -546,10 +549,7 @@ class SupervisorService:
                                     elif current_agent_tool == "transfer_to_wealth_agent":
                                         description = _get_random_wealth_completed()
 
-                                    supervisor_name = (
-                                        back_tool.replace("transfer_back_to_", "").replace("_", " ").title()
-                                        or "Supervisor"
-                                    )
+                                    supervisor_name = "Supervisor"
                                     await q.put(
                                         {
                                             "event": "source.search.end",
@@ -560,17 +560,25 @@ class SupervisorService:
                                             },
                                         }
                                     )
-                                    suppress_streaming = False
                                     current_agent_tool = None
                 except Exception:
                     pass
 
+                # Handle final text streaming for supervisor
+                if name == "supervisor" and response_text:
+                    words = response_text.split(" ")
+                    logger.info(f"Token delta event: {event}")
+                    for i in range(0, len(words), 3):
+                        word_group = " ".join(words[i:i+3])
+                        if word_group.strip():
+                            await q.put({"event": "token.delta", "data": {"text": word_group + " ", "sources": sources}})
+                            time.sleep(0)
+
+
         try:
-            final_text = (
-                "".join(assistant_response_parts).strip() if assistant_response_parts else (final_text_candidate or "")
-            )
-            if final_text:
-                await q.put({"event": "message.completed", "data": {"content": final_text}})
+            logger.info(f"[DEBUG FINAL TEXT] '{response_text}'")
+            if response_text:
+                await q.put({"event": "message.completed", "data": {"content": response_text}})
         except Exception:
             pass
 
