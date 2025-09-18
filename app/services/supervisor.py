@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
@@ -461,6 +462,24 @@ class SupervisorService:
             etype = event.get("event")
             data = event.get("data") or {}
 
+            # Extract response text from complex content structure
+            response_text = ""
+            try:
+                if data and 'output' in data and 'messages' in data['output']:
+                    messages_supervisor = data['output']['messages']
+                    for msg in messages_supervisor:
+                        if hasattr(msg, 'content') and isinstance(msg.content, list):
+                            for content_item in msg.content:
+                                if isinstance(content_item, dict) and content_item.get('type') == 'text':
+                                    response_text = content_item.get('text', '')
+                                    break
+                            if response_text:
+                                break
+            except: # noqa: E722
+                pass
+
+
+
             if name == "supervisor" and etype == "on_chain_start":
                 supervisor_active = True
             elif name == "supervisor" and etype == "on_chain_end":
@@ -510,6 +529,8 @@ class SupervisorService:
                             await q.put({"event": "token.delta", "data": {"text": out, "sources": sources}})
                             set_last_emitted_text(thread_id, out)
                         assistant_response_parts.append(out)
+
+
             elif etype == "on_tool_end":
                 sources = self._add_source_from_tool_end(sources, name, data)
                 if name and not name.startswith("transfer_to_"):
@@ -564,6 +585,17 @@ class SupervisorService:
                                     current_agent_tool = None
                 except Exception:
                     pass
+
+            print(f"[DEBUG EVENT] type={etype}, name={name}, response='{response_text}'")
+            if etype == "on_chain_end" and name == "supervisor" and response_text:
+                print(f"[DEBUG FINAL TEXT] '{response_text}'")
+                words = response_text.split(" ")
+                for i in range(0, len(words), 3):
+                    word_group = " ".join(words[i:i+3])
+                    if word_group.strip():
+                        await q.put({"event": "token.delta", "data": {"text": word_group + " "}})
+                        time.sleep(0)
+
 
         try:
             final_text = (
