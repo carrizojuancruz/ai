@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import uuid4
 
-from langchain_core.messages import AIMessage, HumanMessage, ToolCall, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import tool
 from langgraph.graph import MessagesState
 from langgraph.prebuilt import InjectedState
@@ -65,12 +65,9 @@ def create_handoff_back_messages(agent_name: str, supervisor_name: str) -> tuple
     tool_call_id = str(uuid4())
     tool_name = f"transfer_back_to_{supervisor_name}"
 
-    tool_calls = [ToolCall(name=tool_name, args={}, id=tool_call_id)]
-
     return (
         AIMessage(
             content=f"Analysis completed. Returning control to {supervisor_name}.",
-            tool_calls=tool_calls,
             name=agent_name,
             response_metadata={"is_handoff_back": True},
         ),

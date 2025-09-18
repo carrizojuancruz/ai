@@ -40,6 +40,10 @@ class Config:
     MEMORY_CONTEXT_TOPN: int = int(os.getenv("MEMORY_CONTEXT_TOPN", "5"))
     MEMORY_RERANK_WEIGHTS: str = os.getenv("MEMORY_RERANK_WEIGHTS", "sim=0.55,imp=0.20,recency=0.15,pinned=0.10")
 
+    # Procedural Memory (Supervisor) Configuration
+    MEMORY_PROCEDURAL_TOPK: int = int(os.getenv("MEMORY_PROCEDURAL_TOPK", "3"))
+    MEMORY_PROCEDURAL_MIN_SCORE: float = float(os.getenv("MEMORY_PROCEDURAL_MIN_SCORE", "0.45"))
+
     # AWS Configuration
     AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
     AWS_DEFAULT_REGION: str = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
@@ -51,7 +55,6 @@ class Config:
     DEBUG: bool = os.getenv("DEBUG", "false").lower() in {"true", "1", "yes", "on"}
 
     # AI Models Configuration
-    AGENT_MODEL_ID: str = os.getenv("AGENT_MODEL_ID", "global.anthropic.claude-sonnet-4-20250514-v1:0")
     EMBEDDINGS_MODEL_ID: str = os.getenv("EMBEDDINGS_MODEL_ID", "amazon.titan-embed-text-v2:0")
     BEDROCK_MODEL_ID: str = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20240620-v1:0")
     BEDROCK_EMBED_MODEL_ID: str = os.getenv("BEDROCK_EMBED_MODEL_ID", "amazon.titan-embed-text-v2:0")

@@ -34,27 +34,33 @@ class FinanceRepository:
             await self.session.rollback()
             return False
 
-    async def execute_query(self, query: str, parameters: dict) -> Optional[list[dict]]:
-        """Execute a SQL query with parameters."""
+    async def execute_query(self, query: str, **parameters) -> Optional[list[dict]]:
+        """Execute a SQL query with flexible parameters via kwargs."""
         try:
-            logger.info(f"FinanceRepository executing SQL for user {parameters}: {query}...")
+            logger.info(f"FinanceRepository executing SQL with params {parameters}: {query}...")
+
+            # Enforce read-only at the database level for this transaction
+            try:
+                await self.session.execute(text("SET TRANSACTION READ ONLY"))
+            except Exception as readonly_error:
+                logger.warning(f"Failed to set transaction READ ONLY: {readonly_error}")
 
             # Execute the query with provided parameters
-            logger.info(f"Sending query to database for user {parameters}")
+            logger.info(f"Sending query to database with params {parameters}")
             result = await self.session.execute(text(query), parameters)
-            logger.info(f"Query executed, fetching results for user {parameters}")
+            logger.info(f"Query executed, fetching results with params {parameters}")
             rows = result.fetchall()
-            logger.info(f"Fetched {len(rows) if rows else 0} rows for user {parameters}")
+            logger.info(f"Fetched {len(rows) if rows else 0} rows with params {parameters}")
 
             if not rows:
                 return []
 
             # Convert to list of dictionaries
             formatted_rows = [dict(row._mapping) for row in rows]
-            logger.info(f"Successfully formatted {len(formatted_rows)} rows for user {parameters}")
+            logger.info(f"Successfully formatted {len(formatted_rows)} rows with params {parameters}")
             return formatted_rows
 
         except Exception as exec_error:
-            logger.error(f"SQL execution error for user {parameters}: {exec_error}")
+            logger.error(f"SQL execution error with params {parameters}: {exec_error}")
             await self.session.rollback()
             raise exec_error

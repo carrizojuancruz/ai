@@ -5,7 +5,7 @@ import logging
 from typing import Any, Optional
 from uuid import UUID
 
-from langchain_aws import ChatBedrock
+from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 from langgraph.graph import MessagesState
@@ -21,7 +21,6 @@ from app.core.app_state import (
     set_cached_finance_agent,
     set_finance_samples,
 )
-from app.core.config import config
 from app.repositories.database_service import get_database_service
 from app.repositories.postgres.finance_repository import FinanceTables
 from app.utils.tools import get_config_value
@@ -78,22 +77,17 @@ class FinanceAgent:
         logger.info("Initializing FinanceAgent with Bedrock models")
 
         # Initialize Bedrock models
-        region = config.AWS_REGION
-        sonnet_model_id = config.BEDROCK_MODEL_ID
-
         guardrails = {
-            "guardrailIdentifier": config.BEDROCK_GUARDRAIL_ID,
-            "guardrailVersion": str(config.BEDROCK_GUARDRAIL_VERSION),
-            "trace": True,
+            "guardrailIdentifier": "arn:aws:bedrock:us-west-2:905418355862:guardrail/nqa94s84lt6u",
+            "guardrailVersion": "DRAFT",
+            "trace": "enabled",
         }
 
-        logger.info(f"Creating Bedrock ChatBedrock client for model {sonnet_model_id}")
-
-        # Primary model for SQL generation (Sonnet)
-        self.sql_generator = ChatBedrock(
-            model_id=sonnet_model_id,
-            region_name=region,
-            guardrails=guardrails
+        self.sql_generator = ChatBedrockConverse(
+            model_id="openai.gpt-oss-120b-1:0",
+            region_name="us-west-2",
+            temperature=0.2,
+            guardrail_config=guardrails,
         )
 
         logger.info("FinanceAgent initialization completed")
@@ -106,7 +100,6 @@ class FinanceAgent:
         Returns compact JSON arrays as strings for embedding in the prompt.
         """
         try:
-
             cached_pair = get_finance_samples(user_id)
             if cached_pair:
                 return cached_pair
@@ -144,8 +137,8 @@ class FinanceAgent:
                     f"ORDER BY a.created_at DESC LIMIT {self.MAX_ACCOUNT_SAMPLES}"
                 )
 
-                tx_rows = await repo.execute_query(tx_query, user_id)
-                acct_rows = await repo.execute_query(acct_query, user_id)
+                tx_rows = await repo.execute_query(tx_query, user_id=str(user_id))
+                acct_rows = await repo.execute_query(acct_query, user_id=str(user_id))
 
                 # Convert PostgreSQL/SQLAlchemy types to JSON-serializable types
                 tx_rows_serialized = [self._serialize_sample_row(r) for r in (tx_rows or [])]
@@ -161,6 +154,7 @@ class FinanceAgent:
                     "cached_at": now,
                 }
                 from contextlib import suppress
+
                 with suppress(Exception):
                     set_finance_samples(user_id, tx_json, acct_json)
                 return tx_json, acct_json
@@ -175,11 +169,11 @@ class FinanceAgent:
 
         serialized = {}
         for k, v in row.items():
-            if hasattr(v, 'is_finite'):  # Decimal
+            if hasattr(v, "is_finite"):  # Decimal
                 serialized[k] = float(v)
             elif isinstance(v, datetime.date):  # date/datetime
                 serialized[k] = v.isoformat()
-            elif isinstance(v, UUID) or hasattr(v, '__class__') and 'UUID' in str(type(v)):  # UUID objects
+            elif isinstance(v, UUID) or hasattr(v, "__class__") and "UUID" in str(type(v)):  # UUID objects
                 serialized[k] = str(v)
             else:
                 serialized[k] = v
@@ -188,7 +182,8 @@ class FinanceAgent:
     def _rows_to_json(self, rows: list[dict[str, Any]]) -> str:
         """Convert serialized rows to JSON string."""
         import json
-        return json.dumps(rows, ensure_ascii=False, separators=(',', ':'))
+
+        return json.dumps(rows, ensure_ascii=False, separators=(",", ":"))
 
     async def _create_system_prompt(self, user_id: UUID) -> str:
         """Create the system prompt for the finance agent."""
@@ -229,6 +224,7 @@ class FinanceAgent:
         7. **DATA VALIDATION**: State clearly if you don't have sufficient data - DO NOT INVENT INFORMATION
         8. **PRIVACY FIRST**: Never return raw SQL queries or raw tool output
         9. **NO GREETINGS/NO NAMES**: Do not greet. Do not mention the user's name. Answer directly.
+        10. **NO COMMENTS**: Do not include comments in the SQL queries.
 
         ## 📊 Table Information & Rules
 
@@ -355,7 +351,7 @@ class FinanceAgent:
         ✅ Column names match schema exactly
         ✅ Amount sign convention verified (positive = spending)
 
-        Today's date: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d')}"""
+        Today's date: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")}"""
 
     async def _create_agent_with_tools(self, user_id: UUID):
         """Create a LangGraph agent with SQL tools for the given user."""
@@ -372,11 +368,7 @@ class FinanceAgent:
         logger.info(f"Initializing LangGraph agent with tools for user {user_id}")
 
         system_prompt = await self._create_system_prompt(user_id)
-        agent = create_react_agent(
-            model=self.sql_generator,
-            tools=tools,
-            prompt=system_prompt
-        )
+        agent = create_react_agent(model=self.sql_generator, tools=tools, prompt=system_prompt)
 
         logger.info(f"LangGraph agent created successfully for user {user_id}")
         return agent
@@ -395,9 +387,7 @@ class FinanceAgent:
                 logger.info(f"Using cached LangGraph agent for user {user_id}")
 
             # Prepare the conversation
-            messages = [
-                HumanMessage(content=query)
-            ]
+            messages = [HumanMessage(content=query)]
 
             # Run the agent
             logger.info(f"Starting LangGraph agent execution for user {user_id}")
@@ -414,8 +404,6 @@ class FinanceAgent:
         except Exception as e:
             logger.error(f"Finance agent error for user {user_id}: {e}")
             return "I encountered an error while processing your financial query. Please try again."
-
-
 
 
 async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
@@ -461,8 +449,7 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[st
         return {
             "messages": [
                 {"role": "assistant", "content": analysis_response, "name": "finance_agent"},
-                handoff_messages[0],  # AIMessage signaling completion
-                handoff_messages[1],  # ToolMessage confirming return
+                handoff_messages[0],  # AIMessage signaling completion (no tool_calls)
             ]
         }
 
@@ -476,6 +463,5 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[st
             "messages": [
                 {"role": "assistant", "content": error_analysis, "name": "finance_agent"},
                 handoff_messages[0],
-                handoff_messages[1],
             ]
         }

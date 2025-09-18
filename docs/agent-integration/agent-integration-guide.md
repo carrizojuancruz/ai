@@ -167,7 +167,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     guardrails = {
         "guardrailIdentifier": guardrail_id,
         "guardrailVersion": guardrail_version,
-        "trace": True,
+        "trace": "enabled",
     }
     chat_bedrock = ChatBedrock(model_id=model_id, region_name=region, guardrails=guardrails)
 
