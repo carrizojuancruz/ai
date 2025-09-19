@@ -366,10 +366,13 @@ class SupervisorService:
             from app.services.nudges.icebreaker_processor import get_icebreaker_processor
 
             processor = get_icebreaker_processor()
+            logger.info(f"Getting icebreaker from SQS for user {uid}")
             raw_icebreaker = await processor.process_icebreaker_for_user(uid)
-
+            logger.info(f"Finished getting icebreaker from SQS for user {uid}")
             if raw_icebreaker and raw_icebreaker.strip():
+                logger.info(f"Creating natural icebreaker for user {uid}")
                 natural = await _create_natural_icebreaker(raw_icebreaker.strip(), uid)
+                logger.info(f"Finished creating natural icebreaker for user {uid}")
                 if natural and natural.strip():
                     welcome = natural.strip()
                     icebreaker_used = True
@@ -465,22 +468,34 @@ class SupervisorService:
             try:
                 if data and 'output' in data and 'messages' in data['output']:
                     messages_supervisor = data['output']['messages']
-                    for msg in messages_supervisor:
-                        if hasattr(msg, 'content') and isinstance(msg.content, list):
-                            for content_item in msg.content:
+                    for msg in reversed(messages_supervisor):
+                        content_list = getattr(msg, 'content', None)
+                        if isinstance(content_list, list):
+                            for content_item in reversed(content_list):
                                 if isinstance(content_item, dict) and content_item.get('type') == 'text':
-                                    response_text = content_item.get('text', '')
-                                    break
-                            if response_text:
-                                break
+                                    candidate = content_item.get('text', '')
+                                    if candidate and candidate.strip():
+                                        response_text = candidate
+                                        break
+                        if response_text:
+                            break
 
                 # Quick fix: Update latest response from any event
                 if response_text:
+                    prev_latest = (latest_response_text[:80] + "...") if latest_response_text else None
                     latest_response_text = response_text
                     # If this update is from supervisor, also update the supervisor buffer
                     if name == "supervisor":
+                        prev_super = (supervisor_latest_response_text[:80] + "...") if supervisor_latest_response_text else None
                         supervisor_latest_response_text = response_text
+                        logger.info(
+                            f"[TRACE] supervisor.buffer.update from={prev_super} to={(supervisor_latest_response_text[:80] + '...') if supervisor_latest_response_text else None}"
+                        )
                     response_event_count += 1
+                    logger.info(
+                        f"[TRACE] latest.update event={name} type={etype} count={response_event_count} "
+                        f"from={prev_latest} to={(latest_response_text[:80] + '...') if latest_response_text else None}"
+                    )
 
             except: # noqa: E722
                 pass
@@ -571,8 +586,8 @@ class SupervisorService:
                                         }
                                     )
                                     current_agent_tool = None
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.info(f"[TRACE] chain_end.handoff_close.error err={e}")
 
                 # Quick fix: Only stream when we have the latest response and it's from supervisor
                 if name == "supervisor" and (supervisor_latest_response_text or latest_response_text):
@@ -581,20 +596,26 @@ class SupervisorService:
                     # Check if we've already streamed this exact response text (prevents duplicate streaming after handoffs)
                     response_text_normalized = text_to_stream.strip()
                     if response_text_normalized in streamed_responses:
+                        logger.info("[TRACE] supervisor.stream.skip reason=exact_text_duplicate")
                         break
 
                     response_hash = hash(response_text_normalized)
                     if response_hash in seen_responses:
+                        logger.info("[TRACE] supervisor.stream.skip reason=hash_duplicate")
                         break
 
+                    logger.info("[TRACE] supervisor.stream.start")
                     seen_responses.add(response_hash)
                     streamed_responses.add(response_text_normalized)
                     words = text_to_stream.split(" ")
+                    chunks_emitted = 0
                     for i in range(0, len(words), STREAM_WORD_GROUP_SIZE):
                         word_group = " ".join(words[i:i+STREAM_WORD_GROUP_SIZE])
                         if word_group.strip():
                             await q.put({"event": "token.delta", "data": {"text": word_group + " ", "sources": sources}})
+                            chunks_emitted += 1
                             await asyncio.sleep(0)
+                    logger.info(f"[TRACE] supervisor.stream.end chunks={chunks_emitted}")
 
         try:
             final_text = (supervisor_latest_response_text or latest_response_text)
