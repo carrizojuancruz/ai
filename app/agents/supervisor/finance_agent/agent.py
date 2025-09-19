@@ -14,7 +14,6 @@ from langgraph.types import RunnableConfig
 
 from app.agents.supervisor.finance_agent.tools import execute_financial_query
 from app.agents.supervisor.handoff import create_handoff_back_messages
-from app.core.config import config
 from app.core.app_state import (
     get_cached_finance_agent,
     get_finance_agent,
@@ -22,6 +21,7 @@ from app.core.app_state import (
     set_cached_finance_agent,
     set_finance_samples,
 )
+from app.core.config import config
 from app.repositories.database_service import get_database_service
 from app.repositories.postgres.finance_repository import FinanceTables
 from app.utils.tools import get_config_value

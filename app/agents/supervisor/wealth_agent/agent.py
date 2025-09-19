@@ -7,8 +7,8 @@ from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
-from app.observability.logging_config import configure_logging
 from app.core.config import config
+from app.observability.logging_config import configure_logging
 
 from .prompts import WEALTH_AGENT_PROMPT
 from .tools import search_kb

@@ -14,6 +14,7 @@ from .base import LLM
 
 class BedrockLLM(LLM):
     """LLM client implementation using AWS Bedrock for ONBOARDING AGENT."""
+
     def __init__(self) -> None:
         region = config.get_aws_region()
         if not region:
