@@ -56,8 +56,6 @@ class Config:
     # AI Models Configuration
     BEDROCK_EMBED_MODEL_ID: str = os.getenv("BEDROCK_EMBED_MODEL_ID")
 
-    GOAL_AGENT_MODEL_ID: Optional[str] = os.getenv("GOAL_AGENT_MODEL_ID")
-    GOAL_AGENT_MODEL_REGION: str = os.getenv("GOAL_AGENT_REGION", "us-east-1")
     # LLM Configuration
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "bedrock")
 
