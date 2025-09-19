@@ -61,7 +61,7 @@ class Config:
     BEDROCK_GUARDRAIL_ID: Optional[str] = os.getenv("BEDROCK_GUARDRAIL_ID")
     BEDROCK_GUARDRAIL_VERSION: Optional[str] = os.getenv("BEDROCK_GUARDRAIL_VERSION")
 
-    GOAL_AGENT_MODEL_ID: str = os.getenv("GOAL_AGENT_MODEL_ID")
+    GOAL_AGENT_MODEL_ID: Optional[str] = os.getenv("GOAL_AGENT_MODEL_ID")
     GOAL_AGENT_MODEL_REGION: str = os.getenv("GOAL_AGENT_REGION", "us-east-1")
     # LLM Configuration
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "bedrock")
