@@ -17,6 +17,8 @@ Comprehensive checklist for conducting thorough code reviews to ensure quality, 
 - [ ] Variable names are descriptive
 - [ ] No code duplication
 - [ ] Follows project conventions
+- [ ] Remove any logs and comments from the code
+- [ ] Run ruff check . --fix
 
 ### Security
 - [ ] No obvious security vulnerabilities

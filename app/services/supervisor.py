@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
-import time
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
@@ -42,10 +42,8 @@ langfuse_handler = CallbackHandler(
 
 logger = logging.getLogger(__name__)
 
-logger.info(
-    f"Langfuse env vars: {config.LANGFUSE_PUBLIC_SUPERVISOR_KEY}, "
-    f"{config.LANGFUSE_SECRET_SUPERVISOR_KEY}, {config.LANGFUSE_HOST_SUPERVISOR}"
-)
+STREAM_WORD_GROUP_SIZE = 3
+
 
 
 # Warn if Langfuse env is missing so callbacks would be disabled silently
@@ -423,7 +421,6 @@ class SupervisorService:
 
         conversation_messages = session_ctx.get("conversation_messages", [])
         conversation_messages.append({"role": "user", "content": text.strip(), "sources": sources})
-        assistant_response_parts = []
 
         # Refresh UserContext from external FOS service each turn to avoid stale profile
         user_id = session_ctx.get("user_id")
@@ -443,10 +440,11 @@ class SupervisorService:
         current_agent_tool: Optional[str] = None
         active_handoffs: set[str] = set()
 
-        # Quick fix: Track the most recent response from any event
         latest_response_text: Optional[str] = None
+        supervisor_latest_response_text: Optional[str] = None
         response_event_count = 0
-        seen_responses: set[int] = set()  # Track response hashes we've already streamed
+        seen_responses: set[int] = set()
+        streamed_responses: set[str] = set()
 
         async for event in graph.astream_events(
             {"messages": [{"role": "user", "content": text}], "sources": sources},
@@ -479,6 +477,9 @@ class SupervisorService:
                 # Quick fix: Update latest response from any event
                 if response_text:
                     latest_response_text = response_text
+                    # If this update is from supervisor, also update the supervisor buffer
+                    if name == "supervisor":
+                        supervisor_latest_response_text = response_text
                     response_event_count += 1
 
             except: # noqa: E722
@@ -574,33 +575,41 @@ class SupervisorService:
                     pass
 
                 # Quick fix: Only stream when we have the latest response and it's from supervisor
-                if name == "supervisor" and latest_response_text:
-                    # Check if we've already streamed this response
-                    response_hash = hash(latest_response_text.strip())
-                    if response_hash in seen_responses:
-                        return  # Don't process further events
+                if name == "supervisor" and (supervisor_latest_response_text or latest_response_text):
+                    # Prefer the supervisor-specific buffer; fallback to global if needed
+                    text_to_stream = (supervisor_latest_response_text or latest_response_text) or ""
+                    # Check if we've already streamed this exact response text (prevents duplicate streaming after handoffs)
+                    response_text_normalized = text_to_stream.strip()
+                    if response_text_normalized in streamed_responses:
+                        break
 
-                    seen_responses.add(response_hash)  # Mark as streamed
-                    words = latest_response_text.split(" ")
-                    for i in range(0, len(words), 3):
-                        word_group = " ".join(words[i:i+3])
+                    response_hash = hash(response_text_normalized)
+                    if response_hash in seen_responses:
+                        break
+
+                    seen_responses.add(response_hash)
+                    streamed_responses.add(response_text_normalized)
+                    words = text_to_stream.split(" ")
+                    for i in range(0, len(words), STREAM_WORD_GROUP_SIZE):
+                        word_group = " ".join(words[i:i+STREAM_WORD_GROUP_SIZE])
                         if word_group.strip():
                             await q.put({"event": "token.delta", "data": {"text": word_group + " ", "sources": sources}})
-                            time.sleep(0)
-
+                            await asyncio.sleep(0)
 
         try:
-            if latest_response_text:
-                await q.put({"event": "message.completed", "data": {"content": latest_response_text}})
-        except Exception:
-            pass
+            final_text = (supervisor_latest_response_text or latest_response_text)
+            if final_text:
+                await q.put({"event": "message.completed", "data": {"content": final_text}})
+        except Exception as e:
+            logger.error(f"[DEBUG] Error sending message.completed: {e}")
 
         completed_description = _get_random_step_planning_completed()
         await q.put({"event": "step.update", "data": {"status": "presented", "description": completed_description}})
 
         try:
-            if latest_response_text:
-                assistant_response = latest_response_text.strip()
+            final_text = (supervisor_latest_response_text or latest_response_text)
+            if final_text:
+                assistant_response = final_text.strip()
                 if assistant_response:
                     conversation_messages.append(
                         {"role": "assistant", "content": assistant_response, "sources": sources}
