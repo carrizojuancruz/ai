@@ -45,8 +45,8 @@ class Config:
     MEMORY_PROCEDURAL_MIN_SCORE: float = float(os.getenv("MEMORY_PROCEDURAL_MIN_SCORE", "0.45"))
 
     # AWS Configuration
-    AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
-    AWS_DEFAULT_REGION: str = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+    AWS_REGION: str = os.getenv("AWS_REGION", "us-west-2")
+    AWS_DEFAULT_REGION: str = os.getenv("AWS_DEFAULT_REGION", "us-west-2")
     AWS_ACCESS_KEY_ID: Optional[str] = os.getenv("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY: Optional[str] = os.getenv("AWS_SECRET_ACCESS_KEY")
 
@@ -56,11 +56,13 @@ class Config:
 
     # AI Models Configuration
     EMBEDDINGS_MODEL_ID: str = os.getenv("EMBEDDINGS_MODEL_ID", "amazon.titan-embed-text-v2:0")
-    BEDROCK_MODEL_ID: str = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20240620-v1:0")
+    BEDROCK_MODEL_ID: str = os.getenv("BEDROCK_MODEL_ID", "openai.gpt-oss-120b-1:0")
     BEDROCK_EMBED_MODEL_ID: str = os.getenv("BEDROCK_EMBED_MODEL_ID", "amazon.titan-embed-text-v2:0")
     BEDROCK_GUARDRAIL_ID: Optional[str] = os.getenv("BEDROCK_GUARDRAIL_ID")
     BEDROCK_GUARDRAIL_VERSION: Optional[str] = os.getenv("BEDROCK_GUARDRAIL_VERSION")
 
+    GOAL_AGENT_MODEL_ID: str = os.getenv("GOAL_AGENT_MODEL_ID")
+    GOAL_AGENT_MODEL_REGION: str = os.getenv("GOAL_AGENT_REGION", "us-east-1")
     # LLM Configuration
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "bedrock")
     LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.3"))
