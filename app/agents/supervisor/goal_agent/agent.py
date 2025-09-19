@@ -8,6 +8,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
 from app.observability.logging_config import configure_logging  # ensure logging format
+from app.core.config import config
 
 from .prompts import GOAL_AGENT_PROMPT
 from .tools import (
@@ -28,15 +29,15 @@ def compile_goal_agent_graph() -> CompiledStateGraph:
     configure_logging()
 
     guardrails = {
-        "guardrailIdentifier": "arn:aws:bedrock:us-west-2:905418355862:guardrail/nqa94s84lt6u",
-        "guardrailVersion": "DRAFT",
+        "guardrailIdentifier": config.GOAL_AGENT_GUARDRAIL_ID,
+        "guardrailVersion": config.GOAL_AGENT_GUARDRAIL_VERSION,
         "trace": "enabled",
     }
 
     chat_bedrock = ChatBedrockConverse(
-        model_id="openai.gpt-oss-120b-1:0",
-        region_name="us-west-2",
-        temperature=0.4,
+        model_id=config.GOAL_AGENT_MODEL_ID,
+        region_name=config.GOAL_AGENT_MODEL_REGION,
+        temperature=config.GOAL_AGENT_TEMPERATURE,
         guardrail_config=guardrails,
     )
     # checkpointer = MemorySaver()

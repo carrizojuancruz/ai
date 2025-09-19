@@ -14,6 +14,7 @@ from langgraph.types import RunnableConfig
 
 from app.agents.supervisor.finance_agent.tools import execute_financial_query
 from app.agents.supervisor.handoff import create_handoff_back_messages
+from app.core.config import config
 from app.core.app_state import (
     get_cached_finance_agent,
     get_finance_agent,
@@ -76,17 +77,16 @@ class FinanceAgent:
     def __init__(self):
         logger.info("Initializing FinanceAgent with Bedrock models")
 
-        # Initialize Bedrock models
         guardrails = {
-            "guardrailIdentifier": "arn:aws:bedrock:us-west-2:905418355862:guardrail/nqa94s84lt6u",
-            "guardrailVersion": "DRAFT",
+            "guardrailIdentifier": config.FINANCIAL_AGENT_GUARDRAIL_ID,
+            "guardrailVersion": config.FINANCIAL_AGENT_GUARDRAIL_VERSION,
             "trace": "enabled",
         }
 
         self.sql_generator = ChatBedrockConverse(
-            model_id="openai.gpt-oss-120b-1:0",
-            region_name="us-west-2",
-            temperature=0.2,
+            model_id=config.FINANCIAL_AGENT_MODEL_ID,
+            region_name=config.FINANCIAL_AGENT_MODEL_REGION,
+            temperature=config.FINANCIAL_AGENT_TEMPERATURE,
             guardrail_config=guardrails,
         )
 

@@ -24,7 +24,7 @@ def _format_user_context_for_prompt(user_context: dict[str, Any]) -> str:
 
 async def generate_personalized_welcome(user_context: dict[str, Any], prior_summary: Any | None = None) -> str:
     region = config.get_aws_region()
-    model_id = config.BEDROCK_MODEL_ID
+    model_id = config.ONBOARDING_AGENT_MODEL_ID
     if not region:
         # Fallback if Bedrock is not configured
         name = user_context.get("identity", {}).get("preferred_name") or "there"
@@ -65,10 +65,10 @@ async def generate_personalized_welcome(user_context: dict[str, Any], prior_summ
 
 
 async def call_llm(system: str | None, prompt: str) -> str:
-    region = config.get_aws_region()
-    model_id = config.BEDROCK_MODEL_ID
-    guardrail_id = config.BEDROCK_GUARDRAIL_ID
-    guardrail_version = str(config.BEDROCK_GUARDRAIL_VERSION)
+    region = config.SUPERVISOR_AGENT_MODEL_REGION
+    model_id = config.SUPERVISOR_AGENT_MODEL_ID
+    guardrail_id = config.SUPERVISOR_AGENT_GUARDRAIL_ID
+    guardrail_version = str(config.SUPERVISOR_AGENT_GUARDRAIL_VERSION)
     guardrails = (
         {
             "guardrailIdentifier": guardrail_id,
