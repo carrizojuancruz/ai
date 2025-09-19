@@ -54,6 +54,9 @@ from app.core.config import config
 Namespace = Tuple[str, ...]
 
 
+logger = logging.getLogger(__name__)
+
+
 def _utc_now_iso() -> str:
     return datetime.now(tz=timezone.utc).isoformat()
 
@@ -210,15 +213,18 @@ class S3VectorsStore(BaseStore):
                 ns1 = cast(str, md.get("ns_1") or (namespace[1] if len(namespace) > 1 else ""))
                 ns_list = [ns0] + ([ns1] if ns1 else [])
                 doc_key = cast(str, md.get("doc_key") or key)
+                logger.info("s3v.get: method=direct_key")
+                return Item(value=value, key=doc_key, namespace=ns_list, created_at=created_at, updated_at=updated_at)
         except Exception:
             logging.exception("Error in direct key fetch in get")
 
         # Build a JSON filter using equality shorthand per S3 Vectors docs
         flt = self._build_filter(namespace, {"doc_key": key}, include_is_indexed=False)
 
-        zero = self._zero_vector()
+        logger.info("s3v.get: method=fallback_query")
+        query_vec = self._embed_texts([key])[0]
         res = self._safe_query_vectors(
-            query_vector=zero,
+            query_vector=query_vec,
             top_k=1,
             flt=flt,
             return_distance=False,
