@@ -24,7 +24,7 @@ def _format_user_context_for_prompt(user_context: dict[str, Any]) -> str:
 
 async def generate_personalized_welcome(user_context: dict[str, Any], prior_summary: Any | None = None) -> str:
     region = config.get_aws_region()
-    model_id = config.BEDROCK_MODEL_ID
+    model_id = "anthropic.claude-3-5-sonnet-20240620-v1:0"
     if not region:
         # Fallback if Bedrock is not configured
         name = user_context.get("identity", {}).get("preferred_name") or "there"
