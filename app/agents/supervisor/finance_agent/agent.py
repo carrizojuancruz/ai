@@ -8,9 +8,9 @@ from uuid import UUID
 from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
-from langgraph.graph import MessagesState
-from langgraph.prebuilt import create_react_agent
-from langgraph.types import RunnableConfig
+from langgraph.graph import START, MessagesState, StateGraph
+from langgraph.prebuilt import ToolNode
+from langgraph.types import Command, RunnableConfig
 
 from app.agents.supervisor.finance_agent.tools import execute_financial_query
 from app.agents.supervisor.handoff import create_handoff_back_messages
@@ -67,6 +67,20 @@ def _get_user_id_from_messages(messages: list[HumanMessage | dict[str, Any]]) ->
     return None
 
 
+def _create_error_command(error_message: str) -> Command:
+    """Create a standardized error Command with handoff back to supervisor."""
+    handoff_messages = create_handoff_back_messages("finance_agent", "supervisor")
+    return Command(
+        update={
+            "messages": [
+                {"role": "assistant", "content": error_message, "name": "finance_agent"},
+                handoff_messages[0]
+            ]
+        },
+        goto="supervisor"
+    )
+
+
 class FinanceAgent:
     """Finance agent for querying Plaid financial data using tools."""
 
@@ -91,7 +105,6 @@ class FinanceAgent:
         )
 
         logger.info("FinanceAgent initialization completed")
-        # Lightweight per-user cache for prompt grounding samples
         self._sample_cache: dict[str, dict[str, Any]] = {}
 
     async def _fetch_shallow_samples(self, user_id: UUID) -> tuple[str, str]:
@@ -114,7 +127,6 @@ class FinanceAgent:
             async with db_service.get_session() as session:
                 repo = db_service.get_finance_repository(session)
 
-                # Transaction sample
                 tx_query = (
                     "SELECT "
                     "  t.external_transaction_id AS dedupe_id, "
@@ -129,7 +141,6 @@ class FinanceAgent:
                     f"ORDER BY t.created_at DESC LIMIT {self.MAX_TRANSACTION_SAMPLES}"
                 )
 
-                # Account sample
                 acct_query = (
                     "SELECT a.id, a.name, a.account_type, a.account_subtype, a.institution_name, a.created_at "
                     f"FROM {FinanceTables.ACCOUNTS} a "
@@ -140,14 +151,12 @@ class FinanceAgent:
                 tx_rows = await repo.execute_query(tx_query, user_id=str(user_id))
                 acct_rows = await repo.execute_query(acct_query, user_id=str(user_id))
 
-                # Convert PostgreSQL/SQLAlchemy types to JSON-serializable types
                 tx_rows_serialized = [self._serialize_sample_row(r) for r in (tx_rows or [])]
                 acct_rows_serialized = [self._serialize_sample_row(r) for r in (acct_rows or [])]
 
                 tx_json = self._rows_to_json(tx_rows_serialized)
                 acct_json = self._rows_to_json(acct_rows_serialized)
 
-                # Cache
                 self._sample_cache[cache_key] = {
                     "tx_samples": tx_json,
                     "acct_samples": acct_json,
@@ -169,11 +178,11 @@ class FinanceAgent:
 
         serialized = {}
         for k, v in row.items():
-            if hasattr(v, "is_finite"):  # Decimal
+            if hasattr(v, "is_finite"):
                 serialized[k] = float(v)
-            elif isinstance(v, datetime.date):  # date/datetime
+            elif isinstance(v, datetime.date):
                 serialized[k] = v.isoformat()
-            elif isinstance(v, UUID) or hasattr(v, "__class__") and "UUID" in str(type(v)):  # UUID objects
+            elif isinstance(v, UUID) or hasattr(v, "__class__") and "UUID" in str(type(v)):
                 serialized[k] = str(v)
             else:
                 serialized[k] = v
@@ -204,29 +213,51 @@ class FinanceAgent:
         🛠️ TOOL USAGE MANDATE 🛠️
         Respect ONLY the two typed schemas below as the source of truth. Do NOT run schema discovery or connectivity probes (e.g., SELECT 1). Assume the database is connected.
 
-        📊 PLANNING & QUERY STRATEGY 📊
-        You MUST plan carefully BEFORE generating SQL and reflect on results, but keep all planning INTERNAL.
-        NEVER narrate your plan or process. Do NOT write phrases like "Let me", "I'll", "Understand the question", or step lists.
+        **QUERY STRATEGY**: Prefer complex, comprehensive SQL queries that return complete results in one call over multiple simple queries. Use CTEs, joins, and advanced SQL features to get all needed data efficiently. The database is much faster than agent round-trips.
 
-        1. **Analyze Requirements**: Break down the user's request into specific data requirements
-        2. **Query Design**: Plan the optimal SQL structure before writing
-        3. **Execution Strategy**: Match query thoroughness to task requirements - simple calculations need simple queries
-        4. **Result Analysis**: Interpret and synthesize query results into actionable insights
+        🚨 EXECUTION LIMITS 🚨
+        **MAXIMUM 5 DATABASE QUERIES TOTAL per analysis**
+        **PLAN EFFICIENTLY - Prefer fewer queries when possible**
+        **NO WASTEFUL ITERATION - Each query should provide unique, necessary data**
 
-        ## 🎯 Core Objective & Principles
+        📊 QUERY STRATEGY 📊
+        Plan your queries strategically: use complex SQL with CTEs, joins, and aggregations to maximize data per query.
+        Group related data needs together to minimize total queries.
 
-        1. **EFFICIENCY FIRST**: For simple tasks (totals, counts, basic lookups), use ONE optimal query and stop - do not over-analyze
-        2. **QUERY GENERATION**: Create syntactically correct SQL queries
-        3. **TOOL EXECUTION**: Use available database tools systematically
-        4. **RESULT ANALYSIS**: Interpret the data comprehensively and extract meaningful insights
-        5. **TASK-APPROPRIATE RESPONSE**: Match thoroughness to the specific task requirements - simple tasks get simple answers
+        **EFFICIENT APPROACH:**
+        1. Analyze what data you need (balances, transactions by category, spending patterns, etc.)
+        2. Group related data requirements to minimize queries (e.g., combine multiple metrics in one query)
+        3. Use advanced SQL features (CTEs, window functions) to get comprehensive results per query
+        4. Execute 2-5 queries maximum, then analyze all results together
+        5. Provide final answer based on complete dataset
+
+        ## 🎯 Core Principles
+
+        **EFFICIENCY FIRST**: Maximize data per query using complex SQL - database calls are expensive
+        **STRATEGIC PLANNING**: Group data needs to use fewer queries, not more
+        **STOP AT 5**: Never exceed 5 queries per analysis - redesign approach if needed
+        4. **RESULT ANALYSIS**: Interpret the complete dataset comprehensively and extract meaningful insights
+        5. **TASK-APPROPRIATE RESPONSE**: Match thoroughness to requirements but prefer efficient, comprehensive queries
         6. **EXTREME PRECISION**: Adhere to ALL rules and criteria literally - do not make assumptions
         7. **USER CLARITY**: State the date range used in the analysis
         8. **DATA VALIDATION**: State clearly if you don't have sufficient data - DO NOT INVENT INFORMATION
         9. **PRIVACY FIRST**: Never return raw SQL queries or raw tool output
         10. **NO GREETINGS/NO NAMES**: Do not greet. Do not mention the user's name. Answer directly.
         11. **NO COMMENTS**: Do not include comments in the SQL queries.
-        12. **STOP AFTER METRIC**: Once you compute the requested metric for the task, stop immediately.
+        12. **STOP AFTER ANSWERING**: Once you have sufficient data to answer the core question, provide your analysis immediately.
+
+        ## 📌 Assumptions & Scope Disclosure (MANDATORY)
+
+        Always append a short "Assumptions & Scope" section at the end of your analysis that explicitly lists:
+        - Timeframe used: [start_date – end_date]. If the user did not specify a timeframe, assume a default reporting window of the most recent 30 days and mark it as "assumed".
+        - Any assumptions that materially impact results, explained in plain language (e.g., "very few transactions in this period" or "merchant names were normalized for consistency").
+        - Known limitations relevant to the user (e.g., "no transactions in the reporting window").
+
+        Strictly PROHIBITED in this section and anywhere in outputs:
+        - Any SQL, table/column names, functions, operators, pattern matches, or schema notes
+        - Phrases like "as per schema", code snippets, or system/tool internals
+
+        Keep this section concise (max 3 bullets) and user-facing only.
 
         ## 📊 Table Information & Rules
 
@@ -324,14 +355,14 @@ class FinanceAgent:
 
         **Execute this procedure systematically for every request:**
 
-        1. **Understand Question:** Analyze user's request thoroughly and break down requirements
+        1. **Understand Question:** Analyze user's request thoroughly and identify ALL data requirements upfront
         2. **Identify Tables & Schema:** Consult schema for relevant tables and columns
-        3. **Plan Query Strategy:** Design the complete query approach before writing SQL
-        4. **Formulate Query:** Generate syntactically correct SQL with proper security filtering
+        3. **Plan Comprehensive Query:** Design ONE complex SQL query using CTEs/joins to get all needed data
+        4. **Formulate Query:** Generate syntactically correct, comprehensive SQL with proper security filtering
         5. **Verify Query:** Double-check syntax, logic, and security requirements
-        6. **Execute Query:** Execute using sql_db_query tool
+        6. **Execute Query:** Execute using sql_db_query tool (prefer 1-2 comprehensive queries maximum)
         7. **Error Handling:** If queries fail due to syntax errors, fix them. If network/database errors, report clearly.
-        8. **Analyze Results & Formulate Direct Answer:**
+        8. **Analyze Complete Results & Formulate Direct Answer:**
            * Provide a concise, curated answer (2–6 sentences) and, if helpful, a small table
            * Do NOT include plans/process narration
            * Do NOT echo raw tool responses or JSON. Summarize them instead
@@ -352,74 +383,110 @@ class FinanceAgent:
         Today's date: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")}"""
 
     async def _create_agent_with_tools(self, user_id: UUID):
-        """Create a LangGraph agent with SQL tools for the given user."""
-        logger.info(f"Creating SQL tools for user {user_id}")
+        """Create a manual ReAct agent that always returns to supervisor."""
+        logger.info(f"Creating financial agent for user {user_id}")
 
-        # Create a custom sql_db_query tool that has access to user_id
         @tool
         async def sql_db_query(query: str) -> str:
-            """Execute a single read-only SQL query for this user's data.
-
-            Rules:
-            - Do NOT run connectivity probes (e.g., SELECT 1). Assume the DB is connected.
-            - Do NOT run schema discovery/verification queries; rely on the typed schemas provided.
-            - All queries MUST be SELECT/CTE and include user_id filtering.
-            - Prefer one optimal query for simple tasks (totals, counts). Do not repeat identical queries.
-            - If the requested task is a single metric, compute it and stop; do not follow-up with discovery.
-            - Return only processed results suitable for analysis (no raw engine metadata).
-            """
+            """Execute a single read-only SQL query for this user's data."""
             return await execute_financial_query(query, user_id)
 
-        # Create agent with tools
         tools = [sql_db_query]
-        logger.info(f"Initializing LangGraph agent with tools for user {user_id}")
+        tool_node = ToolNode(tools)
 
-        system_prompt = await self._create_system_prompt(user_id)
-        agent = create_react_agent(model=self.sql_generator, tools=tools, prompt=system_prompt)
+        model_with_tools = self.sql_generator.bind_tools(tools)
 
-        logger.info(f"LangGraph agent created successfully for user {user_id}")
-        return agent
+        async def agent_node(state: MessagesState):
+            system_prompt = await self._create_system_prompt(user_id)
+            messages = [{"role": "system", "content": system_prompt}] + state["messages"]
+            response = await model_with_tools.ainvoke(messages)
+            return {"messages": [response]}
 
-    async def process_query(self, query: str, user_id: UUID) -> str:
-        """Process financial queries using cached agent per user."""
+        def supervisor_node(state: MessagesState):
+            """Node that extracts analysis results and routes back to parent supervisor."""
+            analysis_content = ""
+
+            for msg in reversed(state["messages"]):
+                if (hasattr(msg, "role") and msg.role == "assistant" and
+                    hasattr(msg, "content") and msg.content):
+                    if isinstance(msg.content, list):
+                        for content_block in msg.content:
+                            if isinstance(content_block, dict) and content_block.get("type") == "text":
+                                analysis_content = content_block.get("text", "")
+                                break
+                    else:
+                        analysis_content = msg.content
+                    break
+
+            analysis_response = f"""
+            FINANCIAL ANALYSIS COMPLETE:
+
+            Analysis Results:
+            {analysis_content}
+
+            This analysis is provided to the supervisor for final user response formatting.
+            """
+
+            handoff_messages = create_handoff_back_messages("finance_agent", "supervisor")
+
+            return Command(
+                update={
+                    "messages": [
+                        {"role": "assistant", "content": analysis_response, "name": "finance_agent"},
+                        handoff_messages[0]
+                    ]
+                },
+                goto="supervisor"
+            )
+
+        def should_continue(state: MessagesState):
+            last_message = state["messages"][-1]
+            if last_message.tool_calls:
+                return "tools"
+            return "supervisor"
+
+        workflow = StateGraph(MessagesState)
+        workflow.add_node("agent", agent_node)
+        workflow.add_node("tools", tool_node)
+        workflow.add_node("supervisor", supervisor_node)
+
+        workflow.add_edge(START, "agent")
+        workflow.add_conditional_edges("agent", should_continue)
+        workflow.add_edge("tools", "agent")
+
+        return workflow.compile()
+
+
+    async def process_query_with_agent(self, query: str, user_id: UUID) -> Command:
+        """Process financial queries and return the Command from agent execution."""
         try:
-            logger.info(f"Processing finance query for user {user_id}: {query}")
+            logger.info(f"Processing finance query with agent for user {user_id}: {query}")
 
             agent = get_cached_finance_agent(user_id)
             if agent is None:
-                logger.info(f"Creating new LangGraph agent for user {user_id}")
                 agent = await self._create_agent_with_tools(user_id)
                 set_cached_finance_agent(user_id, agent)
             else:
                 logger.info(f"Using cached LangGraph agent for user {user_id}")
 
-            # Prepare the conversation
             messages = [HumanMessage(content=query)]
 
-            # Run the agent
             logger.info(f"Starting LangGraph agent execution for user {user_id}")
-            result = await agent.ainvoke({"messages": messages}, config={"recursion_limit": 4})
-            logger.info(f"Agent execution completed for user {user_id}, received {len(result['messages'])} messages")
+            agent_command = await agent.ainvoke({"messages": messages}, config={"recursion_limit": 10})
+            logger.info(f"Agent execution completed for user {user_id}")
 
-            # Extract the final response
-            final_message = result["messages"][-1]
-            response_text = _extract_text_from_content(final_message.content)
-
-            logger.info(f"Successfully processed finance query for user {user_id}")
-            return response_text
+            return agent_command
 
         except Exception as e:
             logger.error(f"Finance agent error for user {user_id}: {e}")
-            return "I encountered an error while processing your financial query. Please try again."
+            return _create_error_command("I encountered an error while processing your financial query. Please try again.")
 
 
-async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
+async def finance_agent(state: MessagesState, config: RunnableConfig) -> Command:
     """LangGraph node for finance agent that provides analysis to supervisor."""
     try:
-        # Get user_id from configurable context
         user_id = get_config_value(config, "user_id")
         if not user_id:
-            # Fallback: try to extract from messages (preserved by handoff tool)
             user_id = _get_user_id_from_messages(state["messages"])
 
         query = _get_last_user_message_text(state["messages"])
@@ -427,38 +494,16 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[st
 
         if not user_id:
             logger.warning("No user_id found in finance agent request")
-            error_msg = "ERROR: Cannot access financial data without user identification."
-            return {"messages": [{"role": "assistant", "content": error_msg, "name": "finance_agent"}]}
+            return _create_error_command("ERROR: Cannot access financial data without user identification.")
 
         if not query:
             logger.warning("No task description found in finance agent request")
-            error_msg = "ERROR: No task description provided for analysis."
-            return {"messages": [{"role": "assistant", "content": error_msg, "name": "finance_agent"}]}
-
-        # Process the financial analysis
+            return _create_error_command("ERROR: No task description provided for analysis.")
 
         finance_agent_instance = get_finance_agent()
-        analysis_result = await finance_agent_instance.process_query(query, user_id)
+        agent_command = await finance_agent_instance.process_query_with_agent(query, user_id)
 
-        analysis_response = f"""
-        FINANCIAL ANALYSIS COMPLETE:
-
-        Task Analyzed: {query[:200]}...
-
-        Analysis Results:
-        {analysis_result}
-
-        This analysis is provided to the supervisor for final user response formatting.
-        """
-
-        handoff_messages = create_handoff_back_messages("finance_agent", "supervisor")
-
-        return {
-            "messages": [
-                {"role": "assistant", "content": analysis_response, "name": "finance_agent"},
-                handoff_messages[0],  # AIMessage signaling completion (no tool_calls)
-            ]
-        }
+        return agent_command
 
     except Exception as e:
         logger.error(f"Finance agent critical error: {e}")
@@ -466,9 +511,12 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> dict[st
 
         handoff_messages = create_handoff_back_messages("finance_agent", "supervisor")
 
-        return {
-            "messages": [
-                {"role": "assistant", "content": error_analysis, "name": "finance_agent"},
-                handoff_messages[0],
-            ]
-        }
+        return Command(
+            update={
+                "messages": [
+                    {"role": "assistant", "content": error_analysis, "name": "finance_agent"},
+                    handoff_messages[0]
+                ]
+            },
+            goto="supervisor"
+        )
