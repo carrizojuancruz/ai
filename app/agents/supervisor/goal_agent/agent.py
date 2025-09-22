@@ -8,7 +8,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
 from app.core.config import config
-from app.observability.logging_config import configure_logging  # ensure logging format
+from app.observability.logging_config import configure_logging
 
 from .prompts import GOAL_AGENT_PROMPT
 from .tools import (
@@ -28,10 +28,10 @@ def compile_goal_agent_graph() -> CompiledStateGraph:
     """Compile the goal agent graph for financial goals management."""
     configure_logging()
 
-    region = config.AWS_REGION
-    model_id = config.BEDROCK_MODEL_ID
-    guardrail_id = config.BEDROCK_GUARDRAIL_ID
-    guardrail_version = str(config.BEDROCK_GUARDRAIL_VERSION)
+    region = config.GOAL_AGENT_MODEL_REGION
+    model_id = config.GOAL_AGENT_MODEL_ID
+    guardrail_id = config.GOAL_AGENT_GUARDRAIL_ID
+    guardrail_version = str(config.GOAL_AGENT_GUARDRAIL_VERSION)
 
     guardrails = {
         "guardrailIdentifier": guardrail_id,
@@ -39,9 +39,9 @@ def compile_goal_agent_graph() -> CompiledStateGraph:
         "trace": True,
     }
     logger.info(f"[GOAL_AGENT] Guardrails: {guardrails}")
-
+    logger.info(f"[GOAL_AGENT] MODELS: {model_id} in {region}")
     chat_bedrock = ChatBedrock(model_id=model_id, region_name=region, guardrails=guardrails)
-    # checkpointer = MemorySaver()
+
     goal_agent = create_react_agent(
         model=chat_bedrock,
         tools=[

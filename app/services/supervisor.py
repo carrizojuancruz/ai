@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any, Dict, List, Optional, Tuple
@@ -19,10 +20,8 @@ from app.agents.supervisor.i18n import (
     _get_random_wealth_current,
 )
 from app.core.app_state import (
-    get_last_emitted_text,
     get_sse_queue,
     get_supervisor_graph,
-    set_last_emitted_text,
 )
 from app.core.config import config
 from app.models.user import UserContext
@@ -43,10 +42,8 @@ langfuse_handler = CallbackHandler(
 
 logger = logging.getLogger(__name__)
 
-logger.info(
-    f"Langfuse env vars: {config.LANGFUSE_PUBLIC_SUPERVISOR_KEY}, "
-    f"{config.LANGFUSE_SECRET_SUPERVISOR_KEY}, {config.LANGFUSE_HOST_SUPERVISOR}"
-)
+STREAM_WORD_GROUP_SIZE = 3
+
 
 
 # Warn if Langfuse env is missing so callbacks would be disabled silently
@@ -368,8 +365,9 @@ class SupervisorService:
             from app.services.nudges.icebreaker_processor import get_icebreaker_processor
 
             processor = get_icebreaker_processor()
+            logger.info(f"Getting icebreaker from SQS for user {uid}")
             raw_icebreaker = await processor.process_icebreaker_for_user(uid)
-
+            logger.info(f"Finished getting icebreaker from SQS for user {uid}")
             if raw_icebreaker and raw_icebreaker.strip():
                 icebreaker_hint = raw_icebreaker.strip()
                 icebreaker_used = True
@@ -419,7 +417,6 @@ class SupervisorService:
 
         conversation_messages = session_ctx.get("conversation_messages", [])
         conversation_messages.append({"role": "user", "content": text.strip(), "sources": sources})
-        assistant_response_parts = []
 
         # Refresh UserContext from external FOS service each turn to avoid stale profile
         user_id = session_ctx.get("user_id")
@@ -435,11 +432,15 @@ class SupervisorService:
             "user_id": user_id,
         }
 
-        final_text_candidate: Optional[str] = None
-        supervisor_active: bool = False
-        suppress_streaming: bool = False
         emitted_handoff_back_keys: set[str] = set()
         current_agent_tool: Optional[str] = None
+        active_handoffs: set[str] = set()
+
+        latest_response_text: Optional[str] = None
+        supervisor_latest_response_text: Optional[str] = None
+        response_event_count = 0
+        seen_responses: set[int] = set()
+        streamed_responses: set[str] = set()
 
         async for event in graph.astream_events(
             {"messages": [{"role": "user", "content": text}], "sources": sources},
@@ -456,15 +457,50 @@ class SupervisorService:
             etype = event.get("event")
             data = event.get("data") or {}
 
-            if name == "supervisor" and etype == "on_chain_start":
-                supervisor_active = True
-            elif name == "supervisor" and etype == "on_chain_end":
-                supervisor_active = False
+            response_text = ""
+            try:
+                if data and 'output' in data and 'messages' in data['output']:
+                    messages_supervisor = data['output']['messages']
+                    for msg in reversed(messages_supervisor):
+                        content_list = getattr(msg, 'content', None)
+                        if isinstance(content_list, list):
+                            for content_item in reversed(content_list):
+                                if isinstance(content_item, dict) and content_item.get('type') == 'text':
+                                    candidate = content_item.get('text', '')
+                                    if candidate and candidate.strip():
+                                        response_text = candidate
+                                        break
+                        if response_text:
+                            break
+
+                # Quick fix: Update latest response from any event
+                if response_text:
+                    prev_latest = (latest_response_text[:80] + "...") if latest_response_text else None
+                    latest_response_text = response_text
+                    # If this update is from supervisor, also update the supervisor buffer
+                    if name == "supervisor":
+                        prev_super = (supervisor_latest_response_text[:80] + "...") if supervisor_latest_response_text else None
+                        supervisor_latest_response_text = response_text
+                        logger.info(
+                            f"[TRACE] supervisor.buffer.update from={prev_super} to={(supervisor_latest_response_text[:80] + '...') if supervisor_latest_response_text else None}"
+                        )
+                    response_event_count += 1
+                    logger.info(
+                        f"[TRACE] latest.update event={name} type={etype} count={response_event_count} "
+                        f"from={prev_latest} to={(latest_response_text[:80] + '...') if latest_response_text else None}"
+                    )
+
+            except: # noqa: E722
+                pass
+
+
+
 
             if etype == "on_tool_start":
                 tool_name = name
                 if tool_name and tool_name.startswith("transfer_to_"):
                     current_agent_tool = tool_name
+                    active_handoffs.add(tool_name)
 
                     description = "Consulting a source"
                     if tool_name == "transfer_to_finance_agent":
@@ -484,27 +520,12 @@ class SupervisorService:
                             },
                         }
                     )
-                    suppress_streaming = True
                     continue
 
-                # Handle non-transfer tools
                 if name and not name.startswith("transfer_to_"):
                     await q.put({"event": "tool.start", "data": {"tool": name}})
 
-            if etype == "on_chat_model_stream":
-                if not supervisor_active or suppress_streaming:
-                    continue
-                chunk = data.get("chunk")
-                out = self._content_to_text(chunk)
-                if out:
-                    out = self._strip_guardrail_marker(out)
-                if out and not self._is_injected_context(out):
-                    last = get_last_emitted_text(thread_id)
-                    if out != last:
-                        if name not in ["tools"]:
-                            await q.put({"event": "token.delta", "data": {"text": out, "sources": sources}})
-                            set_last_emitted_text(thread_id, out)
-                        assistant_response_parts.append(out)
+
             elif etype == "on_tool_end":
                 sources = self._add_source_from_tool_end(sources, name, data)
                 if name and not name.startswith("transfer_to_"):
@@ -519,20 +540,25 @@ class SupervisorService:
                                 (
                                     m
                                     for m in messages
-                                    if (getattr(m, "name", None) or getattr(m, "tool_name", "")).startswith(
-                                        "transfer_back_to_"
-                                    )
+                                    if (getattr(m, "response_metadata", {}).get("is_handoff_back", False))
                                 ),
                                 None,
                             )
                             if last_tool:
-                                back_tool: str = getattr(last_tool, "name", None) or getattr(last_tool, "tool_name", "")
-                                tool_call_id = getattr(last_tool, "tool_call_id", None) or getattr(
-                                    last_tool, "id", None
-                                )
-                                dedupe_key = f"{back_tool}:{tool_call_id or 'noid'}"
-                                if dedupe_key not in emitted_handoff_back_keys:
+                                agent_name: str = getattr(last_tool, "name", None) or "unknown_agent"
+                                # Create a more robust dedupe key using agent name and current tool
+                                back_tool = "transfer_back_to_supervisor"  # Standard back tool name
+                                dedupe_key = f"{agent_name}:{current_agent_tool or 'unknown'}"
+
+                                # Only emit source.search.end if we have an active handoff to close
+                                if (dedupe_key not in emitted_handoff_back_keys and
+                                    current_agent_tool and
+                                    current_agent_tool in active_handoffs):
+
                                     emitted_handoff_back_keys.add(dedupe_key)
+                                    # Remove from active handoffs since we're closing it
+                                    active_handoffs.discard(current_agent_tool)
+
                                     description = "Returned from source"  # fallback
                                     if current_agent_tool == "transfer_to_finance_agent":
                                         description = _get_random_finance_completed()
@@ -541,10 +567,7 @@ class SupervisorService:
                                     elif current_agent_tool == "transfer_to_wealth_agent":
                                         description = _get_random_wealth_completed()
 
-                                    supervisor_name = (
-                                        back_tool.replace("transfer_back_to_", "").replace("_", " ").title()
-                                        or "Supervisor"
-                                    )
+                                    supervisor_name = "Supervisor"
                                     await q.put(
                                         {
                                             "event": "source.search.end",
@@ -555,26 +578,52 @@ class SupervisorService:
                                             },
                                         }
                                     )
-                                    suppress_streaming = False
                                     current_agent_tool = None
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.info(f"[TRACE] chain_end.handoff_close.error err={e}")
+
+                # Quick fix: Only stream when we have the latest response and it's from supervisor
+                if name == "supervisor" and (supervisor_latest_response_text or latest_response_text):
+                    # Prefer the supervisor-specific buffer; fallback to global if needed
+                    text_to_stream = (supervisor_latest_response_text or latest_response_text) or ""
+                    # Check if we've already streamed this exact response text (prevents duplicate streaming after handoffs)
+                    response_text_normalized = text_to_stream.strip()
+                    if response_text_normalized in streamed_responses:
+                        logger.info("[TRACE] supervisor.stream.skip reason=exact_text_duplicate")
+                        break
+
+                    response_hash = hash(response_text_normalized)
+                    if response_hash in seen_responses:
+                        logger.info("[TRACE] supervisor.stream.skip reason=hash_duplicate")
+                        break
+
+                    logger.info("[TRACE] supervisor.stream.start")
+                    seen_responses.add(response_hash)
+                    streamed_responses.add(response_text_normalized)
+                    words = text_to_stream.split(" ")
+                    chunks_emitted = 0
+                    for i in range(0, len(words), STREAM_WORD_GROUP_SIZE):
+                        word_group = " ".join(words[i:i+STREAM_WORD_GROUP_SIZE])
+                        if word_group.strip():
+                            await q.put({"event": "token.delta", "data": {"text": word_group + " ", "sources": sources}})
+                            chunks_emitted += 1
+                            await asyncio.sleep(0)
+                    logger.info(f"[TRACE] supervisor.stream.end chunks={chunks_emitted}")
 
         try:
-            final_text = (
-                "".join(assistant_response_parts).strip() if assistant_response_parts else (final_text_candidate or "")
-            )
+            final_text = (supervisor_latest_response_text or latest_response_text)
             if final_text:
                 await q.put({"event": "message.completed", "data": {"content": final_text}})
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"[DEBUG] Error sending message.completed: {e}")
 
         completed_description = _get_random_step_planning_completed()
         await q.put({"event": "step.update", "data": {"status": "presented", "description": completed_description}})
 
         try:
-            if assistant_response_parts:
-                assistant_response = "".join(assistant_response_parts).strip()
+            final_text = (supervisor_latest_response_text or latest_response_text)
+            if final_text:
+                assistant_response = final_text.strip()
                 if assistant_response:
                     conversation_messages.append(
                         {"role": "assistant", "content": assistant_response, "sources": sources}

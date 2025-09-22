@@ -16,7 +16,7 @@ def _eprint(*args: Any) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Dump user memories from S3 Vectors via the Store API")
     parser.add_argument("--user-id", required=True, help="User ID to inspect")
-    parser.add_argument("--type", choices=["semantic", "episodic"], default="semantic", help="Memory type")
+    parser.add_argument("--type", default="semantic", help="Memory type (e.g., semantic, episodic, supervisor_procedural)")
     parser.add_argument("--category", default=None, help="Optional category filter")
     parser.add_argument("--query", default=None, help="Semantic query to retrieve memories (required by S3 Vectors)")
     parser.add_argument("--limit", type=int, default=20, help="Max items to return")
@@ -114,7 +114,14 @@ def main() -> None:
             limit = 30
 
             # Use a generic query to find all memories
-            query = "profile" if args.type == "semantic" else "recent conversation"
+            if args.type == "semantic":
+                query = "profile"
+            elif args.type == "episodic":
+                query = "recent conversation"
+            elif "procedural" in str(args.type or ""):
+                query = "routing"
+            else:
+                query = "*"
 
             while True:
                 items = store.search(namespace, query=query, limit=limit, offset=offset)
@@ -172,7 +179,15 @@ def main() -> None:
         return
 
     # S3 Vectors requires a semantic query; provide a sensible default if not given
-    eff_query: Optional[str] = args.query if args.query else "recent conversation" if args.type == "episodic" else "profile"
+    if args.query:
+        eff_query: Optional[str] = args.query
+    else:
+        if args.type == "episodic":
+            eff_query = "recent conversation"
+        elif "procedural" in str(args.type or ""):
+            eff_query = "routing"
+        else:
+            eff_query = "profile"
 
     user_filter: Optional[dict[str, Any]] = {"category": args.category} if args.category else None
     items = store.search(namespace, query=eff_query, filter=user_filter, limit=args.limit, offset=args.offset)

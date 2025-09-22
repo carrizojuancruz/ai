@@ -114,7 +114,7 @@ class SqsConsumer:
 
             logger.info(
                 f"nudge_consumer.polled: valid={len(nudges)}, expired={expired_count}, "
-                f"parse_errors={parse_error_count}, total_raw={len(messages)}"
+                f"total_raw={len(messages)}"
             )
             return nudges
 

@@ -13,7 +13,52 @@ logger = logging.getLogger(__name__)
 
 
 def _validate_query_security(query: str, user_id: UUID) -> Optional[str]:
-    """Validate query contains proper user isolation."""
+    """Validate that the SQL is read-only and properly user-scoped.
+
+    Rules:
+    - Only allow SELECT and WITH (CTE) queries
+    - Disallow DML/DDL keywords anywhere (INSERT/UPDATE/DELETE/..)
+    - Disallow locking clauses (FOR UPDATE/SHARE)
+    - Disallow SELECT INTO (creates table)
+    - Require user_id filter for isolation
+    """
+    # Strip comments first
+    cleaned = re.sub(r"--.*$", "", query, flags=re.MULTILINE)
+    cleaned = re.sub(r"/\*.*?\*/", "", cleaned, flags=re.DOTALL)
+
+    # Strip common string literal forms to avoid false positives
+    cleaned = re.sub(r"'(?:''|[^'])*'", "''", cleaned)  # single-quoted strings
+    cleaned = re.sub(r'"(?:""|[^"])*"', '""', cleaned)  # double-quoted identifiers/strings
+    cleaned = re.sub(r"\$[a-zA-Z0-9_]*\$[\s\S]*?\$[a-zA-Z0-9_]*\$", "$$$$", cleaned)  # dollar-quoted
+
+    query_upper = cleaned.upper().strip()
+
+    # Disallow dangerous operations anywhere
+    dangerous_keywords = [
+        "INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER",
+        "TRUNCATE", "REPLACE", "MERGE", "CALL", "EXEC", "GRANT", "REVOKE"
+    ]
+    for keyword in dangerous_keywords:
+        if re.search(rf"\b{keyword}\b", query_upper):
+            return f"Only SELECT queries are allowed. Found dangerous keyword: {keyword}"
+
+    # Disallow locking clauses which can block writers / change row locks
+    if re.search(r"\bFOR\s+(UPDATE|NO\s+KEY\s+UPDATE|SHARE|KEY\s+SHARE)\b", query_upper):
+        return "Row-level locks are not allowed (FOR UPDATE/SHARE)"
+
+    # Disallow SELECT INTO (creates table in Postgres)
+    if re.search(r"^\s*SELECT[\s\S]*?\bINTO\b\s+\w+", query_upper):
+        return "SELECT INTO is not allowed"
+
+    # Disallow data-modifying CTEs (WITH ... INSERT/UPDATE/DELETE ...)
+    if query_upper.startswith("WITH") and re.search(r"\bWITH\b[\s\S]*\b(INSERT|UPDATE|DELETE|MERGE)\b", query_upper):
+        return "Data-modifying CTEs are not allowed"
+
+    # Ensure top-level statement is SELECT/CTE
+    if not re.match(r"^\s*(SELECT|WITH)\b", query_upper, re.IGNORECASE):
+        return "Only SELECT queries (including WITH CTEs) are allowed"
+
+    # User isolation check
     if ":user_id" in query:
         return None
 
@@ -52,6 +97,11 @@ async def execute_financial_query(query: str, user_id: UUID) -> str:
             try:
                 logger.info(f"Database session established, executing SQL for user {user_id}")
 
+                # Short-circuit common connectivity probes
+                if re.match(r"^\s*SELECT\s+1(\s+AS\b[\w\d_]+)?\s*;?\s*$", query, re.IGNORECASE):
+                    logger.info("Probe-like SELECT 1 detected; short-circuiting without DB call")
+                    return "Connection healthy; proceed with the main task."
+
                 security_error = _validate_query_security(query, user_id)
                 if security_error:
                     return f"ERROR: {security_error}"
@@ -62,7 +112,7 @@ async def execute_financial_query(query: str, user_id: UUID) -> str:
 
                 # Execute the query
                 logger.info(f"Executing query via repository for user {user_id}")
-                result = await repo.execute_query(query, user_id)
+                result = await repo.execute_query(query, user_id=str(user_id))
 
                 if not result:
                     return "No data found for your query."

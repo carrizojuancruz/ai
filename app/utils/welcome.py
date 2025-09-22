@@ -67,10 +67,10 @@ async def generate_personalized_welcome(
 
 
 async def call_llm(system: str | None, prompt: str) -> str:
-    region = config.get_aws_region()
-    model_id = config.BEDROCK_MODEL_ID
-    guardrail_id = config.BEDROCK_GUARDRAIL_ID
-    guardrail_version = str(config.BEDROCK_GUARDRAIL_VERSION)
+    region = config.SUPERVISOR_AGENT_MODEL_REGION
+    model_id = config.SUPERVISOR_AGENT_MODEL_ID
+    guardrail_id = config.SUPERVISOR_AGENT_GUARDRAIL_ID
+    guardrail_version = str(config.SUPERVISOR_AGENT_GUARDRAIL_VERSION)
     guardrails = (
         {
             "guardrailIdentifier": guardrail_id,

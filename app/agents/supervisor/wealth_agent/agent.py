@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from langchain_aws import ChatBedrock
+from langchain_aws import ChatBedrockConverse
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
@@ -20,19 +20,20 @@ def compile_wealth_agent_graph() -> CompiledStateGraph:
     """Compile the wealth agent graph."""
     configure_logging()
 
-    region = config.AWS_REGION
-    model_id = config.BEDROCK_MODEL_ID
-    guardrail_id = config.BEDROCK_GUARDRAIL_ID
-    guardrail_version = str(config.BEDROCK_GUARDRAIL_VERSION)
-
     guardrails = {
-        "guardrailIdentifier": guardrail_id,
-        "guardrailVersion": guardrail_version,
-        "trace": True,
+        "guardrailIdentifier": config.WEALTH_AGENT_GUARDRAIL_ID,
+        "guardrailVersion": config.WEALTH_AGENT_GUARDRAIL_VERSION,
+        "trace": "enabled",
     }
+
     logger.info(f"[WEALTH_AGENT] Guardrails: {guardrails}")
 
-    chat_bedrock = ChatBedrock(model_id=model_id, region_name=region, guardrails=guardrails)
+    chat_bedrock = ChatBedrockConverse(
+        model_id=config.WEALTH_AGENT_MODEL_ID,
+        region_name=config.WEALTH_AGENT_MODEL_REGION,
+        temperature=config.WEALTH_AGENT_TEMPERATURE,
+        guardrail_config=guardrails
+    )
 
     wealth_agent = create_react_agent(
         model=chat_bedrock,

@@ -4,7 +4,7 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any
 
-from langchain_aws import ChatBedrock
+from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.core.config import config
@@ -13,19 +13,18 @@ from .base import LLM
 
 
 class BedrockLLM(LLM):
+    """LLM client implementation using AWS Bedrock for ONBOARDING AGENT."""
+
     def __init__(self) -> None:
         region = config.get_aws_region()
         if not region:
-            raise RuntimeError("AWS_REGION (or AWS_DEFAULT_REGION) is required for Bedrock provider")
-        self.model_id = config.BEDROCK_MODEL_ID
-        self.temperature = config.LLM_TEMPERATURE
-        self.chat_model = ChatBedrock(
+            raise RuntimeError("AWS_REGION  is required for Bedrock provider")
+        self.model_id = config.ONBOARDING_AGENT_MODEL_ID
+        self.temperature = config.ONBOARDING_AGENT_TEMPERATURE
+        self.chat_model = ChatBedrockConverse(
             model_id=self.model_id,
             region_name=region,
-            model_kwargs={
-                "temperature": self.temperature,
-                "max_tokens": 400,
-            },
+            temperature=self.temperature,
         )
         self._callbacks: list[Any] | None = None
 
@@ -45,7 +44,7 @@ class BedrockLLM(LLM):
             messages.append(SystemMessage(content=system))
         messages.append(HumanMessage(content=prompt))
         response = self.chat_model.invoke(messages, config={"callbacks": self._callbacks} if self._callbacks else None)
-        return response.content
+        return _content_to_text(getattr(response, "content", ""))
 
     async def generate_stream(
         self,
@@ -61,7 +60,9 @@ class BedrockLLM(LLM):
             messages, config={"callbacks": self._callbacks} if self._callbacks else None
         ):
             if hasattr(chunk, "content") and chunk.content:
-                yield chunk.content
+                text_part = _content_to_text(chunk.content)
+                if text_part:
+                    yield text_part
 
     def extract(
         self,
@@ -98,3 +99,24 @@ def _safe_parse_json(raw: str) -> dict[str, Any]:
             except Exception:
                 return {}
         return {}
+
+
+def _content_to_text(content: Any) -> str:
+    """Normalize Bedrock message content to a plain string.
+
+    Bedrock Converse may return content as a list of content blocks.
+    This flattens strings and common dict blocks with 'text' fields.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                text_val = item.get("text") or item.get("content") or item.get("input_text")
+                if isinstance(text_val, str):
+                    parts.append(text_val)
+        return "".join(parts)
+    return str(content) if content is not None else ""

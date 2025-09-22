@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from langchain_aws import ChatBedrock
+from langchain_aws import ChatBedrockConverse
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -31,21 +31,21 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     )
     assign_to_wealth_agent_with_description = create_task_description_handoff_tool(
         agent_name="wealth_agent",
-        description="Assign task to a wealth agent for personal finance education: credit building, budgeting, debt management, emergency funds, financial literacy, government programs, consumer protection, and money management guidance.",
+        description="Assign task to a wealth agent for financial assistance and education: government benefits (SNAP, LIHEAP, housing assistance), consumer protection, credit/debt management, student loans, budgeting tools, emergency funds, tax credits, state-specific financial programs, crisis resources, scam prevention, and general financial literacy."
     )
 
-    region = config.AWS_REGION
-    model_id = config.BEDROCK_MODEL_ID
-    guardrail_id = config.BEDROCK_GUARDRAIL_ID
-    guardrail_version = str(config.BEDROCK_GUARDRAIL_VERSION)
-
     guardrails = {
-        "guardrailIdentifier": guardrail_id,
-        "guardrailVersion": guardrail_version,
-        "trace": True,
+        "guardrailIdentifier": config.SUPERVISOR_AGENT_GUARDRAIL_ID,
+        "guardrailVersion": config.SUPERVISOR_AGENT_GUARDRAIL_VERSION,
+        "trace": "enabled",
     }
-    logger.info(f"Guardrails: {guardrails}")
-    chat_bedrock = ChatBedrock(model_id=model_id, region_name=region, guardrails=guardrails)
+
+    chat_bedrock = ChatBedrockConverse(
+        model_id=config.SUPERVISOR_AGENT_MODEL_ID,
+        region_name=config.SUPERVISOR_AGENT_MODEL_REGION,
+        temperature=config.SUPERVISOR_AGENT_TEMPERATURE,
+        guardrail_config=guardrails
+    )
     checkpointer = MemorySaver()
 
     supervisor_agent_with_description = create_react_agent(

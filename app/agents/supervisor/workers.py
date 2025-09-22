@@ -34,40 +34,70 @@ def _extract_text_from_content(content: str | list[dict[str, Any]] | dict[str, A
 
 
 async def wealth_agent(state: MessagesState) -> dict[str, Any]:
+    """Wealth agent worker that handles wealth management and investment advice."""
     try:
         wealth_agent = compile_wealth_agent_graph()
         result = await wealth_agent.ainvoke(state)
-        logger.info(f"Wealth agent result: {result}")
 
-        # Extract the wealth agent's response - get the LAST assistant message
         wealth_response = ""
-        if "messages" in result:
-            assistant_messages = []
-            for msg in result["messages"]:
-                if isinstance(msg, dict) and msg.get("role") == "assistant":
-                    assistant_messages.append(msg.get("content", ""))
-                elif hasattr(msg, "content") and getattr(msg, "name", None) == "wealth_agent":
-                    assistant_messages.append(str(msg.content))
+        if "messages" in result and isinstance(result["messages"], list):
+            for msg in reversed(result["messages"]):
+                if hasattr(msg, "content"):
+                    content = msg.content
+                    if isinstance(content, list):
+                        text_parts = []
+                        for item in content:
+                            if isinstance(item, dict) and item.get("type") == "text":
+                                text_parts.append(item.get("text", ""))
+                        wealth_response = "\n".join(text_parts) if text_parts else str(content)
+                    else:
+                        wealth_response = str(content)
+                    break
+                elif isinstance(msg, dict) and msg.get("role") == "assistant":
+                    wealth_response = str(msg.get("content", ""))
+                    break
+        if not wealth_response.strip():
+            wealth_response = "Wealth analysis completed successfully."
 
-            # Get the last assistant message (the final response after search)
-            if assistant_messages:
-                wealth_response = assistant_messages[-1]
+        last_message = state["messages"][-1]
+        if isinstance(last_message, HumanMessage):
+            task_content = getattr(last_message, "content", "Unknown task")
+        elif isinstance(last_message, dict):
+            task_content = last_message.get("content", "Unknown task")
+        else:
+            task_content = str(last_message)
 
-        # Create proper handoff messages to signal completion to supervisor
+        analysis_response = f"""
+        ===== WEALTH AGENT TASK COMPLETED =====
+
+        Task Analyzed: {task_content}...
+
+        Analysis Results:
+        {wealth_response}
+
+        STATUS: WEALTH AGENT ANALYSIS COMPLETE
+        This wealth agent analysis is provided to the supervisor for final user response formatting.
+        """
+
         from app.agents.supervisor.handoff import create_handoff_back_messages
         handoff_messages = create_handoff_back_messages("wealth_agent", "supervisor")
 
         return {
             "messages": [
-                {"role": "assistant", "content": wealth_response, "name": "wealth_agent"},
-                handoff_messages[0],
-                handoff_messages[1]
+                {"role": "assistant", "content": analysis_response, "name": "wealth_agent"},
+                handoff_messages[0]
             ]
         }
+
     except Exception as e:
         logger.error("Wealth agent failed: %s", e)
-        content = "I'm having trouble accessing financial information right now. Please try again later."
-        return {"messages": [{"role": "assistant", "content": content, "name": "wealth_agent"}]}
+        return {
+            "messages": [{
+                "role": "assistant",
+                "content": f"I'm sorry, I had a problem processing your wealth request: {str(e)}",
+                "name": "wealth_agent"
+            }]
+        }
 
 
 async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
@@ -81,19 +111,30 @@ async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, 
         # Process message through the goal_agent graph with full conversation context
         result = await goal_graph.ainvoke(state, config=config)
 
-        # Get the last user message content safely
-        last_message = state["messages"][-1]
-        if isinstance(last_message, HumanMessage):
-            task_content = getattr(last_message, "content", "Unknown task")
-        elif isinstance(last_message, dict):
-            task_content = last_message.get("content", "Unknown task")
-        else:
-            task_content = str(last_message)
+        goal_response = ""
+        if "messages" in result and isinstance(result["messages"], list):
+            for msg in reversed(result["messages"]):
+                if hasattr(msg, "content"):
+                    content = msg.content
+                    if isinstance(content, list):
+                        text_parts = []
+                        for item in content:
+                            if isinstance(item, dict) and item.get("type") == "text":
+                                text_parts.append(item.get("text", ""))
+                        goal_response = "\n".join(text_parts) if text_parts else str(content)
+                    else:
+                        goal_response = str(content)
+                    break
+                elif isinstance(msg, dict) and msg.get("role") == "assistant":
+                    goal_response = str(msg.get("content", ""))
+                    break
+        if not goal_response.strip():
+            goal_response = "Goal analysis completed successfully."
 
         analysis_response = f"""
         GOAL AGENT COMPLETE:
 
-        Task Analyzed: {task_content}...
+        Task Analyzed: {goal_response}...
 
         Analysis Results:
         {result}
@@ -109,7 +150,6 @@ async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, 
             "messages": [
                 {"role": "assistant", "content": analysis_response, "name": "goal_agent"},
                 handoff_messages[0],
-                handoff_messages[1]
             ]
         }
 
