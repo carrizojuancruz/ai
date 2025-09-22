@@ -7,6 +7,7 @@ from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
+from app.core.config import config
 from app.observability.logging_config import configure_logging
 
 from .prompts import WEALTH_AGENT_PROMPT
@@ -20,15 +21,18 @@ def compile_wealth_agent_graph() -> CompiledStateGraph:
     configure_logging()
 
     guardrails = {
-        "guardrailIdentifier": "arn:aws:bedrock:us-west-2:905418355862:guardrail/nqa94s84lt6u",
-        "guardrailVersion": "DRAFT",
+        "guardrailIdentifier": config.WEALTH_AGENT_GUARDRAIL_ID,
+        "guardrailVersion": config.WEALTH_AGENT_GUARDRAIL_VERSION,
         "trace": "enabled",
     }
 
     logger.info(f"[WEALTH_AGENT] Guardrails: {guardrails}")
 
     chat_bedrock = ChatBedrockConverse(
-        model_id="openai.gpt-oss-120b-1:0", region_name="us-west-2", temperature=0.2, guardrail_config=guardrails
+        model_id=config.WEALTH_AGENT_MODEL_ID,
+        region_name=config.WEALTH_AGENT_MODEL_REGION,
+        temperature=config.WEALTH_AGENT_TEMPERATURE,
+        guardrail_config=guardrails
     )
 
     wealth_agent = create_react_agent(

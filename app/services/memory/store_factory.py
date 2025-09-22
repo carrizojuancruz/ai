@@ -20,7 +20,7 @@ def create_s3_vectors_store_from_env(
       - AWS_REGION (default: us-east-1 if not provided via region_name)
       - S3V_DISTANCE (default: cosine)
       - S3V_DIMS (default: 1024)
-      - BEDROCK_EMBED_MODEL_ID (default: amazon.titan-embed-text-v2:0)
+      - BEDROCK_EMBED_MODEL_ID
     """
     bucket = config.S3V_BUCKET
     index = config.S3V_INDEX_MEMORY
