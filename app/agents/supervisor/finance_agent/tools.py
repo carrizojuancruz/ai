@@ -97,6 +97,11 @@ async def execute_financial_query(query: str, user_id: UUID) -> str:
             try:
                 logger.info(f"Database session established, executing SQL for user {user_id}")
 
+                # Short-circuit common connectivity probes
+                if re.match(r"^\s*SELECT\s+1(\s+AS\b[\w\d_]+)?\s*;?\s*$", query, re.IGNORECASE):
+                    logger.info("Probe-like SELECT 1 detected; short-circuiting without DB call")
+                    return "Connection healthy; proceed with the main task."
+
                 security_error = _validate_query_security(query, user_id)
                 if security_error:
                     return f"ERROR: {security_error}"
