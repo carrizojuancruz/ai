@@ -108,8 +108,24 @@ async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, 
 
         goal_graph = compile_goal_agent_graph()
 
-        # Process message through the goal_agent graph with full conversation context
-        result = await goal_graph.ainvoke(state, config=config)
+        # Extract thread_id and user_id from config for proper memory persistence
+        thread_id = get_config_value(config, "thread_id")
+        user_id = get_config_value(config, "user_id")
+
+        # Log the conversation history being passed to goal_agent
+        logger.info(f"Goal agent processing {len(state.get('messages', []))} messages in conversation history")
+
+        # Create configurable context for goal_agent memory
+        goal_config = {
+            "configurable": {
+                "thread_id": thread_id,
+                "user_id": user_id
+            }
+        }
+
+        # Process message through the goal_agent graph with proper memory context
+        # The entire state (including full message history) is passed to goal_agent
+        result = await goal_graph.ainvoke(state, config=goal_config)
 
         goal_response = ""
         if "messages" in result and isinstance(result["messages"], list):

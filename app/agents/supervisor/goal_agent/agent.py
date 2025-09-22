@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from langchain_aws import ChatBedrock
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
@@ -38,10 +39,12 @@ def compile_goal_agent_graph() -> CompiledStateGraph:
         "guardrailVersion": guardrail_version,
         "trace": True,
     }
+
     logger.info(f"[GOAL_AGENT] Guardrails: {guardrails}")
     logger.info(f"[GOAL_AGENT] MODELS: {model_id} in {region}, DEFAULT: {config.BEDROCK_MODEL_ID}")
     chat_bedrock = ChatBedrock(model_id=model_id, region_name=region, guardrails=guardrails)
-    # checkpointer = MemorySaver()
+    checkpointer = MemorySaver()
+
     goal_agent = create_react_agent(
         model=chat_bedrock,
         tools=[
@@ -54,11 +57,11 @@ def compile_goal_agent_graph() -> CompiledStateGraph:
 
     builder = StateGraph(MessagesState)
 
-    # Add the agent node
+    # Main goal agent node
     builder.add_node("goal_agent", goal_agent)
 
     # Define the flow
     builder.add_edge(START, "goal_agent")
     builder.add_edge("goal_agent", END)
 
-    return builder.compile()
+    return builder.compile(checkpointer=checkpointer)
