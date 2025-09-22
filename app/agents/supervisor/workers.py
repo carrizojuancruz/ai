@@ -111,19 +111,30 @@ async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, 
         # Process message through the goal_agent graph with full conversation context
         result = await goal_graph.ainvoke(state, config=config)
 
-        # Get the last user message content safely
-        last_message = state["messages"][-1]
-        if isinstance(last_message, HumanMessage):
-            task_content = getattr(last_message, "content", "Unknown task")
-        elif isinstance(last_message, dict):
-            task_content = last_message.get("content", "Unknown task")
-        else:
-            task_content = str(last_message)
+        goal_response = ""
+        if "messages" in result and isinstance(result["messages"], list):
+            for msg in reversed(result["messages"]):
+                if hasattr(msg, "content"):
+                    content = msg.content
+                    if isinstance(content, list):
+                        text_parts = []
+                        for item in content:
+                            if isinstance(item, dict) and item.get("type") == "text":
+                                text_parts.append(item.get("text", ""))
+                        goal_response = "\n".join(text_parts) if text_parts else str(content)
+                    else:
+                        goal_response = str(content)
+                    break
+                elif isinstance(msg, dict) and msg.get("role") == "assistant":
+                    goal_response = str(msg.get("content", ""))
+                    break
+        if not goal_response.strip():
+            goal_response = "Goal analysis completed successfully."
 
         analysis_response = f"""
         GOAL AGENT COMPLETE:
 
-        Task Analyzed: {task_content}...
+        Task Analyzed: {goal_response}...
 
         Analysis Results:
         {result}
