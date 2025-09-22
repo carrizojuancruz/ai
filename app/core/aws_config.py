@@ -108,7 +108,7 @@ def load_aws_secrets() -> None:
 
 def _get_aws_region() -> str:
     """Get AWS region from environment variables."""
-    return os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
+    return os.getenv("AWS_REGION")
 
 
 def _apply_secrets_to_environment(secret_data: dict[str, Any], region: str) -> None:
@@ -120,11 +120,6 @@ def _apply_secrets_to_environment(secret_data: dict[str, Any], region: str) -> N
         loaded_count += 1
 
     logger.info("Successfully loaded %d secrets from AWS Secrets Manager", loaded_count)
-
-    if "AWS_REGION" not in os.environ and "AWS_DEFAULT_REGION" not in os.environ:
-        os.environ["AWS_DEFAULT_REGION"] = region
-        logger.info("Set AWS_DEFAULT_REGION to %s", region)
-
 
 def _handle_client_error(error: ClientError, secret_id: str) -> None:
     """Handle AWS client errors with specific error codes."""
@@ -139,10 +134,9 @@ def _handle_client_error(error: ClientError, secret_id: str) -> None:
 
 def configure_aws_environment() -> dict[str, Any]:
     aws_config = {
-        "region": os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION"),
+        "region": os.getenv("AWS_REGION"),
         "secrets_loaded": bool(os.getenv("FOS_SECRETS_ID")),
         "llm_provider": os.getenv("LLM_PROVIDER"),
-        "bedrock_model_id": os.getenv("BEDROCK_MODEL_ID"),
     }
     logger.info(f"AWS Configuration: Region={aws_config['region']}, Provider={aws_config['llm_provider']}")
     return aws_config

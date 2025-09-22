@@ -34,18 +34,16 @@ def compile_supervisor_graph() -> CompiledStateGraph:
         description="Assign task to a wealth agent for financial assistance and education: government benefits (SNAP, LIHEAP, housing assistance), consumer protection, credit/debt management, student loans, budgeting tools, emergency funds, tax credits, state-specific financial programs, crisis resources, scam prevention, and general financial literacy."
     )
 
-    str(config.BEDROCK_GUARDRAIL_VERSION)
-
     guardrails = {
-        "guardrailIdentifier": "arn:aws:bedrock:us-west-2:905418355862:guardrail/nqa94s84lt6u",
-        "guardrailVersion": "DRAFT",
+        "guardrailIdentifier": config.SUPERVISOR_AGENT_GUARDRAIL_ID,
+        "guardrailVersion": config.SUPERVISOR_AGENT_GUARDRAIL_VERSION,
         "trace": "enabled",
     }
 
     chat_bedrock = ChatBedrockConverse(
-        model_id="openai.gpt-oss-120b-1:0",
-        region_name="us-west-2",
-        temperature=0.4,
+        model_id=config.SUPERVISOR_AGENT_MODEL_ID,
+        region_name=config.SUPERVISOR_AGENT_MODEL_REGION,
+        temperature=config.SUPERVISOR_AGENT_TEMPERATURE,
         guardrail_config=guardrails
     )
     checkpointer = MemorySaver()

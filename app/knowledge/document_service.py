@@ -23,7 +23,7 @@ class DocumentService:
         )
 
         self.embeddings = BedrockEmbeddings(
-            model_id=config.EMBEDDINGS_MODEL_ID,
+            model_id=config.BEDROCK_EMBED_MODEL_ID,
             region_name=config.AWS_REGION
         )
 

@@ -10,8 +10,8 @@ from .prompts import get_guest_system_prompt
 
 @lru_cache(maxsize=1)
 def get_guest_graph():
-    model_id = config.BEDROCK_MODEL_ID
-    region = config.get_aws_region()
+    model_id = config.GUEST_AGENT_MODEL_ID
+    region = config.GUEST_AGENT_MODEL_REGION
 
     chat_bedrock = ChatBedrock(model_id=model_id, region_name=region, streaming=True)
 
