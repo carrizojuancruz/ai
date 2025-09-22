@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import logging
 
-from langchain_aws import ChatBedrockConverse
+from langchain_aws import ChatBedrock
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
+from app.core.config import config
 from app.observability.logging_config import configure_logging  # ensure logging format
 
 from .prompts import GOAL_AGENT_PROMPT
@@ -27,18 +28,19 @@ def compile_goal_agent_graph() -> CompiledStateGraph:
     """Compile the goal agent graph for financial goals management."""
     configure_logging()
 
-    guardrails = {
-        "guardrailIdentifier": "arn:aws:bedrock:us-west-2:905418355862:guardrail/nqa94s84lt6u",
-        "guardrailVersion": "DRAFT",
-        "trace": "enabled",
-    }
+    region = config.GOAL_AGENT_MODEL_REGION
+    model_id = config.GOAL_AGENT_MODEL_ID
+    guardrail_id = config.BEDROCK_GUARDRAIL_ID
+    guardrail_version = str(config.BEDROCK_GUARDRAIL_VERSION)
 
-    chat_bedrock = ChatBedrockConverse(
-        model_id="openai.gpt-oss-120b-1:0",
-        region_name="us-west-2",
-        temperature=0.4,
-        guardrail_config=guardrails,
-    )
+    guardrails = {
+        "guardrailIdentifier": guardrail_id,
+        "guardrailVersion": guardrail_version,
+        "trace": True,
+    }
+    logger.info(f"[GOAL_AGENT] Guardrails: {guardrails}")
+    logger.info(f"[GOAL_AGENT] MODELS: {model_id} in {region}, DEFAULT: {config.BEDROCK_MODEL_ID}")
+    chat_bedrock = ChatBedrock(model_id=model_id, region_name=region, guardrails=guardrails)
     # checkpointer = MemorySaver()
     goal_agent = create_react_agent(
         model=chat_bedrock,

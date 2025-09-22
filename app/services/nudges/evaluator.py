@@ -159,7 +159,7 @@ async def iter_active_users(
         raise ValueError("FOS_SERVICE_URL not configured")
 
     base_url = config.FOS_SERVICE_URL.rstrip("/")
-    url = f"{base_url}/admin/users"
+    url = f"{base_url}/users/list"
 
     skip = 0
     pages_yielded = 0
@@ -183,20 +183,41 @@ async def iter_active_users(
                 response = await client.get(url, params=params, headers=headers)
                 response.raise_for_status()
 
-                users_data = response.json()
-                if not users_data:
-                    logger.debug("No more users found, stopping pagination")
+                raw_json = response.json()
+
+                items = []
+                if isinstance(raw_json, list):
+                    items = raw_json
+                elif isinstance(raw_json, dict):
+                    for key in ("items", "data", "results", "users"):
+                        maybe = raw_json.get(key)
+                        if isinstance(maybe, list):
+                            items = maybe
+                            break
+
+                if not items:
+                    logger.debug("No more users found (empty payload), stopping pagination")
                     break
 
-                if users_data and logger.isEnabledFor(logging.DEBUG):
-                    first_user = users_data[0]
-                    logger.debug(f"First user object keys: {list(first_user.keys()) if isinstance(first_user, dict) else 'Not a dict'}")
-                    logger.debug(f"First user ID field: {first_user.get('id') if isinstance(first_user, dict) else 'N/A'}")
+                if logger.isEnabledFor(logging.DEBUG):
+                    first_user = items[0]
+                    if isinstance(first_user, dict):
+                        keys_preview = list(first_user.keys())
+                        logger.debug(f"First user object keys: {keys_preview}")
+                        logger.debug(
+                            f"First user ID candidates: id={first_user.get('id')}, user_id={first_user.get('user_id')}, clerk_user_id={first_user.get('clerk_user_id')}"
+                        )
 
-                user_ids = [user.get("id") for user in users_data if user.get("id")]
+                def _extract_id(u: dict[str, Any]) -> str | None:
+                    if not isinstance(u, dict):
+                        return None
+                    return u.get("id") or u.get("user_id") or u.get("clerk_user_id")
+
+                user_ids = [uid for uid in (_extract_id(u) for u in items) if uid]
 
                 if not user_ids:
-                    logger.warning(f"No valid user IDs found in response. Users data: {users_data[:2] if users_data else 'empty'}")
+                    preview = items[:2] if isinstance(items, list) else 'empty'
+                    logger.warning(f"No valid user IDs found in response. Users data: {preview}")
                     break
 
                 logger.info(f"Fetched {len(user_ids)} active users (page {pages_yielded + 1})")
@@ -205,7 +226,7 @@ async def iter_active_users(
                 pages_yielded += 1
                 skip += page_size
 
-                if len(users_data) < page_size:
+                if len(items) < page_size:
                     logger.debug("Received fewer users than requested, reached end of data")
                     break
 

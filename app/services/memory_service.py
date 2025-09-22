@@ -257,32 +257,18 @@ class MemoryService:
         store = self._get_store()
         namespace = self._get_namespace(user_id, memory_type)
 
-        all_keys = []
-        offset = 0
-        batch_limit = self.MAX_TOPK
-
         query = self._get_query_for_type(memory_type)
+        all_items = store.search(namespace, query=query, filter=None, limit=100, offset=0)
 
-        while True:
-            items = store.search(namespace, query=query, filter=None, limit=batch_limit, offset=offset)
-            batch_keys = [item.key for item in items]
-
-            if not batch_keys:
-                break
-
-            all_keys.extend(batch_keys)
-            offset += batch_limit
-
-            if len(batch_keys) < batch_limit:
-                break
-
-        if not all_keys:
+        if not all_items:
             return {
                 "ok": True,
                 "message": "No memories found to delete",
                 "deleted_count": 0,
                 "total_found": 0
             }
+
+        all_keys = [item.key for item in all_items]
 
         deleted_count = 0
         failed_count = 0

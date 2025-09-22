@@ -193,46 +193,44 @@ class FinanceAgent:
         🚨 AGENT BEHAVIOR & CONTROL 🚨
         You are a SPECIALIZED ANALYSIS agent working under a supervisor. You are NOT responding directly to users.
         Your role is to:
-        1. Execute financial queries and provide comprehensive data analysis
-        2. Return detailed findings and insights to your supervisor
-        3. Focus on accuracy, completeness, and actionable insights
+        1. Execute financial queries efficiently - match thoroughness to task complexity
+        2. Return findings appropriate to the task scope
+        3. Focus on accuracy and efficiency over exhaustive analysis
         4. Your supervisor will format the final user-facing response
+        5. If the task requests a single metric (e.g., total or count), compute it with ONE optimal query and STOP.
 
-        You are receiving this task from your supervisor agent. Provide thorough analysis so they can create the best response for the user.
+        You are receiving this task from your supervisor agent. Match your analysis thoroughness to what the task specifically asks for.
 
         🛠️ TOOL USAGE MANDATE 🛠️
-        If you are not sure about tables/columns, use tools to verify schema. Do NOT guess or invent SQL.
+        Respect ONLY the two typed schemas below as the source of truth. Do NOT run schema discovery or connectivity probes (e.g., SELECT 1). Assume the database is connected.
 
         📊 PLANNING & QUERY STRATEGY 📊
         You MUST plan carefully BEFORE generating SQL and reflect on results, but keep all planning INTERNAL.
         NEVER narrate your plan or process. Do NOT write phrases like "Let me", "I'll", "Understand the question", or step lists.
 
         1. **Analyze Requirements**: Break down the user's request into specific data requirements
-        2. **Schema Verification**: Confirm table structures, column names, and relationships
-        3. **Query Design**: Plan the optimal SQL structure before writing
-        4. **Execution Strategy**: Determine if multiple queries are needed for complex requests
-        5. **Result Analysis**: Interpret and synthesize query results into actionable insights
+        2. **Query Design**: Plan the optimal SQL structure before writing
+        3. **Execution Strategy**: Match query thoroughness to task requirements - simple calculations need simple queries
+        4. **Result Analysis**: Interpret and synthesize query results into actionable insights
 
         ## 🎯 Core Objective & Principles
 
-        1. **QUERY GENERATION**: Create syntactically correct SQL queries
-        2. **TOOL EXECUTION**: Use available database tools systematically
-        3. **RESULT ANALYSIS**: Interpret the data comprehensively and extract meaningful insights
-        4. **COMPREHENSIVE RESPONSE**: Provide complete, formatted responses that fully address the user's query
-        5. **EXTREME PRECISION**: Adhere to ALL rules and criteria literally - do not make assumptions
-        6. **USER CLARITY**: State the date range used in the analysis
-        7. **DATA VALIDATION**: State clearly if you don't have sufficient data - DO NOT INVENT INFORMATION
-        8. **PRIVACY FIRST**: Never return raw SQL queries or raw tool output
-        9. **NO GREETINGS/NO NAMES**: Do not greet. Do not mention the user's name. Answer directly.
-        10. **NO COMMENTS**: Do not include comments in the SQL queries.
+        1. **EFFICIENCY FIRST**: For simple tasks (totals, counts, basic lookups), use ONE optimal query and stop - do not over-analyze
+        2. **QUERY GENERATION**: Create syntactically correct SQL queries
+        3. **TOOL EXECUTION**: Use available database tools systematically
+        4. **RESULT ANALYSIS**: Interpret the data comprehensively and extract meaningful insights
+        5. **TASK-APPROPRIATE RESPONSE**: Match thoroughness to the specific task requirements - simple tasks get simple answers
+        6. **EXTREME PRECISION**: Adhere to ALL rules and criteria literally - do not make assumptions
+        7. **USER CLARITY**: State the date range used in the analysis
+        8. **DATA VALIDATION**: State clearly if you don't have sufficient data - DO NOT INVENT INFORMATION
+        9. **PRIVACY FIRST**: Never return raw SQL queries or raw tool output
+        10. **NO GREETINGS/NO NAMES**: Do not greet. Do not mention the user's name. Answer directly.
+        11. **NO COMMENTS**: Do not include comments in the SQL queries.
+        12. **STOP AFTER METRIC**: Once you compute the requested metric for the task, stop immediately.
 
         ## 📊 Table Information & Rules
 
-        **Schema Planning Protocol**: Before writing queries:
-        1. Identify which tables contain the required data
-        2. Verify column names and data types using tools if uncertain
-        3. Plan join strategies if multiple tables are needed
-        4. Design filtering and aggregation logic
+        Use the following typed table schemas as the definitive source of truth. Do NOT perform schema discovery or validation queries. Design filtering and aggregation logic based solely on these schemas.
 
         ## ❗ Mandatory Security & Filtering Rules
 
@@ -360,7 +358,16 @@ class FinanceAgent:
         # Create a custom sql_db_query tool that has access to user_id
         @tool
         async def sql_db_query(query: str) -> str:
-            """Execute SQL query against the financial database."""
+            """Execute a single read-only SQL query for this user's data.
+
+            Rules:
+            - Do NOT run connectivity probes (e.g., SELECT 1). Assume the DB is connected.
+            - Do NOT run schema discovery/verification queries; rely on the typed schemas provided.
+            - All queries MUST be SELECT/CTE and include user_id filtering.
+            - Prefer one optimal query for simple tasks (totals, counts). Do not repeat identical queries.
+            - If the requested task is a single metric, compute it and stop; do not follow-up with discovery.
+            - Return only processed results suitable for analysis (no raw engine metadata).
+            """
             return await execute_financial_query(query, user_id)
 
         # Create agent with tools
@@ -391,7 +398,7 @@ class FinanceAgent:
 
             # Run the agent
             logger.info(f"Starting LangGraph agent execution for user {user_id}")
-            result = await agent.ainvoke({"messages": messages})
+            result = await agent.ainvoke({"messages": messages}, config={"recursion_limit": 4})
             logger.info(f"Agent execution completed for user {user_id}, received {len(result['messages'])} messages")
 
             # Extract the final response
