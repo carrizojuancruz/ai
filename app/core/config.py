@@ -54,7 +54,7 @@ class Config:
     DEBUG: bool = os.getenv("DEBUG", "false").lower() in {"true", "1", "yes", "on"}
 
     # AI Models Configuration
-    BEDROCK_EMBED_MODEL_ID: str = os.getenv("BEDROCK_EMBED_MODEL_ID")
+    BEDROCK_EMBED_MODEL_ID: str = os.getenv("BEDROCK_EMBED_MODEL_ID", "amazon.titan-embed-text-v1")
 
     # LLM Configuration
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "bedrock")
@@ -160,7 +160,7 @@ class Config:
     FOS_SERVICE_URL: Optional[str] = os.getenv("FOS_SERVICE_URL")
     FOS_API_KEY: Optional[str] = os.getenv("FOS_API_KEY")
     FOS_SECRETS_ID: Optional[str] = os.getenv("FOS_SECRETS_ID")
-    FOS_SECRETS_REGION: str = os.getenv("FOS_SECRETS_REGION")
+    FOS_SECRETS_REGION: str = os.getenv("FOS_SECRETS_REGION", "us-east-1")
 
     # Knowledge Base Configuration
     SOURCES_FILE_PATH: str = os.getenv("SOURCES_FILE_PATH", "./app/knowledge/sources/sources.json")
