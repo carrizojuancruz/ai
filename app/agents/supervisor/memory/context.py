@@ -90,8 +90,10 @@ def _select_episodic_items(epi_results: list[Any], topn: int, score_fn) -> list[
     return sorted(epi_results, key=score_fn, reverse=True)[:limit]
 
 
-def _items_to_bullets(epi_items: list[Any], sem_items: list[Any], topn: int, user_tz: tzinfo) -> list[str]:
-    bullets: list[str] = []
+def _items_to_bullets(epi_items: list[Any], sem_items: list[Any], topn: int, user_tz: tzinfo) -> tuple[list[str], list[str]]:
+    """Separate episodic and semantic bullets into distinct lists."""
+    epi_bullets: list[str] = []
+    sem_bullets: list[str] = []
 
     def _format_suffix(item: Any, val: dict[str, Any]) -> str:
         ts_updated = getattr(item, "updated_at", None)
@@ -110,22 +112,23 @@ def _items_to_bullets(epi_items: list[Any], sem_items: list[Any], topn: int, use
         label = "Updated on" if ts_updated else "Created on"
         return f" — {label} {local.strftime('%Y-%m-%d')}"
 
-    # Episodic bullets: keep summary text; append created/updated date for clarity
+    # Episodic bullets: previous conversations with dates
     for it in epi_items[:2]:
         val = getattr(it, "value", {}) or {}
         txt = val.get("summary")
         if not txt:
             continue
-        bullets.append(f"[{val.get('category')}] {txt}{_format_suffix(it, val)}")
+        epi_bullets.append(f"{txt}{_format_suffix(it, val)}")
 
-    # Semantic bullets: append created/updated date (recency signal)
+    # Semantic bullets: user facts, preferences, goals
     for it in sem_items[: max(1, topn)]:
         val = getattr(it, "value", {}) or {}
         txt = val.get("summary")
         if not txt:
             continue
-        bullets.append(f"[{val.get('category')}] {txt}{_format_suffix(it, val)}")
-    return bullets
+        sem_bullets.append(f"[{val.get('category')}] {txt}{_format_suffix(it, val)}")
+
+    return epi_bullets, sem_bullets
 
 
 def _resolve_user_tz_from_config(config: RunnableConfig) -> tzinfo:
@@ -205,14 +208,26 @@ def _safe_extract_summary(item: Any) -> str:
         return ""
 
 
-def _build_context_response(bullets: list[str], config: RunnableConfig, routing_examples: list[str] | None = None) -> dict:
+def _build_context_response(epi_bullets: list[str], sem_bullets: list[str], config: RunnableConfig, routing_examples: list[str] | None = None) -> dict:
     user_tz: tzinfo = _resolve_user_tz_from_config(config)
     now_local = datetime.now(tz=user_tz)
     date_bullet = f"Now: {now_local.strftime('%Y-%m-%d %H:%M %Z')}"
-    all_bullets = ([date_bullet] if date_bullet else []) + bullets
+
+    sections = [f"CURRENT TIME: {date_bullet}"]
+
+    if epi_bullets:
+        sections.append("EPISODIC MEMORIES (previous conversations with Vera):")
+        sections.extend(f"- {bullet}" for bullet in epi_bullets)
+
+    if sem_bullets:
+        sections.append("SEMANTIC MEMORIES (user facts, preferences, and goals):")
+        sections.extend(f"- {bullet}" for bullet in sem_bullets)
+
     if routing_examples:
-        all_bullets.extend(["", "Few-shot Routing examples:\n"] + routing_examples)
-    context_str = "Relevant context for tailoring this turn:\n- " + "\n- ".join(all_bullets)
+        sections.append("ROUTING GUIDANCE (few-shot examples for agent selection):")
+        sections.extend(f"- {example}" for example in routing_examples)
+
+    context_str = "Relevant context for tailoring this turn:\n" + "\n".join(sections)
     return {"messages": [AIMessage(content=context_str)]}
 
 
@@ -265,13 +280,13 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
 
         epi_sorted = _select_episodic_items(epi, CONTEXT_TOPN, score)
         user_tz = _resolve_user_tz_from_config(config)
-        bullets = _items_to_bullets(epi_sorted, merged_sem, CONTEXT_TOPN, user_tz)
-        logger.info("memory_context.bullets.count: %d", len(bullets))
+        epi_bullets, sem_bullets = _items_to_bullets(epi_sorted, merged_sem, CONTEXT_TOPN, user_tz)
+        logger.info("memory_context.bullets.epi: %d sem: %d", len(epi_bullets), len(sem_bullets))
 
         routing_examples = _extract_routing_examples(proc)
     except Exception:
         pass
 
-    if not locals().get("bullets"):
+    if not locals().get("epi_bullets") and not locals().get("sem_bullets"):
         return {}
-    return _build_context_response(bullets, config, routing_examples)
+    return _build_context_response(epi_bullets, sem_bullets, config, routing_examples)
