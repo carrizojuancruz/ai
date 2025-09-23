@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 import boto3
 from botocore.exceptions import ClientError
@@ -67,9 +68,24 @@ class TitleGeneratorLLM:
             response_body = json.loads(response['body'].read())
             content = response_body['choices'][0]['message']['content']
 
+
             # Parse the JSON response from the model
             try:
-                result = json.loads(content.strip())
+                content = content.strip()
+                content = re.sub(r'<reasoning>.*?</reasoning>', '', content, flags=re.DOTALL)
+                content = content.strip()
+
+                json_start = content.find('{')
+                if json_start != -1:
+                    json_content = content[json_start:]
+                    json_end = json_content.rfind('}')
+                    if json_end != -1:
+                        json_content = json_content[:json_end + 1]
+                        result = json.loads(json_content)
+                    else:
+                        raise json.JSONDecodeError("No closing brace found", content, 0)
+                else:
+                    raise json.JSONDecodeError("No JSON found in response", content, 0)
 
                 # Ensure summary doesn't exceed 125 characters
                 if len(result.get("summary", "")) > 125:
