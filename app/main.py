@@ -19,7 +19,7 @@ from .api.routes_guest import router as guest_router
 from .api.routes_knowledge import router as knowledge_router
 from .api.routes_nudge_eval import router as nudge_eval_router
 from .api.routes_supervisor import router as supervisor_router
-from .api.routes_tittle_gen import router as title_gen_router
+from .api.routes_title_gen import router as title_gen_router
 from .core.config import config
 from .observability.logging_config import configure_logging, get_logger
 
