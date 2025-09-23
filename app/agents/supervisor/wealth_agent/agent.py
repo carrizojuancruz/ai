@@ -43,8 +43,7 @@ def compile_wealth_agent_graph() -> CompiledStateGraph:
     )
 
     builder = StateGraph(MessagesState)
-
-    builder.add_node(wealth_agent)
+    builder.add_node("wealth_agent", wealth_agent)
     builder.add_edge(START, "wealth_agent")
     builder.add_edge("wealth_agent", END)
 
