@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from functools import lru_cache
 
 from langchain_aws import ChatBedrockConverse
 from langgraph.graph import END, START, MessagesState, StateGraph
