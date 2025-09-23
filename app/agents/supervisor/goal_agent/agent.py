@@ -65,7 +65,6 @@ class GoalAgentSingleton:
         }
 
         logger.info(f"[GOAL_AGENT] Guardrails: {guardrails}")
-        logger.info(f"[GOAL_AGENT] MODELS: {model_id} in {region}, DEFAULT: {config.BEDROCK_MODEL_ID}")
         chat_bedrock = ChatBedrock(model_id=model_id, region_name=region, guardrails=guardrails)
         checkpointer = MemorySaver()
 
