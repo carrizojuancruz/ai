@@ -11,7 +11,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
 from app.core.config import config
-from app.observability.logging_config import configure_logging  # ensure logging format
+from app.observability.logging_config import configure_logging
 
 from .prompts import GOAL_AGENT_PROMPT
 from .tools import (

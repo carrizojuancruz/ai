@@ -34,7 +34,7 @@ class Config:
     EPISODIC_WINDOW_N: int = int(os.getenv("EPISODIC_WINDOW_N", "10"))
     EPISODIC_MERGE_WINDOW_HOURS: int = int(os.getenv("EPISODIC_MERGE_WINDOW_HOURS", "48"))
     EPISODIC_NOVELTY_MIN: float = float(os.getenv("EPISODIC_NOVELTY_MIN", "0.90"))
-    MEMORY_TINY_LLM_MODEL_ID: str = os.getenv("MEMORY_TINY_LLM_MODEL_ID", "amazon.nova-micro-v1:0")
+    MEMORY_TINY_LLM_MODEL_ID: str = os.getenv("MEMORY_TINY_LLM_MODEL_ID")
     # Memory Context Configuration
     MEMORY_CONTEXT_TOPK: int = int(os.getenv("MEMORY_CONTEXT_TOPK", "24"))
     MEMORY_CONTEXT_TOPN: int = int(os.getenv("MEMORY_CONTEXT_TOPN", "5"))
@@ -45,8 +45,7 @@ class Config:
     MEMORY_PROCEDURAL_MIN_SCORE: float = float(os.getenv("MEMORY_PROCEDURAL_MIN_SCORE", "0.45"))
 
     # AWS Configuration
-    AWS_REGION: str = os.getenv("AWS_REGION", "us-west-2")
-    AWS_DEFAULT_REGION: str = os.getenv("AWS_DEFAULT_REGION", "us-west-2")
+    AWS_REGION: str = os.getenv("AWS_REGION")
     AWS_ACCESS_KEY_ID: Optional[str] = os.getenv("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY: Optional[str] = os.getenv("AWS_SECRET_ACCESS_KEY")
 
@@ -55,22 +54,56 @@ class Config:
     DEBUG: bool = os.getenv("DEBUG", "false").lower() in {"true", "1", "yes", "on"}
 
     # AI Models Configuration
-    EMBEDDINGS_MODEL_ID: str = os.getenv("EMBEDDINGS_MODEL_ID", "amazon.titan-embed-text-v2:0")
-    BEDROCK_MODEL_ID: str = os.getenv("BEDROCK_MODEL_ID", "openai.gpt-oss-120b-1:0")
-    BEDROCK_EMBED_MODEL_ID: str = os.getenv("BEDROCK_EMBED_MODEL_ID", "amazon.titan-embed-text-v2:0")
-    BEDROCK_GUARDRAIL_ID: Optional[str] = os.getenv("BEDROCK_GUARDRAIL_ID")
-    BEDROCK_GUARDRAIL_VERSION: Optional[str] = os.getenv("BEDROCK_GUARDRAIL_VERSION")
+    BEDROCK_EMBED_MODEL_ID: str = os.getenv("BEDROCK_EMBED_MODEL_ID", "amazon.titan-embed-text-v1")
 
-    GOAL_AGENT_MODEL_ID: Optional[str] = os.getenv("GOAL_AGENT_MODEL_ID")
-    GOAL_AGENT_MODEL_REGION: str = os.getenv("GOAL_AGENT_REGION", "us-east-1")
     # LLM Configuration
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "bedrock")
-    LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.3"))
+
+    # Wealth Agent Configuration
+    WEALTH_AGENT_MODEL_ID: str = os.getenv("WEALTH_AGENT_MODEL_ID")
+    WEALTH_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("WEALTH_AGENT_GUARDRAIL_ID")
+    WEALTH_AGENT_GUARDRAIL_VERSION: str = os.getenv("WEALTH_AGENT_GUARDRAIL_VERSION")
+    WEALTH_AGENT_MODEL_REGION: str = os.getenv("WEALTH_AGENT_MODEL_REGION")
+    WEALTH_AGENT_TEMPERATURE: float = float(os.getenv("WEALTH_AGENT_TEMPERATURE", "0.2"))
+
+    # Goal Agent Configuration
+    GOAL_AGENT_MODEL_ID: str = os.getenv("GOAL_AGENT_MODEL_ID")
+    GOAL_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("GOAL_AGENT_GUARDRAIL_ID")
+    GOAL_AGENT_GUARDRAIL_VERSION: str = os.getenv("GOAL_AGENT_GUARDRAIL_VERSION")
+    GOAL_AGENT_MODEL_REGION: str = os.getenv("GOAL_AGENT_MODEL_REGION")
+    GOAL_AGENT_TEMPERATURE: float = float(os.getenv("GOAL_AGENT_TEMPERATURE", "0.2"))
+
+    # Financial Agent Configuration
+    FINANCIAL_AGENT_MODEL_ID: str = os.getenv("FINANCIAL_AGENT_MODEL_ID")
+    FINANCIAL_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("FINANCIAL_AGENT_GUARDRAIL_ID")
+    FINANCIAL_AGENT_GUARDRAIL_VERSION: str = os.getenv("FINANCIAL_AGENT_GUARDRAIL_VERSION")
+    FINANCIAL_AGENT_MODEL_REGION: str = os.getenv("FINANCIAL_AGENT_MODEL_REGION")
+    FINANCIAL_AGENT_TEMPERATURE: float = float(os.getenv("FINANCIAL_AGENT_TEMPERATURE", "0.2"))
+
+    # Guest Agent Configuration
+    GUEST_AGENT_MODEL_ID: str = os.getenv("GUEST_AGENT_MODEL_ID")
+    GUEST_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("GUEST_AGENT_GUARDRAIL_ID")
+    GUEST_AGENT_GUARDRAIL_VERSION: str = os.getenv("GUEST_AGENT_GUARDRAIL_VERSION")
+    GUEST_AGENT_MODEL_REGION: str = os.getenv("GUEST_AGENT_MODEL_REGION")
+    GUEST_AGENT_TEMPERATURE: float = float(os.getenv("GUEST_AGENT_TEMPERATURE", "0.2"))
+
+    # Onboarding Agent Configuration
+    ONBOARDING_AGENT_MODEL_ID: str = os.getenv("ONBOARDING_AGENT_MODEL_ID")
+    ONBOARDING_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("ONBOARDING_AGENT_GUARDRAIL_ID")
+    ONBOARDING_AGENT_GUARDRAIL_VERSION: str = os.getenv("ONBOARDING_AGENT_GUARDRAIL_VERSION")
+    ONBOARDING_AGENT_MODEL_REGION: str = os.getenv("ONBOARDING_AGENT_MODEL_REGION")
+    ONBOARDING_AGENT_TEMPERATURE: float = float(os.getenv("ONBOARDING_AGENT_TEMPERATURE", "0.2"))
+
+    # Supervisor Agent Configuration
+    SUPERVISOR_AGENT_MODEL_ID: str = os.getenv("SUPERVISOR_AGENT_MODEL_ID")
+    SUPERVISOR_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("SUPERVISOR_AGENT_GUARDRAIL_ID")
+    SUPERVISOR_AGENT_GUARDRAIL_VERSION: str = os.getenv("SUPERVISOR_AGENT_GUARDRAIL_VERSION")
+    SUPERVISOR_AGENT_MODEL_REGION: str = os.getenv("SUPERVISOR_AGENT_MODEL_REGION")
+    SUPERVISOR_AGENT_TEMPERATURE: float = float(os.getenv("SUPERVISOR_AGENT_TEMPERATURE", "0.2"))
 
     # S3 Vectors Configuration
     MEMORIES_INDEX_ID: Optional[str] = os.getenv("MEMORIES_INDEX_ID")
     EMBEDDING_INDEX_ID: Optional[str] = os.getenv("EMBEDDING_INDEX_ID")
-    VECTOR_INDEX_NAME: str = os.getenv("VECTOR_INDEX_NAME", "web-sources")
     S3V_INDEX_MEMORY: str = os.getenv("S3V_INDEX_MEMORY", "memory-search")
     S3V_BUCKET: Optional[str] = os.getenv("S3V_BUCKET")
     S3V_INDEX_KB: Optional[str] = os.getenv("S3V_INDEX_KB")
@@ -82,8 +115,8 @@ class Config:
     LANGFUSE_PUBLIC_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY")
     LANGFUSE_SECRET_KEY: Optional[str] = os.getenv("LANGFUSE_SECRET_KEY")
     LANGFUSE_HOST: str = os.getenv("LANGFUSE_HOST", "https://langfuse.promtior.ai")
-    LANGFUSE_GUEST_PUBLIC_KEY: Optional[str] = os.getenv("LANGFUSE_GUEST_PUBLIC_KEY")
-    LANGFUSE_GUEST_SECRET_KEY: Optional[str] = os.getenv("LANGFUSE_GUEST_SECRET_KEY")
+    LANGFUSE_GUEST_PUBLIC_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_GUEST_KEY")
+    LANGFUSE_GUEST_SECRET_KEY: Optional[str] = os.getenv("LANGFUSE_SECRET_GUEST_KEY")
 
     # Langfuse Configuration (Supervisor)
     LANGFUSE_PUBLIC_SUPERVISOR_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_SUPERVISOR_KEY")
@@ -189,7 +222,7 @@ class Config:
     @classmethod
     def get_aws_region(cls) -> str:
         """Get AWS region with fallback logic."""
-        return cls.AWS_REGION or cls.AWS_DEFAULT_REGION
+        return cls.AWS_REGION
 
     @classmethod
     def get_database_url(cls) -> str:
@@ -213,10 +246,6 @@ class Config:
         """Get Bedrock configuration dictionary."""
         return {
             "region": cls.get_aws_region(),
-            "model_id": cls.BEDROCK_MODEL_ID,
-            "temperature": cls.LLM_TEMPERATURE,
-            "guardrail_id": cls.BEDROCK_GUARDRAIL_ID,
-            "guardrail_version": cls.BEDROCK_GUARDRAIL_VERSION,
         }
 
     @classmethod

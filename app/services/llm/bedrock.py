@@ -13,12 +13,14 @@ from .base import LLM
 
 
 class BedrockLLM(LLM):
+    """LLM client implementation using AWS Bedrock for ONBOARDING AGENT."""
+
     def __init__(self) -> None:
         region = config.get_aws_region()
         if not region:
-            raise RuntimeError("AWS_REGION (or AWS_DEFAULT_REGION) is required for Bedrock provider")
-        self.model_id = config.BEDROCK_MODEL_ID
-        self.temperature = config.LLM_TEMPERATURE
+            raise RuntimeError("AWS_REGION  is required for Bedrock provider")
+        self.model_id = config.ONBOARDING_AGENT_MODEL_ID
+        self.temperature = config.ONBOARDING_AGENT_TEMPERATURE
         self.chat_model = ChatBedrockConverse(
             model_id=self.model_id,
             region_name=region,
