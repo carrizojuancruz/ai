@@ -33,11 +33,12 @@ def _extract_text_from_content(content: str | list[dict[str, Any]] | dict[str, A
 
 
 
-async def wealth_agent(state: MessagesState) -> dict[str, Any]:
+async def wealth_agent(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
     """Wealth agent worker that handles wealth management and investment advice."""
     try:
         wealth_agent = compile_wealth_agent_graph()
-        result = await wealth_agent.ainvoke(state)
+
+        result = await wealth_agent.ainvoke(state, config=config)
 
         wealth_response = ""
         if "messages" in result and isinstance(result["messages"], list):
