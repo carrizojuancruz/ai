@@ -55,8 +55,8 @@ class GoalAgentSingleton:
 
         region = config.GOAL_AGENT_MODEL_REGION
         model_id = config.GOAL_AGENT_MODEL_ID
-        guardrail_id = config.BEDROCK_GUARDRAIL_ID
-        guardrail_version = str(config.BEDROCK_GUARDRAIL_VERSION)
+        guardrail_id = config.GOAL_AGENT_GUARDRAIL_ID
+        guardrail_version = str(config.GOAL_AGENT_GUARDRAIL_VERSION)
 
         guardrails = {
             "guardrailIdentifier": guardrail_id,
