@@ -13,8 +13,10 @@ from typing import AsyncGenerator, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_async_session_factory
+from app.repositories.interfaces.nudge_repository import NudgeRepository
 from app.repositories.interfaces.user_repository import UserRepository
 from app.repositories.postgres.finance_repository import FinanceRepository
+from app.repositories.postgres.nudge_repository import PostgresNudgeRepository
 from app.repositories.postgres.user_repository import PostgresUserRepository
 
 logger = logging.getLogger(__name__)
@@ -65,6 +67,10 @@ class DatabaseService:
     def get_finance_repository(self, session: AsyncSession) -> FinanceRepository:
         """Get finance repository instance with the provided session."""
         return FinanceRepository(session)
+
+    def get_nudge_repository(self, session: AsyncSession) -> NudgeRepository:
+        """Get nudge repository instance with the provided session."""
+        return PostgresNudgeRepository(session)
 
 
 # Global instance

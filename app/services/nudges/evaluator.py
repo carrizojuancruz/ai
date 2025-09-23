@@ -5,19 +5,20 @@ from uuid import UUID
 
 import httpx
 
+from app.core.app_state import get_database_nudge_manager
 from app.core.config import config
 from app.observability.logging_config import get_logger
 from app.services.nudges.activity_counter import get_activity_counter
 from app.services.nudges.models import NudgeCandidate
 from app.services.nudges.strategies import get_strategy_registry
-from app.services.queue import NudgeMessage, get_sqs_manager
+from app.services.queue import NudgeMessage
 
 logger = get_logger(__name__)
 
 
 class NudgeEvaluator:
     def __init__(self):
-        self.sqs_manager = get_sqs_manager()
+        self.db_manager = get_database_nudge_manager()
         self.activity_counter = get_activity_counter()
         self.strategy_registry = get_strategy_registry()
 
@@ -125,7 +126,7 @@ class NudgeEvaluator:
             f"evaluator.queueing_nudge: user_id={str(candidate.user_id)}, nudge_type={candidate.nudge_type}, priority={candidate.priority}, text_preview={candidate.preview_text[:50] if candidate.preview_text else None}"
         )
 
-        message_id = await self.sqs_manager.enqueue_nudge(message)
+        message_id = await self.db_manager.enqueue_nudge(message)
         await self.activity_counter.increment_nudge_count(candidate.user_id, candidate.nudge_type)
 
         logger.debug(f"evaluator.nudge_queued_successfully: user_id={str(candidate.user_id)}, message_id={message_id}")
