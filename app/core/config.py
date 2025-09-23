@@ -44,6 +44,12 @@ class Config:
     MEMORY_PROCEDURAL_TOPK: int = int(os.getenv("MEMORY_PROCEDURAL_TOPK", "3"))
     MEMORY_PROCEDURAL_MIN_SCORE: float = float(os.getenv("MEMORY_PROCEDURAL_MIN_SCORE", "0.45"))
 
+    # Conversation Summarization (LangGraph SummarizationNode)
+    SUMMARY_MAX_TOKENS_BEFORE: int = int(os.getenv("SUMMARY_MAX_TOKENS_BEFORE", "32000"))
+    SUMMARY_MAX_TOKENS: int = int(os.getenv("SUMMARY_MAX_TOKENS", "240000"))
+    SUMMARY_MAX_SUMMARY_TOKENS: int = int(os.getenv("SUMMARY_MAX_SUMMARY_TOKENS", "1500"))
+    SUMMARY_MODEL_ID: Optional[str] = os.getenv("SUMMARY_MODEL_ID")
+
     # AWS Configuration
     AWS_REGION: str = os.getenv("AWS_REGION")
     AWS_ACCESS_KEY_ID: Optional[str] = os.getenv("AWS_ACCESS_KEY_ID")

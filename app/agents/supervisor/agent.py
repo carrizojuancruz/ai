@@ -7,6 +7,8 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
+from langchain_core.messages.utils import count_tokens_approximately
+from langmem.short_term import RunningSummary, SummarizationNode
 
 from app.agents.supervisor.memory import episodic_capture, memory_context, memory_hotpath
 from app.core.config import config
@@ -48,6 +50,15 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     )
     checkpointer = MemorySaver()
 
+    if config.SUMMARY_MODEL_ID:
+        summarize_model = ChatBedrockConverse(
+            model_id=config.SUMMARY_MODEL_ID,
+            region_name=config.SUPERVISOR_AGENT_MODEL_REGION,
+            temperature=0.0,
+        )
+    else:
+        summarize_model = chat_bedrock
+
     supervisor_agent_with_description = create_react_agent(
         model=chat_bedrock,
         tools=[
@@ -59,9 +70,22 @@ def compile_supervisor_graph() -> CompiledStateGraph:
         name="supervisor",
     )
 
-    builder = StateGraph(MessagesState)
+    class SupervisorState(MessagesState):
+        context: dict[str, RunningSummary]
+
+    builder = StateGraph(SupervisorState)
+
+    summarization_node = SummarizationNode(
+        token_counter=count_tokens_approximately,
+        model=summarize_model,
+        max_tokens=int(config.SUMMARY_MAX_TOKENS),
+        max_tokens_before_summary=int(config.SUMMARY_MAX_TOKENS_BEFORE),
+        max_summary_tokens=int(config.SUMMARY_MAX_SUMMARY_TOKENS),
+        output_messages_key="messages",
+    )
 
     # --- Memory and context nodes ---
+    builder.add_node("summarize", summarization_node)
     builder.add_node("memory_hotpath", memory_hotpath)
     builder.add_node("memory_context", memory_context)
 
@@ -81,7 +105,8 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     builder.add_node("goal_agent", goal_agent)
 
     # --- Define edges between nodes ---
-    builder.add_edge(START, "memory_hotpath")
+    builder.add_edge(START, "summarize")
+    builder.add_edge("summarize", "memory_hotpath")
     builder.add_edge("memory_hotpath", "memory_context")
     builder.add_edge("memory_context", "supervisor")
     builder.add_edge("finance_router", "supervisor")
