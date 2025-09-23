@@ -4,10 +4,10 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
 
+from app.core.app_state import get_fos_nudge_manager
 from app.core.config import config
 from app.observability.logging_config import get_logger
 from app.services.nudges.evaluator import get_nudge_evaluator, iter_active_users
-from app.services.queue import get_sqs_manager
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/nudges", tags=["Nudges"])
@@ -109,14 +109,18 @@ async def trigger_nudge_manual(request: ManualTriggerRequest) -> Dict[str, Any]:
 @router.get("/health", response_model=Dict[str, Any])
 async def get_nudge_health() -> Dict[str, Any]:
     try:
-        sqs_manager = get_sqs_manager()
-        queue_depth = await sqs_manager.get_queue_depth()
-
+        fos_manager = get_fos_nudge_manager()
+        
+        # Test FOS service connectivity by attempting to get pending nudges
+        # This will raise an exception if FOS service is unreachable
+        test_user_id = UUID("00000000-0000-0000-0000-000000000000")  # Test UUID
+        await fos_manager.get_pending_nudges(test_user_id, limit=1)
+        
         return {
             "status": "healthy",
             "nudges_enabled": config.NUDGES_ENABLED,
-            "queue_depth": queue_depth,
-            "queue_url": config.SQS_QUEUE_URL,
+            "service_type": "fos_api",
+            "fos_service_url": config.FOS_SERVICE_URL,
         }
 
     except Exception as e:

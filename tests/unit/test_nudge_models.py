@@ -38,18 +38,12 @@ class TestNudgeChannel:
     """Test NudgeChannel enum."""
 
     def test_nudge_channel_values(self):
-        """Test all nudge channel enum values."""
-        assert NudgeChannel.EMAIL == "email"
-        assert NudgeChannel.SMS == "sms"
-        assert NudgeChannel.PUSH == "push"
-        assert NudgeChannel.IN_APP == "in_app"
+        """Test nudge channel enum values."""
+        assert NudgeChannel.APP == "app"
 
     def test_nudge_channel_from_string(self):
         """Test creating NudgeChannel from string values."""
-        assert NudgeChannel("email") == NudgeChannel.EMAIL
-        assert NudgeChannel("sms") == NudgeChannel.SMS
-        assert NudgeChannel("push") == NudgeChannel.PUSH
-        assert NudgeChannel("in_app") == NudgeChannel.IN_APP
+        assert NudgeChannel("app") == NudgeChannel.APP
 
     def test_invalid_nudge_channel(self):
         """Test invalid nudge channel raises ValueError."""
@@ -72,7 +66,7 @@ class TestNudgeRecord:
             nudge_type="market_update",
             priority=5,
             status=NudgeStatus.PENDING,
-            channel=NudgeChannel.EMAIL,
+            channel=NudgeChannel.APP,
             notification_text="Market update available",
             preview_text="Check out the latest market trends",
             created_at=created_at
@@ -83,7 +77,7 @@ class TestNudgeRecord:
         assert record.nudge_type == "market_update"
         assert record.priority == 5
         assert record.status == NudgeStatus.PENDING
-        assert record.channel == NudgeChannel.EMAIL
+        assert record.channel == NudgeChannel.APP
         assert record.notification_text == "Market update available"
         assert record.preview_text == "Check out the latest market trends"
         assert record.created_at == created_at
@@ -103,7 +97,7 @@ class TestNudgeRecord:
             nudge_type="portfolio_alert",
             priority=1,
             status=NudgeStatus.PROCESSING,
-            channel=NudgeChannel.PUSH,
+            channel=NudgeChannel.APP,
             notification_text="Portfolio alert",
             preview_text="Your portfolio needs attention",
             created_at=datetime.utcnow(),
@@ -122,7 +116,7 @@ class TestNudgeRecord:
                 nudge_type="test",
                 priority=priority,
                 status=NudgeStatus.PENDING,
-                channel=NudgeChannel.EMAIL,
+                channel=NudgeChannel.APP,
                 notification_text="Test",
                 preview_text="Test",
                 created_at=datetime.utcnow()
@@ -138,7 +132,7 @@ class TestNudgeRecord:
                     nudge_type="test",
                     priority=invalid_priority,
                     status=NudgeStatus.PENDING,
-                    channel=NudgeChannel.EMAIL,
+                    channel=NudgeChannel.APP,
                     notification_text="Test",
                     preview_text="Test",
                     created_at=datetime.utcnow()
@@ -152,7 +146,7 @@ class TestNudgeRecord:
             "nudge_type": "test",
             "priority": 5,
             "status": NudgeStatus.PENDING,
-            "channel": NudgeChannel.EMAIL,
+            "channel": NudgeChannel.APP,
             "notification_text": "Test",
             "preview_text": "Test",
             "created_at": datetime.utcnow()
@@ -180,7 +174,7 @@ class TestNudgeRecord:
             nudge_type="test_nudge",
             priority=5,
             status=NudgeStatus.PENDING,
-            channel=NudgeChannel.EMAIL,
+            channel=NudgeChannel.APP,
             notification_text="Test notification",
             preview_text="Test preview",
             created_at=datetime.utcnow()
@@ -189,7 +183,7 @@ class TestNudgeRecord:
         str_repr = str(record)
         assert "test_nudge" in str_repr
         assert "pending" in str_repr
-        assert "email" in str_repr
+        assert "app" in str_repr
 
     def test_nudge_record_dict_conversion(self):
         """Test nudge record dictionary conversion."""
@@ -203,7 +197,7 @@ class TestNudgeRecord:
             nudge_type="test",
             priority=5,
             status=NudgeStatus.PENDING,
-            channel=NudgeChannel.EMAIL,
+            channel=NudgeChannel.APP,
             notification_text="Test",
             preview_text="Test",
             created_at=created_at
@@ -216,7 +210,7 @@ class TestNudgeRecord:
         assert record_dict["nudge_type"] == "test"
         assert record_dict["priority"] == 5
         assert record_dict["status"] == "pending"
-        assert record_dict["channel"] == "email"
+        assert record_dict["channel"] == "app"
         assert record_dict["notification_text"] == "Test"
         assert record_dict["preview_text"] == "Test"
         assert record_dict["created_at"] == created_at

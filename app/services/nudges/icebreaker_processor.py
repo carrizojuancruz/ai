@@ -2,7 +2,7 @@ import logging
 from typing import List, Optional, Tuple
 from uuid import UUID
 
-from app.core.app_state import get_database_nudge_manager
+from app.core.app_state import get_fos_nudge_manager
 from app.models.nudge import NudgeRecord
 
 logger = logging.getLogger(__name__)
@@ -12,18 +12,14 @@ class IcebreakerProcessor:
     """Processes icebreaker nudges to find the best one for conversation start."""
 
     def __init__(self):
-        self.db_manager = get_database_nudge_manager()
+        self.fos_manager = get_fos_nudge_manager()
 
     async def get_best_icebreaker_for_user(self, user_id: UUID) -> Optional[Tuple[NudgeRecord, List[UUID]]]:
         try:
-            logger.debug(f"icebreaker_processor.querying_db: user_id={user_id}")
-
-            if not self.db_manager:
-                logger.error(f"icebreaker_processor.no_db_manager: user_id={user_id}")
-                return None, []
+            logger.debug(f"icebreaker_processor.querying_fos: user_id={user_id}")
 
             # Get pending icebreaker nudges for this user
-            user_icebreakers = await self.db_manager.get_pending_nudges(user_id)
+            user_icebreakers = await self.fos_manager.get_pending_nudges(user_id)
 
             # Filter only memory_icebreaker type
             memory_icebreakers = [
@@ -80,11 +76,11 @@ class IcebreakerProcessor:
                 logger.debug(
                     f"icebreaker_processor.marking_processing: user_id={user_id}, nudge_count={len(nudge_ids_to_delete)}"
                 )
-                processing_nudges = await self.db_manager.mark_processing(nudge_ids_to_delete)
+                processing_nudges = await self.fos_manager.mark_processing(nudge_ids_to_delete)
 
                 # Complete the processed nudges
                 for nudge in processing_nudges:
-                    await self.db_manager.complete_nudge(nudge.id)
+                    await self.fos_manager.complete_nudge(nudge.id)
 
                 logger.info(
                     f"icebreaker_processor.cleanup_complete: user_id={user_id}, "

@@ -88,13 +88,13 @@ async def debug_icebreaker_flow(user_id: str) -> dict:
 
         logger.info(f"debug_icebreaker_flow.start: user_id={user_uuid}")
 
-        from app.services.nudges.sqs_consumer import get_sqs_consumer
+        from app.core.app_state import get_fos_nudge_manager
 
-        sqs_consumer = get_sqs_consumer()
+        fos_manager = get_fos_nudge_manager()
 
-        logger.info(f"debug_icebreaker_flow.sqs_consumer: available={sqs_consumer is not None}")
+        logger.info(f"debug_icebreaker_flow.fos_manager: available={fos_manager is not None}")
 
-        all_nudges = await sqs_consumer.poll_nudges()
+        all_nudges = await fos_manager.get_pending_nudges(user_uuid, limit=100)
         logger.info(f"debug_icebreaker_flow.all_nudges: count={len(all_nudges)}")
 
         icebreakers = [n for n in all_nudges if n.nudge_type == "memory_icebreaker"]

@@ -35,8 +35,8 @@ _bedrock_runtime_client: Any | None = None
 _s3vectors_client: Any | None = None
 _s3_client: Any | None = None
 
-# Nudge Manager - Singleton pattern
-_database_nudge_manager: Any | None = None
+# FOS Nudge Manager - Singleton pattern
+_fos_nudge_manager: Any | None = None
 
 # Finance agent cleanup task
 _finance_agent_cleanup_task: Optional[asyncio.Task] = None
@@ -300,13 +300,13 @@ def get_s3_client() -> Any:
     return _s3_client
 
 
-def get_database_nudge_manager():
-    """Get database nudge manager instance (singleton pattern)."""
-    global _database_nudge_manager
-    if _database_nudge_manager is None:
-        from app.services.nudges.database_manager import DatabaseNudgeManager
-        _database_nudge_manager = DatabaseNudgeManager()
-    return _database_nudge_manager
+def get_fos_nudge_manager():
+    """Get FOS nudge manager instance (singleton pattern)."""
+    global _fos_nudge_manager
+    if _fos_nudge_manager is None:
+        from app.services.nudges.fos_manager import FOSNudgeManager
+        _fos_nudge_manager = FOSNudgeManager()
+    return _fos_nudge_manager
 
 
 async def warmup_aws_clients() -> None:

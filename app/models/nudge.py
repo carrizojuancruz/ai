@@ -18,10 +18,7 @@ class NudgeStatus(str, Enum):
 class NudgeChannel(str, Enum):
     """Nudge delivery channel enumeration."""
 
-    EMAIL = "email"
-    SMS = "sms"
-    PUSH = "push"
-    IN_APP = "in_app"
+    APP = "app"
 
 
 class NudgeRecord(BaseModel):
