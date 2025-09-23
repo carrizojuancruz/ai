@@ -67,6 +67,13 @@ def get_finance_agent():
     return _finance_agent
 
 
+def get_goal_agent_graph() -> CompiledStateGraph:
+    """Get the goal agent graph using singleton pattern for performance."""
+    from app.agents.supervisor.goal_agent.agent import goal_agent_singleton
+
+    return goal_agent_singleton.get_compiled_graph()
+
+
 def register_thread(thread_id: str, state: OnboardingState) -> None:
     _onboarding_threads[thread_id] = state
 

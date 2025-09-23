@@ -103,10 +103,11 @@ async def wealth_agent(state: MessagesState) -> dict[str, Any]:
 async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
     """Goal agent worker that handles financial goals management."""
     try:
-        # Get the goal_agent graph
-        from .goal_agent.agent import compile_goal_agent_graph
+        # Get the goal_agent graph using singleton pattern for performance
+        from .goal_agent.agent import goal_agent_singleton
 
-        goal_graph = compile_goal_agent_graph()
+        goal_graph = goal_agent_singleton.get_compiled_graph()
+        logger.info("Using cached/singleton goal_agent_graph instance")
 
         # Extract thread_id and user_id from config for proper memory persistence
         thread_id = get_config_value(config, "thread_id")
