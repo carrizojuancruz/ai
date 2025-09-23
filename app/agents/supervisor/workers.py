@@ -7,11 +7,11 @@ from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import MessagesState
 
+from app.core.app_state import get_wealth_agent
 from app.repositories.session_store import get_session_store
 from app.utils.tools import get_config_value
 
 from .finance_agent.agent import finance_agent as finance_worker
-from .wealth_agent.agent import compile_wealth_agent_graph
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +36,9 @@ def _extract_text_from_content(content: str | list[dict[str, Any]] | dict[str, A
 async def wealth_agent(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
     """Wealth agent worker that handles wealth management and investment advice."""
     try:
-        wealth_agent = compile_wealth_agent_graph()
+        wealth_agent_graph = get_wealth_agent()
 
-        result = await wealth_agent.ainvoke(state, config=config)
+        result = await wealth_agent_graph.ainvoke(state, config=config)
 
         wealth_response = ""
         if "messages" in result and isinstance(result["messages"], list):

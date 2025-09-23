@@ -29,6 +29,7 @@ FINANCE_AGENT_CACHE_TTL_SECONDS: int = 3600  # 1 hour
 _finance_agent_cache: dict[str, dict[str, Any]] = {}
 
 _finance_agent: "CompiledStateGraph | None" = None
+_wealth_agent: "CompiledStateGraph | None" = None
 
 # AWS Clients - Singleton pattern
 _bedrock_runtime_client: Any | None = None
@@ -65,6 +66,16 @@ def get_finance_agent():
     if _finance_agent is None:
         _finance_agent = FinanceAgent()
     return _finance_agent
+
+
+def get_wealth_agent():
+    """Get the global wealth agent instance (singleton pattern)."""
+    from app.agents.supervisor.wealth_agent.agent import compile_wealth_agent_graph
+
+    global _wealth_agent
+    if _wealth_agent is None:
+        _wealth_agent = compile_wealth_agent_graph()
+    return _wealth_agent
 
 
 def register_thread(thread_id: str, state: OnboardingState) -> None:

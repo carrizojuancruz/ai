@@ -10,7 +10,6 @@ from langgraph.prebuilt import create_react_agent
 
 from app.core.config import config
 from app.observability.logging_config import configure_logging
-from app.utils.tools import get_config_value
 
 from .prompts import WEALTH_AGENT_PROMPT
 from .tools import search_kb
@@ -18,7 +17,6 @@ from .tools import search_kb
 logger = logging.getLogger(__name__)
 
 
-@lru_cache(maxsize=1)
 def compile_wealth_agent_graph() -> CompiledStateGraph:
     """Compile the wealth agent graph."""
     configure_logging()
