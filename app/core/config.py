@@ -101,6 +101,10 @@ class Config:
     SUPERVISOR_AGENT_MODEL_REGION: str = os.getenv("SUPERVISOR_AGENT_MODEL_REGION")
     SUPERVISOR_AGENT_TEMPERATURE: float = float(os.getenv("SUPERVISOR_AGENT_TEMPERATURE", "0.2"))
 
+    # Title Generation Configuration
+    TITTLE_GENERATOR_MODEL_ID: str = os.getenv("TITTLE_GENERATOR_MODEL_ID")
+    TITTLE_GENERATOR_TEMPERATURE: float = float(os.getenv("TITTLE_GENERATOR_TEMPERATURE", "0.1"))
+
     # S3 Vectors Configuration
     MEMORIES_INDEX_ID: Optional[str] = os.getenv("MEMORIES_INDEX_ID")
     EMBEDDING_INDEX_ID: Optional[str] = os.getenv("EMBEDDING_INDEX_ID")
