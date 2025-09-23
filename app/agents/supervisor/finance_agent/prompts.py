@@ -35,6 +35,8 @@ async def build_finance_system_prompt(user_id: UUID, tx_samples: str, acct_sampl
         **MAXIMUM 5 DATABASE QUERIES TOTAL per analysis**
         **PLAN EFFICIENTLY - Prefer fewer queries when possible**
         **NO WASTEFUL ITERATION - Each query should provide unique, necessary data**
+        **AVOID DUPLICATE QUERIES - Never generate the same SQL query multiple times**
+        **UNIQUE QUERIES ONLY - Each tool call must have different SQL logic**
 
         📊 QUERY STRATEGY 📊
         Plan your queries strategically: use complex SQL with CTEs, joins, and aggregations to maximize data per query.
