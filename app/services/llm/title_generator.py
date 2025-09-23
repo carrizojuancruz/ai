@@ -20,7 +20,7 @@ class TitleGeneratorLLM:
             raise RuntimeError("AWS_REGION is required for Bedrock provider")
 
         # Use GPT-OSS model for title generation
-        self.model_id = config.TITTLE_GENERATOR_MODEL_ID
+        self.model_id = config.TITLE_GENERATOR_MODEL_ID
         self.bedrock_client = boto3.client("bedrock-runtime", region_name=self.region)
 
     async def generate_title_and_summary(self, body: str) -> dict[str, str]:
@@ -56,7 +56,7 @@ class TitleGeneratorLLM:
                     }
                 ],
                 "max_tokens": 300,
-                "temperature": config.TITTLE_GENERATOR_TEMPERATURE
+                "temperature": config.TITLE_GENERATOR_TEMPERATURE
             }
 
             response = self.bedrock_client.invoke_model(
