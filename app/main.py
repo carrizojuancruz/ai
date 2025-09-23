@@ -19,6 +19,7 @@ from .api.routes_guest import router as guest_router
 from .api.routes_knowledge import router as knowledge_router
 from .api.routes_nudge_eval import router as nudge_eval_router
 from .api.routes_supervisor import router as supervisor_router
+from .api.routes_tittle_gen import router as title_gen_router
 from .core.config import config
 from .observability.logging_config import configure_logging, get_logger
 
@@ -179,3 +180,4 @@ app.include_router(cron_router)
 app.include_router(knowledge_router)
 app.include_router(nudge_eval_router)
 app.include_router(crawl_router)
+app.include_router(title_gen_router)
