@@ -360,9 +360,8 @@ class SupervisorService:
         logger.info(f"[SUPERVISOR] Generating welcome message with icebreaker support for user {uid}")
 
         icebreaker_used: bool = False
-        welcome: str = ""
+        icebreaker_hint: str | None = None
         try:
-            from app.agents.supervisor.memory.icebreaker_consumer import _create_natural_icebreaker
             from app.services.nudges.icebreaker_processor import get_icebreaker_processor
 
             processor = get_icebreaker_processor()
@@ -370,20 +369,14 @@ class SupervisorService:
             raw_icebreaker = await processor.process_icebreaker_for_user(uid)
             logger.info(f"Finished getting icebreaker from SQS for user {uid}")
             if raw_icebreaker and raw_icebreaker.strip():
-                logger.info(f"Creating natural icebreaker for user {uid}")
-                natural = await _create_natural_icebreaker(raw_icebreaker.strip(), uid)
-                logger.info(f"Finished creating natural icebreaker for user {uid}")
-                if natural and natural.strip():
-                    welcome = natural.strip()
-                    icebreaker_used = True
-                    logger.info(f"[SUPERVISOR] Using icebreaker as welcome for user {uid}")
+                icebreaker_hint = raw_icebreaker.strip()
+                icebreaker_used = True
+                logger.info(f"[SUPERVISOR] Icebreaker hint captured for user {uid}")
         except Exception as e:
-            logger.warning(f"[SUPERVISOR] Icebreaker path failed for user {uid}: {e}")
+            logger.warning(f"[SUPERVISOR] Icebreaker polling failed for user {uid}: {e}")
 
-        if not welcome:
-            user_ctx_for_welcome = (await session_store.get_session(thread_id) or {}).get("user_context", {})
-            welcome = await generate_personalized_welcome(user_ctx_for_welcome, prior_summary)
-            logger.info(f"[SUPERVISOR] No icebreaker available; graph not run on initialize for user {uid}")
+        user_ctx_for_welcome = (await session_store.get_session(thread_id) or {}).get("user_context", {})
+        welcome = await generate_personalized_welcome(user_ctx_for_welcome, prior_summary, icebreaker_hint)
 
         logger.info(
             f"Initialize complete for user {uid}: thread={thread_id}, has_prior_summary={bool(prior_summary)}, icebreaker_used={icebreaker_used}"
