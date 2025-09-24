@@ -19,7 +19,7 @@ class NudgeChannel(str, Enum):
     """Nudge delivery channel enumeration."""
 
     APP = "app"
-
+    PUSH = "push"
 
 class NudgeRecord(BaseModel):
     """Pydantic model for nudge records."""

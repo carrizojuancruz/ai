@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class IcebreakerProcessor:
-    """Processes icebreaker nudges to find the best one for conversation start."""
+    """Processes memory_icebreaker nudges exclusively to find the best one for conversation start."""
 
     def __init__(self):
         self.fos_manager = get_fos_nudge_manager()
@@ -67,14 +67,12 @@ class IcebreakerProcessor:
 
             logger.debug(f"icebreaker_processor.text_extracted: user_id={user_id}, text_length={len(icebreaker_text)}")
 
-            # Mark nudges as processing to prevent concurrent access
             if nudge_ids_to_delete:
                 logger.debug(
                     f"icebreaker_processor.marking_processing: user_id={user_id}, nudge_count={len(nudge_ids_to_delete)}"
                 )
                 processing_nudges = await self.fos_manager.mark_processing(nudge_ids_to_delete)
 
-                # Complete the processed nudges
                 for nudge in processing_nudges:
                     await self.fos_manager.complete_nudge(nudge.id)
 
@@ -94,14 +92,12 @@ class IcebreakerProcessor:
         try:
             logger.debug(f"icebreaker_processor.extract_start: nudge_id={nudge.id}")
 
-            # First try notification_text
             if nudge.notification_text and nudge.notification_text.strip():
                 logger.debug(
                     f"icebreaker_processor.found_notification_text: nudge_id={nudge.id}, length={len(nudge.notification_text)}"
                 )
                 return nudge.notification_text.strip()
 
-            # Then try metadata
             metadata = nudge.metadata or {}
             logger.debug(
                 f"icebreaker_processor.metadata_keys: nudge_id={nudge.id}, keys={list(metadata.keys())}"
@@ -114,7 +110,6 @@ class IcebreakerProcessor:
                 )
                 return f"Remember this? {memory_text.strip()}"
 
-            # Finally try preview_text
             if nudge.preview_text and nudge.preview_text.strip():
                 logger.debug(
                     f"icebreaker_processor.found_preview_text: nudge_id={nudge.id}, length={len(nudge.preview_text)}"

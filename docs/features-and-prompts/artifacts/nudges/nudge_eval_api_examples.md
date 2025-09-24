@@ -107,6 +107,30 @@ Response:
 }
 ```
 
+### 4. Health Check
+
+**Endpoint**: `GET /nudges/health`
+
+Check the health of the nudge system.
+
+```bash
+curl http://localhost:8000/nudges/health
+```
+
+Response:
+```json
+{
+  "status": "healthy",
+  "nudges_enabled": true,
+  "queue_depth": 5,
+  "queue_url": "https://sqs.us-east-1.amazonaws.com/909418399862/fos-ai-dev-nudges",
+  "rate_limits": {
+    "max_per_day": 3,
+    "max_per_week": 10
+  }
+}
+```
+
 ## Mock Active Users
 
 Currently, the system uses mock user IDs for testing. The mock users are:
@@ -122,12 +146,15 @@ These are defined in `app/services/nudges/evaluator.py` in the `iter_active_user
 ### 1. Basic Evaluation Test
 
 ```bash
-# 1. Trigger bill evaluation for all mock users
+# 1. Check health
+curl http://localhost:8000/nudges/health
+
+# 2. Trigger bill evaluation for all mock users
 curl -X POST http://localhost:8000/nudges/evaluate \
   -H "Content-Type: application/json" \
   -d '{"nudge_type": "static_bill"}'
 
-# 2. Check a specific user's status
+# 3. Check a specific user's status
 curl http://localhost:8000/nudges/status/ba5c5db4-d3fb-4ca8-9445-1c221ea502a8
 ```
 

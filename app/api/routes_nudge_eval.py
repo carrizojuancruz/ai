@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from app.core.config import config
 from app.observability.logging_config import get_logger
 from app.services.nudges.evaluator import get_nudge_evaluator, iter_active_users
+from app.services.queue import get_sqs_manager
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/nudges", tags=["Nudges"])
@@ -103,6 +104,22 @@ async def trigger_nudge_manual(request: ManualTriggerRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Failed to trigger nudge: {str(e)}") from e
 
 
+@router.get("/health", response_model=Dict[str, Any])
+async def get_nudge_health() -> Dict[str, Any]:
+    try:
+        sqs_manager = get_sqs_manager()
+        queue_depth = await sqs_manager.get_queue_depth()
+
+        return {
+            "status": "healthy",
+            "nudges_enabled": config.NUDGES_ENABLED,
+            "queue_depth": queue_depth,
+            "queue_url": config.SQS_QUEUE_URL,
+        }
+
+    except Exception as e:
+        logger.error(f"nudge_eval.health_check_failed: {str(e)}")
+        return {"status": "unhealthy", "error": str(e)}
 
 async def _evaluate_all_users(
     task_id: str,

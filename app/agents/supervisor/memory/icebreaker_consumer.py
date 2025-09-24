@@ -94,10 +94,7 @@ async def debug_icebreaker_flow(user_id: str) -> dict:
 
         logger.info(f"debug_icebreaker_flow.fos_manager: available={fos_manager is not None}")
 
-        all_nudges = await fos_manager.get_pending_nudges(user_uuid, limit=100)
-        logger.info(f"debug_icebreaker_flow.all_nudges: count={len(all_nudges)}")
-
-        icebreakers = [n for n in all_nudges if n.nudge_type == "memory_icebreaker"]
+        icebreakers = await fos_manager.get_pending_nudges(user_uuid, nudge_type="memory_icebreaker", limit=100)
         logger.info(f"debug_icebreaker_flow.icebreakers: count={len(icebreakers)}")
 
         user_icebreakers = [n for n in icebreakers if n.user_id == str(user_uuid)]
@@ -109,7 +106,6 @@ async def debug_icebreaker_flow(user_id: str) -> dict:
             logger.info(f"debug_icebreaker_flow.best_payload: {best.nudge_payload}")
 
         return {
-            "all_nudges": len(all_nudges),
             "icebreakers": len(icebreakers),
             "user_icebreakers": len(user_icebreakers),
             "best_nudge": user_icebreakers[0].message_id if user_icebreakers else None,
