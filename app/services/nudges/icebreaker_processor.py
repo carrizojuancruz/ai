@@ -18,14 +18,10 @@ class IcebreakerProcessor:
         try:
             logger.debug(f"icebreaker_processor.querying_fos: user_id={user_id}")
 
-            # Get pending icebreaker nudges for this user
-            user_icebreakers = await self.fos_manager.get_pending_nudges(user_id)
-
-            # Filter only memory_icebreaker type
-            memory_icebreakers = [
-                nudge for nudge in user_icebreakers
-                if nudge.nudge_type == "memory_icebreaker"
-            ]
+            memory_icebreakers = await self.fos_manager.get_pending_nudges(
+                user_id,
+                nudge_type="memory_icebreaker"
+            )
 
             logger.debug(f"icebreaker_processor.filtered: user_id={user_id}, icebreaker_count={len(memory_icebreakers)}")
 

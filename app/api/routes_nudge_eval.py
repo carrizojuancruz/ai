@@ -4,7 +4,6 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
 
-from app.core.app_state import get_fos_nudge_manager
 from app.core.config import config
 from app.observability.logging_config import get_logger
 from app.services.nudges.evaluator import get_nudge_evaluator, iter_active_users
@@ -103,29 +102,6 @@ async def trigger_nudge_manual(request: ManualTriggerRequest) -> Dict[str, Any]:
         )
         raise HTTPException(status_code=500, detail=f"Failed to trigger nudge: {str(e)}") from e
 
-
-
-
-@router.get("/health", response_model=Dict[str, Any])
-async def get_nudge_health() -> Dict[str, Any]:
-    try:
-        fos_manager = get_fos_nudge_manager()
-        
-        # Test FOS service connectivity by attempting to get pending nudges
-        # This will raise an exception if FOS service is unreachable
-        test_user_id = UUID("00000000-0000-0000-0000-000000000000")  # Test UUID
-        await fos_manager.get_pending_nudges(test_user_id, limit=1)
-        
-        return {
-            "status": "healthy",
-            "nudges_enabled": config.NUDGES_ENABLED,
-            "service_type": "fos_api",
-            "fos_service_url": config.FOS_SERVICE_URL,
-        }
-
-    except Exception as e:
-        logger.error(f"nudge_eval.health_check_failed: {str(e)}")
-        return {"status": "unhealthy", "error": str(e)}
 
 
 async def _evaluate_all_users(

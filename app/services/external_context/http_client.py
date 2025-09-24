@@ -68,6 +68,25 @@ class FOSHttpClient:
             logger.warning(f"FOS API PUT failed for {endpoint}: {e}")
             return None
 
+    async def patch(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any] | None:
+        """PATCH request to FOS service."""
+        if not self.base_url:
+            return None
+
+        url = f"{self.base_url}{endpoint}"
+        headers = self._build_headers()
+
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.patch(url, headers=headers, json=data)
+                if resp.status_code == 404:
+                    return None
+                resp.raise_for_status()
+                return resp.json()
+        except Exception as e:
+            logger.warning(f"FOS API PATCH failed for {endpoint}: {e}")
+            return None
+
     async def post(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any] | None:
         """POST request to FOS service."""
         if not self.base_url:
