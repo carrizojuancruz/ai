@@ -133,7 +133,6 @@ class FOSNudgeManager:
 
             for nudge_data in nudges_data:
                 try:
-                    # Convert FOS response to NudgeRecord
                     nudge = NudgeRecord(
                         id=UUID(nudge_data["id"]),
                         user_id=UUID(nudge_data["user_id"]),
@@ -176,8 +175,8 @@ class FOSNudgeManager:
 
 
             payload = {
-                "nudge_ids": [str(nudge_id) for nudge_id in nudge_ids],  # Convert UUIDs to strings for JSON
-                "status": "processing"   # NudgeStatus enum value
+                "nudge_ids": [str(nudge_id) for nudge_id in nudge_ids],
+                "status": "processing"
             }
 
             response = await self.fos_client.patch("/internal/nudges/bulk/status", payload)
