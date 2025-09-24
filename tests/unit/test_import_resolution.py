@@ -22,7 +22,7 @@ def test_nudge_model_imports():
 #
 #     assert DatabaseNudgeManager is not None
 
-# TODO: Re-enable after FOS service implementation  
+# TODO: Re-enable after FOS service implementation
 # def test_nudge_orm_import():
 #     """Test that NudgeORM can be imported."""
 #     from app.db.models.nudge import NudgeORM

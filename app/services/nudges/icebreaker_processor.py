@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Tuple
+from typing import Optional
 from uuid import UUID
 
 from app.core.app_state import get_fos_nudge_manager
@@ -14,45 +14,44 @@ class IcebreakerProcessor:
     def __init__(self):
         self.fos_manager = get_fos_nudge_manager()
 
-    async def get_best_icebreaker_for_user(self, user_id: UUID) -> Optional[Tuple[NudgeRecord, List[UUID]]]:
+    async def get_best_icebreaker_for_user(self, user_id: UUID) -> Optional[NudgeRecord]:
         try:
             logger.debug(f"icebreaker_processor.querying_fos: user_id={user_id}")
 
             memory_icebreakers = await self.fos_manager.get_pending_nudges(
                 user_id,
-                nudge_type="memory_icebreaker"
+                nudge_type="memory_icebreaker",
+                status=["pending", "processing"]
             )
 
             logger.debug(f"icebreaker_processor.filtered: user_id={user_id}, icebreaker_count={len(memory_icebreakers)}")
 
             if not memory_icebreakers:
                 logger.info(f"icebreaker_processor.no_icebreakers: user_id={user_id}")
-                return None, []
+                return None
 
-            # Sort by priority (desc) then created_at (asc) - highest priority, oldest first
             memory_icebreakers.sort(key=lambda n: (-n.priority, n.created_at))
 
             best_nudge = memory_icebreakers[0]
-            nudge_ids_to_delete = [nudge.id for nudge in memory_icebreakers]
 
             logger.info(
                 f"icebreaker_processor.found_best: user_id={user_id}, "
                 f"best_priority={best_nudge.priority}, best_created={best_nudge.created_at}, "
-                f"total_icebreakers={len(memory_icebreakers)}, "
+                f"total_icebreakers={len(memory_icebreakers)}, unused_icebreakers={len(memory_icebreakers) - 1}, "
                 f"best_nudge_id={best_nudge.id}"
             )
 
-            return best_nudge, nudge_ids_to_delete
+            return best_nudge
 
         except Exception as e:
             logger.error(f"icebreaker_processor.error: user_id={user_id}, error={str(e)}", exc_info=True)
-            return None, []
+            return None
 
     async def process_icebreaker_for_user(self, user_id: UUID) -> Optional[str]:
         try:
             logger.debug(f"icebreaker_processor.process_start: user_id={user_id}")
 
-            best_nudge, nudge_ids_to_delete = await self.get_best_icebreaker_for_user(user_id)
+            best_nudge = await self.get_best_icebreaker_for_user(user_id)
 
             if not best_nudge:
                 logger.debug(f"icebreaker_processor.no_best_nudge: user_id={user_id}")
@@ -67,19 +66,21 @@ class IcebreakerProcessor:
 
             logger.debug(f"icebreaker_processor.text_extracted: user_id={user_id}, text_length={len(icebreaker_text)}")
 
-            if nudge_ids_to_delete:
-                logger.debug(
-                    f"icebreaker_processor.marking_processing: user_id={user_id}, nudge_count={len(nudge_ids_to_delete)}"
-                )
-                processing_nudges = await self.fos_manager.mark_processing(nudge_ids_to_delete)
+            logger.debug(f"icebreaker_processor.marking_processing: user_id={user_id}, nudge_id={best_nudge.id}")
 
-                for nudge in processing_nudges:
-                    await self.fos_manager.complete_nudge(nudge.id)
+            try:
+                await self.fos_manager.mark_processing([best_nudge.id])
+            except Exception as e:
+                logger.warning(f"icebreaker_processor.mark_processing_failed: user_id={user_id}, error={str(e)}")
 
-                logger.info(
-                    f"icebreaker_processor.cleanup_complete: user_id={user_id}, "
-                    f"processed_count={len(processing_nudges)}, total_queued={len(nudge_ids_to_delete)}"
-                )
+            try:
+                success = await self.fos_manager.complete_nudge(best_nudge.id)
+                if success:
+                    logger.info(f"icebreaker_processor.cleanup_complete: user_id={user_id}, nudge_completed=True")
+                else:
+                    logger.warning(f"icebreaker_processor.cleanup_failed: user_id={user_id}, nudge_id={best_nudge.id}")
+            except Exception as e:
+                logger.error(f"icebreaker_processor.nudge_completion_error: user_id={user_id}, nudge_id={best_nudge.id}, error={str(e)}")
 
             logger.info(f"icebreaker_processor.processed: user_id={user_id}, text_preview={icebreaker_text[:100]}...")
             return icebreaker_text

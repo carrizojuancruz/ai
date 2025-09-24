@@ -62,10 +62,10 @@ class FOSNudgeManager:
                 "nudge_metadata": message.payload.get("metadata", {}),
                 "priority": message.priority,
                 "channel": message.channel,
-                "deduplication_key": message.payload.get("deduplication_key"),
+                "deduplication_key": message.deduplication_key,
                 "expires_at": message.expires_at.isoformat() if message.expires_at else None
             }
-            
+
             response = await self.fos_client.post("/internal/nudges/", payload)
 
             if not response:

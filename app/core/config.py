@@ -185,6 +185,14 @@ class Config:
     BILL_MIN_OCCURRENCES: int = int(os.getenv("BILL_MIN_OCCURRENCES", "3"))
     BILL_PREDICTION_WINDOW_DAYS: int = int(os.getenv("BILL_PREDICTION_WINDOW_DAYS", "35"))
 
+    SQS_QUEUE_URL: str = os.getenv(
+        "SQS_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/905418355862/fos-ai-dev-nudges"
+    )
+    SQS_QUEUE_REGION: str = os.getenv("SQS_QUEUE_REGION", "us-east-1")
+    SQS_MAX_MESSAGES: int = int(os.getenv("SQS_MAX_MESSAGES", "10"))
+    SQS_VISIBILITY_TIMEOUT: int = int(os.getenv("SQS_VISIBILITY_TIMEOUT", "300"))  # 5 minutes
+    SQS_WAIT_TIME_SECONDS: int = int(os.getenv("SQS_WAIT_TIME_SECONDS", "20"))  # Long polling
+
     def __init__(self):
         self.__class__._initialize()
 
