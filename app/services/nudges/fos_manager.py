@@ -233,8 +233,8 @@ class FOSNudgeManager:
 
 
             payload = {
-                "nudge_ids": [str(nudge_id)],  # Convert UUID to string for JSON
-                "status": "sent"               # FOS uses 'sent' to indicate completion
+                "nudge_ids": [str(nudge_id)],
+                "status": "sent"
             }
 
             response = await self.fos_client.patch("/internal/nudges/bulk/status", payload)
