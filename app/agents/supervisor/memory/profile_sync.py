@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Any, Optional
 
-from app.agents.onboarding.state import OnboardingState, OnboardingStep
+from app.agents.onboarding.state import OnboardingState
 from app.core.app_state import get_bedrock_runtime_client
 from app.core.config import config
 from app.models.user import UserContext
@@ -102,7 +102,7 @@ async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], valu
 
             if apply_patch:
                 state = OnboardingState(user_id=uid, user_context=ctx)
-                context_patching_service.apply_context_patch(state, OnboardingStep.IDENTITY, apply_patch)
+                context_patching_service.apply_context_patch(state, "identity", apply_patch)
 
                 body = map_user_context_to_ai_context(state.user_context)
                 logger.info(f"[PROFILE_SYNC] Prepared external payload: {json.dumps(body, ensure_ascii=False)}")
