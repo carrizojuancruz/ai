@@ -1,7 +1,17 @@
 from datetime import datetime
 
 today = datetime.now().strftime("%B %d, %Y")
-GOAL_AGENT_PROMPT = """
+
+def sanitize_prompt(prompt: str) -> str:
+    """Sanitize prompt to avoid tokenization issues."""
+    # Replace problematic characters that can cause token errors
+    sanitized = prompt.replace("≥", ">=").replace("≤", "<=")
+    # Remove any potential problematic unicode characters
+    sanitized = sanitized.replace("→", "->").replace("✅", "[SUCCESS]")
+    # Ensure proper encoding
+    return sanitized.encode('utf-8', errors='ignore').decode('utf-8')
+
+GOAL_AGENT_PROMPT_RAW = """
 TODAY: {today}
 # GOAL AGENT SYSTEM PROMPT
 
@@ -56,10 +66,16 @@ Return clear English messages and JSON results.
 - Communicate in English.
 - Use CRUD tools only; do not fabricate stored data.
 - Follow the Goal model schema *exactly* (field names and enums) when creating/updating goals.
-- **Strong defaults**: When users omit fields (especially frequency), auto-complete with sensible defaults below.
-- Ask only for truly missing critical info (e.g., amount type & target); otherwise auto-complete.
+- **MANDATORY FIELDS**: ALWAYS ensure these required fields have proper structure:
+  - `goal`: {{"title": "Goal title"}}
+  - `category`: {{"value": "saving|spending|debt|income|investment|net_worth|other"}}
+  - `nature`: {{"value": "increase|reduce"}}
+  - `frequency`: {{"type": "recurrent", "recurrent": {{"unit": "month", "every": 1, "start_date": "ISO_DATE"}}}}
+  - `amount`: {{"type": "absolute", "absolute": {{"currency": "USD", "target": NUMBER}}}}
+- **Strong defaults**: When users omit fields, auto-complete with sensible defaults using proper nested structure.
+- Ask only for truly missing critical info (amount target value); otherwise auto-complete with valid structures.
 - Before destructive actions (delete, major changes), ask for explicit confirmation.
-- On errors, respond with: {"code": string, "message": string, "cause": string|null}.
+- On errors, respond with: {{"code": string, "message": string, "cause": string|null}}.
 - When returning goals, return JSON objects that match the `Goal` schema.
 
 ---
@@ -144,14 +160,46 @@ Process:
 - Use goal_id consistently across operations
 - Always generate unique idempotency_key for create operations
 
+## GOAL CREATION STRUCTURE EXAMPLES
+When creating goals, ensure proper nested structure:
+
+**Example 1 - Saving Goal:**
+```json
+{{
+  "goal": {{"title": "Save for vacation"}},
+  "category": {{"value": "saving"}},
+  "nature": {{"value": "increase"}},
+  "frequency": {{
+    "type": "recurrent",
+    "recurrent": {{"unit": "month", "every": 1, "start_date": "2024-01-01T00:00:00"}}
+  }},
+  "amount": {{
+    "type": "absolute",
+    "absolute": {{"currency": "USD", "target": 5000}}
+  }}
+}}
+```
+
+**Example 2 - Debt Reduction Goal:**
+```json
+{{
+  "goal": {{"title": "Pay off credit card"}},
+  "category": {{"value": "debt"}},
+  "nature": {{"value": "reduce"}},
+  "frequency": {{"type": "recurrent", "recurrent": {{"unit": "month", "every": 1, "start_date": "2024-01-01T00:00:00"}}}},
+  "amount": {{"type": "absolute", "absolute": {{"currency": "USD", "target": 2000}}}}
+}}
+```
+
 ## CRITICAL REMINDERS
 - **ALWAYS check for duplicates before creating goals**
 - **ALWAYS verify status changes completed successfully**
 - **NEVER assume tool operations succeeded without confirmation**
+- **ALWAYS use proper nested structure for all required fields**
 - Confirm before destructive actions
 - Always return the full goal JSON after operations
 - Auto-fill **recurrent monthly** frequency if missing
-- Map ">" to "≥" and "<" to "≤" during normalization
+- Map ">" to ">=" and "<" to "<=" during normalization
 - Support multiple goals in any status simultaneously
 
 ---
@@ -165,3 +213,6 @@ When operations fail:
 
 Example: "The status update failed. Current status: 'pending'. Intended: 'in_progress'. Error: [tool_error]. Would you like me to try again or check your goal configuration first?"
 """
+
+
+GOAL_AGENT_PROMPT = sanitize_prompt(GOAL_AGENT_PROMPT_RAW.format(today=today))

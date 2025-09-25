@@ -46,30 +46,45 @@ async def create_goal(data, config: RunnableConfig) -> str:
         except (ValueError, TypeError):
             user_uuid = uuid4()
 
-        # Preprocess data to fix common validation issues
+        # Preprocess data to fix common validation issues and add defaults
         processed_data = preprocess_goal_data(data, str(user_uuid))
 
         # Add default values to processed data
-        processed_data['goal_id'] = processed_data.get('goal_id') or uuid4()
-        processed_data['user_id'] = user_uuid  # Use validated UUID
+        processed_data['user_id'] = str(user_uuid)
         processed_data['version'] = processed_data.get('version') or 1
         processed_data['status'] = GoalStatusInfo(value=GoalStatus.PENDING)
         processed_data['progress'] = None
         processed_data['audit'] = Audit(created_at=_now(), updated_at=_now())
 
+        # Validate that all required fields are present before creating Goal
+        required_fields = ['goal', 'category', 'nature', 'frequency', 'amount']
+        missing_fields = [field for field in required_fields if field not in processed_data or not processed_data[field]]
+
+        if missing_fields:
+            return json.dumps({
+                "error": "MISSING_REQUIRED_FIELDS",
+                "message": f"Missing required fields: {', '.join(missing_fields)}. All goals need: title, category, nature, frequency, and amount.",
+                "missing_fields": missing_fields,
+                "user_id": user_key
+            })
+
         # Create Goal object from processed data
-        goal = Goal(**processed_data)
+        try:
+            goal = Goal(**processed_data)
+        except Exception as validation_error:
+            return json.dumps({
+                "error": "VALIDATION_ERROR",
+                "message": f"Goal validation failed: {str(validation_error)}",
+                "processed_data": processed_data,
+                "user_id": user_key
+            })
 
         # Save goal using async function
-        await save_goal(goal)
-
-        # Use model_dump_json() for correct serialization
-        goal_json = goal.model_dump_json()
-        goal_dict = json.loads(goal_json)
+        response_goal = await save_goal(goal)
 
         return json.dumps({
             "message": "Goal created",
-            "goal": goal_dict,
+            "goal": response_goal.get('goal'),
             "user_id": user_key
         })
     except Exception as e:
