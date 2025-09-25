@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from app.agents.onboarding.flow_definitions import (
+    determine_next_step,
     get_current_step_definition,
     process_user_response,
 )
@@ -150,12 +151,13 @@ class OnboardingAgent:
 
         if msg_l in skip_tokens and state.current_flow_step not in non_skippable:
             logger.info("[ONBOARDING] Skipping step=%s by user request", state.current_flow_step.value)
-            response_text, next_step, interaction_type, choices = process_user_response(state, "")
             old_step = state.current_flow_step
-            if next_step:
-                state.current_flow_step = next_step
-                state.current_interaction_type = interaction_type
-                state.current_choices = choices
+            next_step = determine_next_step("", state)
+            state.current_flow_step = next_step
+            next_def = get_current_step_definition(state)
+            response_text = next_def.message(state) if callable(next_def.message) else next_def.message
+            state.current_interaction_type = next_def.interaction_type
+            state.current_choices = next_def.choices
             state.last_agent_response = response_text
             if old_step != state.current_flow_step:
                 yield (emit_step_update("completed", old_step.value), state)
@@ -163,7 +165,7 @@ class OnboardingAgent:
                 yield (emit_token_delta(chunk), state)
             yield (emit_message_completed(response_text), state)
             yield (emit_step_update("presented", state.current_flow_step.value), state)
-            if interaction_type.value != "free_text":
+            if state.current_interaction_type.value != "free_text":
                 interaction_event = build_interaction_update(state)
                 if interaction_event:
                     yield (interaction_event, state)
