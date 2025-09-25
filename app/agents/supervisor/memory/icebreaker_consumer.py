@@ -97,18 +97,18 @@ async def debug_icebreaker_flow(user_id: str) -> dict:
         icebreakers = await fos_manager.get_pending_nudges(user_uuid, nudge_type="memory_icebreaker", limit=100)
         logger.info(f"debug_icebreaker_flow.icebreakers: count={len(icebreakers)}")
 
-        user_icebreakers = [n for n in icebreakers if n.user_id == str(user_uuid)]
+        user_icebreakers = icebreakers
         logger.info(f"debug_icebreaker_flow.user_icebreakers: count={len(user_icebreakers)}")
 
         if user_icebreakers:
             best = user_icebreakers[0]
-            logger.info(f"debug_icebreaker_flow.best_nudge: id={best.message_id}, priority={best.priority}")
-            logger.info(f"debug_icebreaker_flow.best_payload: {best.nudge_payload}")
+            logger.info(f"debug_icebreaker_flow.best_nudge: id={best.id}, priority={best.priority}")
+            logger.info(f"debug_icebreaker_flow.best_metadata: {best.metadata}")
 
         return {
             "icebreakers": len(icebreakers),
             "user_icebreakers": len(user_icebreakers),
-            "best_nudge": user_icebreakers[0].message_id if user_icebreakers else None,
+            "best_nudge": user_icebreakers[0].id if user_icebreakers else None,
         }
 
     except Exception as e:
