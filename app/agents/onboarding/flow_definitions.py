@@ -58,6 +58,9 @@ MONEY_FEELINGS_CHOICES = [
         synonyms=["ready", "excited", "determined", "optimistic"],
     ),
 ]
+UNDER18_LOGOUT_CHOICES = [
+    Choice(id="logout", label="Log out", value="logout", synonyms=["logout", "log out", "exit"]),
+]
 
 INCOME_RANGE_CHOICES = [
     Choice(id="under_25k", label="Under $25,000", value="under_25k", synonyms=["under 25k", "low income"]),
@@ -271,9 +274,10 @@ It's just to confirm you're over 18, promise I'm not being nosy.""",
         id=FlowStep.TERMINATED_UNDER_18,
         message="""I'm really sorry, but you need to be at least 18 to chat with me. It's for safety reasons.
 
-I hope we can talk in the future!""",
-        interaction_type=InteractionType.FREE_TEXT,
-        next_step=None,
+Please choose 'Log out' to end the session.""",
+        interaction_type=InteractionType.SINGLE_CHOICE,
+        choices=UNDER18_LOGOUT_CHOICES,
+        next_step=lambda _r, _s: FlowStep.COMPLETE,
     ),
     FlowStep.STEP_3_LOCATION: StepDefinition(
         id=FlowStep.STEP_3_LOCATION,
