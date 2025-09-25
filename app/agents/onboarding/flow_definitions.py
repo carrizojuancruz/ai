@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable
@@ -93,11 +94,12 @@ def validate_dob(response: str, state: "OnboardingState") -> tuple[bool, str | N
 
         today = _dt.date.today()
         age_years = today.year - parsed.year - ((today.month, today.day) < (parsed.month, parsed.day))
+        with contextlib.suppress(Exception):
+            state.user_context.age = age_years
         if age_years < 18:
             logger.warning("[ONBOARDING] User is under 18 (computed age=%d)", age_years)
             return True, None
 
-        state.user_context.age = age_years
         logger.debug("[ONBOARDING] DOB validation passed; age computed=%d", age_years)
         return True, None
     except Exception as e:
@@ -180,7 +182,14 @@ def determine_next_step(response: str, state: "OnboardingState") -> FlowStep:
         return FlowStep.STEP_2_DOB
 
     elif current == FlowStep.STEP_2_DOB:
-        logger.info("[ONBOARDING] DOB validated, moving to STEP_3_LOCATION")
+        try:
+            age_val = int(getattr(state.user_context, "age", 0) or 0)
+        except Exception:
+            age_val = 0
+        if age_val < 18:
+            logger.warning("[ONBOARDING] Routing to TERMINATED_UNDER_18 (age=%s)", age_val)
+            return FlowStep.TERMINATED_UNDER_18
+        logger.info("[ONBOARDING] DOB validated (age=%s), moving to STEP_3_LOCATION", age_val)
         return FlowStep.STEP_3_LOCATION
 
     elif current == FlowStep.STEP_3_LOCATION:
