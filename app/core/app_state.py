@@ -215,7 +215,7 @@ def get_onboarding_status_for_user(user_id: UUID) -> dict:
             "active": False,
             "onboarding_done": False,
             "thread_id": None,
-            "current_step": None,
+            "current_flow_step": None,
         }
 
     def _score(item: tuple[str, "OnboardingState"]) -> int:
@@ -233,7 +233,7 @@ def get_onboarding_status_for_user(user_id: UUID) -> dict:
         "active": not done,
         "onboarding_done": done,
         "thread_id": latest_tid if not done else None,
-        "current_step": getattr(latest_st.current_step, "value", None) if not done else None,
+        "current_flow_step": getattr(latest_st.current_flow_step, "value", None) if not done else None,
     }
 
 

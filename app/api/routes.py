@@ -44,7 +44,7 @@ async def get_onboarding_status(user_id: str) -> dict:
                         "active": False,
                         "onboarding_done": True,
                         "thread_id": None,
-                        "current_step": None,
+                        "current_flow_step": None,
                     }
         except Exception:
             pass

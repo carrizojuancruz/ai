@@ -164,7 +164,7 @@ class OnboardingService:
                 await get_sse_queue(thread_id).put(
                     {
                         "event": "step.update",
-                        "data": {"status": "completed", "step_id": state.current_step.value},
+                        "data": {"status": "completed", "step_id": state.current_flow_step.value},
                     }
                 )
                 return {"status": "accepted"}

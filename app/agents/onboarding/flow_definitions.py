@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable
@@ -93,11 +94,12 @@ def validate_dob(response: str, state: "OnboardingState") -> tuple[bool, str | N
 
         today = _dt.date.today()
         age_years = today.year - parsed.year - ((today.month, today.day) < (parsed.month, parsed.day))
+        with contextlib.suppress(Exception):
+            state.user_context.age = age_years
         if age_years < 18:
             logger.warning("[ONBOARDING] User is under 18 (computed age=%d)", age_years)
             return True, None
 
-        state.user_context.age = str(age_years)
         logger.debug("[ONBOARDING] DOB validation passed; age computed=%d", age_years)
         return True, None
     except Exception as e:
@@ -114,8 +116,8 @@ def validate_location(response: str, state: "OnboardingState") -> tuple[bool, st
     parts = re.split(r"[,;]", response)
     if len(parts) >= 2:
         state.user_context.location.city = parts[0].strip()
-        state.user_context.location.state = parts[1].strip()
-        logger.debug("[ONBOARDING] Location parsed: city=%s, state=%s", parts[0].strip(), parts[1].strip())
+        state.user_context.location.region = parts[1].strip()
+        logger.debug("[ONBOARDING] Location parsed: city=%s, region=%s", parts[0].strip(), parts[1].strip())
     else:
         state.user_context.location.city = response.strip()
         logger.debug("[ONBOARDING] Location stored as city only: %s", response.strip())
@@ -126,8 +128,8 @@ def validate_housing_cost(response: str, state: "OnboardingState") -> tuple[bool
     if not response or len(response.strip()) < 1:
         logger.debug("[ONBOARDING] Housing cost validation failed: empty response")
         return False, "Please provide your monthly rent or mortgage amount."
-    state.user_context.monthly_housing_cost = response.strip()
-    logger.debug("[ONBOARDING] Housing cost stored: %s", response.strip())
+    state.user_context.rent_mortgage = response.strip()
+    logger.debug("[ONBOARDING] Housing cost stored (rent_mortgage): %s", response.strip())
     return True, None
 
 
@@ -180,7 +182,14 @@ def determine_next_step(response: str, state: "OnboardingState") -> FlowStep:
         return FlowStep.STEP_2_DOB
 
     elif current == FlowStep.STEP_2_DOB:
-        logger.info("[ONBOARDING] DOB validated, moving to STEP_3_LOCATION")
+        try:
+            age_val = int(getattr(state.user_context, "age", 0) or 0)
+        except Exception:
+            age_val = 0
+        if age_val < 18:
+            logger.warning("[ONBOARDING] Routing to TERMINATED_UNDER_18 (age=%s)", age_val)
+            return FlowStep.TERMINATED_UNDER_18
+        logger.info("[ONBOARDING] DOB validated (age=%s), moving to STEP_3_LOCATION", age_val)
         return FlowStep.STEP_3_LOCATION
 
     elif current == FlowStep.STEP_3_LOCATION:
