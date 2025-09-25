@@ -5,6 +5,7 @@ on:
     branches:
       - dev  # Change if needed
       - uat  # Change if needed
+      - prod
     paths-ignore:
       - '.github/workflows/**'  # Ignore changes in workflow folder
   workflow_dispatch:
