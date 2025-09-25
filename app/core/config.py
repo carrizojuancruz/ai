@@ -174,15 +174,6 @@ class Config:
     NUDGES_TYPE2_ENABLED: bool = os.getenv("NUDGES_TYPE2_ENABLED", "true").lower() == "true"
     NUDGES_TYPE3_ENABLED: bool = os.getenv("NUDGES_TYPE3_ENABLED", "true").lower() == "true"
 
-    # SQS Configuration
-    SQS_QUEUE_URL: str = os.getenv(
-        "SQS_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/905418355862/fos-ai-dev-nudges"
-    )
-    SQS_QUEUE_REGION: str = os.getenv("SQS_QUEUE_REGION", "us-east-1")
-    SQS_MAX_MESSAGES: int = int(os.getenv("SQS_MAX_MESSAGES", "10"))
-    SQS_VISIBILITY_TIMEOUT: int = int(os.getenv("SQS_VISIBILITY_TIMEOUT", "300"))  # 5 minutes
-    SQS_WAIT_TIME_SECONDS: int = int(os.getenv("SQS_WAIT_TIME_SECONDS", "20"))  # Long polling
-
     # FOS API Configuration
     FOS_USERS_PAGE_SIZE: int = int(os.getenv("FOS_USERS_PAGE_SIZE", "500"))
     FOS_USERS_MAX_PAGES: int = int(os.getenv("FOS_USERS_MAX_PAGES", "100"))
@@ -197,6 +188,14 @@ class Config:
     BILL_DETECTION_LOOKBACK_DAYS: int = int(os.getenv("BILL_DETECTION_LOOKBACK_DAYS", "120"))
     BILL_MIN_OCCURRENCES: int = int(os.getenv("BILL_MIN_OCCURRENCES", "3"))
     BILL_PREDICTION_WINDOW_DAYS: int = int(os.getenv("BILL_PREDICTION_WINDOW_DAYS", "35"))
+
+    SQS_QUEUE_URL: str = os.getenv(
+        "SQS_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/905418355862/fos-ai-dev-nudges"
+    )
+    SQS_QUEUE_REGION: str = os.getenv("SQS_QUEUE_REGION", "us-east-1")
+    SQS_MAX_MESSAGES: int = int(os.getenv("SQS_MAX_MESSAGES", "10"))
+    SQS_VISIBILITY_TIMEOUT: int = int(os.getenv("SQS_VISIBILITY_TIMEOUT", "300"))  # 5 minutes
+    SQS_WAIT_TIME_SECONDS: int = int(os.getenv("SQS_WAIT_TIME_SECONDS", "20"))  # Long polling
 
     def __init__(self):
         self.__class__._initialize()

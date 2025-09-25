@@ -1,87 +1,86 @@
 import logging
-from typing import List, Optional, Tuple
+from typing import Optional
 from uuid import UUID
 
-from app.services.nudges.sqs_consumer import NudgeMessage, get_sqs_consumer
+from app.core.app_state import get_fos_nudge_manager
+from app.models.nudge import NudgeRecord
 
 logger = logging.getLogger(__name__)
 
 
 class IcebreakerProcessor:
-    """Processes icebreaker nudges to find the best one for conversation start."""
+    """Processes memory_icebreaker nudges exclusively to find the best one for conversation start."""
 
     def __init__(self):
-        self.sqs_consumer = get_sqs_consumer()
+        self.fos_manager = get_fos_nudge_manager()
 
-    async def get_best_icebreaker_for_user(self, user_id: UUID) -> Optional[Tuple[NudgeMessage, List[str]]]:
+    async def get_best_icebreaker_for_user(self, user_id: UUID) -> Optional[NudgeRecord]:
         try:
-            logger.debug(f"icebreaker_processor.polling: user_id={user_id}")
+            logger.debug(f"icebreaker_processor.querying_fos: user_id={user_id}")
 
-            if not self.sqs_consumer:
-                logger.error(f"icebreaker_processor.no_sqs_consumer: user_id={user_id}")
-                return None, []
+            memory_icebreakers = await self.fos_manager.get_pending_nudges(
+                user_id,
+                nudge_type="memory_icebreaker",
+                status=["pending", "processing"]
+            )
 
-            all_nudges = await self.sqs_consumer.poll_nudges()
-            logger.debug(f"icebreaker_processor.polled_total: user_id={user_id}, total_nudges={len(all_nudges)}")
+            logger.debug(f"icebreaker_processor.filtered: user_id={user_id}, icebreaker_count={len(memory_icebreakers)}")
 
-            user_icebreakers = [
-                nudge
-                for nudge in all_nudges
-                if (nudge.nudge_type == "memory_icebreaker" and nudge.user_id == str(user_id))
-            ]
-
-            logger.debug(f"icebreaker_processor.filtered: user_id={user_id}, icebreaker_count={len(user_icebreakers)}")
-
-            if not user_icebreakers:
+            if not memory_icebreakers:
                 logger.info(f"icebreaker_processor.no_icebreakers: user_id={user_id}")
-                return None, []
+                return None
 
-            user_icebreakers.sort(key=lambda n: (n.priority, n.timestamp), reverse=True)
+            memory_icebreakers.sort(key=lambda n: (-n.priority, n.created_at))
 
-            best_nudge = user_icebreakers[0]
-            receipt_handles_to_delete = [nudge.receipt_handle for nudge in user_icebreakers]
+            best_nudge = memory_icebreakers[0]
 
             logger.info(
                 f"icebreaker_processor.found_best: user_id={user_id}, "
-                f"best_priority={best_nudge.priority}, best_timestamp={best_nudge.timestamp}, "
-                f"total_icebreakers={len(user_icebreakers)}, "
-                f"best_message_id={best_nudge.message_id}"
+                f"best_priority={best_nudge.priority}, best_created={best_nudge.created_at}, "
+                f"total_icebreakers={len(memory_icebreakers)}, unused_icebreakers={len(memory_icebreakers) - 1}, "
+                f"best_nudge_id={best_nudge.id}"
             )
 
-            return best_nudge, receipt_handles_to_delete
+            return best_nudge
 
         except Exception as e:
             logger.error(f"icebreaker_processor.error: user_id={user_id}, error={str(e)}", exc_info=True)
-            return None, []
+            return None
 
     async def process_icebreaker_for_user(self, user_id: UUID) -> Optional[str]:
         try:
             logger.debug(f"icebreaker_processor.process_start: user_id={user_id}")
 
-            best_nudge, receipt_handles_to_delete = await self.get_best_icebreaker_for_user(user_id)
+            best_nudge = await self.get_best_icebreaker_for_user(user_id)
 
             if not best_nudge:
                 logger.debug(f"icebreaker_processor.no_best_nudge: user_id={user_id}")
                 return None
 
-            logger.debug(f"icebreaker_processor.extracting_text: user_id={user_id}, message_id={best_nudge.message_id}")
+            logger.debug(f"icebreaker_processor.extracting_text: user_id={user_id}, nudge_id={best_nudge.id}")
             icebreaker_text = self._extract_icebreaker_text(best_nudge)
 
             if not icebreaker_text:
-                logger.warning(f"icebreaker_processor.no_text: user_id={user_id}, message_id={best_nudge.message_id}")
+                logger.warning(f"icebreaker_processor.no_text: user_id={user_id}, nudge_id={best_nudge.id}")
                 return None
 
             logger.debug(f"icebreaker_processor.text_extracted: user_id={user_id}, text_length={len(icebreaker_text)}")
 
-            if receipt_handles_to_delete:
-                logger.debug(
-                    f"icebreaker_processor.cleanup_start: user_id={user_id}, handles_count={len(receipt_handles_to_delete)}"
-                )
-                deleted_count = await self.sqs_consumer.delete_nudges(receipt_handles_to_delete)
-                logger.info(
-                    f"icebreaker_processor.cleanup_complete: user_id={user_id}, "
-                    f"deleted_count={deleted_count}, total_queued={len(receipt_handles_to_delete)}"
-                )
+            logger.debug(f"icebreaker_processor.marking_processing: user_id={user_id}, nudge_id={best_nudge.id}")
+
+            try:
+                await self.fos_manager.mark_processing([best_nudge.id])
+            except Exception as e:
+                logger.warning(f"icebreaker_processor.mark_processing_failed: user_id={user_id}, error={str(e)}")
+
+            try:
+                success = await self.fos_manager.complete_nudge(best_nudge.id)
+                if success:
+                    logger.info(f"icebreaker_processor.cleanup_complete: user_id={user_id}, nudge_completed=True")
+                else:
+                    logger.warning(f"icebreaker_processor.cleanup_failed: user_id={user_id}, nudge_id={best_nudge.id}")
+            except Exception as e:
+                logger.error(f"icebreaker_processor.nudge_completion_error: user_id={user_id}, nudge_id={best_nudge.id}, error={str(e)}")
 
             logger.info(f"icebreaker_processor.processed: user_id={user_id}, text_preview={icebreaker_text[:100]}...")
             return icebreaker_text
@@ -90,46 +89,40 @@ class IcebreakerProcessor:
             logger.error(f"icebreaker_processor.process_error: user_id={user_id}, error={str(e)}", exc_info=True)
             return None
 
-    def _extract_icebreaker_text(self, nudge: NudgeMessage) -> Optional[str]:
+    def _extract_icebreaker_text(self, nudge: NudgeRecord) -> Optional[str]:
         try:
-            logger.debug(f"icebreaker_processor.extract_start: message_id={nudge.message_id}")
-            payload = nudge.nudge_payload
-            logger.debug(
-                f"icebreaker_processor.payload_keys: message_id={nudge.message_id}, keys={list(payload.keys())}"
-            )
+            logger.debug(f"icebreaker_processor.extract_start: nudge_id={nudge.id}")
 
-            notification_text = payload.get("notification_text")
-            if notification_text and notification_text.strip():
+            if nudge.notification_text and nudge.notification_text.strip():
                 logger.debug(
-                    f"icebreaker_processor.found_notification_text: message_id={nudge.message_id}, length={len(notification_text)}"
+                    f"icebreaker_processor.found_notification_text: nudge_id={nudge.id}, length={len(nudge.notification_text)}"
                 )
-                return notification_text.strip()
+                return nudge.notification_text.strip()
 
-            metadata = payload.get("metadata", {})
+            metadata = nudge.metadata or {}
             logger.debug(
-                f"icebreaker_processor.metadata_keys: message_id={nudge.message_id}, keys={list(metadata.keys())}"
+                f"icebreaker_processor.metadata_keys: nudge_id={nudge.id}, keys={list(metadata.keys())}"
             )
 
             memory_text = metadata.get("memory_text")
             if memory_text and memory_text.strip():
                 logger.debug(
-                    f"icebreaker_processor.found_memory_text: message_id={nudge.message_id}, length={len(memory_text)}"
+                    f"icebreaker_processor.found_memory_text: nudge_id={nudge.id}, length={len(memory_text)}"
                 )
                 return f"Remember this? {memory_text.strip()}"
 
-            preview_text = payload.get("preview_text")
-            if preview_text and preview_text.strip():
+            if nudge.preview_text and nudge.preview_text.strip():
                 logger.debug(
-                    f"icebreaker_processor.found_preview_text: message_id={nudge.message_id}, length={len(preview_text)}"
+                    f"icebreaker_processor.found_preview_text: nudge_id={nudge.id}, length={len(nudge.preview_text)}"
                 )
-                return preview_text.strip()
+                return nudge.preview_text.strip()
 
-            logger.warning(f"icebreaker_processor.no_text_found: message_id={nudge.message_id}, payload={payload}")
+            logger.warning(f"icebreaker_processor.no_text_found: nudge_id={nudge.id}, metadata={metadata}")
             return None
 
         except Exception as e:
             logger.error(
-                f"icebreaker_processor.extract_error: message_id={nudge.message_id}, error={str(e)}", exc_info=True
+                f"icebreaker_processor.extract_error: nudge_id={nudge.id}, error={str(e)}", exc_info=True
             )
             return None
 

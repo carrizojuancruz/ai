@@ -104,8 +104,6 @@ async def trigger_nudge_manual(request: ManualTriggerRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Failed to trigger nudge: {str(e)}") from e
 
 
-
-
 @router.get("/health", response_model=Dict[str, Any])
 async def get_nudge_health() -> Dict[str, Any]:
     try:
@@ -122,7 +120,6 @@ async def get_nudge_health() -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"nudge_eval.health_check_failed: {str(e)}")
         return {"status": "unhealthy", "error": str(e)}
-
 
 async def _evaluate_all_users(
     task_id: str,

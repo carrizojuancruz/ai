@@ -365,9 +365,9 @@ class SupervisorService:
             from app.services.nudges.icebreaker_processor import get_icebreaker_processor
 
             processor = get_icebreaker_processor()
-            logger.info(f"Getting icebreaker from SQS for user {uid}")
+            logger.info(f"Getting icebreaker via FOS API for user {uid}")
             raw_icebreaker = await processor.process_icebreaker_for_user(uid)
-            logger.info(f"Finished getting icebreaker from SQS for user {uid}")
+            logger.info(f"Finished getting icebreaker via FOS API for user {uid}")
             if raw_icebreaker and raw_icebreaker.strip():
                 icebreaker_hint = raw_icebreaker.strip()
                 icebreaker_used = True
