@@ -57,21 +57,23 @@ async def wealth_agent(state: MessagesState, config: RunnableConfig) -> dict[str
                 elif isinstance(msg, dict) and msg.get("role") == "assistant":
                     wealth_response = str(msg.get("content", ""))
                     break
-        if not wealth_response.strip():
-            wealth_response = "Wealth analysis completed successfully."
 
-        last_message = state["messages"][-1]
-        if isinstance(last_message, HumanMessage):
-            task_content = getattr(last_message, "content", "Unknown task")
-        elif isinstance(last_message, dict):
-            task_content = last_message.get("content", "Unknown task")
-        else:
-            task_content = str(last_message)
+        if not wealth_response.strip():
+            wealth_response = "The knowledge base search did not return relevant information for this specific question."
+
+        user_question = "Unknown task"
+        for msg in reversed(state["messages"]):
+            if isinstance(msg, HumanMessage):
+                user_question = getattr(msg, "content", "Unknown task")
+                break
+            elif isinstance(msg, dict) and msg.get("role") == "user":
+                user_question = msg.get("content", "Unknown task")
+                break
 
         analysis_response = f"""
         ===== WEALTH AGENT TASK COMPLETED =====
 
-        Task Analyzed: {task_content}...
+        Task Analyzed: {user_question}...
 
         Analysis Results:
         {wealth_response}

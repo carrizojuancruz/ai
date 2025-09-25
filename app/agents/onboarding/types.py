@@ -1,17 +1,30 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Literal, TypedDict
+from typing import Literal, TypedDict
 
 from pydantic import BaseModel
 
 
 class InteractionType(str, Enum):
     FREE_TEXT = "free_text"
-    BINARY_CHOICE = "binary_choice"
     SINGLE_CHOICE = "single_choice"
     MULTI_CHOICE = "multi_choice"
-    TECHNICAL_INTEGRATION = "technical_integration"
+
+
+class FlowStep(str, Enum):
+    PRESENTATION = "presentation"
+    STEP_1_CHOICE = "step_1_choice"
+    STEP_2_DOB = "step_2_dob"
+    STEP_3_LOCATION = "step_3_location"
+    STEP_4_HOUSING = "step_4_housing"
+    STEP_4_MONEY_FEELINGS = "step_4_money_feelings"
+    STEP_5_INCOME_DECISION = "step_5_income_decision"
+    STEP_5_1_INCOME_EXACT = "step_5_1_income_exact"
+    STEP_5_2_INCOME_RANGE = "step_5_2_income_range"
+    STEP_6_CONNECT_ACCOUNTS = "step_6_connect_accounts"
+    COMPLETE = "complete"
+    TERMINATED_UNDER_18 = "terminated_under_18"
 
 
 class Choice(BaseModel):
@@ -21,15 +34,10 @@ class Choice(BaseModel):
     synonyms: list[str] = []
 
 
-class BinaryChoices(BaseModel):
-    primary_choice: Choice | None = None
-    secondary_choice: Choice | None = None
-
-
-# Event payload types
-class StepUpdateEventData(TypedDict):
+class StepUpdateEventData(TypedDict, total=False):
     status: Literal["validating", "completed", "presented"]
     step_id: str
+    step_index: int
 
 
 class TokenDeltaEventData(TypedDict):
@@ -52,25 +60,14 @@ class InteractionUpdateEventData(TypedDict, total=False):
         "free_text",
         "single_choice",
         "multi_choice",
-        "binary_choice",
-        "technical_integration",
     ]
     step_id: str
+    step_index: int
     choices: list[ChoicePayload]
-    primary_choice: ChoicePayload
-    secondary_choice: ChoicePayload
-    multi_min: int
-    multi_max: int
 
 
 class OnboardingStatusEventData(TypedDict):
     status: Literal["done"]
-
-
-class ErrorEventData(TypedDict, total=False):
-    code: str
-    message: str
-    step_id: str
 
 
 class StepUpdateEvent(TypedDict):
@@ -98,48 +95,16 @@ class OnboardingStatusEvent(TypedDict):
     data: OnboardingStatusEventData
 
 
-class OnboardingErrorEvent(TypedDict):
-    event: Literal["onboarding.error"]
-    data: ErrorEventData
-
-
 def parse_interaction_type(raw: str | None) -> InteractionType:
     if not raw:
         return InteractionType.FREE_TEXT
     raw_l = raw.lower().strip()
     mapping = {
         "free_text": InteractionType.FREE_TEXT,
-        "binary_choice": InteractionType.BINARY_CHOICE,
         "single_choice": InteractionType.SINGLE_CHOICE,
         "multi_choice": InteractionType.MULTI_CHOICE,
-        "technical_integration": InteractionType.TECHNICAL_INTEGRATION,
     }
     return mapping.get(raw_l, InteractionType.FREE_TEXT)
-
-
-def choice_from_dict(data: dict[str, Any] | None) -> Choice | None:
-    if not data or not isinstance(data, dict):
-        return None
-    try:
-        return Choice(
-            id=str(data.get("id", "")),
-            label=str(data.get("label", "")),
-            value=str(data.get("value", "")),
-            synonyms=[str(s) for s in (data.get("synonyms") or [])],
-        )
-    except Exception:
-        return None
-
-
-def choices_from_list(items: list[dict[str, Any]] | None) -> list[Choice]:
-    if not items:
-        return []
-    result: list[Choice] = []
-    for it in items:
-        c = choice_from_dict(it)
-        if c is not None:
-            result.append(c)
-    return result
 
 
 def choice_to_payload(choice: Choice | None) -> ChoicePayload | None:
@@ -151,3 +116,18 @@ def choice_to_payload(choice: Choice | None) -> ChoicePayload | None:
         value=choice.value,
         synonyms=list(choice.synonyms or []),
     )
+
+
+def get_step_index(step: FlowStep) -> int | None:
+    mapping: dict[FlowStep, int] = {
+        FlowStep.STEP_1_CHOICE: 0,
+        FlowStep.STEP_2_DOB: 1,
+        FlowStep.STEP_3_LOCATION: 2,
+        FlowStep.STEP_4_HOUSING: 3,
+        FlowStep.STEP_4_MONEY_FEELINGS: 4,
+        FlowStep.STEP_5_INCOME_DECISION: 5,
+        FlowStep.STEP_5_1_INCOME_EXACT: 5,
+        FlowStep.STEP_5_2_INCOME_RANGE: 5,
+        FlowStep.STEP_6_CONNECT_ACCOUNTS: 6,
+    }
+    return mapping.get(step)

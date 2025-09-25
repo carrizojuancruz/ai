@@ -1,13 +1,16 @@
-import contextlib
+import json
 import logging
-from collections.abc import AsyncGenerator, Callable
+import random
+from collections.abc import AsyncGenerator
 from typing import Any
 from uuid import UUID
 
-from langfuse.callback import CallbackHandler
-from langgraph.graph import END, StateGraph
-
-from app.core.config import config
+from app.agents.onboarding.flow_definitions import (
+    get_current_step_definition,
+    process_user_response,
+)
+from app.agents.onboarding.state import OnboardingState
+from app.agents.onboarding.types import FlowStep
 
 from .events import (
     build_interaction_update,
@@ -16,103 +19,73 @@ from .events import (
     emit_step_update,
     emit_token_delta,
 )
-from .prompts import validate_onboarding_prompts
-from .state import OnboardingState, OnboardingStep
-from .types import InteractionType
 
 logger = logging.getLogger(__name__)
 
 
+def _generate_text_chunks(text: str, min_chunk: int = 5, max_chunk: int = 20) -> list[str]:
+    """Generate realistic text chunks for streaming simulation."""
+    if not text:
+        return []
+
+    import re
+
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    chunks = []
+
+    for sentence in sentences:
+        words = sentence.split()
+        if len(words) <= max_chunk:
+            chunks.append(sentence)
+        else:
+            current_chunk = []
+            for word in words:
+                current_chunk.append(word)
+                if len(current_chunk) >= random.randint(min_chunk, max_chunk):
+                    chunks.append(" ".join(current_chunk))
+                    current_chunk = []
+            if current_chunk:
+                chunks.append(" ".join(current_chunk))
+
+    result = []
+    for i, chunk in enumerate(chunks):
+        if i < len(chunks) - 1:
+            next_chunk = chunks[i + 1]
+            if chunk and chunk[-1] not in ".!?" and next_chunk and next_chunk[0].isupper():
+                result.append(chunk + " ")
+            else:
+                result.append(chunk + (" " if not chunk.endswith((".", "!", "?")) else " "))
+        else:
+            result.append(chunk)
+
+    return result
+
+
 class OnboardingAgent:
-    def __init__(
-        self, *, step_handler_service: Any | None = None, langfuse_handler: CallbackHandler | None = None
-    ) -> None:
-        try:
-            validate_onboarding_prompts()
-        except Exception as e:
-            logger.error("Onboarding prompts validation failed: %s", e)
-            raise
+    """Deterministic onboarding agent that follows a predefined flow."""
 
-        if step_handler_service is None:
-            from app.services.onboarding.step_handler import step_handler_service as _default_handler
-
-            step_handler_service = _default_handler
-        if langfuse_handler is None:
-            langfuse_handler = CallbackHandler(
-                public_key=config.LANGFUSE_PUBLIC_KEY,
-                secret_key=config.LANGFUSE_SECRET_KEY,
-                host=config.LANGFUSE_HOST,
-            )
-            if not (config.LANGFUSE_PUBLIC_KEY and config.LANGFUSE_SECRET_KEY and config.LANGFUSE_HOST):
-                logger.warning("Langfuse env vars missing or incomplete; callback tracing will be disabled")
-
-        self._step_handler_service = step_handler_service
-        self._langfuse_handler = langfuse_handler
-        self.graph = self._create_graph()
-
-    def _create_graph(self) -> StateGraph:
-        workflow = StateGraph(OnboardingState)
-
-        steps = [
-            OnboardingStep.WARMUP,
-            OnboardingStep.IDENTITY,
-            OnboardingStep.INCOME_MONEY,
-            OnboardingStep.ASSETS_EXPENSES,
-            OnboardingStep.HOME,
-            OnboardingStep.FAMILY_UNIT,
-            OnboardingStep.HEALTH_COVERAGE,
-            OnboardingStep.LEARNING_PATH,
-            OnboardingStep.PLAID_INTEGRATION,
-            OnboardingStep.CHECKOUT_EXIT,
-        ]
-
-        for step in steps:
-            workflow.add_node(step.value, self._create_step_handler(step))
-
-        workflow.add_node("route", lambda state: state)
-        workflow.add_node("finished", lambda state: state)
-
-        def _route_selector(state: OnboardingState) -> str:
-            try:
-                if getattr(state, "ready_for_completion", False):
-                    return "finished"
-            except Exception:
-                pass
-            return state.current_step.value
-
-        mapping = {s.value: s.value for s in steps} | {"finished": "finished"}
-        workflow.add_conditional_edges("route", _route_selector, mapping)
-
-        for step in steps:
-            workflow.add_edge(step.value, "route")
-        workflow.add_edge("finished", END)
-
-        workflow.set_entry_point("route")
-        return workflow.compile()
-
-    def _create_step_handler(self, step: OnboardingStep) -> Callable:
-        async def handler(state: OnboardingState) -> OnboardingState:
-            return await self._step_handler_service.handle_step(state, step)
-
-        return handler
+    def __init__(self, **kwargs: Any) -> None:
+        logger.info("[ONBOARDING] Initialized deterministic OnboardingAgent")
 
     async def process_message(
-        self, user_id: UUID, message: str, state: OnboardingState | None = None
+        self,
+        user_id: UUID,
+        message: str,
+        state: OnboardingState | None = None,
     ) -> tuple[str, OnboardingState]:
         if state is None:
             state = OnboardingState(user_id=user_id)
+            state.current_flow_step = FlowStep.PRESENTATION
+
+        final_response = ""
         final_state = state
-        accumulated_text = ""
+
         async for event, current_state in self.process_message_with_events(user_id, message, state):
             final_state = current_state
-            if not event:
-                continue
-            ev_name = event.get("event")
-            if ev_name == "message.completed":
-                accumulated_text = (event.get("data", {}) or {}).get("text", "") or accumulated_text
-            elif ev_name == "token.delta":
-                accumulated_text += (event.get("data", {}) or {}).get("text", "") or ""
-        return (accumulated_text or final_state.last_agent_response or "", final_state)
+            if event and event.get("event") == "message.completed":
+                final_response = event.get("data", {}).get("text", "")
+
+        return (final_response, final_state)
 
     async def process_message_with_events(
         self,
@@ -122,76 +95,182 @@ class OnboardingAgent:
     ) -> AsyncGenerator[tuple[dict[str, Any], OnboardingState], None]:
         if state is None:
             state = OnboardingState(user_id=user_id)
-        state.last_user_message = message
+            state.current_flow_step = FlowStep.PRESENTATION
+            logger.info(
+                "[ONBOARDING] Created new state for user_id=%s at step=%s",
+                user_id,
+                state.current_flow_step.value,
+            )
 
-        prev_completed = set(s.value for s in state.completed_steps)
-        current_state = state
-
-        prev_step = state.current_step
-        prev_interaction_type = state.current_interaction_type
-        prev_choices = list(state.current_choices) if isinstance(state.current_choices, list) else []
-        prev_binary_choices = state.current_binary_choices
-
-        yield (emit_step_update("validating", state.current_step.value), current_state)
-
-        step = state.current_step
-
-        accumulated_text = ""
-        async for chunk, updated_state in self._step_handler_service.handle_step_stream(state, step):
-            current_state = updated_state
-
-            if chunk:
-                accumulated_text += chunk
-                yield (emit_token_delta(chunk), current_state)
-
-        yield (emit_message_completed(accumulated_text), current_state)
-
-        with contextlib.suppress(Exception):
-            current_state.ensure_completion_consistency()
-
-        new_completed = set(s.value for s in current_state.completed_steps)
-        for step_value in sorted(new_completed - prev_completed):
-            yield (emit_step_update("completed", step_value), current_state)
-
-        if current_state.current_step != prev_step:
-            with contextlib.suppress(Exception):
-                current_state.mark_step_transitioned(prev_step, current_state.current_step)
-        with contextlib.suppress(Exception):
-            current_state.mark_step_presented(current_state.current_step)
-
-        yield (
-            emit_step_update(
-                "presented",
-                current_state.current_step.value,
-            ),
-            current_state,
+        is_initial = (
+            state.current_flow_step == FlowStep.PRESENTATION and len(state.conversation_history) == 0 and not message
         )
 
-        changed_interaction = (
-            current_state.current_step != prev_step
-            or current_state.current_interaction_type != prev_interaction_type
-            or (
-                current_state.current_interaction_type in (InteractionType.SINGLE_CHOICE, InteractionType.MULTI_CHOICE)
-                and list(current_state.current_choices or []) != prev_choices
+        if is_initial:
+            logger.info(
+                "[ONBOARDING] Starting initial presentation for user_id=%s",
+                user_id,
             )
-            or (
-                current_state.current_interaction_type == InteractionType.BINARY_CHOICE
-                and (current_state.current_binary_choices != prev_binary_choices)
+
+            step_def = get_current_step_definition(state)
+            response_text = step_def.message(state) if callable(step_def.message) else step_def.message
+
+            state.current_interaction_type = step_def.interaction_type
+            state.current_choices = step_def.choices
+            state.last_agent_response = response_text
+
+            logger.info(
+                "[ONBOARDING] Presenting step=%s interaction_type=%s for user_id=%s",
+                state.current_flow_step.value,
+                state.current_interaction_type.value,
+                user_id,
             )
-        )
 
-        if (
-            changed_interaction
-            and current_state.current_interaction_type != InteractionType.FREE_TEXT
-            and current_state.current_step == step
-        ):
-            interaction_event = build_interaction_update(current_state)
-            if interaction_event:
-                yield (interaction_event, current_state)
+            yield (emit_step_update("presented", state.current_flow_step.value), state)
 
-        if current_state.ready_for_completion:
-            yield (emit_onboarding_done(), current_state)
-            yield (None, current_state)
+            for chunk in _generate_text_chunks(response_text):
+                yield (emit_token_delta(chunk), state)
+
+            yield (emit_message_completed(response_text), state)
+
+            if step_def.interaction_type.value != "free_text":
+                interaction_event = build_interaction_update(state)
+                if interaction_event:
+                    yield (interaction_event, state)
+
+            yield (None, state)
             return
 
-        yield (None, current_state)
+        state.last_user_message = message
+
+        msg_l = (message or "").strip().lower()
+        skip_tokens = {"skip", "not now", "rather not", "prefer not", "no", "not right now"}
+
+        non_skippable = {FlowStep.PRESENTATION, FlowStep.STEP_2_DOB}
+
+        if msg_l in skip_tokens and state.current_flow_step not in non_skippable:
+            logger.info("[ONBOARDING] Skipping step=%s by user request", state.current_flow_step.value)
+            response_text, next_step, interaction_type, choices = process_user_response(state, "")
+            old_step = state.current_flow_step
+            if next_step:
+                state.current_flow_step = next_step
+                state.current_interaction_type = interaction_type
+                state.current_choices = choices
+            state.last_agent_response = response_text
+            if old_step != state.current_flow_step:
+                yield (emit_step_update("completed", old_step.value), state)
+            for chunk in _generate_text_chunks(response_text):
+                yield (emit_token_delta(chunk), state)
+            yield (emit_message_completed(response_text), state)
+            yield (emit_step_update("presented", state.current_flow_step.value), state)
+            if interaction_type.value != "free_text":
+                interaction_event = build_interaction_update(state)
+                if interaction_event:
+                    yield (interaction_event, state)
+            if state.ready_for_completion:
+                yield (emit_onboarding_done(), state)
+            yield (None, state)
+            return
+
+        logger.info(
+            "[ONBOARDING] Processing message for user_id=%s at step=%s: %s",
+            user_id,
+            state.current_flow_step.value,
+            message[:100] if message else "(empty)",
+        )
+
+        yield (emit_step_update("validating", state.current_flow_step.value), state)
+
+        response_text, next_step, interaction_type, choices = process_user_response(state, message)
+
+        logger.info(
+            "[ONBOARDING] Step transition for user_id=%s: %s -> %s",
+            user_id,
+            state.current_flow_step.value,
+            next_step.value if next_step else "(no change)",
+        )
+
+        state.add_conversation_turn(message, response_text)
+
+        old_step = state.current_flow_step
+        if next_step:
+            state.current_flow_step = next_step
+            state.current_interaction_type = interaction_type
+            state.current_choices = choices
+
+            self._log_user_context(user_id, state)
+
+        state.last_agent_response = response_text
+
+        if next_step == FlowStep.COMPLETE or next_step == FlowStep.TERMINATED_UNDER_18:
+            state.ready_for_completion = True
+            state.user_context.ready_for_orchestrator = True
+
+            logger.info(
+                "[ONBOARDING] Onboarding %s for user_id=%s",
+                "completed" if next_step == FlowStep.COMPLETE else "terminated (under 18)",
+                user_id,
+            )
+
+            self._log_user_context(user_id, state, is_final=True)
+
+        if old_step != state.current_flow_step:
+            yield (emit_step_update("completed", old_step.value), state)
+
+            logger.info(
+                "[ONBOARDING] Completed step=%s for user_id=%s",
+                old_step.value,
+                user_id,
+            )
+
+        for chunk in _generate_text_chunks(response_text):
+            yield (emit_token_delta(chunk), state)
+
+        yield (emit_message_completed(response_text), state)
+
+        yield (emit_step_update("presented", state.current_flow_step.value), state)
+
+        if interaction_type.value != "free_text":
+            state.current_interaction_type = interaction_type
+            state.current_choices = choices
+            interaction_event = build_interaction_update(state)
+            if interaction_event:
+                yield (interaction_event, state)
+
+        if state.ready_for_completion:
+            logger.info(
+                "[ONBOARDING] Emitting completion event for user_id=%s",
+                user_id,
+            )
+            yield (emit_onboarding_done(), state)
+
+        yield (None, state)
+
+    def _log_user_context(self, user_id: UUID, state: OnboardingState, is_final: bool = False) -> None:
+        context_data = state.user_context.model_dump(exclude_none=True)
+
+        log_data = {
+            "user_id": str(user_id),
+            "step": state.current_flow_step.value,
+            "name": context_data.get("preferred_name"),
+            "age": context_data.get("age"),
+            "location": f"{context_data.get('location', {}).get('city')}, {context_data.get('location', {}).get('state')}"
+            if context_data.get("location")
+            else None,
+            "housing_cost": context_data.get("monthly_housing_cost"),
+            "living_situation": context_data.get("living_situation"),
+            "money_feelings": context_data.get("money_feelings"),
+        }
+
+        log_data = {k: v for k, v in log_data.items() if v is not None}
+
+        if is_final:
+            logger.info(
+                "[ONBOARDING] Final user context: %s",
+                json.dumps(log_data, ensure_ascii=False),
+            )
+        else:
+            logger.debug(
+                "[ONBOARDING] User context updated: %s",
+                json.dumps(log_data, ensure_ascii=False),
+            )
