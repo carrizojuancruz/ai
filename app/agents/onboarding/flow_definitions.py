@@ -178,11 +178,21 @@ def determine_next_step(response: str, state: "OnboardingState") -> FlowStep:
     elif current == FlowStep.STEP_1_CHOICE:
         response_lower = response.lower().strip()
         if any(word in response_lower for word in ["open", "chat", "skip", "no"]):
-            state.ready_for_completion = True
-            logger.info("[ONBOARDING] User chose to skip onboarding, moving to COMPLETE")
-            return FlowStep.COMPLETE
+            logger.info("[ONBOARDING] User chose to skip onboarding chat, moving to STEP_DOB_QUICK")
+            return FlowStep.STEP_DOB_QUICK
         logger.info("[ONBOARDING] User chose to answer questions, moving to STEP_2_DOB")
         return FlowStep.STEP_2_DOB
+    elif current == FlowStep.STEP_DOB_QUICK:
+        try:
+            age_val = int(getattr(state.user_context, "age", 0) or 0)
+        except Exception:
+            age_val = 0
+        if age_val < 18:
+            logger.warning("[ONBOARDING] Routing to TERMINATED_UNDER_18 (age=%s) from quick DOB", age_val)
+            return FlowStep.TERMINATED_UNDER_18
+        logger.info("[ONBOARDING] DOB quick validated (age=%s), moving to COMPLETE", age_val)
+        state.ready_for_completion = True
+        return FlowStep.COMPLETE
 
     elif current == FlowStep.STEP_2_DOB:
         try:
@@ -256,6 +266,16 @@ FLOW_DEFINITIONS: dict[FlowStep, StepDefinition] = {
         message=get_step_1_message,
         interaction_type=InteractionType.SINGLE_CHOICE,
         choices=STEP_1_CHOICES,
+        next_step=determine_next_step,
+    ),
+    FlowStep.STEP_DOB_QUICK: StepDefinition(
+        id=FlowStep.STEP_DOB_QUICK,
+        message="""No worries! Just a quick check: could you please tell me your date of birth?
+
+It’s just to confirm you’re over 18, promise I’m not being nosy.""",
+        interaction_type=InteractionType.FREE_TEXT,
+        expected_field="dob",
+        validation=validate_dob,
         next_step=determine_next_step,
     ),
     FlowStep.STEP_2_DOB: StepDefinition(

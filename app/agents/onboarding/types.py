@@ -15,6 +15,7 @@ class InteractionType(str, Enum):
 class FlowStep(str, Enum):
     PRESENTATION = "presentation"
     STEP_1_CHOICE = "step_1_choice"
+    STEP_DOB_QUICK = "step_dob_quick"
     STEP_2_DOB = "step_2_dob"
     STEP_3_LOCATION = "step_3_location"
     STEP_4_HOUSING = "step_4_housing"
