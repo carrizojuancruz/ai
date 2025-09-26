@@ -6,10 +6,9 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
-from langfuse.callback import CallbackHandler
 
 from app.agents.onboarding.state import OnboardingState
-from app.agents.onboarding.types import InteractionType
+from app.agents.onboarding.types import InteractionType  # noqa: F401
 from app.core.app_state import (
     get_last_emitted_text,
     get_onboarding_agent,
@@ -20,16 +19,9 @@ from app.core.app_state import (
     set_last_emitted_text,
     set_thread_state,
 )
-from app.core.config import config
 from app.repositories.session_store import get_session_store
 
 logger = logging.getLogger(__name__)
-
-langfuse_handler = CallbackHandler(
-    public_key=config.LANGFUSE_PUBLIC_KEY,
-    secret_key=config.LANGFUSE_SECRET_KEY,
-    host=config.LANGFUSE_HOST,
-)
 
 
 class OnboardingService:
@@ -160,33 +152,19 @@ class OnboardingService:
             if type == "text" and text is not None:
                 user_text = text
             elif type == "choice" and choice_ids:
-                if state.current_interaction_type == InteractionType.BINARY_CHOICE:
-                    if state.current_binary_choices:
-                        for choice_id in choice_ids:
-                            if (
-                                state.current_binary_choices.primary_choice
-                                and choice_id == state.current_binary_choices.primary_choice.id
-                            ):
-                                user_text = state.current_binary_choices.primary_choice.value
-                            elif (
-                                state.current_binary_choices.secondary_choice
-                                and choice_id == state.current_binary_choices.secondary_choice.id
-                            ):
-                                user_text = state.current_binary_choices.secondary_choice.value
-                else:
-                    choice_values = []
-                    for choice_id in choice_ids:
-                        for choice in state.current_choices:
-                            if choice.id == choice_id:
-                                choice_values.append(choice.value or choice_id)
-                                break
-                    user_text = ", ".join(choice_values) if choice_values else ", ".join(choice_ids)
+                choice_values = []
+                for choice_id in choice_ids:
+                    for choice in state.current_choices:
+                        if choice.id == choice_id:
+                            choice_values.append(choice.value or choice_id)
+                            break
+                user_text = ", ".join(choice_values) if choice_values else ", ".join(choice_ids)
             elif type == "control" and action in {"back", "skip"}:
                 set_thread_state(thread_id, state)
                 await get_sse_queue(thread_id).put(
                     {
                         "event": "step.update",
-                        "data": {"status": "completed", "step_id": state.current_step.value},
+                        "data": {"status": "completed", "step_id": state.current_flow_step.value},
                     }
                 )
                 return {"status": "accepted"}
@@ -248,14 +226,9 @@ class OnboardingService:
         set_thread_state(thread_id, state)
         await self._export_user_context(state, thread_id)
 
-        # Clean up global state after completion
         from app.core.app_state import drop_sse_queue
-        drop_sse_queue(thread_id)
 
-        # Remove thread from global state (optional - could keep for debugging)
-        # Uncomment the following line if you want to remove completed threads:
-        # global _onboarding_threads
-        # _onboarding_threads.pop(thread_id, None)
+        drop_sse_queue(thread_id)
 
 
 onboarding_service = OnboardingService()

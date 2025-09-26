@@ -5,7 +5,7 @@ import logging
 from contextlib import suppress
 from typing import Any
 
-from app.agents.onboarding.state import OnboardingState, OnboardingStep
+from app.agents.onboarding.state import OnboardingState
 
 logger = logging.getLogger(__name__)
 
@@ -13,10 +13,10 @@ logger = logging.getLogger(__name__)
 class ContextPatchingService:
     def __init__(self) -> None:
         self._field_mappings = {
-            OnboardingStep.WARMUP: {
+            "warmup": {
                 "preferred_name": "identity.preferred_name",
             },
-            OnboardingStep.IDENTITY: {
+            "identity": {
                 "preferred_name": "identity.preferred_name",
                 "age": "age",
                 "age_range": "age_range",
@@ -25,44 +25,45 @@ class ContextPatchingService:
                 "region": "location.region",
                 "personal_goals": "goals",
             },
-            OnboardingStep.INCOME_MONEY: {
+            "income_money": {
                 "money_feelings": "money_feelings",
                 "annual_income": "income",
                 "annual_income_range": "income",
                 "income": "income",
                 "income_range": "income",
             },
-            OnboardingStep.ASSETS_EXPENSES: {
+            "assets_expenses": {
                 "assets_types": "assets_high_level",
                 "fixed_expenses": "expenses",
             },
-            OnboardingStep.HOME: {
+            "home": {
                 "housing_type": "housing",
                 "housing_satisfaction": "housing_satisfaction",
                 "monthly_housing_cost": "rent_mortgage",
             },
-            OnboardingStep.FAMILY_UNIT: {
+            "family_unit": {
                 "dependents_under_18": "household.dependents_count",
                 "pets": "household.pets",
             },
-            OnboardingStep.HEALTH_COVERAGE: {
+            "health_coverage": {
                 "health_insurance_status": "health_insurance",
                 "monthly_health_cost": "health_cost",
             },
-            OnboardingStep.LEARNING_PATH: {
+            "learning_path": {
                 "learning_interests": "learning_interests",
             },
-            OnboardingStep.CHECKOUT_EXIT: {
+            "checkout_exit": {
                 "final_choice": "onboarding_choice",
             },
         }
 
-    def normalize_patch_for_step(self, step: OnboardingStep, patch: dict[str, Any]) -> dict[str, Any]:
+    def normalize_patch_for_step(self, step: str | None, patch: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(patch, dict):
             return {}
 
         normalized: dict[str, Any] = {}
-        mappings = self._field_mappings.get(step, {})
+        key = step or ""
+        mappings = self._field_mappings.get(key, {})
 
         for key, value in patch.items():
             if key in mappings:
@@ -72,7 +73,7 @@ class ContextPatchingService:
 
         return normalized
 
-    def apply_context_patch(self, state: OnboardingState, step: OnboardingStep, patch: dict[str, Any]) -> None:
+    def apply_context_patch(self, state: OnboardingState, step: str | None, patch: dict[str, Any]) -> None:
         if not patch:
             return
 
@@ -113,7 +114,7 @@ class ContextPatchingService:
                     pass
 
         try:
-            if step == OnboardingStep.IDENTITY:
+            if step == "identity":
                 provided_keys = set(normalized_patch.keys())
                 has_age_or_range = any(
                     k in provided_keys for k in ["age", "age_range", "identity.age", "identity.age_range"]
