@@ -100,10 +100,23 @@ def _summarize_with_bedrock(msgs: list[tuple[str, str]]) -> tuple[str, str, int]
     bedrock = get_bedrock_runtime_client()
     convo = "\n".join([f"{r.title()}: {t}" for r, t in msgs])[:2000]
     prompt = (
-        "Summarize the interaction in 1–2 sentences focusing on what was discussed/decided/done. "
-        "Exclude stable facts already known unless updated. Output strict JSON: "
-        '{"summary": string, "category": string, "importance": 1..5}. '
-        "Use concise neutral phrasing.\n\nConversation:\n" + convo + "\nJSON:"
+        "Episodic Summarizer\n"
+        "Task: Summarize the most recent interaction in 1–2 sentences focusing on what was decided, requested, "
+        "clarified, planned, or acted on. Keep it short (≤160 chars).\n\n"
+        "Authority & Redaction:\n"
+        "- Do NOT include specific numeric financial values or facts owned by specialized agents.\n"
+        "- If budgets, balances, transactions, bills, investments, or goal targets/status/dates appear, summarize generically "
+        "(e.g., 'Discussed budgeting approach', 'Reviewed spending trends').\n\n"
+        "Dates Policy:\n"
+        "- Do NOT include absolute dates or relative-time words in the summary. The system will add 'On YYYY-MM-DD (WNN, YYYY) ...' automatically.\n\n"
+        "Content Rules:\n"
+        "- Prefer decisions, actions, outcomes, next steps, or clear user asks over chit-chat.\n"
+        "- Neutral third person; no quotes; no PII.\n"
+        "- If nothing materially new happened, set summary to an empty string.\n\n"
+        "Category (choose one): Decision | Action | Plan | Request | Issue | Update | Reflection | Conversation_Summary\n"
+        "Importance (1..5): 1=chit-chat/minor; 2=question/clarification; 3=meaningful discussion; 4=decision/action; 5=commitment/urgent issue.\n\n"
+        "Output strict JSON only: {\"summary\": string, \"category\": string, \"importance\": 1..5}.\n\n"
+        "Conversation:\n" + convo + "\nJSON:"
     )
     body_payload = {
         "messages": [{"role": "user", "content": [{"text": prompt}]}],
