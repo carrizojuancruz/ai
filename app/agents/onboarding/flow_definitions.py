@@ -238,8 +238,8 @@ def determine_next_step(response: str, state: "OnboardingState") -> FlowStep:
         r = (response or "").lower().strip()
         for choice in INCOME_RANGE_CHOICES:
             if choice.id == response or r in [s.lower() for s in choice.synonyms] or r == choice.value:
-                state.user_context.income_range = choice.value
-                logger.info("[ONBOARDING] Income range stored: %s", choice.value)
+                state.user_context.income_band = choice.value
+                logger.info("[ONBOARDING] Income range stored (income_band): %s", choice.value)
                 break
         return FlowStep.STEP_6_CONNECT_ACCOUNTS
 
@@ -357,7 +357,7 @@ You could share an exact number, pick a general range, or skip it for now.""",
 Would you mind sharing a rough yearly range? That would be helpful too.""",
         interaction_type=InteractionType.SINGLE_CHOICE,
         choices=INCOME_RANGE_CHOICES,
-        expected_field="annual_income_range",
+        expected_field="income_band",
         next_step=determine_next_step,
     ),
     FlowStep.STEP_6_CONNECT_ACCOUNTS: StepDefinition(
