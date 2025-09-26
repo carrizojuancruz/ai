@@ -143,8 +143,6 @@ class FinanceAgent:
             logger.warning(f"Error fetching samples: {e}")
             return "[]", "[]"
 
-    def _serialize_sample_row(self, row) -> dict[str, Any]:
-        return serialize_sample_row(row)
 
     def _rows_to_json(self, rows: list[dict[str, Any]]) -> str:
         """Convert serialized rows to JSON string."""
