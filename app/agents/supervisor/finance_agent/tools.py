@@ -73,17 +73,14 @@ def _validate_query_security(query: str, user_id: UUID) -> Optional[str]:
     return "Query must include user_id filter for security"
 
 
-@tool
-async def sql_db_query(query: str) -> str:
-    """Execute SQL query against the financial database with user isolation."""
-    try:
-        # This tool expects user_id to be passed from the agent context
-        # The agent will handle user_id validation and injection
-        logger.info(f"SQL query tool called with: {query[:100]}...")
-        return f"Query executed: {query}"  # Placeholder - actual execution handled in agent
-    except Exception as e:
-        logger.error(f"SQL query tool error: {e}")
-        return f"Error: {str(e)}"
+def create_sql_db_query_tool(user_id):
+    """Create a user-scoped SQL query tool."""
+    @tool
+    async def sql_db_query(query: str) -> str:
+        """Execute a single read-only SQL query for this user's data."""
+        return await execute_financial_query(query, user_id)
+
+    return sql_db_query
 
 
 
@@ -106,11 +103,8 @@ async def execute_financial_query(query: str, user_id: UUID) -> str:
                 if security_error:
                     return f"ERROR: {security_error}"
 
-                # Create repository instance with the session
-                logger.info(f"Creating FinanceRepository for user {user_id}")
                 repo = db_service.get_finance_repository(session)
 
-                # Execute the query
                 logger.info(f"Executing query via repository for user {user_id}")
                 result = await repo.execute_query(query, user_id=str(user_id))
 
