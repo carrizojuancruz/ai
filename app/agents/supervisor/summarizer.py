@@ -3,11 +3,9 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Sequence
 
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, RemoveMessage
+from langchain_core.messages import BaseMessage, HumanMessage, RemoveMessage, SystemMessage
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
-
 from langmem.short_term import RunningSummary
-
 
 logger = logging.getLogger(__name__)
 

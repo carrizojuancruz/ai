@@ -1,18 +1,18 @@
 """Tests for the ConversationSummarizer."""
 
-from unittest.mock import MagicMock
+import os
+import sys
 from typing import Sequence
+from unittest.mock import MagicMock
 
 import pytest
-
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
-import sys
-import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 # Direct import to avoid package conflicts
 import importlib.util
+
 spec = importlib.util.spec_from_file_location("summarizer", "app/agents/supervisor/summarizer.py")
 summarizer_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(summarizer_module)
@@ -156,7 +156,6 @@ class TestConversationSummarizer:
 
         # Check for conversational messages in output (tail)
         human_messages = [msg for msg in output_messages if isinstance(msg, HumanMessage)]
-        ai_messages = [msg for msg in output_messages if isinstance(msg, AIMessage)]
 
         # Should have at least the recent human message in tail
         assert len(human_messages) >= 1
