@@ -425,6 +425,7 @@ class SupervisorService:
             ctx = await self._load_user_context_from_external(uid)
             session_ctx["user_context"] = ctx.model_dump(mode="json")
             await session_store.set_session(thread_id, session_ctx)
+
         configurable = {
             "thread_id": thread_id,
             "session_id": thread_id,
@@ -443,7 +444,11 @@ class SupervisorService:
         streamed_responses: set[str] = set()
 
         async for event in graph.astream_events(
-            {"messages": [{"role": "user", "content": text}], "sources": sources},
+            {
+                "messages": [{"role": "user", "content": text}],
+                "sources": sources,
+                "context": {"thread_id": thread_id},
+            },
             version="v2",
             config={
                 "callbacks": [langfuse_handler],
@@ -642,6 +647,5 @@ class SupervisorService:
 
         except Exception as e:
             logger.exception(f"Failed to store conversation for thread {thread_id}: {e}")
-
 
 supervisor_service = SupervisorService()

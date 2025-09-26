@@ -44,6 +44,12 @@ class Config:
     MEMORY_PROCEDURAL_TOPK: int = int(os.getenv("MEMORY_PROCEDURAL_TOPK", "3"))
     MEMORY_PROCEDURAL_MIN_SCORE: float = float(os.getenv("MEMORY_PROCEDURAL_MIN_SCORE", "0.45"))
 
+    # Conversation Summarization system
+    SUMMARY_MAX_TOKENS_BEFORE: int = int(os.getenv("SUMMARY_MAX_TOKENS_BEFORE", "100000"))
+    SUMMARY_MAX_SUMMARY_TOKENS: int = int(os.getenv("SUMMARY_MAX_SUMMARY_TOKENS", "256"))
+    SUMMARY_TAIL_TOKEN_BUDGET: int = int(os.getenv("SUMMARY_TAIL_TOKEN_BUDGET", "30000"))
+    SUMMARY_MODEL_ID: Optional[str] = os.getenv("SUMMARY_MODEL_ID")
+
     # AWS Configuration
     AWS_REGION: str = os.getenv("AWS_REGION")
     AWS_ACCESS_KEY_ID: Optional[str] = os.getenv("AWS_ACCESS_KEY_ID")
@@ -134,6 +140,13 @@ class Config:
     LOG_DATEFMT: str = os.getenv("LOG_DATEFMT", "%Y-%m-%dT%H:%M:%S%z")
     LOG_QUIET_LIBS: bool = os.getenv("LOG_QUIET_LIBS", "").lower() in {"1", "true", "yes", "on"}
     LOG_LIB_LEVEL: str = os.getenv("LOG_LIB_LEVEL", "WARNING").upper()
+    SUPERVISOR_TRACE_ENABLED: bool = os.getenv("SUPERVISOR_TRACE_ENABLED", "false").lower() in {
+        "true",
+        "1",
+        "yes",
+        "on",
+    }
+    SUPERVISOR_TRACE_PATH: str = os.getenv("SUPERVISOR_TRACE_PATH", "logs/supervisor_trace.jsonl")
 
     # Crawling Configuration
     CRAWL_TYPE: str = os.getenv("CRAWL_TYPE", "recursive")
