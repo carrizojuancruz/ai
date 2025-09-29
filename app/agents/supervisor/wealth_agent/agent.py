@@ -1,50 +1,141 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
+from uuid import UUID
 
 from langchain_aws import ChatBedrockConverse
-from langgraph.graph import END, START, MessagesState, StateGraph
+from langchain_core.messages import HumanMessage
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.prebuilt import create_react_agent
+from langgraph.types import Command
 
 from app.core.config import config
 from app.observability.logging_config import configure_logging
 
-from .prompts import WEALTH_AGENT_PROMPT
+from .helpers import create_error_command
+from .prompts import build_wealth_system_prompt
 from .tools import search_kb
 
 logger = logging.getLogger(__name__)
+
+
+class WealthAgent:
+    """Wealth agent for searching knowledge base and providing financial information."""
+
+    def __init__(self):
+        logger.info("Initializing WealthAgent with Bedrock models")
+
+        guardrails = {
+            "guardrailIdentifier": config.WEALTH_AGENT_GUARDRAIL_ID,
+            "guardrailVersion": config.WEALTH_AGENT_GUARDRAIL_VERSION,
+            "trace": "enabled",
+        }
+
+        self.llm = ChatBedrockConverse(
+            model_id=config.WEALTH_AGENT_MODEL_ID,
+            region_name=config.WEALTH_AGENT_MODEL_REGION,
+            temperature=config.WEALTH_AGENT_TEMPERATURE,
+            guardrail_config=guardrails
+        )
+
+        logger.info("WealthAgent initialization completed")
+        self._cache: dict[str, Any] = {}
+
+    async def process_query_with_agent(self, query: str, user_id: UUID) -> Command:
+        """Process wealth queries and return Command from agent execution."""
+        try:
+            logger.info(f"Processing wealth query with agent for user {user_id}: {query}")
+            
+            # For supervisor handoffs, always create a fresh agent to avoid
+            # carrying over conversation state and tool call counts from previous tasks
+            agent = self._create_agent_with_tools()
+            logger.info("Created fresh LangGraph agent for supervisor task")
+                
+            messages = [HumanMessage(content=query)]
+            
+            logger.info(f"Starting LangGraph agent execution for user {user_id}")
+            agent_command = await agent.ainvoke({"messages": messages}, config={"recursion_limit": 10})
+            logger.info(f"Agent execution completed for user {user_id}")
+            
+            return agent_command
+            
+        except Exception as e:
+            logger.error(f"Wealth agent error for user {user_id}: {e}")
+            return create_error_command("I encountered an error while processing your wealth query. Please try again.")
+
+    def _create_system_prompt(self, user_context: dict = None) -> str:
+        """Create system prompt for the wealth agent."""
+        return build_wealth_system_prompt(user_context)
+
+    def _create_agent_with_tools(self):
+        """Create wealth agent with knowledge base search tool."""
+        logger.info("Creating wealth agent with search_kb tool")
+
+        tools = [search_kb]
+
+        def prompt_builder() -> str:
+            return self._create_system_prompt()
+
+        from .subgraph import create_wealth_subgraph
+        return create_wealth_subgraph(self.llm, tools, prompt_builder)
 
 
 def compile_wealth_agent_graph() -> CompiledStateGraph:
     """Compile the wealth agent graph."""
     configure_logging()
 
-    guardrails = {
-        "guardrailIdentifier": config.WEALTH_AGENT_GUARDRAIL_ID,
-        "guardrailVersion": config.WEALTH_AGENT_GUARDRAIL_VERSION,
-        "trace": "enabled",
-    }
+    # Use new WealthAgent class directly
+    wealth_agent_instance = WealthAgent()
+    return wealth_agent_instance._create_agent_with_tools()
 
-    logger.info(f"[WEALTH_AGENT] Guardrails: {guardrails}")
 
-    chat_bedrock = ChatBedrockConverse(
-        model_id=config.WEALTH_AGENT_MODEL_ID,
-        region_name=config.WEALTH_AGENT_MODEL_REGION,
-        temperature=config.WEALTH_AGENT_TEMPERATURE,
-        guardrail_config=guardrails
-    )
+async def wealth_agent(state, config):
+    """Wealth agent worker function that returns Command like finance agent."""
+    try:
+        from app.agents.supervisor.handoff import create_handoff_back_messages
+        from app.utils.tools import get_config_value
 
-    wealth_agent = create_react_agent(
-        model=chat_bedrock,
-        tools=[search_kb],
-        prompt=WEALTH_AGENT_PROMPT,
-        name="wealth_agent",
-    )
+        from .helpers import (
+            create_error_command,
+            get_last_user_message_text,
+            get_user_id_from_messages,
+        )
 
-    builder = StateGraph(MessagesState)
-    builder.add_node("wealth_agent", wealth_agent)
-    builder.add_edge(START, "wealth_agent")
-    builder.add_edge("wealth_agent", END)
+        user_id = get_config_value(config, "user_id")
+        if not user_id:
+            user_id = get_user_id_from_messages(state["messages"])
 
-    return builder.compile()
+        query = get_last_user_message_text(state["messages"])
+
+        if not user_id:
+            logger.warning("No user_id found in wealth agent request")
+            return create_error_command("ERROR: Cannot access wealth data without user identification.")
+
+        if not query:
+            logger.warning("No task description found in wealth agent request")
+            return create_error_command("ERROR: No task description provided for analysis.")
+
+        from app.core.app_state import get_wealth_agent
+
+        wealth_agent_instance = get_wealth_agent()
+        agent_command = await wealth_agent_instance.process_query_with_agent(query, user_id)
+
+        return agent_command
+
+    except Exception as e:
+        logger.error(f"Wealth agent critical error: {e}")
+
+        from app.agents.supervisor.handoff import create_handoff_back_messages
+
+        error_analysis = f"I'm sorry, I had a problem processing your wealth request: {str(e)}"
+        handoff_messages = create_handoff_back_messages("wealth_agent", "supervisor")
+
+        return Command(
+            update={
+                "messages": [
+                    {"role": "assistant", "content": error_analysis, "name": "wealth_agent"},
+                    handoff_messages[0],
+                ]
+            },
+            goto="supervisor",
+        )

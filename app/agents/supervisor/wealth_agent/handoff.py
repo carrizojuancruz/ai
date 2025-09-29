@@ -1,0 +1,40 @@
+from typing import Any
+
+from langgraph.graph import MessagesState
+
+
+def handoff_to_supervisor_node(state: MessagesState) -> dict[str, Any]:
+    """Node that handles handoff back to supervisor.
+
+    This node determines whether to return control to supervisor or end execution
+    based on the execution context.
+    """
+    from app.agents.supervisor.handoff import create_handoff_back_messages
+
+    analysis_content = ""
+    if "messages" in state and isinstance(state["messages"], list):
+        for msg in reversed(state["messages"]):
+            # Skip handoff messages and look for actual analysis content
+            if (hasattr(msg, "content") and msg.content and
+                getattr(msg, "name", None) == "wealth_agent" and
+                not getattr(msg, "response_metadata", {}).get("is_handoff_back", False) and
+                "Returning control to supervisor" not in str(msg.content)):
+                
+                content = msg.content
+                if isinstance(content, str) and content.strip():
+                    analysis_content = content
+                    break
+
+    if not analysis_content.strip():
+        analysis_content = "Wealth analysis completed successfully."
+
+    # Create handoff messages to return control to supervisor
+    handoff_messages = create_handoff_back_messages("wealth_agent", "supervisor")
+
+    # Return the result with handoff messages
+    return {
+        "messages": [
+            {"role": "assistant", "content": analysis_content, "name": "wealth_agent"},
+            handoff_messages[0],
+        ]
+    }

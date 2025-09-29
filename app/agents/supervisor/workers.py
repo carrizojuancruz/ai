@@ -3,11 +3,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import MessagesState
 
-from app.core.app_state import get_wealth_agent
 from app.repositories.session_store import get_session_store
 from app.utils.tools import get_config_value
 
@@ -33,67 +31,56 @@ def _extract_text_from_content(content: str | list[dict[str, Any]] | dict[str, A
 
 
 
+
+
+
 async def wealth_agent(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
     """Wealth agent worker that handles wealth management and investment advice."""
     try:
-        wealth_agent_graph = get_wealth_agent()
+        from app.core.app_state import get_wealth_agent_graph
 
-        result = await wealth_agent_graph.ainvoke(state, config=config)
+        wealth_graph = get_wealth_agent_graph()
+        logger.info("Using wealth_agent_graph instance")
+
+        user_id = get_config_value(config, "user_id")
+
+        import uuid
+        unique_thread_id = f"wealth-task-{uuid.uuid4()}"
+
+        wealth_config = {
+            "configurable": {
+                "thread_id": unique_thread_id,
+                "user_id": user_id
+            }
+        }
+
+        result = await wealth_graph.ainvoke(state, config=wealth_config)
 
         wealth_response = ""
         if "messages" in result and isinstance(result["messages"], list):
             for msg in reversed(result["messages"]):
-                if hasattr(msg, "content"):
-                    content = msg.content
-                    if isinstance(content, list):
-                        text_parts = []
-                        for item in content:
-                            if isinstance(item, dict) and item.get("type") == "text":
-                                text_parts.append(item.get("text", ""))
-                        wealth_response = "\n".join(text_parts) if text_parts else str(content)
-                    else:
-                        wealth_response = str(content)
-                    break
-                elif isinstance(msg, dict) and msg.get("role") == "assistant":
-                    wealth_response = str(msg.get("content", ""))
+                if (hasattr(msg, "content") and
+                    getattr(msg, "name", None) == "wealth_agent" and
+                    not getattr(msg, "response_metadata", {}).get("is_handoff_back", False) and
+                    "Returning control to supervisor" not in str(msg.content)):
+                    wealth_response = str(msg.content)
                     break
 
         if not wealth_response.strip():
-            wealth_response = "The knowledge base search did not return relevant information for this specific question."
-
-        user_question = "Unknown task"
-        for msg in reversed(state["messages"]):
-            if isinstance(msg, HumanMessage):
-                user_question = getattr(msg, "content", "Unknown task")
-                break
-            elif isinstance(msg, dict) and msg.get("role") == "user":
-                user_question = msg.get("content", "Unknown task")
-                break
-
-        analysis_response = f"""
-        ===== WEALTH AGENT TASK COMPLETED =====
-
-        Task Analyzed: {user_question}...
-
-        Analysis Results:
-        {wealth_response}
-
-        STATUS: WEALTH AGENT ANALYSIS COMPLETE
-        This wealth agent analysis is provided to the supervisor for final user response formatting.
-        """
+            wealth_response = "Wealth analysis completed successfully."
 
         from app.agents.supervisor.handoff import create_handoff_back_messages
         handoff_messages = create_handoff_back_messages("wealth_agent", "supervisor")
 
         return {
             "messages": [
-                {"role": "assistant", "content": analysis_response, "name": "wealth_agent"},
-                handoff_messages[0]
+                {"role": "assistant", "content": wealth_response, "name": "wealth_agent"},
+                handoff_messages[0],
             ]
         }
 
     except Exception as e:
-        logger.error("Wealth agent failed: %s", e)
+        logger.error("Error in wealth_agent: %s", e)
         return {
             "messages": [{
                 "role": "assistant",
@@ -182,6 +169,17 @@ async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, 
                 "name": "goal_agent"
             }]
         }
+
+
+async def wealth_router(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
+    """Route to wealth agent with validation logic."""
+    try:
+        # Use the wealth_agent function directly (like goal_agent)
+        return await wealth_agent(state, config)
+    except Exception as e:
+        logger.error(f"wealth_router: error - {e}")
+        content = "I'm having trouble accessing wealth information right now. Please try again."
+        return {"messages": [{"role": "assistant", "content": content, "name": "wealth_agent"}]}
 
 
 async def finance_router(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:

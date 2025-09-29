@@ -23,7 +23,7 @@ from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
 from .handoff import create_task_description_handoff_tool
 from .prompts import SUPERVISOR_PROMPT
-from .workers import finance_router, goal_agent, wealth_agent
+from .workers import finance_router, goal_agent
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,9 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     )
     assign_to_wealth_agent_with_description = create_task_description_handoff_tool(
         agent_name="wealth_agent",
-        description="Assign task to a wealth agent for financial assistance and education: government benefits (SNAP, LIHEAP, housing assistance), consumer protection, credit/debt management, student loans, budgeting tools, emergency funds, tax credits, state-specific financial programs, crisis resources, scam prevention, and general financial literacy."
+        description="Assign task to a wealth agent for financial assistance and education: government benefits (SNAP, LIHEAP, housing assistance), consumer protection, credit/debt management, student loans, budgeting tools, emergency funds, tax credits, state-specific financial programs, crisis resources, scam prevention, and general financial literacy.",
+        destination_agent_name="wealth_router",
+        tool_name="transfer_to_wealth_agent",
     )
 
     guardrails = {
@@ -250,16 +252,17 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     # --- Main supervisor node and destinations ---
     builder.add_node(
         supervisor_agent_with_description,
-        destinations=("finance_agent", "wealth_agent", "goal_agent", "episodic_capture"),
+        destinations=("finance_agent", "goal_agent", "episodic_capture"),
     )
 
     # --- Specialist agent nodes ---
     builder.add_node("episodic_capture", episodic_capture)
     builder.add_node("finance_router", finance_router)
     from .finance_agent.agent import finance_agent as finance_worker
+    from .workers import wealth_router
 
     builder.add_node("finance_agent", finance_worker)
-    builder.add_node("wealth_agent", wealth_agent)
+    builder.add_node("wealth_router", wealth_router)
     builder.add_node("goal_agent", goal_agent)
 
     # --- Define edges between nodes ---
@@ -277,7 +280,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     builder.add_edge("memory_context", "supervisor")
     builder.add_edge("finance_router", "supervisor")
     builder.add_edge("finance_agent", "supervisor")
-    builder.add_edge("wealth_agent", "supervisor")
+    builder.add_edge("wealth_router", "supervisor")
     builder.add_edge("goal_agent", "supervisor")
     builder.add_edge("supervisor", "episodic_capture")
     builder.add_edge("episodic_capture", END)
