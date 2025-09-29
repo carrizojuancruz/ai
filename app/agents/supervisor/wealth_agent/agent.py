@@ -45,20 +45,20 @@ class WealthAgent:
         """Process wealth queries and return Command from agent execution."""
         try:
             logger.info(f"Processing wealth query with agent for user {user_id}: {query}")
-            
+
             # For supervisor handoffs, always create a fresh agent to avoid
             # carrying over conversation state and tool call counts from previous tasks
             agent = self._create_agent_with_tools()
             logger.info("Created fresh LangGraph agent for supervisor task")
-                
+
             messages = [HumanMessage(content=query)]
-            
+
             logger.info(f"Starting LangGraph agent execution for user {user_id}")
             agent_command = await agent.ainvoke({"messages": messages}, config={"recursion_limit": 10})
             logger.info(f"Agent execution completed for user {user_id}")
-            
+
             return agent_command
-            
+
         except Exception as e:
             logger.error(f"Wealth agent error for user {user_id}: {e}")
             return create_error_command("I encountered an error while processing your wealth query. Please try again.")

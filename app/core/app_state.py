@@ -88,7 +88,7 @@ def get_wealth_agent():
 def get_wealth_agent_graph():
     """Get the compiled wealth agent graph."""
     from app.agents.supervisor.wealth_agent.agent import compile_wealth_agent_graph
-    
+
     return compile_wealth_agent_graph()
 
 

@@ -19,7 +19,7 @@ def handoff_to_supervisor_node(state: MessagesState) -> dict[str, Any]:
                 getattr(msg, "name", None) == "wealth_agent" and
                 not getattr(msg, "response_metadata", {}).get("is_handoff_back", False) and
                 "Returning control to supervisor" not in str(msg.content)):
-                
+
                 content = msg.content
                 if isinstance(content, str) and content.strip():
                     analysis_content = content
