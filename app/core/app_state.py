@@ -221,10 +221,8 @@ def get_cached_wealth_agent(user_id: UUID) -> "CompiledStateGraph | None":
     if not entry:
         return None
 
-    # Check if cache entry has expired
     cached_at = entry.get("cached_at", 0)
     if (time.time() - cached_at) > WEALTH_AGENT_CACHE_TTL_SECONDS:
-        # Remove expired entry
         _wealth_agent_cache.pop(cache_key, None)
         return None
 

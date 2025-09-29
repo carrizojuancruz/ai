@@ -14,7 +14,6 @@ def handoff_to_supervisor_node(state: MessagesState) -> dict[str, Any]:
     analysis_content = ""
     if "messages" in state and isinstance(state["messages"], list):
         for msg in reversed(state["messages"]):
-            # Skip handoff messages and look for actual analysis content
             if (hasattr(msg, "content") and msg.content and
                 getattr(msg, "name", None) == "wealth_agent" and
                 not getattr(msg, "response_metadata", {}).get("is_handoff_back", False) and
@@ -28,10 +27,8 @@ def handoff_to_supervisor_node(state: MessagesState) -> dict[str, Any]:
     if not analysis_content.strip():
         analysis_content = "Wealth analysis completed successfully."
 
-    # Create handoff messages to return control to supervisor
     handoff_messages = create_handoff_back_messages("wealth_agent", "supervisor")
 
-    # Return the result with handoff messages
     return {
         "messages": [
             {"role": "assistant", "content": analysis_content, "name": "wealth_agent"},

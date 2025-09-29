@@ -174,7 +174,6 @@ async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, 
 async def wealth_router(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
     """Route to wealth agent with validation logic."""
     try:
-        # Use the wealth_agent function directly (like goal_agent)
         return await wealth_agent(state, config)
     except Exception as e:
         logger.error(f"wealth_router: error - {e}")

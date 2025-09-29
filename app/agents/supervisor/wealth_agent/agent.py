@@ -46,8 +46,6 @@ class WealthAgent:
         try:
             logger.info(f"Processing wealth query with agent for user {user_id}: {query}")
 
-            # For supervisor handoffs, always create a fresh agent to avoid
-            # carrying over conversation state and tool call counts from previous tasks
             agent = self._create_agent_with_tools()
             logger.info("Created fresh LangGraph agent for supervisor task")
 
@@ -84,7 +82,6 @@ def compile_wealth_agent_graph() -> CompiledStateGraph:
     """Compile the wealth agent graph."""
     configure_logging()
 
-    # Use new WealthAgent class directly
     wealth_agent_instance = WealthAgent()
     return wealth_agent_instance._create_agent_with_tools()
 
