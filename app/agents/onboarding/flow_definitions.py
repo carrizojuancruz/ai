@@ -3,6 +3,12 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable
 
+from app.services.llm.client import get_llm_client
+
+from .prompts import (
+    location_extraction_instructions,
+    name_extraction_instructions,
+)
 from .types import Choice, FlowStep, InteractionType
 
 if TYPE_CHECKING:
@@ -75,7 +81,32 @@ def validate_name(response: str, state: "OnboardingState") -> tuple[bool, str | 
     if not response or len(response.strip()) < 1:
         logger.debug("[ONBOARDING] Name validation failed: empty response")
         return False, "Please tell me what you'd like to be called."
-    logger.debug("[ONBOARDING] Name validation passed: %s", response.strip())
+    raw = response.strip()
+    name: str | None = None
+    try:
+        llm = get_llm_client()
+        schema = {"type": "object", "properties": {"preferred_name": {"type": ["string", "null"]}}}
+        instructions = name_extraction_instructions()
+        out = llm.extract(schema=schema, text=raw, instructions=instructions)
+        extracted = (out or {}).get("preferred_name")
+        if isinstance(extracted, str):
+            name = extracted.strip()
+            logger.info(
+                "[ONBOARDING] LLM name extraction used; saved_name=%s",
+                name,
+            )
+    except Exception as e:
+        logger.exception("[ONBOARDING] LLM name extraction failed: %s", e)
+        name = None
+
+    if not name:
+        tokenized = raw.split()
+        if len(tokenized) == 1 and tokenized[0].isalpha():
+            name = tokenized[0]
+        else:
+            return False, "Please tell me what you'd like to be called."
+    state.user_context.preferred_name = name
+    logger.debug("[ONBOARDING] Name validation passed: %s", name)
     return True, None
 
 
@@ -122,8 +153,37 @@ def validate_location(response: str, state: "OnboardingState") -> tuple[bool, st
         state.user_context.location.region = parts[1].strip()
         logger.debug("[ONBOARDING] Location parsed: city=%s, region=%s", parts[0].strip(), parts[1].strip())
     else:
-        state.user_context.location.city = response.strip()
-        logger.debug("[ONBOARDING] Location stored as city only: %s", response.strip())
+        city = response.strip()
+        region = None
+        try:
+            llm = get_llm_client()
+            schema = {
+                "type": "object",
+                "properties": {
+                    "city": {"type": ["string", "null"]},
+                    "region": {"type": ["string", "null"]},
+                },
+            }
+            instructions = location_extraction_instructions()
+            out = llm.extract(schema=schema, text=response, instructions=instructions)
+            if isinstance(out, dict):
+                city = (out.get("city") or city or "").strip()
+                region = out.get("region") or None
+                logger.info(
+                    "[ONBOARDING] LLM location extraction used; saved_city=%s saved_region=%s",
+                    city,
+                    region,
+                )
+        except Exception as e:
+            logger.exception("[ONBOARDING] LLM location extraction failed: %s", e)
+        state.user_context.location.city = city
+        if region:
+            state.user_context.location.region = region
+        logger.debug(
+            "[ONBOARDING] Location stored: city=%s, region=%s",
+            city,
+            getattr(state.user_context.location, "region", None),
+        )
     return True, None
 
 
@@ -166,7 +226,7 @@ def determine_next_step(response: str, state: "OnboardingState") -> FlowStep:
     )
 
     if current == FlowStep.PRESENTATION:
-        name = response.strip()
+        name = state.user_context.preferred_name or response.strip()
         if name:
             state.user_context.preferred_name = name
             logger.info("[ONBOARDING] Name stored: %s, advancing to STEP_1_CHOICE", name)
@@ -190,7 +250,16 @@ def determine_next_step(response: str, state: "OnboardingState") -> FlowStep:
         if age_val < 18:
             logger.warning("[ONBOARDING] Routing to TERMINATED_UNDER_18 (age=%s) from quick DOB", age_val)
             return FlowStep.TERMINATED_UNDER_18
-        logger.info("[ONBOARDING] DOB quick validated (age=%s), moving to COMPLETE", age_val)
+        logger.info("[ONBOARDING] DOB quick validated (age=%s)", age_val)
+        try:
+            chose_open_chat = any(
+                (isinstance(turn.get("user_message"), str) and "open" in turn.get("user_message", "").lower())
+                for turn in state.conversation_history
+            )
+        except Exception:
+            chose_open_chat = False
+        if chose_open_chat:
+            return FlowStep.SUBSCRIPTION_NOTICE
         state.ready_for_completion = True
         return FlowStep.COMPLETE
 
@@ -202,7 +271,17 @@ def determine_next_step(response: str, state: "OnboardingState") -> FlowStep:
         if age_val < 18:
             logger.warning("[ONBOARDING] Routing to TERMINATED_UNDER_18 (age=%s)", age_val)
             return FlowStep.TERMINATED_UNDER_18
-        logger.info("[ONBOARDING] DOB validated (age=%s), moving to STEP_3_LOCATION", age_val)
+        logger.info("[ONBOARDING] DOB validated (age=%s)", age_val)
+        try:
+            chose_open_chat = any(
+                (isinstance(turn.get("user_message"), str) and "open" in turn.get("user_message", "").lower())
+                for turn in state.conversation_history
+            )
+        except Exception:
+            chose_open_chat = False
+        if chose_open_chat:
+            return FlowStep.SUBSCRIPTION_NOTICE
+        logger.info("[ONBOARDING] Moving to STEP_3_LOCATION")
         return FlowStep.STEP_3_LOCATION
 
     elif current == FlowStep.STEP_3_LOCATION:
@@ -372,6 +451,25 @@ Not ready? Totally fine. You can connect later or add expenses manually. Connect
             Choice(id="not_now", label="Not right now", value="not_now", synonyms=["not now", "later", "skip"]),
         ],
         next_step=determine_next_step,
+    ),
+    FlowStep.SUBSCRIPTION_NOTICE: StepDefinition(
+        id=FlowStep.SUBSCRIPTION_NOTICE,
+        message=(
+            "Now, just one last thing. Money talk can feel a little awkward, I know, so I’ll keep it simple.\n\n"
+            "You’ve got 30 days of free access left. After that, it’s just $5 per month to keep chatting. "
+            "You won’t be charged when your free access ends, only when you choose to subscribe.\n\n"
+            "Tap the reminder at the top of the screen to subscribe now, during your free access period, or after it ends. Your call!"
+        ),
+        interaction_type=InteractionType.SINGLE_CHOICE,
+        choices=[
+            Choice(
+                id="acknowledge",
+                label="Got it!",
+                value="got_it",
+                synonyms=["ok", "okay", "got it", "thanks"],
+            )
+        ],
+        next_step=lambda _r, _s: FlowStep.COMPLETE,
     ),
     FlowStep.COMPLETE: StepDefinition(
         id=FlowStep.COMPLETE,
