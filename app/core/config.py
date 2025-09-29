@@ -82,7 +82,7 @@ class Config:
     GOAL_AGENT_PROVIDER: str = os.getenv("GOAL_AGENT_PROVIDER", "anthropic")
     GOAL_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("GOAL_AGENT_GUARDRAIL_ID")
     GOAL_AGENT_GUARDRAIL_VERSION: str = os.getenv("GOAL_AGENT_GUARDRAIL_VERSION")
-    GOAL_AGENT_MODEL_REGION: str = os.getenv("GOAL_AGENT_MODEL_REGION")
+    GOAL_AGENT_MODEL_REGION: str = os.getenv("GOAL_AGENT_MODEL_REGION", "us-east-1")
     GOAL_AGENT_TEMPERATURE: float = float(os.getenv("GOAL_AGENT_TEMPERATURE", "0.2"))
 
     # Financial Agent Configuration
