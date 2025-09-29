@@ -54,6 +54,31 @@ def _create_error_command(error_message: str) -> Command:
     return create_error_command(error_message)
 
 
+def _extract_task_query_text(raw_prompt: str) -> str:
+    if not raw_prompt:
+        return ""
+
+    prompt = raw_prompt.strip()
+    marker = "Task:"
+    prompt_segment = prompt.split(marker, 1)[1] if marker in prompt else prompt
+
+    lines: list[str] = []
+    for line in prompt_segment.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            if lines:
+                break
+            continue
+        if stripped.lower().startswith("guidelines"):
+            break
+        if stripped.startswith("-"):
+            break
+        lines.append(stripped)
+
+    cleaned = " ".join(lines).strip()
+    return cleaned if cleaned else prompt_segment.strip()
+
+
 class FinanceAgent:
     """Finance agent for querying Plaid financial data using tools."""
 
@@ -165,13 +190,16 @@ class FinanceAgent:
 
         return json.dumps(rows, ensure_ascii=False, separators=(",", ":"))
 
-    async def _create_system_prompt(self, user_id: UUID) -> str:
-        tx_samples, asset_samples, liability_samples = await self._fetch_shallow_samples(user_id)
+    async def _create_system_prompt(self, user_id: UUID, task_prompt: str) -> str:
+        tx_samples, acct_samples, liability_samples = await self._fetch_shallow_samples(user_id)
 
-        # Fetch optional procedural templates as hints
+        task_query = _extract_task_query_text(task_prompt)
+        search_query = task_query or "finance sql patterns"
+
         try:
+            logger.info(f"Fetching procedural templates for user {user_id} with query: {search_query}")
             templates = await get_finance_procedural_templates(
-                query="finance sql patterns",
+                query=search_query,
                 topk=config.FINANCE_PROCEDURAL_TOPK,
                 min_score=config.FINANCE_PROCEDURAL_MIN_SCORE
             )
@@ -179,7 +207,6 @@ class FinanceAgent:
             logger.warning(f"Failed to fetch procedural templates: {e}")
             templates = []
 
-        # Build templates section
         templates_section = ""
         if templates:
             shots: list[str] = []
@@ -191,7 +218,7 @@ class FinanceAgent:
                 shots.append(f"### {name}\n{desc}\n\n```sql\n{sql}\n```")
             templates_section = "\n\n## Here are few shots related to this specific task\n" + "\n\n".join(shots)
 
-        base_prompt = await build_finance_system_prompt(user_id, tx_samples, asset_samples, liability_samples)
+        base_prompt = await build_finance_system_prompt(user_id, tx_samples, acct_samples, liability_samples)
 
         return base_prompt + templates_section
 
@@ -200,8 +227,9 @@ class FinanceAgent:
 
         tools = [create_sql_db_query_tool(user_id)]
 
-        async def prompt_builder() -> str:
-            return await self._create_system_prompt(user_id)
+        async def prompt_builder(state: MessagesState) -> str:
+            task_prompt = _get_last_user_message_text(state["messages"]) or ""
+            return await self._create_system_prompt(user_id, task_prompt)
 
 
         return create_finance_subgraph(self.sql_generator, tools, prompt_builder)

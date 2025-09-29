@@ -12,13 +12,13 @@ from app.agents.supervisor.handoff import create_handoff_back_messages
 def create_finance_subgraph(
     sql_generator: ChatBedrockConverse,
     tools,
-    prompt_builder: Callable[[], Awaitable[str]],
+    prompt_builder: Callable[[MessagesState], Awaitable[str]],
 ):
     tool_node = ToolNode(tools)
     model_with_tools = sql_generator.bind_tools(tools)
 
     async def agent_node(state: MessagesState):
-        system_prompt = await prompt_builder()
+        system_prompt = await prompt_builder(state)
         messages = [{"role": "system", "content": system_prompt}] + state["messages"]
         response = await model_with_tools.ainvoke(messages)
         return {"messages": [response]}
