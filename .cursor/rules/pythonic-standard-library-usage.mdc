@@ -1,0 +1,11 @@
+---
+description: Enforce usage of Python standard library tools like functools, contextlib, caching decorators, and type hints to improve performance, readability, and maintainability.
+globs:
+  - "**/*.py"
+alwaysApply: true
+---
+- Prefer `functools.lru_cache` or `functools.cache` for memoization instead of manually tracking cached data in global dictionaries. Combine with proper type hints for function inputs and outputs.
+- Use `functools.cached_property` for expensive computed properties instead of storing them in a central state object, with clear return type annotations.
+- Use `contextlib` (e.g., `contextlib.contextmanager` or `contextlib.asynccontextmanager`) for managing resources like locks, queues, or client connections instead of manual try/finally patterns. Annotate context manager return types when applicable.
+- Favor `*args` and `**kwargs` judiciously when defining flexible APIs, but combine with type hints (`*args: Any`, `**kwargs: Any`) and clear documentation to maintain readability.
+- Reduce global mutable state; encapsulate state inside classes or use built-in caching/context managers where appropriate, with typed attributes to improve maintainability and static analysis.

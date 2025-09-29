@@ -191,7 +191,7 @@ async def finance_router(state: MessagesState, config: RunnableConfig) -> dict[s
 
         if not thread_id:
             logger.warning("finance_router: missing thread_id, defaulting to no accounts")
-            content = "FINANCE_STATUS: NO_ACCOUNTS_CONNECTED — You don't have any financial accounts connected yet. To get started, go to the Connected Accounts menu and connect your accounts through Plaid."
+            content = "FINANCE_STATUS: NO_ACCOUNTS_CONNECTED — COULDNT FIND A THREAD ID"
             return {"messages": [{"role": "assistant", "content": content, "name": "finance_agent"}]}
 
         session_store = get_session_store()

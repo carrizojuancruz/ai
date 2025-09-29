@@ -1,0 +1,13 @@
+---
+description: Handoff tools usage and per-agent guidelines
+---
+# Handoff Tools
+
+- Shared factory: [app/agents/supervisor/handoff.py](mdc:app/agents/supervisor/handoff.py)
+- Per‑agent guidelines passed from [app/agents/supervisor/agent.py](mdc:app/agents/supervisor/agent.py)
+- Default Instructions (for non‑finance agents):
+  - Focus on gathering and analyzing the requested data
+  - Provide comprehensive analysis with insights
+  - Return your findings clearly and completely
+  - Your supervisor will handle the final user‑facing response
+- Finance agent adds stricter guidance (one query, no probes, no supplementals, concise).

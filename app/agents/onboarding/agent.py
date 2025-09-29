@@ -204,13 +204,12 @@ class OnboardingAgent:
 
         state.last_agent_response = response_text
 
-        if next_step == FlowStep.COMPLETE or next_step == FlowStep.TERMINATED_UNDER_18:
+        if next_step == FlowStep.COMPLETE:
             state.ready_for_completion = True
             state.user_context.ready_for_orchestrator = True
 
             logger.info(
-                "[ONBOARDING] Onboarding %s for user_id=%s",
-                "completed" if next_step == FlowStep.COMPLETE else "terminated (under 18)",
+                "[ONBOARDING] Onboarding completed for user_id=%s",
                 user_id,
             )
 
@@ -239,11 +238,11 @@ class OnboardingAgent:
             if interaction_event:
                 yield (interaction_event, state)
 
-        if state.ready_for_completion:
-            logger.info(
-                "[ONBOARDING] Emitting completion event for user_id=%s",
-                user_id,
-            )
+        if state.ready_for_completion and state.current_flow_step not in (
+            FlowStep.STEP_DOB_QUICK,
+            FlowStep.TERMINATED_UNDER_18,
+        ):
+            logger.info("[ONBOARDING] Emitting completion event for user_id=%s", user_id)
             yield (emit_onboarding_done(), state)
 
         yield (None, state)

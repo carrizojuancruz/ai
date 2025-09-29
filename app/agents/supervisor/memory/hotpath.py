@@ -66,7 +66,6 @@ def _trigger_decide(text: str) -> dict[str, Any]:
         "- Identity & relationships: preferred name/pronouns; partner/family/pets; roles (student/parent/manager).\n"
         "- Stable attributes: age/birthday, home city/region, employer/school, time zone, languages.\n"
         "- Preferences & constraints: communication channel, tone, dietary, risk tolerance, price caps, brand/tool choices.\n"
-        "- Long-term goals/plans: save for X, learn Y, travel Z, career targets.\n"
         "- Recurring routines/schedules: weekly reviews on Sundays, gym Tue/Thu.\n"
         "- Memberships/subscriptions/providers: bank, insurer, plan tiers.\n"
         "\n"
@@ -81,6 +80,13 @@ def _trigger_decide(text: str) -> dict[str, Any]:
         "- Choose category from: [" + allowed_categories + "].\n"
         "- summary must be 1–2 sentences, concise and neutral (third person).\n"
         '- Output ONLY strict JSON: {"should_create": bool, "type": "semantic", "category": string, "summary": string, "importance": 1..5}.\n'
+        "\n"
+        "AUTHORITATIVE DOMAINS POLICY — NEVER create semantic memories for facts owned by specialized agents:\n"
+        "- Finance (Plaid/SQL): budgets, balances, account details, transaction totals, spending amounts/trends, bills due, interest rates.\n"
+        "- Goals system: goal targets/amounts/percentages, dates/timelines, statuses (in_progress/completed/etc.).\n"
+        "- Wealth knowledge: investment returns/rules, financial program/tax rules, general financial facts.\n"
+        "If the input asserts a numeric financial value or any detail above, return {\"should_create\": false}.\n"
+        "Even if the user says 'remember ...', still return {\"should_create\": false} for these domains.\n"
         "\n"
         "Examples (create):\n"
         '- Input: \'Please remember my name is Ana\' -> {"should_create": true, "type": "semantic", "category": "Personal", "summary": "User\'s preferred name is Ana.", "importance": 2}\n'
