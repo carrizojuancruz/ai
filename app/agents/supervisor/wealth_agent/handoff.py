@@ -3,7 +3,11 @@ from typing import Any
 from langgraph.graph import MessagesState
 
 
-def handoff_to_supervisor_node(state: MessagesState) -> dict[str, Any]:
+class WealthState(MessagesState):
+    tool_call_count: int = 0
+
+
+def handoff_to_supervisor_node(state: WealthState) -> dict[str, Any]:
     """Node that handles handoff back to supervisor.
 
     This node determines whether to return control to supervisor or end execution
@@ -33,5 +37,6 @@ def handoff_to_supervisor_node(state: MessagesState) -> dict[str, Any]:
         "messages": [
             {"role": "assistant", "content": analysis_content, "name": "wealth_agent"},
             handoff_messages[0],
-        ]
+        ],
+        "tool_call_count": state.tool_call_count if hasattr(state, 'tool_call_count') else state.get('tool_call_count', 0)
     }

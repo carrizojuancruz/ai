@@ -9,6 +9,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 
+from app.core.app_state import get_wealth_agent
 from app.core.config import config
 from app.observability.logging_config import configure_logging
 
@@ -52,7 +53,8 @@ class WealthAgent:
             messages = [HumanMessage(content=query)]
 
             logger.info(f"Starting LangGraph agent execution for user {user_id}")
-            agent_command = await agent.ainvoke({"messages": messages}, config={"recursion_limit": 10})
+            initial_state = {"messages": messages, "tool_call_count": 0}
+            agent_command = await agent.ainvoke(initial_state, config={"recursion_limit": 10})
             logger.info(f"Agent execution completed for user {user_id}")
 
             return agent_command
@@ -111,8 +113,6 @@ async def wealth_agent(state, config):
         if not query:
             logger.warning("No task description found in wealth agent request")
             return create_error_command("ERROR: No task description provided for analysis.")
-
-        from app.core.app_state import get_wealth_agent
 
         wealth_agent_instance = get_wealth_agent()
         agent_command = await wealth_agent_instance.process_query_with_agent(query, user_id)

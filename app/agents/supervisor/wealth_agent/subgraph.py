@@ -3,10 +3,14 @@ from __future__ import annotations
 from typing import Callable
 
 from langchain_aws import ChatBedrockConverse
-from langgraph.graph import END, START, MessagesState, StateGraph
+from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
-from .handoff import handoff_to_supervisor_node
+from app.core.config import config
+from .handoff import WealthState, handoff_to_supervisor_node
+
+
+MAX_TOOL_CALLS = config.WEALTH_AGENT_MAX_TOOL_CALLS
 
 
 def _clean_response(response, tool_call_count: int, state: dict, logger):
@@ -14,12 +18,12 @@ def _clean_response(response, tool_call_count: int, state: dict, logger):
         current_calls = len(response.tool_calls)
         total_calls = tool_call_count + current_calls
 
-        if total_calls > 5:
+        if total_calls > MAX_TOOL_CALLS:
             logger.error(f"BLOCKED: Would exceed limit - {current_calls} new calls + {tool_call_count} existing = {total_calls}")
             if tool_call_count > 0:
                 return {"role": "assistant", "content": "Based on my knowledge base searches, I have gathered sufficient information to provide a comprehensive response.", "name": "wealth_agent"}
             else:
-                limited_tool_calls = response.tool_calls[:5]
+                limited_tool_calls = response.tool_calls[:MAX_TOOL_CALLS]
                 clean_response = {
                     "role": "assistant",
                     "content": "",
@@ -80,14 +84,14 @@ def create_wealth_subgraph(
     tool_node = ToolNode(tools)
     model_with_tools = llm.bind_tools(tools)
 
-    async def agent_node(state: MessagesState):
-        tool_call_count = 0
-        for msg in state["messages"]:
-            if (hasattr(msg, "tool_calls") and msg.tool_calls and
-                getattr(msg, "role", None) == "assistant"):
-                tool_call_count += len(msg.tool_calls)
+    async def agent_node(state: WealthState):
+        # Handle both WealthState objects and dict states for compatibility
+        if hasattr(state, 'tool_call_count'):
+            tool_call_count = state.tool_call_count
+        else:
+            tool_call_count = state.get('tool_call_count', 0)
 
-        if tool_call_count >= 5:
+        if tool_call_count >= MAX_TOOL_CALLS:
             logger.warning(f"Tool call limit reached ({tool_call_count}). Forcing completion.")
             return {"messages": [{"role": "assistant", "content": "Based on my knowledge base searches, I have gathered sufficient information to provide a comprehensive response.", "name": "wealth_agent"}]}
 
@@ -98,9 +102,14 @@ def create_wealth_subgraph(
         response = await model_with_tools.ainvoke(messages)
 
         cleaned_response = _clean_response(response, tool_call_count, state, logger)
-        return {"messages": [cleaned_response]}
 
-    def supervisor_node(state: MessagesState):
+        new_tool_call_count = tool_call_count
+        if hasattr(cleaned_response, "tool_calls") and cleaned_response.tool_calls:
+            new_tool_call_count += len(cleaned_response.tool_calls)
+
+        return {"messages": [cleaned_response], "tool_call_count": new_tool_call_count}
+
+    def supervisor_node(state: WealthState):
         analysis_content = ""
         user_question = ""
 
@@ -148,16 +157,17 @@ This wealth agent analysis is provided to the supervisor for final user response
         return {
             "messages": [
                 {"role": "assistant", "content": formatted_response, "name": "wealth_agent"}
-            ]
+            ],
+            "tool_call_count": state.tool_call_count if hasattr(state, 'tool_call_count') else state.get('tool_call_count', 0)
         }
 
-    def should_continue(state: MessagesState):
+    def should_continue(state: WealthState):
         last_message = state["messages"][-1]
         if last_message.tool_calls:
             return "tools"
         return "supervisor"
 
-    workflow = StateGraph(MessagesState)
+    workflow = StateGraph(WealthState)
     workflow.add_node("agent", agent_node)
     workflow.add_node("tools", tool_node)
     workflow.add_node("supervisor", supervisor_node)
