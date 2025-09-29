@@ -95,7 +95,8 @@ def validate_name(response: str, state: "OnboardingState") -> tuple[bool, str | 
                 "[ONBOARDING] LLM name extraction used; saved_name=%s",
                 name,
             )
-    except Exception:
+    except Exception as e:
+        logger.exception("[ONBOARDING] LLM name extraction failed: %s", e)
         name = None
 
     if not name:
@@ -173,8 +174,8 @@ def validate_location(response: str, state: "OnboardingState") -> tuple[bool, st
                     city,
                     region,
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.exception("[ONBOARDING] LLM location extraction failed: %s", e)
         state.user_context.location.city = city
         if region:
             state.user_context.location.region = region
