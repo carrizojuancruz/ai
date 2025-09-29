@@ -33,7 +33,7 @@ class GoalAgent:
         logger.info("Initializing GoalAgent with Bedrock models")
 
         self.llm = ChatBedrockConverse(
-            model_id='arn:aws:bedrock:us-east-1:297457984854:inference-profile/global.anthropic.claude-sonnet-4-20250514-v1:0',
+            model_id=config.GOAL_AGENT_MODEL_ID,
             region_name=config.GOAL_AGENT_MODEL_REGION,
             provider=config.GOAL_AGENT_PROVIDER,
             temperature=config.GOAL_AGENT_TEMPERATURE,
