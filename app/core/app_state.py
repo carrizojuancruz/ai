@@ -35,6 +35,8 @@ _finance_agent: "CompiledStateGraph | None" = None
 
 _wealth_agent: "CompiledStateGraph | None" = None
 
+_goal_agent: "CompiledStateGraph | None" = None
+
 # AWS Clients - Singleton pattern
 _bedrock_runtime_client: Any | None = None
 _s3vectors_client: Any | None = None
@@ -93,10 +95,16 @@ def get_wealth_agent_graph():
 
 
 def get_goal_agent_graph() -> CompiledStateGraph:
-    """Get the goal agent graph using singleton pattern for performance."""
-    from app.agents.supervisor.goal_agent.agent import goal_agent_singleton
+    """Get the compiled goal agent graph."""
+    from app.agents.supervisor.goal_agent.agent import compile_goal_agent_graph
+    return compile_goal_agent_graph()
 
-    return goal_agent_singleton.get_compiled_graph()
+
+def get_goal_agent():
+    """Get goal agent instance."""
+    from app.agents.supervisor.goal_agent.agent import get_goal_agent
+
+    return get_goal_agent()
 
 
 def register_thread(thread_id: str, state: OnboardingState) -> None:

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import MessagesState
 
+from app.core.app_state import get_goal_agent_graph
 from app.repositories.session_store import get_session_store
 from app.utils.tools import get_config_value
 
@@ -93,69 +95,42 @@ async def wealth_agent(state: MessagesState, config: RunnableConfig) -> dict[str
 async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
     """Goal agent worker that handles financial goals management."""
     try:
-        # Get the goal_agent graph using singleton pattern for performance
-        from .goal_agent.agent import goal_agent_singleton
 
-        goal_graph = goal_agent_singleton.get_compiled_graph()
-        logger.info("Using cached/singleton goal_agent_graph instance")
 
-        # Extract thread_id and user_id from config for proper memory persistence
-        thread_id = get_config_value(config, "thread_id")
+        goal_graph = get_goal_agent_graph()
         user_id = get_config_value(config, "user_id")
 
-        # Log the conversation history being passed to goal_agent
-        logger.info(f"Goal agent processing {len(state.get('messages', []))} messages in conversation history")
+        # Create unique thread for each supervisor handoff
 
-        # Create configurable context for goal_agent memory
+        unique_thread_id = f"goal-task-{uuid.uuid4()}"
+
         goal_config = {
             "configurable": {
-                "thread_id": thread_id,
+                "thread_id": unique_thread_id,
                 "user_id": user_id
             }
         }
 
-        # Process message through the goal_agent graph with proper memory context
-        # The entire state (including full message history) is passed to goal_agent
         result = await goal_graph.ainvoke(state, config=goal_config)
 
         goal_response = ""
         if "messages" in result and isinstance(result["messages"], list):
             for msg in reversed(result["messages"]):
-                if hasattr(msg, "content"):
-                    content = msg.content
-                    if isinstance(content, list):
-                        text_parts = []
-                        for item in content:
-                            if isinstance(item, dict) and item.get("type") == "text":
-                                text_parts.append(item.get("text", ""))
-                        goal_response = "\n".join(text_parts) if text_parts else str(content)
-                    else:
-                        goal_response = str(content)
+                if (hasattr(msg, "content") and
+                    getattr(msg, "name", None) == "goal_agent" and
+                    not getattr(msg, "response_metadata", {}).get("is_handoff_back", False)):
+                    goal_response = str(msg.content)
                     break
-                elif isinstance(msg, dict) and msg.get("role") == "assistant":
-                    goal_response = str(msg.get("content", ""))
-                    break
+
         if not goal_response.strip():
             goal_response = "Goal analysis completed successfully."
-
-        analysis_response = f"""
-        GOAL AGENT COMPLETE:
-
-        Task Analyzed: {goal_response}...
-
-        Analysis Results:
-        {result}
-
-        This goal agent is provided to the supervisor for final user response formatting.
-        """
 
         from app.agents.supervisor.handoff import create_handoff_back_messages
         handoff_messages = create_handoff_back_messages("goal_agent", "supervisor")
 
-        # Return the result in the expected format by MessagesState
         return {
             "messages": [
-                {"role": "assistant", "content": analysis_response, "name": "goal_agent"},
+                {"role": "assistant", "content": goal_response, "name": "goal_agent"},
                 handoff_messages[0],
             ]
         }
