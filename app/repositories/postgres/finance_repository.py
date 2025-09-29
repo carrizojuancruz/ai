@@ -15,6 +15,8 @@ class FinanceTables:
 
     ACCOUNTS = "public.unified_accounts"
     TRANSACTIONS = "public.unified_transactions"
+    ASSETS = "public.unified_assets"
+    LIABILITIES = "public.unified_liabilities"
 
 
 class FinanceRepository:

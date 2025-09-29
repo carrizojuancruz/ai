@@ -7,7 +7,7 @@ from app.agents.supervisor.finance_agent.business_rules import get_business_rule
 from app.repositories.postgres.finance_repository import FinanceTables
 
 
-async def build_finance_system_prompt(user_id: UUID, tx_samples: str, acct_samples: str) -> str:
+async def build_finance_system_prompt(user_id: UUID, tx_samples: str, asset_samples: str, liability_samples: str) -> str:
     """Build the finance agent system prompt.
 
     This function is pure string construction; it does not access the database.
@@ -27,7 +27,7 @@ async def build_finance_system_prompt(user_id: UUID, tx_samples: str, acct_sampl
         You are receiving this task from your supervisor agent. Match your analysis thoroughness to what the task specifically asks for.
 
         🛠️ TOOL USAGE MANDATE 🛠️
-        Respect ONLY the two typed schemas below as the source of truth. Do NOT run schema discovery or connectivity probes (e.g., SELECT 1). Assume the database is connected.
+        Respect ONLY the typed schemas below as the source of truth. Do NOT run schema discovery or connectivity probes (e.g., SELECT 1). Assume the database is connected.
 
         **QUERY STRATEGY**: Prefer complex, comprehensive SQL queries that return complete results in one call over multiple simple queries. Use CTEs, joins, and advanced SQL features to get all needed data efficiently. The database is much faster than agent round-trips.
 
@@ -64,6 +64,17 @@ async def build_finance_system_prompt(user_id: UUID, tx_samples: str, acct_sampl
         11. **NO COMMENTS**: Do not include comments in the SQL queries.
         12. **STOP AFTER ANSWERING**: Once you have sufficient data to answer the core question, provide your analysis immediately.
 
+        ## ⛔ Forbidden Behaviors (Hard Rules)
+        - Do NOT run connectivity probes: `SELECT 1`, `SELECT now()`, `SELECT version()`
+        - Do NOT run pre-checks for existence: `SELECT COUNT(*) ...`, `EXISTS(...)` unless explicitly asked
+        - Do NOT run schema discovery or validation queries
+        - For single-metric requests, execute exactly ONE SQL statement that returns the metric; do not run pre-checks or repeats
+        - If you already computed the requested metric(s), do NOT add supplemental queries (COUNT/first/last/etc.). Return the answer immediately
+
+        ## ✅ How to Avoid Pre-checks
+        - Use `COALESCE(...)` to return safe defaults (e.g., 0 totals) in a single statement
+        - Use `generate_series` for month completeness instead of back-and-forth counting
+
         ## 📌 Assumptions & Scope Disclosure (MANDATORY)
 
         Always append a short "Assumptions & Scope" section at the end of your analysis that explicitly lists:
@@ -94,64 +105,66 @@ async def build_finance_system_prompt(user_id: UUID, tx_samples: str, acct_sampl
         - id (UUID)
         - user_id (UUID)
         - account_id (UUID)
-        - amount (NUMERIC)
+        - transaction_type (TEXT: regular | investment | liability)
+        - amount (NUMERIC; positive = income, negative = spending)
         - transaction_date (TIMESTAMPTZ)
-        - authorized_date (TIMESTAMPTZ)
         - name (TEXT)
-        - merchant_name (VARCHAR)
-        - category (VARCHAR)
-        - category_detailed (VARCHAR)
-        - provider_tx_category (VARCHAR)
-        - provider_tx_category_detailed (VARCHAR)
-        - payment_channel (VARCHAR)
+        - description (TEXT)
+        - merchant_name (TEXT)
+        - merchant_logo_url (TEXT)
+        - category (TEXT), category_detailed (TEXT)
+        - provider_tx_category (TEXT), provider_tx_category_detailed (TEXT)
+        - personal_finance_category (JSON)
         - pending (BOOLEAN)
+        - is_recurring (BOOLEAN)
         - external_transaction_id (VARCHAR)
         - created_at (TIMESTAMPTZ), updated_at (TIMESTAMPTZ)
 
-        **{FinanceTables.ACCOUNTS}**
+        **{FinanceTables.LIABILITIES}**
         - id (UUID)
         - user_id (UUID)
-        - name (VARCHAR)
-        - account_type (VARCHAR)
-        - account_subtype (VARCHAR)
-        - current_balance (NUMERIC)
-        - available_balance (NUMERIC)
-        - institution_name (VARCHAR)
-        - created_at (TIMESTAMPTZ)
+        - account_id (UUID, optional)
+        - name (TEXT)
+        - description (TEXT)
+        - category (TEXT)
+        - provider (TEXT)
+        - external_liability_id (TEXT), external_account_id (TEXT)
+        - currency_code (TEXT)
+        - original_principal (NUMERIC), principal_balance (NUMERIC)
+        - interest_rate (NUMERIC), loan_term_months (INT)
+        - origination_date (TIMESTAMPTZ), maturity_date (TIMESTAMPTZ)
+        - escrow_balance (NUMERIC)
+        - minimum_payment_amount (NUMERIC)
+        - next_payment_due_date (TIMESTAMPTZ)
+        - last_payment_amount (NUMERIC), last_payment_date (TIMESTAMPTZ)
+        - is_active (BOOLEAN), is_overdue (BOOLEAN), is_closed (BOOLEAN)
+        - meta_data (JSON)
+        - created_at (TIMESTAMPTZ), updated_at (TIMESTAMPTZ)
+
+        **{FinanceTables.ASSETS}**
+        - id (UUID)
+        - user_id (UUID)
+        - name (TEXT)
+        - category (TEXT: real_estate | vehicle | jewelry | art | other)
+        - description (TEXT)
+        - estimated_value (NUMERIC)
+        - purchase_date (DATE), purchase_price (NUMERIC)
+        - location (TEXT), condition (TEXT)
+        - is_active (BOOLEAN), provider (TEXT), meta_data (JSON)
+        - created_at (TIMESTAMPTZ), updated_at (TIMESTAMPTZ)
 
         ## 🧪 LIVE SAMPLE ROWS (internal; not shown to user)
         transactions_samples = {tx_samples}
-        accounts_samples = {acct_samples}
+        assets_samples = {asset_samples}
+        liabilities_samples = {liability_samples}
 
         ## 🏷️ CATEGORY BUSINESS RULES (for intelligent classification)
         {get_business_rules_context_str()}
 
-        ## 🔧 NORMALIZATION CTE (reuse in queries; shallow-only)
-        WITH base AS (
-          SELECT
-            t.user_id,
-            t.account_id,
-            t.external_transaction_id AS dedupe_id,
-            t.amount,
-            COALESCE(t.transaction_date::date, t.authorized_date::date) AS tx_date,
-            COALESCE(NULLIF(t.merchant_name,''), NULLIF(t.name,'')) AS merchant,
-            CASE
-              WHEN COALESCE(t.provider_tx_category_detailed, t.category_detailed, t.provider_tx_category, t.category) IS NOT NULL
-              THEN COALESCE(t.provider_tx_category_detailed, t.category_detailed, t.provider_tx_category, t.category)
-              ELSE 'Uncategorized'
-            END AS category,
-            t.pending,
-            t.created_at
-          FROM {FinanceTables.TRANSACTIONS} t
-          WHERE t.user_id = '{user_id}'
-        ),
-        dedup AS (
-          SELECT *, ROW_NUMBER() OVER (
-            PARTITION BY dedupe_id ORDER BY tx_date DESC, created_at DESC
-          ) AS rn
-          FROM base
-        )
-        SELECT * FROM dedup WHERE rn = 1
+        ## 🔧 DATA INTERPRETATION RULES
+        - If de-duplication of transactions is required, prefer latest by transaction_date and created_at using external_transaction_id as a stable key.
+        - Use transaction_date for time filtering. If no timeframe provided, use last 30 days; do not expand silently.
+        - Apply is_active = true when the task requests current assets or liabilities.
 
         ## ⚙️ Query Generation Rules
 
@@ -162,14 +175,14 @@ async def build_finance_system_prompt(user_id: UUID, tx_samples: str, acct_sampl
         ✅ Design aggregation and grouping strategy
         ✅ Verify security filtering (user_id)
 
-        1. **Default Date Range:** If no period specified, use data for the last 30 days (filter on tx_date). If no data is found for that period, state this clearly without expanding the search.
-        2. **Table Aliases:** Use short, intuitive aliases (e.g., `d` for deduped tx, `a` for accounts)
+        1. **Default Date Range:** If no period specified, use data for the last 30 days (filter on transaction_date). If no data is found for that period, state this clearly without expanding the search.
+        2. **Table Aliases:** Use short, intuitive aliases.
         3. **Select Relevant Columns:** Only select columns needed to answer the question
         4. **Aggregation Level:** Group by appropriate dimensions (date, category, merchant, etc.)
-        5. **Default Ordering:** Order by tx_date DESC unless another ordering is more relevant
-        6. **Spending vs Income:** Spending amount > 0; Income amount < 0 (use shallow `amount`).
+        5. **Default Ordering:** Order by transaction_date DESC unless another ordering is more relevant
+        6. **Spending vs Income:** Income amount > 0; Spending amount < 0 (use shallow `amount`).
         7. **Category Ranking:** Rank categories by SUM(amount) DESC (not by distinct presence).
-        8. **De-duplication:** Always use the `dedup` CTE and filter `rn = 1`.
+        8. **De-duplication:** If needed, apply a deduplication strategy consistent with the rules above.
 
         ## 🛠️ Standard Operating Procedure (SOP) & Response
 
@@ -198,7 +211,7 @@ async def build_finance_system_prompt(user_id: UUID, tx_samples: str, acct_sampl
         ✅ Date handling follows specification
         ✅ Aggregation and grouping logic is sound
         ✅ Column names match schema exactly
-        ✅ Amount sign convention verified (positive = spending)
+        ✅ Amount sign convention verified (positive = income)
 
         Today's date: {today}"""
 

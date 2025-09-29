@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Optional
+from typing import Final, Optional, Pattern
 from uuid import UUID
 
 from langchain_core.tools import tool
@@ -10,6 +10,56 @@ from langchain_core.tools import tool
 from app.repositories.database_service import get_database_service
 
 logger = logging.getLogger(__name__)
+
+
+CONNECTIVITY_PROBE_PATTERNS: Final[list[Pattern[str]]] = [
+    re.compile(r"^\s*SELECT\s+1(\s+AS\b[\w\d_]+)?\s*;?\s*$", re.IGNORECASE),
+    re.compile(r"^\s*SELECT\s+NOW\(\)\s*;?\s*$", re.IGNORECASE),
+    re.compile(r"^\s*SELECT\s+VERSION\(\)\s*;?\s*$", re.IGNORECASE),
+]
+
+DANGEROUS_SQL_KEYWORDS: Final[tuple[str, ...]] = (
+    "INSERT",
+    "UPDATE",
+    "DELETE",
+    "DROP",
+    "CREATE",
+    "ALTER",
+    "TRUNCATE",
+    "REPLACE",
+    "MERGE",
+    "CALL",
+    "EXEC",
+    "GRANT",
+    "REVOKE",
+)
+
+LOCKING_CLAUSE_REGEX: Final[Pattern[str]] = re.compile(
+    r"\bFOR\s+(UPDATE|NO\s+KEY\s+UPDATE|SHARE|KEY\s+SHARE)\b",
+    re.IGNORECASE,
+)
+
+SELECT_INTO_REGEX: Final[Pattern[str]] = re.compile(
+    r"^\s*SELECT[\s\S]*?\bINTO\b\s+\w+",
+    re.IGNORECASE,
+)
+
+DATA_MODIFYING_CTE_REGEX: Final[Pattern[str]] = re.compile(
+    r"\bWITH\b[\s\S]*\b(INSERT|UPDATE|DELETE|MERGE)\b",
+    re.IGNORECASE,
+)
+
+TOP_LEVEL_ALLOWED_REGEX: Final[Pattern[str]] = re.compile(
+    r"^\s*(SELECT|WITH)\b",
+    re.IGNORECASE,
+)
+
+COUNT_PRECHECK_REGEX: Final[Pattern[str]] = re.compile(
+    r"^SELECT\s+COUNT\(\*\)\s+AS\s+\w+\s+FROM\s+",
+    re.IGNORECASE,
+)
+
+WHERE_USER_ID_REGEX: Final[Pattern[str]] = re.compile(r"WHERE.*user_id", re.IGNORECASE)
 
 
 def _validate_query_security(query: str, user_id: UUID) -> Optional[str]:
@@ -34,28 +84,24 @@ def _validate_query_security(query: str, user_id: UUID) -> Optional[str]:
     query_upper = cleaned.upper().strip()
 
     # Disallow dangerous operations anywhere
-    dangerous_keywords = [
-        "INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER",
-        "TRUNCATE", "REPLACE", "MERGE", "CALL", "EXEC", "GRANT", "REVOKE"
-    ]
-    for keyword in dangerous_keywords:
+    for keyword in DANGEROUS_SQL_KEYWORDS:
         if re.search(rf"\b{keyword}\b", query_upper):
             return f"Only SELECT queries are allowed. Found dangerous keyword: {keyword}"
 
     # Disallow locking clauses which can block writers / change row locks
-    if re.search(r"\bFOR\s+(UPDATE|NO\s+KEY\s+UPDATE|SHARE|KEY\s+SHARE)\b", query_upper):
+    if LOCKING_CLAUSE_REGEX.search(query_upper):
         return "Row-level locks are not allowed (FOR UPDATE/SHARE)"
 
     # Disallow SELECT INTO (creates table in Postgres)
-    if re.search(r"^\s*SELECT[\s\S]*?\bINTO\b\s+\w+", query_upper):
+    if SELECT_INTO_REGEX.search(query_upper):
         return "SELECT INTO is not allowed"
 
     # Disallow data-modifying CTEs (WITH ... INSERT/UPDATE/DELETE ...)
-    if query_upper.startswith("WITH") and re.search(r"\bWITH\b[\s\S]*\b(INSERT|UPDATE|DELETE|MERGE)\b", query_upper):
+    if query_upper.startswith("WITH") and DATA_MODIFYING_CTE_REGEX.search(query_upper):
         return "Data-modifying CTEs are not allowed"
 
     # Ensure top-level statement is SELECT/CTE
-    if not re.match(r"^\s*(SELECT|WITH)\b", query_upper, re.IGNORECASE):
+    if not TOP_LEVEL_ALLOWED_REGEX.match(query_upper):
         return "Only SELECT queries (including WITH CTEs) are allowed"
 
     # User isolation check
@@ -66,8 +112,7 @@ def _validate_query_security(query: str, user_id: UUID) -> Optional[str]:
     if re.search(user_id_pattern, query, re.IGNORECASE):
         return None
 
-    where_pattern = r"WHERE.*user_id"
-    if re.search(where_pattern, query, re.IGNORECASE):
+    if WHERE_USER_ID_REGEX.search(query):
         return None
 
     return "Query must include user_id filter for security"
@@ -94,10 +139,16 @@ async def execute_financial_query(query: str, user_id: UUID) -> str:
             try:
                 logger.info(f"Database session established, executing SQL for user {user_id}")
 
-                # Short-circuit common connectivity probes
-                if re.match(r"^\s*SELECT\s+1(\s+AS\b[\w\d_]+)?\s*;?\s*$", query, re.IGNORECASE):
-                    logger.info("Probe-like SELECT 1 detected; short-circuiting without DB call")
-                    return "Connection healthy; proceed with the main task."
+                # Block common connectivity probes with hard error
+                if any(p.match(query) for p in CONNECTIVITY_PROBE_PATTERNS):
+                    logger.info("Connectivity probe detected; blocking")
+                    return "ERROR: Connectivity probes are forbidden. Execute the main query directly."
+
+                # Block COUNT(*) pre-checks without GROUP BY (existence tests)
+                normalized = re.sub(r"\s+", " ", query.strip(), flags=re.MULTILINE)
+                if COUNT_PRECHECK_REGEX.match(normalized) and " GROUP BY " not in normalized.upper():
+                    logger.info("COUNT(*) pre-check detected; blocking")
+                    return "ERROR: Pre-check COUNT(*) queries are forbidden. Compute the metric directly in one statement."
 
                 security_error = _validate_query_security(query, user_id)
                 if security_error:

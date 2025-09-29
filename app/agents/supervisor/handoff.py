@@ -16,6 +16,7 @@ def create_task_description_handoff_tool(
     description: str | None = None,
     destination_agent_name: str | None = None,
     tool_name: str | None = None,
+    guidelines: str | None = None,
 ) -> tool:
     """Create a tool that delegates tasks to subagents using proper tool call mechanics.
 
@@ -37,17 +38,19 @@ def create_task_description_handoff_tool(
     ) -> Command:
         """Delegate task to subagent using proper tool call mechanism."""
         # Create delegation message with proper context
+
+        instruction_block = ""
+        if guidelines is not None:
+            instruction_block = "\n".join([f"- {line}" for line in guidelines.split("\n")])
+
         delegation_prompt = f"""
         Please analyze and complete the following task as a specialized agent.
         You are providing analysis to your supervisor - they will format the final response to the user.
 
         Task: {task_description}
 
-        Instructions:
-        - Focus on gathering and analyzing the requested data
-        - Provide comprehensive analysis with insights
-        - Return your findings clearly and completely
-        - Your supervisor will handle the final user-facing response
+        Guidelines:
+        {instruction_block}
         """
 
         task_message = HumanMessage(
