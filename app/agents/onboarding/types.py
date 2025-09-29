@@ -24,6 +24,7 @@ class FlowStep(str, Enum):
     STEP_5_1_INCOME_EXACT = "step_5_1_income_exact"
     STEP_5_2_INCOME_RANGE = "step_5_2_income_range"
     STEP_6_CONNECT_ACCOUNTS = "step_6_connect_accounts"
+    SUBSCRIPTION_NOTICE = "subscription_notice"
     COMPLETE = "complete"
     TERMINATED_UNDER_18 = "terminated_under_18"
 
