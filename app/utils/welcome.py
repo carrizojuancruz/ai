@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from langchain_aws import ChatBedrock
@@ -94,6 +95,8 @@ async def call_llm(system: str | None, prompt: str) -> str:
         msg = await chat.ainvoke(messages)
         content: str | None = getattr(msg, "content", None)
         text = content.strip() if isinstance(content, str) else ""
+        if text:
+            text = re.sub(r"<reasoning>.*?</reasoning>", "", text, flags=re.IGNORECASE | re.DOTALL).strip()
         return _to_guardrail_placeholder(text) if _is_guardrail_text(text) else text
     except Exception:
         return ""
