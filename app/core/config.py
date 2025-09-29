@@ -68,6 +68,7 @@ class Config:
 
     # Goal Agent Configuration
     GOAL_AGENT_MODEL_ID: str = os.getenv("GOAL_AGENT_MODEL_ID")
+    GOAL_AGENT_PROVIDER: str = os.getenv("GOAL_AGENT_PROVIDER", "anthropic")
     GOAL_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("GOAL_AGENT_GUARDRAIL_ID")
     GOAL_AGENT_GUARDRAIL_VERSION: str = os.getenv("GOAL_AGENT_GUARDRAIL_VERSION")
     GOAL_AGENT_MODEL_REGION: str = os.getenv("GOAL_AGENT_MODEL_REGION")

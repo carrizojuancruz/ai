@@ -4,7 +4,7 @@ import logging
 import threading
 from typing import Optional
 
-from langchain_aws import ChatBedrock
+from langchain_aws import ChatBedrockConverse
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -54,18 +54,16 @@ class GoalAgentSingleton:
         configure_logging()
 
         region = config.GOAL_AGENT_MODEL_REGION
-        model_id = config.GOAL_AGENT_MODEL_ID
-        guardrail_id = config.GOAL_AGENT_GUARDRAIL_ID
-        guardrail_version = str(config.GOAL_AGENT_GUARDRAIL_VERSION)
 
-        guardrails = {
-            "guardrailIdentifier": guardrail_id,
-            "guardrailVersion": guardrail_version,
-            "trace": True,
-        }
+        model_arn = config.GOAL_AGENT_MODEL_ID
+        provider = config.GOAL_AGENT_PROVIDER
 
-        logger.info(f"[GOAL_AGENT] Guardrails: {guardrails}")
-        chat_bedrock = ChatBedrock(model_id=model_id, region_name=region, guardrails=guardrails)
+        chat_bedrock = ChatBedrockConverse(
+            model_id=model_arn,
+            region_name=region,
+            provider=provider
+        )
+
         checkpointer = MemorySaver()
 
         goal_agent = create_react_agent(
