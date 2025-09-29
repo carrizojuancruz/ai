@@ -249,7 +249,16 @@ def determine_next_step(response: str, state: "OnboardingState") -> FlowStep:
         if age_val < 18:
             logger.warning("[ONBOARDING] Routing to TERMINATED_UNDER_18 (age=%s) from quick DOB", age_val)
             return FlowStep.TERMINATED_UNDER_18
-        logger.info("[ONBOARDING] DOB quick validated (age=%s), moving to COMPLETE", age_val)
+        logger.info("[ONBOARDING] DOB quick validated (age=%s)", age_val)
+        try:
+            chose_open_chat = any(
+                (isinstance(turn.get("user_message"), str) and "open" in turn.get("user_message", "").lower())
+                for turn in state.conversation_history
+            )
+        except Exception:
+            chose_open_chat = False
+        if chose_open_chat:
+            return FlowStep.SUBSCRIPTION_NOTICE
         state.ready_for_completion = True
         return FlowStep.COMPLETE
 
@@ -261,7 +270,17 @@ def determine_next_step(response: str, state: "OnboardingState") -> FlowStep:
         if age_val < 18:
             logger.warning("[ONBOARDING] Routing to TERMINATED_UNDER_18 (age=%s)", age_val)
             return FlowStep.TERMINATED_UNDER_18
-        logger.info("[ONBOARDING] DOB validated (age=%s), moving to STEP_3_LOCATION", age_val)
+        logger.info("[ONBOARDING] DOB validated (age=%s)", age_val)
+        try:
+            chose_open_chat = any(
+                (isinstance(turn.get("user_message"), str) and "open" in turn.get("user_message", "").lower())
+                for turn in state.conversation_history
+            )
+        except Exception:
+            chose_open_chat = False
+        if chose_open_chat:
+            return FlowStep.SUBSCRIPTION_NOTICE
+        logger.info("[ONBOARDING] Moving to STEP_3_LOCATION")
         return FlowStep.STEP_3_LOCATION
 
     elif current == FlowStep.STEP_3_LOCATION:
@@ -431,6 +450,25 @@ Not ready? Totally fine. You can connect later or add expenses manually. Connect
             Choice(id="not_now", label="Not right now", value="not_now", synonyms=["not now", "later", "skip"]),
         ],
         next_step=determine_next_step,
+    ),
+    FlowStep.SUBSCRIPTION_NOTICE: StepDefinition(
+        id=FlowStep.SUBSCRIPTION_NOTICE,
+        message=(
+            "Now, just one last thing. Money talk can feel a little awkward, I know, so I’ll keep it simple.\n\n"
+            "You’ve got 30 days of free access left. After that, it’s just $5 per month to keep chatting. "
+            "You won’t be charged when your free access ends, only when you choose to subscribe.\n\n"
+            "Tap the reminder at the top of the screen to subscribe now, during your free access period, or after it ends. Your call!"
+        ),
+        interaction_type=InteractionType.SINGLE_CHOICE,
+        choices=[
+            Choice(
+                id="acknowledge",
+                label="Got it!",
+                value="got_it",
+                synonyms=["ok", "okay", "got it", "thanks"],
+            )
+        ],
+        next_step=lambda _r, _s: FlowStep.COMPLETE,
     ),
     FlowStep.COMPLETE: StepDefinition(
         id=FlowStep.COMPLETE,
