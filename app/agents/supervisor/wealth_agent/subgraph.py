@@ -10,12 +10,10 @@ from .handoff import handoff_to_supervisor_node
 
 
 def _clean_response(response, tool_call_count: int, state: dict, logger):
-    """Clean response from OpenAI model to handle its quirks."""
-    # If response has tool calls, handle tool call limits and content cleaning
     if hasattr(response, "tool_calls") and response.tool_calls:
         current_calls = len(response.tool_calls)
         total_calls = tool_call_count + current_calls
-        
+
         if total_calls > 5:
             logger.error(f"BLOCKED: Would exceed limit - {current_calls} new calls + {tool_call_count} existing = {total_calls}")
             if tool_call_count > 0:
@@ -24,31 +22,22 @@ def _clean_response(response, tool_call_count: int, state: dict, logger):
                 limited_tool_calls = response.tool_calls[:5]
                 clean_response = {
                     "role": "assistant",
+                    "content": "",
                     "name": "wealth_agent",
                     "tool_calls": limited_tool_calls
                 }
                 logger.warning(f"Truncated tool calls from {current_calls} to {len(limited_tool_calls)}")
                 return clean_response
-        
-        if hasattr(response, "content") and isinstance(response.content, list):
-            cleaned_content = []
-            for block in response.content:
-                if isinstance(block, dict) and block.get("type") == "reasoning_content":
-                    logger.info("Removed reasoning content from tool call response")
-                    continue  # Skip reasoning content
-                else:
-                    cleaned_content.append(block)
-            
-            clean_response = {
-                "role": "assistant",
-                "name": "wealth_agent",
-                "tool_calls": response.tool_calls
-            }
-            if cleaned_content:
-                clean_response["content"] = cleaned_content
-            return clean_response
 
-        return response
+        logger.warning("BLOCKED: Agent attempting to provide content while making tool calls - this is hallucination")
+
+        clean_response = {
+            "role": "assistant",
+            "content": "",
+            "name": "wealth_agent",
+            "tool_calls": response.tool_calls
+        }
+        return clean_response
 
     if hasattr(response, "content") and isinstance(response.content, list):
         has_reasoning = any(
@@ -60,7 +49,7 @@ def _clean_response(response, tool_call_count: int, state: dict, logger):
                 msg.__class__.__name__ == "ToolMessage"
                 for msg in state.get("messages", [])
             )
-            
+
             if not has_tool_results:
                 logger.error("BLOCKED: Response with reasoning content but no tool results - agent should search first")
                 return {"role": "assistant", "content": "I need to search my knowledge base to provide accurate information about this topic.", "name": "wealth_agent"}
@@ -72,7 +61,7 @@ def _clean_response(response, tool_call_count: int, state: dict, logger):
                         continue
                     else:
                         cleaned_content.append(block)
-                
+
                 if cleaned_content:
                     return {"role": "assistant", "content": cleaned_content, "name": "wealth_agent"}
                 else:
@@ -85,25 +74,23 @@ def create_wealth_subgraph(
     tools,
     prompt_builder: Callable[[], str],
 ):
-    """Create wealth agent subgraph with multi-node architecture."""
     import logging
     logger = logging.getLogger(__name__)
-    
+
     tool_node = ToolNode(tools)
     model_with_tools = llm.bind_tools(tools)
 
     async def agent_node(state: MessagesState):
-        """Process messages with dynamic system prompt and knowledge base search."""
         tool_call_count = 0
         for msg in state["messages"]:
             if (hasattr(msg, "tool_calls") and msg.tool_calls and
                 getattr(msg, "role", None) == "assistant"):
                 tool_call_count += len(msg.tool_calls)
-        
+
         if tool_call_count >= 5:
             logger.warning(f"Tool call limit reached ({tool_call_count}). Forcing completion.")
             return {"messages": [{"role": "assistant", "content": "Based on my knowledge base searches, I have gathered sufficient information to provide a comprehensive response.", "name": "wealth_agent"}]}
-        
+
         system_prompt = prompt_builder()
         messages = [{"role": "system", "content": system_prompt}] + state["messages"]
 
@@ -114,7 +101,6 @@ def create_wealth_subgraph(
         return {"messages": [cleaned_response]}
 
     def supervisor_node(state: MessagesState):
-        """Format analysis results and hand back to supervisor."""
         analysis_content = ""
         user_question = ""
 
@@ -166,7 +152,6 @@ This wealth agent analysis is provided to the supervisor for final user response
         }
 
     def should_continue(state: MessagesState):
-        """Route based on tool calls vs completion."""
         last_message = state["messages"][-1]
         if last_message.tool_calls:
             return "tools"
