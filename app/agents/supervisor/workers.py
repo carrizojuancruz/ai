@@ -7,7 +7,7 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import MessagesState
 
-from app.core.app_state import get_goal_agent_graph, get_wealth_agent
+from app.core.app_state import get_goal_agent_graph
 from app.repositories.session_store import get_session_store
 from app.utils.tools import get_config_value
 
