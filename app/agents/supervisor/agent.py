@@ -10,7 +10,7 @@ from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import BaseMessage
 from langchain_core.messages.utils import count_tokens_approximately
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import END, START, MessagesState, StateGraph
+from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import RunnableConfig
@@ -106,13 +106,33 @@ def compile_supervisor_graph() -> CompiledStateGraph:
         description="Assign task to a finance agent for account and transaction queries.",
         destination_agent_name="finance_router",
         tool_name="transfer_to_finance_agent",
+        guidelines="""
+            Answer exactly the financial metric(s) requested; no extra metrics unless asked.
+            Use one well-structured SQL statement to compute the result; avoid probes/pre-checks (SELECT 1/COUNT/EXISTS).
+            Minimize tool calls; the database is fast but tool invocations are expensive.
+            If the metric is computed, return immediately; do NOT run supplemental queries (count/first/last).
+            State the timeframe used; keep the response concise.
+        """,
     )
     assign_to_goal_agent_with_description = create_task_description_handoff_tool(
-        agent_name="goal_agent", description="Assign task to the goal agent for financial objectives."
+        agent_name="goal_agent",
+        description="Assign task to the goal agent for financial objectives.",
+        guidelines="""
+            Focus on gathering and analyzing the requested data
+            Provide comprehensive analysis with insights
+            Return your findings clearly and completely
+            Your supervisor will handle the final user-facing response
+        """,
     )
     assign_to_wealth_agent_with_description = create_task_description_handoff_tool(
         agent_name="wealth_agent",
-        description="Assign task to a wealth agent for financial assistance and education: government benefits (SNAP, LIHEAP, housing assistance), consumer protection, credit/debt management, student loans, budgeting tools, emergency funds, tax credits, state-specific financial programs, crisis resources, scam prevention, and general financial literacy."
+        description="Assign task to a wealth agent for financial assistance and education: government benefits (SNAP, LIHEAP, housing assistance), consumer protection, credit/debt management, student loans, budgeting tools, emergency funds, tax credits, state-specific financial programs, crisis resources, scam prevention, and general financial literacy.",
+        guidelines="""
+            Focus on gathering and analyzing the requested data
+            Provide comprehensive analysis with insights
+            Return your findings clearly and completely
+            Your supervisor will handle the final user-facing response
+        """,
     )
 
     guardrails = {
@@ -279,8 +299,6 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     builder.add_edge("finance_agent", "supervisor")
     builder.add_edge("wealth_agent", "supervisor")
     builder.add_edge("goal_agent", "supervisor")
-    builder.add_edge("supervisor", "episodic_capture")
-    builder.add_edge("episodic_capture", END)
     store = create_s3_vectors_store_from_env()
     checkpointer = MemorySaver()
     return builder.compile(store=store, checkpointer=checkpointer)

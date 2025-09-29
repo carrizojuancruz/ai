@@ -1,0 +1,13 @@
+---
+description: Finance agent prompting and tool usage rules
+globs: app/agents/supervisor/finance_agent/*.py
+---
+# Finance Agent Rules
+
+- Use user‑scoped SQL only; include `WHERE user_id = '{user_id}'`.
+- No probes/pre‑checks: forbid `SELECT 1`, `SELECT now()`, `SELECT version()`, and COUNT/EXISTS pre‑checks.
+- Prefer one well‑structured query (CTEs/joins) per metric; avoid repeated calls.
+- If the metric is computed, return immediately; do not add supplemental queries.****
+- Filters: exclude `pending`, `is_cancelled`, and `is_payment` unless explicitly requested.
+- Time: default to last 30 days on `transaction_date` if not specified.
+- Tables available: `public.unified_transactions`, `public.unified_assets`, `public.unified_liabilities`.

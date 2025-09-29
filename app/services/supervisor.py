@@ -541,12 +541,16 @@ class SupervisorService:
                     if isinstance(output, dict):
                         messages = output.get("messages")
                         if isinstance(messages, list) and messages:
+                            def _meta(msg):
+                                try:
+                                    if isinstance(msg, dict):
+                                        return (msg.get("response_metadata", {}) or {})
+                                    return getattr(msg, "response_metadata", {}) or {}
+                                except Exception:
+                                    return {}
+
                             last_tool = next(
-                                (
-                                    m
-                                    for m in messages
-                                    if (getattr(m, "response_metadata", {}).get("is_handoff_back", False))
-                                ),
+                                (m for m in messages if (_meta(m).get("is_handoff_back", False))),
                                 None,
                             )
                             if last_tool:

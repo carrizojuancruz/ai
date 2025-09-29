@@ -50,6 +50,11 @@ class Config:
     SUMMARY_TAIL_TOKEN_BUDGET: int = int(os.getenv("SUMMARY_TAIL_TOKEN_BUDGET", "30000"))
     SUMMARY_MODEL_ID: Optional[str] = os.getenv("SUMMARY_MODEL_ID")
 
+    # Finance Procedural (templates/hints for chartable SQL)
+    FINANCE_PROCEDURAL_TOPK: int = int(os.getenv("FINANCE_PROCEDURAL_TOPK", "3"))
+    FINANCE_PROCEDURAL_MIN_SCORE: float = float(os.getenv("FINANCE_PROCEDURAL_MIN_SCORE", "0.45"))
+
+
     # AWS Configuration
     AWS_REGION: str = os.getenv("AWS_REGION")
     AWS_ACCESS_KEY_ID: Optional[str] = os.getenv("AWS_ACCESS_KEY_ID")

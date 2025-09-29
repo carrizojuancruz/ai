@@ -18,6 +18,7 @@ from app.agents.supervisor.finance_agent.helpers import (
     rows_to_json,
     serialize_sample_row,
 )
+from app.agents.supervisor.finance_agent.procedural_memory.sql_hints import get_finance_procedural_templates
 from app.agents.supervisor.finance_agent.prompts import build_finance_system_prompt
 from app.agents.supervisor.finance_agent.subgraph import create_finance_subgraph
 from app.agents.supervisor.finance_agent.tools import create_sql_db_query_tool
@@ -58,7 +59,8 @@ class FinanceAgent:
 
     SAMPLE_CACHE_TTL_SECONDS: int = 600
     MAX_TRANSACTION_SAMPLES: int = 2
-    MAX_ACCOUNT_SAMPLES: int = 1
+    MAX_ASSET_SAMPLES: int = 1
+    MAX_LIABILITY_SAMPLES: int = 1
 
     def __init__(self):
         logger.info("Initializing FinanceAgent with Bedrock models")
@@ -79,21 +81,25 @@ class FinanceAgent:
         logger.info("FinanceAgent initialization completed")
         self._sample_cache: dict[str, dict[str, Any]] = {}
 
-    async def _fetch_shallow_samples(self, user_id: UUID) -> tuple[str, str]:
-        """Fetch sample data for transactions and accounts.
+    async def _fetch_shallow_samples(self, user_id: UUID) -> tuple[str, str, str]:
+        """Fetch sample data for transactions, assets, and liabilities.
 
         Returns compact JSON arrays as strings for embedding in the prompt.
         """
         try:
-            cached_pair = get_finance_samples(user_id)
-            if cached_pair:
-                return cached_pair
+            cached_triplet = get_finance_samples(user_id)
+            if cached_triplet:
+                return cached_triplet
 
             now = datetime.datetime.utcnow().timestamp()
             cache_key = str(user_id)
             cached = self._sample_cache.get(cache_key)
             if cached and (now - cached.get("cached_at", 0) < self.SAMPLE_CACHE_TTL_SECONDS):
-                return cached.get("tx_samples", "[]"), cached.get("acct_samples", "[]")
+                return (
+                    cached.get("tx_samples", "[]"),
+                    cached.get("asset_samples", "[]"),
+                    cached.get("liability_samples", "[]"),
+                )
 
             db_service = get_database_service()
             async with db_service.get_session() as session:
@@ -112,36 +118,45 @@ class FinanceAgent:
                     "WHERE t.user_id = :user_id "
                     f"ORDER BY t.created_at DESC LIMIT {self.MAX_TRANSACTION_SAMPLES}"
                 )
-
-                acct_query = (
-                    "SELECT a.id, a.name, a.account_type, a.account_subtype, a.institution_name, a.created_at "
-                    f"FROM {FinanceTables.ACCOUNTS} a "
+                asset_query = (
+                    "SELECT a.id, a.name, a.category, a.estimated_value, a.is_active, a.created_at "
+                    f"FROM {FinanceTables.ASSETS} a "
                     "WHERE a.user_id = :user_id "
-                    f"ORDER BY a.created_at DESC LIMIT {self.MAX_ACCOUNT_SAMPLES}"
+                    f"ORDER BY a.created_at DESC LIMIT {self.MAX_ASSET_SAMPLES}"
+                )
+                liability_query = (
+                    "SELECT l.id, l.name, l.category, l.principal_balance, l.minimum_payment_amount, l.next_payment_due_date, l.is_active, l.created_at "
+                    f"FROM {FinanceTables.LIABILITIES} l "
+                    "WHERE l.user_id = :user_id "
+                    f"ORDER BY l.created_at DESC LIMIT {self.MAX_LIABILITY_SAMPLES}"
                 )
 
                 tx_rows = await repo.execute_query(tx_query, user_id=str(user_id))
-                acct_rows = await repo.execute_query(acct_query, user_id=str(user_id))
+                asset_rows = await repo.execute_query(asset_query, user_id=str(user_id))
+                liability_rows = await repo.execute_query(liability_query, user_id=str(user_id))
 
                 tx_rows_serialized = [serialize_sample_row(r) for r in (tx_rows or [])]
-                acct_rows_serialized = [serialize_sample_row(r) for r in (acct_rows or [])]
+                asset_rows_serialized = [serialize_sample_row(r) for r in (asset_rows or [])]
+                liability_rows_serialized = [serialize_sample_row(r) for r in (liability_rows or [])]
 
                 tx_json = rows_to_json(tx_rows_serialized)
-                acct_json = rows_to_json(acct_rows_serialized)
+                asset_json = rows_to_json(asset_rows_serialized)
+                liability_json = rows_to_json(liability_rows_serialized)
 
                 self._sample_cache[cache_key] = {
                     "tx_samples": tx_json,
-                    "acct_samples": acct_json,
+                    "asset_samples": asset_json,
+                    "liability_samples": liability_json,
                     "cached_at": now,
                 }
                 from contextlib import suppress
 
                 with suppress(Exception):
-                    set_finance_samples(user_id, tx_json, acct_json)
-                return tx_json, acct_json
+                    set_finance_samples(user_id, tx_json, asset_json, liability_json)
+                return tx_json, asset_json, liability_json
         except Exception as e:
             logger.warning(f"Error fetching samples: {e}")
-            return "[]", "[]"
+            return "[]", "[]", "[]"
 
 
     def _rows_to_json(self, rows: list[dict[str, Any]]) -> str:
@@ -151,9 +166,34 @@ class FinanceAgent:
         return json.dumps(rows, ensure_ascii=False, separators=(",", ":"))
 
     async def _create_system_prompt(self, user_id: UUID) -> str:
-        tx_samples, acct_samples = await self._fetch_shallow_samples(user_id)
+        tx_samples, asset_samples, liability_samples = await self._fetch_shallow_samples(user_id)
 
-        return await build_finance_system_prompt(user_id, tx_samples, acct_samples)
+        # Fetch optional procedural templates as hints
+        try:
+            templates = await get_finance_procedural_templates(
+                query="finance sql patterns",
+                topk=config.FINANCE_PROCEDURAL_TOPK,
+                min_score=config.FINANCE_PROCEDURAL_MIN_SCORE
+            )
+        except Exception as e:
+            logger.warning(f"Failed to fetch procedural templates: {e}")
+            templates = []
+
+        # Build templates section
+        templates_section = ""
+        if templates:
+            shots: list[str] = []
+            uid = str(user_id)
+            for template in templates:
+                name = template.name
+                desc = template.description
+                sql = (template.sql_hint or "").replace("{user_id}", uid)
+                shots.append(f"### {name}\n{desc}\n\n```sql\n{sql}\n```")
+            templates_section = "\n\n## Here are few shots related to this specific task\n" + "\n\n".join(shots)
+
+        base_prompt = await build_finance_system_prompt(user_id, tx_samples, asset_samples, liability_samples)
+
+        return base_prompt + templates_section
 
     async def _create_agent_with_tools(self, user_id: UUID):
         logger.info(f"Creating financial agent for user {user_id}")
@@ -182,7 +222,7 @@ class FinanceAgent:
             messages = [HumanMessage(content=query)]
 
             logger.info(f"Starting LangGraph agent execution for user {user_id}")
-            agent_command = await agent.ainvoke({"messages": messages}, config={"recursion_limit": 10})
+            agent_command = await agent.ainvoke({"messages": messages}, config={"recursion_limit": 8})
             logger.info(f"Agent execution completed for user {user_id}")
 
             return agent_command

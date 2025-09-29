@@ -5,7 +5,6 @@ from typing import Awaitable, Callable
 from langchain_aws import ChatBedrockConverse
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
-from langgraph.types import Command
 
 from app.agents.supervisor.handoff import create_handoff_back_messages
 
@@ -47,15 +46,12 @@ def create_finance_subgraph(
         """
 
         handoff_messages = create_handoff_back_messages("finance_agent", "supervisor")
-        return Command(
-            update={
-                "messages": [
-                    {"role": "assistant", "content": analysis_response, "name": "finance_agent"},
-                    handoff_messages[0],
-                ]
-            },
-            goto="supervisor",
-        )
+        return {
+            "messages": [
+                {"role": "assistant", "content": analysis_response, "name": "finance_agent"},
+                handoff_messages[0],
+            ]
+        }
 
     def should_continue(state: MessagesState):
         last_message = state["messages"][-1]

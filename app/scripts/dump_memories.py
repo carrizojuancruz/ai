@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 from typing import Any, Optional
 
 from app.core.config import config
@@ -16,7 +17,7 @@ def _eprint(*args: Any) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Dump user memories from S3 Vectors via the Store API")
     parser.add_argument("--user-id", required=True, help="User ID to inspect")
-    parser.add_argument("--type", default="semantic", help="Memory type (e.g., semantic, episodic, supervisor_procedural)")
+    parser.add_argument("--type", default="semantic", help="Memory type (e.g., semantic, episodic, supervisor_procedural, finance_contracts)")
     parser.add_argument("--category", default=None, help="Optional category filter")
     parser.add_argument("--query", default=None, help="Semantic query to retrieve memories (required by S3 Vectors)")
     parser.add_argument("--limit", type=int, default=20, help="Max items to return")
@@ -28,6 +29,8 @@ def main() -> None:
     parser.add_argument("--put-summary", dest="put_summary", default=None, help="Summary text for a single insert (semantic)")
     parser.add_argument("--put-category", dest="put_category", default=None, help="Category for insert (e.g., Personal)")
     parser.add_argument("--put-key", dest="put_key", default=None, help="Optional key for single insert")
+    parser.add_argument("--seed-templates", dest="seed_templates", action="store_true", help="Seed finance procedural templates into the store")
+    parser.add_argument("--list-templates", dest="list_templates", action="store_true", help="List all finance procedural templates in the store")
     args = parser.parse_args()
 
     # Sanity: ensure env
@@ -37,7 +40,83 @@ def main() -> None:
         sys.exit(2)
 
     store = create_s3_vectors_store_from_env()
+    template_namespace = ("system", "finance_procedural_templates")
+
+    if args.seed_templates:
+        templates_file = Path(__file__).resolve().parents[2] / "finance_procedural_templates.jsonl"
+        if not templates_file.exists():
+            message = f"Templates file not found: {templates_file}"
+            _eprint(message)
+            print(json.dumps({"ok": False, "error": "templates_file_missing", "message": message}, ensure_ascii=False, default=str))
+            return
+
+        seeded_count = 0
+        with templates_file.open("r", encoding="utf-8") as f:
+            for line_num, raw_line in enumerate(f, 1):
+                line = raw_line.strip()
+                if not line:
+                    continue
+
+                try:
+                    template_data = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    _eprint(f"Failed to parse template on line {line_num}: {exc}")
+                    _eprint(f"Line content: {line[:100]}...")
+                    continue
+
+                template_id = template_data.get("id")
+                if not template_id:
+                    _eprint(f"Template on line {line_num} is missing 'id'; skipping")
+                    continue
+
+                try:
+                    existing_item = store.get(template_namespace, template_id)
+                    if existing_item:
+                        _eprint(f"Template '{template_id}' already exists; skipping")
+                        continue
+
+                    store.put(
+                        template_namespace,
+                        template_id,
+                        template_data,
+                        index=["name", "description", "tags"],
+                    )
+                    seeded_count += 1
+                    _eprint(f"Seeded template '{template_id}'")
+                except Exception as exc:  # pragma: no cover - operational logging
+                    _eprint(f"Failed to seed template '{template_id}': {exc}")
+                    continue
+
+        print(json.dumps({"ok": True, "seeded_templates": seeded_count}, ensure_ascii=False, default=str))
+        return
+
+    if not args.user_id:
+        _eprint("--user-id is required for this operation")
+        sys.exit(2)
+
     namespace = (args.user_id, args.type)
+
+    if args.list_templates:
+        try:
+            items = store.search(template_namespace, query="finance sql patterns", limit=100)
+            results = []
+            for item in items:
+                results.append(
+                    {
+                        "key": item.key,
+                        "namespace": item.namespace,
+                        "created_at": item.created_at,
+                        "updated_at": item.updated_at,
+                        "score": item.score,
+                        "value": item.value,
+                    }
+                )
+            _eprint(f"Found {len(results)} finance procedural templates")
+            print(json.dumps({"ok": True, "count": len(results), "templates": results}, ensure_ascii=False, default=str))
+        except Exception as exc:
+            _eprint(f"Error listing templates: {exc}")
+            print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False, default=str))
+        return
 
     # Bulk insert from JSONL: each line: {"summary": str, "category": str, "key": str|null}
     if args.put_file:

@@ -29,6 +29,7 @@ FINANCE_AGENT_CACHE_TTL_SECONDS: int = 3600  # 1 hour
 _finance_agent_cache: dict[str, dict[str, Any]] = {}
 
 _finance_agent: "CompiledStateGraph | None" = None
+
 _wealth_agent: "CompiledStateGraph | None" = None
 
 # AWS Clients - Singleton pattern
@@ -128,8 +129,8 @@ def set_last_emitted_text(thread_id: str, text: str) -> None:
     _last_emitted_text[thread_id] = text
 
 
-def get_finance_samples(user_id: UUID) -> Optional[Tuple[str, str]]:
-    """Return cached (tx_samples_json, acct_samples_json) if fresh, else None."""
+def get_finance_samples(user_id: UUID) -> Optional[Tuple[str, str, str]]:
+    """Return cached (tx_samples_json, asset_samples_json, liability_samples_json) if fresh, else None."""
     try:
         entry = _finance_samples_cache.get(str(user_id))
         if not entry:
@@ -138,19 +139,21 @@ def get_finance_samples(user_id: UUID) -> Optional[Tuple[str, str]]:
         if (time.time() - float(cached_at)) > FINANCE_SAMPLES_CACHE_TTL_SECONDS:
             return None
         tx_samples = entry.get("tx_samples") or "[]"
-        acct_samples = entry.get("acct_samples") or "[]"
-        if isinstance(tx_samples, str) and isinstance(acct_samples, str):
-            return tx_samples, acct_samples
+        asset_samples = entry.get("asset_samples") or "[]"
+        liability_samples = entry.get("liability_samples") or "[]"
+        if isinstance(tx_samples, str) and isinstance(asset_samples, str) and isinstance(liability_samples, str):
+            return tx_samples, asset_samples, liability_samples
         return None
     except Exception:
         return None
 
 
-def set_finance_samples(user_id: UUID, tx_samples_json: str, acct_samples_json: str) -> None:
+def set_finance_samples(user_id: UUID, tx_samples_json: str, asset_samples_json: str, liability_samples_json: str) -> None:
     """Cache finance samples for a user (compact JSON strings)."""
     _finance_samples_cache[str(user_id)] = {
         "tx_samples": tx_samples_json or "[]",
-        "acct_samples": acct_samples_json or "[]",
+        "asset_samples": asset_samples_json or "[]",
+        "liability_samples": liability_samples_json or "[]",
         "cached_at": time.time(),
     }
 
