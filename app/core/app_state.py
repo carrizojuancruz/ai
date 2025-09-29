@@ -28,6 +28,9 @@ _finance_samples_cache: dict[str, dict[str, Any]] = {}
 FINANCE_AGENT_CACHE_TTL_SECONDS: int = 3600  # 1 hour
 _finance_agent_cache: dict[str, dict[str, Any]] = {}
 
+WEALTH_AGENT_CACHE_TTL_SECONDS: int = 3600  # 1 hour
+_wealth_agent_cache: dict[str, dict[str, Any]] = {}
+
 _finance_agent: "CompiledStateGraph | None" = None
 
 _wealth_agent: "CompiledStateGraph | None" = None
@@ -74,12 +77,19 @@ def get_finance_agent():
 
 def get_wealth_agent():
     """Get the global wealth agent instance (singleton pattern)."""
-    from app.agents.supervisor.wealth_agent.agent import compile_wealth_agent_graph
+    from app.agents.supervisor.wealth_agent.agent import WealthAgent
 
     global _wealth_agent
     if _wealth_agent is None:
-        _wealth_agent = compile_wealth_agent_graph()
+        _wealth_agent = WealthAgent()
     return _wealth_agent
+
+
+def get_wealth_agent_graph():
+    """Get the compiled wealth agent graph."""
+    from app.agents.supervisor.wealth_agent.agent import compile_wealth_agent_graph
+
+    return compile_wealth_agent_graph()
 
 
 def get_goal_agent_graph() -> CompiledStateGraph:
@@ -201,6 +211,44 @@ def cleanup_expired_finance_agents() -> int:
 
     for key in expired_keys:
         _finance_agent_cache.pop(key, None)
+
+
+def get_cached_wealth_agent(user_id: UUID) -> "CompiledStateGraph | None":
+    """Get cached wealth agent for a user if it exists and hasn't expired."""
+    cache_key = str(user_id)
+    entry = _wealth_agent_cache.get(cache_key)
+
+    if not entry:
+        return None
+
+    cached_at = entry.get("cached_at", 0)
+    if (time.time() - cached_at) > WEALTH_AGENT_CACHE_TTL_SECONDS:
+        _wealth_agent_cache.pop(cache_key, None)
+        return None
+
+    return entry.get("agent")
+
+
+def set_cached_wealth_agent(user_id: UUID, agent: "CompiledStateGraph") -> None:
+    """Cache a wealth agent for a user with current timestamp."""
+    _wealth_agent_cache[str(user_id)] = {
+        "agent": agent,
+        "cached_at": time.time()
+    }
+
+
+def cleanup_expired_wealth_agents() -> int:
+    """Clean up expired wealth agent cache entries. Returns number of entries removed."""
+    current_time = time.time()
+    expired_keys = []
+
+    for user_id, entry in _wealth_agent_cache.items():
+        cached_at = entry.get("cached_at", 0)
+        if (current_time - cached_at) > WEALTH_AGENT_CACHE_TTL_SECONDS:
+            expired_keys.append(user_id)
+
+    for key in expired_keys:
+        _wealth_agent_cache.pop(key, None)
 
     return len(expired_keys)
 
