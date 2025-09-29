@@ -76,6 +76,7 @@ class Config:
     WEALTH_AGENT_GUARDRAIL_VERSION: str = os.getenv("WEALTH_AGENT_GUARDRAIL_VERSION")
     WEALTH_AGENT_MODEL_REGION: str = os.getenv("WEALTH_AGENT_MODEL_REGION")
     WEALTH_AGENT_TEMPERATURE: float = float(os.getenv("WEALTH_AGENT_TEMPERATURE", "0.2"))
+    WEALTH_AGENT_MAX_TOOL_CALLS: int = int(os.getenv("WEALTH_AGENT_MAX_TOOL_CALLS", "5"))
 
     # Goal Agent Configuration
     GOAL_AGENT_MODEL_ID: str = os.getenv("GOAL_AGENT_MODEL_ID")
