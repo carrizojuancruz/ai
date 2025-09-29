@@ -7,8 +7,8 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from app.core.config import config
-from .handoff import WealthState, handoff_to_supervisor_node
 
+from .handoff import WealthState, handoff_to_supervisor_node
 
 MAX_TOOL_CALLS = config.WEALTH_AGENT_MAX_TOOL_CALLS
 
