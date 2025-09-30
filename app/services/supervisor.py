@@ -142,6 +142,10 @@ class SupervisorService:
         self, sources: list[dict[str, Any]], name: str, data: dict[str, Any]
     ) -> list[dict[str, Any]]:
         """Add the source to the sources list from the tool end event."""
+        if name == "search_kb":
+            logger.info(f"[SUPERVISOR] Skipping source accumulation for wealth agent tool '{name}' - using intelligent filtering")
+            return sources
+
         if "output" not in data:
             return sources
 
@@ -549,6 +553,12 @@ class SupervisorService:
                 try:
                     output = data.get("output", {})
                     if isinstance(output, dict):
+                        if "sources" in output and output["sources"]:
+                            handoff_sources = output["sources"]
+                            if handoff_sources:
+                                sources.extend(handoff_sources)
+                                logger.info(f"[TRACE] supervisor.handoff.sources_added count={len(handoff_sources)}")
+
                         messages = output.get("messages")
                         if isinstance(messages, list) and messages:
                             def _meta(msg):

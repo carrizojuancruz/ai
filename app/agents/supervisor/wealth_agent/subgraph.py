@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from typing import Callable
 
 from langchain_aws import ChatBedrockConverse
@@ -85,7 +87,6 @@ def create_wealth_subgraph(
     model_with_tools = llm.bind_tools(tools)
 
     async def agent_node(state: WealthState):
-        # Handle both WealthState objects and dict states for compatibility
         if hasattr(state, 'tool_call_count'):
             tool_call_count = state.tool_call_count
         else:
@@ -107,7 +108,31 @@ def create_wealth_subgraph(
         if hasattr(cleaned_response, "tool_calls") and cleaned_response.tool_calls:
             new_tool_call_count += len(cleaned_response.tool_calls)
 
-        return {"messages": [cleaned_response], "tool_call_count": new_tool_call_count}
+
+        used_sources = getattr(state, 'used_sources', state.get('used_sources', []))
+
+        retrieved_sources = getattr(state, 'retrieved_sources', state.get('retrieved_sources', []))
+
+        for msg in state["messages"]:
+            if getattr(msg, '__class__', None).__name__ == 'ToolMessage' and getattr(msg, 'name', None) == 'search_kb':
+                try:
+                    if isinstance(msg.content, str):
+                        search_results = json.loads(msg.content)
+                        new_sources = [
+                            {'url': result['source'], 'metadata': result.get('metadata', {})}
+                            for result in search_results
+                            if isinstance(result, dict) and 'source' in result
+                        ]
+                        retrieved_sources.extend(new_sources)
+                except Exception:
+                    pass
+
+        return {
+            "messages": [cleaned_response],
+            "tool_call_count": new_tool_call_count,
+            "retrieved_sources": retrieved_sources,
+            "used_sources": used_sources
+        }
 
     def supervisor_node(state: WealthState):
         analysis_content = ""
@@ -144,6 +169,36 @@ def create_wealth_subgraph(
         if not analysis_content.strip():
             analysis_content = "The knowledge base search did not return relevant information for this specific question."
 
+        used_sources = getattr(state, 'used_sources', state.get('used_sources', []))
+        retrieved_sources = getattr(state, 'retrieved_sources', state.get('retrieved_sources', []))
+
+        if analysis_content and not used_sources:
+            try:
+                match = re.search(r'(?:\*\*)?USED_SOURCES:(?:\*\*)?\s*\[(.*?)\]', analysis_content, re.DOTALL)
+                if match and match.group(1).strip():
+                    sources_list = json.loads(f'[{match.group(1).strip()}]')
+                    used_sources = [url for url in sources_list if isinstance(url, str) and url.strip()]
+            except Exception:
+                pass
+
+        filtered_sources = []
+        if retrieved_sources and used_sources:
+            filtered_sources = [source for source in retrieved_sources if source.get("url") in used_sources]
+
+        unique_filtered_sources = []
+        seen_urls = set()
+        for source in filtered_sources:
+            url = source.get("url")
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                unique_filtered_sources.append(source)
+                logger.info(f"Added unique source: {url}")
+            else:
+                logger.info(f"Skipped duplicate source: {url}")
+
+        logger.info(f"Filtered to {len(unique_filtered_sources)} unique sources from {len(filtered_sources)} total")
+        filtered_sources = unique_filtered_sources
+
         formatted_response = f"""===== WEALTH AGENT TASK COMPLETED =====
 
 Task Analyzed: {user_question}
@@ -154,11 +209,15 @@ Analysis Results:
 STATUS: WEALTH AGENT ANALYSIS COMPLETE
 This wealth agent analysis is provided to the supervisor for final user response formatting."""
 
+        messages_to_return = [{"role": "assistant", "content": formatted_response, "name": "wealth_agent"}]
+
         return {
-            "messages": [
-                {"role": "assistant", "content": formatted_response, "name": "wealth_agent"}
-            ],
-            "tool_call_count": state.tool_call_count if hasattr(state, 'tool_call_count') else state.get('tool_call_count', 0)
+            "messages": messages_to_return,
+            "tool_call_count": state.tool_call_count if hasattr(state, 'tool_call_count') else state.get('tool_call_count', 0),
+            "retrieved_sources": retrieved_sources,
+            "used_sources": used_sources,
+            "filtered_sources": filtered_sources,
+            "sources": []
         }
 
     def should_continue(state: WealthState):

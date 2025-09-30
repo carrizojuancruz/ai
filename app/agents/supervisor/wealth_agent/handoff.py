@@ -1,18 +1,17 @@
-from typing import Any
+from typing import Any, Dict, List
 
 from langgraph.graph import MessagesState
 
 
 class WealthState(MessagesState):
     tool_call_count: int = 0
+    retrieved_sources: List[Dict[str, Any]] = []
+    used_sources: List[str] = []
+    filtered_sources: List[Dict[str, Any]] = []
 
 
 def handoff_to_supervisor_node(state: WealthState) -> dict[str, Any]:
-    """Node that handles handoff back to supervisor.
-
-    This node determines whether to return control to supervisor or end execution
-    based on the execution context.
-    """
+    """Handle handoff back to supervisor with filtered sources."""
     from app.agents.supervisor.handoff import create_handoff_back_messages
 
     analysis_content = ""
@@ -32,11 +31,29 @@ def handoff_to_supervisor_node(state: WealthState) -> dict[str, Any]:
         analysis_content = "Wealth analysis completed successfully."
 
     handoff_messages = create_handoff_back_messages("wealth_agent", "supervisor")
+    filtered_sources = getattr(state, 'filtered_sources', state.get('filtered_sources', []))
+
+    supervisor_sources = []
+    if filtered_sources:
+        for source in filtered_sources:
+            metadata = source.get("metadata", {})
+            supervisor_sources.append({
+                "name": "Knowledge Base",
+                "url": source.get("url", ""),
+                "source_name": metadata.get("name", ""),
+                "type": metadata.get("type", ""),
+                "category": metadata.get("category", ""),
+                "description": metadata.get("description", "")
+            })
 
     return {
         "messages": [
             {"role": "assistant", "content": analysis_content, "name": "wealth_agent"},
             handoff_messages[0],
         ],
-        "tool_call_count": state.tool_call_count if hasattr(state, 'tool_call_count') else state.get('tool_call_count', 0)
+        "sources": supervisor_sources,
+        "tool_call_count": getattr(state, 'tool_call_count', 0),
+        "retrieved_sources": filtered_sources,
+        "used_sources": getattr(state, 'used_sources', state.get('used_sources', [])),
+        "filtered_sources": filtered_sources
     }
