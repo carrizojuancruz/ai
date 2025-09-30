@@ -15,56 +15,25 @@ from .handoff import WealthState, handoff_to_supervisor_node
 MAX_TOOL_CALLS = config.WEALTH_AGENT_MAX_TOOL_CALLS
 
 
-def _parse_used_sources(response, logger) -> List[str]:
-    """Parse USED_SOURCES from LLM response content."""
-    try:
-        content = ""
-        if hasattr(response, "content"):
-            if isinstance(response.content, str):
-                content = response.content
-            elif isinstance(response.content, list):
-                # Extract text from content blocks
-                text_parts = []
-                for block in response.content:
-                    if isinstance(block, dict) and block.get("type") == "text":
-                        text_parts.append(block.get("text", ""))
-                    elif isinstance(block, str):
-                        text_parts.append(block)
-                content = "\n".join(text_parts)
-
-        return _parse_used_sources_from_content(content, logger)
-
-    except Exception as e:
-        logger.error(f"Failed to parse used sources: {e}")
-        return []
-
-
 def _parse_used_sources_from_content(content: str, logger) -> List[str]:
     """Parse USED_SOURCES from content string."""
     try:
-        # Look for USED_SOURCES pattern - handle both formats
-        patterns = [
-            r'\*\*USED_SOURCES:\*\*\s*\[(.*?)\]',  # **USED_SOURCES:** ["url1", "url2"]
-            r'USED_SOURCES:\s*\[(.*?)\]'           # USED_SOURCES: ["url1", "url2"]
-        ]
+        pattern = r'(?:\*\*)?USED_SOURCES:(?:\*\*)?\s*\[(.*?)\]'
+        match = re.search(pattern, content, re.DOTALL)
 
-        for pattern in patterns:
-            match = re.search(pattern, content, re.DOTALL)
-            if match:
-                sources_str = match.group(1).strip()
-                if sources_str:
-                    # Parse the JSON array of URLs
-                    sources_list = json.loads(f'[{sources_str}]')
-                    # Filter out non-string values and empty strings
-                    used_sources = [url for url in sources_list if isinstance(url, str) and url.strip()]
-                    logger.info(f"Parsed {len(used_sources)} used sources from content")
-                    return used_sources
-                else:
-                    logger.info("LLM marked no sources as used (empty USED_SOURCES)")
-                    return []
+        if not match:
+            logger.info("No USED_SOURCES pattern found in content")
+            return []
 
-        logger.info("No USED_SOURCES pattern found in content")
-        return []
+        sources_str = match.group(1).strip()
+        if not sources_str:
+            logger.info("LLM marked no sources as used (empty USED_SOURCES)")
+            return []
+
+        sources_list = json.loads(f'[{sources_str}]')
+        used_sources = [url for url in sources_list if isinstance(url, str) and url.strip()]
+        logger.info(f"Parsed {len(used_sources)} used sources from content")
+        return used_sources
 
     except Exception as e:
         logger.error(f"Failed to parse used sources from content: {e}")
@@ -76,24 +45,16 @@ def _extract_sources_from_tool_message(messages, logger) -> List[dict]:
     extracted_sources = []
 
     for msg in messages:
-        if (hasattr(msg, '__class__') and msg.__class__.__name__ == 'ToolMessage' and
-            getattr(msg, 'name', None) == 'search_kb'):
+        if getattr(msg, '__class__', None).__name__ == 'ToolMessage' and getattr(msg, 'name', None) == 'search_kb':
             try:
-                content = msg.content
-                if isinstance(content, str):
-                    # Parse JSON content from search_kb tool
-                    search_results = json.loads(content)
-
-                    for result in search_results:
-                        if isinstance(result, dict) and 'source' in result:
-                            source_entry = {
-                                'url': result['source'],
-                                'metadata': result.get('metadata', {})
-                            }
-                            extracted_sources.append(source_entry)
-
+                if isinstance(msg.content, str):
+                    search_results = json.loads(msg.content)
+                    extracted_sources.extend([
+                        {'url': result['source'], 'metadata': result.get('metadata', {})}
+                        for result in search_results
+                        if isinstance(result, dict) and 'source' in result
+                    ])
                 logger.info(f"Extracted {len(extracted_sources)} sources from search_kb tool message")
-
             except Exception as e:
                 logger.error(f"Failed to extract sources from tool message: {e}")
 
@@ -105,19 +66,11 @@ def _filter_sources_for_response(state: WealthState, logger) -> List[dict]:
     used_sources = getattr(state, 'used_sources', state.get('used_sources', []))
     retrieved_sources = getattr(state, 'retrieved_sources', state.get('retrieved_sources', []))
 
-    if not retrieved_sources:
-        logger.info("No retrieved sources to filter")
+    if not retrieved_sources or not used_sources:
+        logger.info("No retrieved sources to filter" if not retrieved_sources else "No used sources marked by LLM - returning empty list (no relevant sources)")
         return []
 
-    if not used_sources:
-        logger.info("No used sources marked by LLM - returning empty list (no relevant sources)")
-        return []
-
-    filtered = [
-        source for source in retrieved_sources
-        if source.get("url") in used_sources
-    ]
-
+    filtered = [source for source in retrieved_sources if source.get("url") in used_sources]
     logger.info(f"Filtered to {len(filtered)} used sources from {len(retrieved_sources)} retrieved")
     return filtered
 
@@ -194,7 +147,6 @@ def create_wealth_subgraph(
     model_with_tools = llm.bind_tools(tools)
 
     async def agent_node(state: WealthState):
-        # Handle both WealthState objects and dict states for compatibility
         if hasattr(state, 'tool_call_count'):
             tool_call_count = state.tool_call_count
         else:
@@ -216,11 +168,9 @@ def create_wealth_subgraph(
         if hasattr(cleaned_response, "tool_calls") and cleaned_response.tool_calls:
             new_tool_call_count += len(cleaned_response.tool_calls)
 
-        # Parse used sources from LLM response if it's a final response (no tool calls)
-        # Note: We'll do comprehensive parsing in supervisor_node instead
+
         used_sources = getattr(state, 'used_sources', state.get('used_sources', []))
 
-        # Extract sources from any new tool messages in state
         retrieved_sources = getattr(state, 'retrieved_sources', state.get('retrieved_sources', []))
         new_sources = _extract_sources_from_tool_message(state["messages"], logger)
         if new_sources:
@@ -269,25 +219,20 @@ def create_wealth_subgraph(
         if not analysis_content.strip():
             analysis_content = "The knowledge base search did not return relevant information for this specific question."
 
-        # Extract used sources and retrieved sources for filtering
         used_sources = getattr(state, 'used_sources', state.get('used_sources', []))
         retrieved_sources = getattr(state, 'retrieved_sources', state.get('retrieved_sources', []))
 
-        # Try to parse USED_SOURCES from the final analysis content
         if analysis_content and not used_sources:
             used_sources = _parse_used_sources_from_content(analysis_content, logger)
             logger.info(f"Parsed {len(used_sources)} used sources from final response content")
 
-        # Create a state-like object with updated used_sources for filtering
         filter_state = {
             'used_sources': used_sources,
             'retrieved_sources': retrieved_sources
         }
 
-        # Filter retrieved sources to only include used ones
         filtered_sources = _filter_sources_for_response(filter_state, logger)
 
-        # Deduplicate filtered sources to show only unique URLs
         unique_filtered_sources = []
         seen_urls = set()
         for source in filtered_sources:
@@ -318,9 +263,9 @@ This wealth agent analysis is provided to the supervisor for final user response
             "messages": messages_to_return,
             "tool_call_count": state.tool_call_count if hasattr(state, 'tool_call_count') else state.get('tool_call_count', 0),
             "retrieved_sources": retrieved_sources,
-            "used_sources": used_sources,  # Updated used_sources from parsing
-            "filtered_sources": filtered_sources,  # Pass deduplicated filtered sources
-            "sources": []  # Clear supervisor sources so handoff can replace them
+            "used_sources": used_sources,
+            "filtered_sources": filtered_sources,
+            "sources": []
         }
 
     def should_continue(state: WealthState):
