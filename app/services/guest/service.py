@@ -23,6 +23,9 @@ HARDCODED_GUEST_WELCOME = (
     "So tell me, what's on your mind today?"
 )
 
+GUARDRAIL_INTERVENED_MARKER = "[GUARDRAIL_INTERVENED]"
+GUARDRAIL_USER_PLACEHOLDER = "THIS MESSAGE HIT THE BEDROCK GUARDRAIL"
+
 
 def _wrap(content: str, count: int, max_messages: int) -> dict[str, Any]:
     content = (content or "").strip()
@@ -62,6 +65,22 @@ class GuestService:
                 self.callbacks = [CallbackHandler(public_key=guest_pk, secret_key=guest_sk, host=guest_host)]
             except Exception as e:
                 logger.warning("[Langfuse][guest] Failed to init callback handler: %s", e)
+
+    def _has_guardrail_intervention(self, text: str) -> bool:
+        """Check if the response contains a guardrail intervention marker."""
+        if not isinstance(text, str):
+            return False
+        return GUARDRAIL_INTERVENED_MARKER in text
+
+    def _strip_guardrail_marker(self, text: str) -> str:
+        """Remove guardrail intervention marker and any text after it."""
+        if not isinstance(text, str):
+            return ""
+        start = text.find(GUARDRAIL_INTERVENED_MARKER)
+        if start != -1:
+            return text[:start].rstrip()
+        return text
+
 
     async def initialize(self) -> dict[str, Any]:
         thread_id = str(uuid4())
@@ -160,14 +179,33 @@ class GuestService:
             pass
 
         content = accumulated.strip()
+
+        # Check for guardrail intervention and handle it
+        if self._has_guardrail_intervention(content):
+            logger.info("[GUEST] Guardrail intervention detected, removing offending message from state")
+
+            # Replace the offending user message with a placeholder so the agent can respond contextually
+            prior_messages = state.get("messages", [])
+            if prior_messages and prior_messages[-1].get("role") == "user":
+                # Replace the last user message with a guardrail placeholder
+                prior_messages[-1] = {"role": "user", "content": GUARDRAIL_USER_PLACEHOLDER}
+                state["messages"] = prior_messages
+                logger.info("[GUEST] Replaced offending user message with guardrail placeholder")
+
+            # Keep the original guardrail content (as-is) in the state so the client sees the original response
+            state.setdefault("messages", []).append({"role": "assistant", "content": content})
+
+        else:
+            # Normal flow - add the original message and response
+            state.setdefault("messages", []).append({"role": "user", "content": text})
+            state.setdefault("messages", []).append({"role": "assistant", "content": content})
+
         next_count = int(state.get("message_count", 0)) + 1
         payload = _wrap(content, next_count, self.max_messages)
 
         await queue.put({"event": "message.completed", "data": payload})
 
         state["message_count"] = next_count
-        state.setdefault("messages", []).append({"role": "user", "content": text})
-        state.setdefault("messages", []).append({"role": "assistant", "content": content})
 
         if state["message_count"] >= self.max_messages:
             state["ended"] = True
