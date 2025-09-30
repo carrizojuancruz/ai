@@ -47,36 +47,89 @@ def _parse_weights(s: str) -> dict[str, float]:
 def _build_profile_line(ctx: dict[str, Any]) -> Optional[str]:
     if not isinstance(ctx, dict):
         return None
-    name = ((ctx.get("identity", {}) or {}).get("preferred_name") or ctx.get("preferred_name") or None)
+    name = (ctx.get("identity", {}) or {}).get("preferred_name") or ctx.get("preferred_name") or None
+    age = (ctx.get("identity", {}) or {}).get("age") or ctx.get("age") or None
+    age_range = ctx.get("age_range") or None
+    pronouns = (ctx.get("identity", {}) or {}).get("pronouns") or ctx.get("pronouns") or None
     tone = ctx.get("tone_preference") or (ctx.get("style", {}) or {}).get("tone") or None
     lang = ctx.get("language") or (ctx.get("locale_info", {}) or {}).get("language") or None
     city = ctx.get("city") or (ctx.get("location", {}) or {}).get("city") or None
+    income_band = ctx.get("income_band") or ctx.get("income") or None
+    rent_mortgage = ctx.get("rent_mortgage") or ctx.get("housing") or None
+    subscription_tier = ctx.get("subscription_tier") or ctx.get("tier") or None
+    money_feelings = ctx.get("money_feelings", [])
+    money_feelings_str = (
+        ", ".join([str(f) for f in money_feelings[:3] if isinstance(f, str)])
+        if isinstance(money_feelings, list)
+        else ""
+    )
+    housing_satisfaction = ctx.get("housing_satisfaction") or None
+    health_insurance = ctx.get("health_insurance") or None
     goals = ctx.get("goals") or []
     goals_str = ", ".join([str(g) for g in goals[:3] if isinstance(g, str)]) if isinstance(goals, list) else ""
     blocked_topics = ctx.get("blocked_topics", [])
-    blocked_str = ", ".join([str(b) for b in blocked_topics[:5] if isinstance(b, str)]) if isinstance(blocked_topics, list) else ""
-    parts: list[str] = []
-    if name:
-        parts.append(f"name={name}")
+    blocked_str = (
+        ", ".join([str(b) for b in blocked_topics[:5] if isinstance(b, str)])
+        if isinstance(blocked_topics, list)
+        else ""
+    )
+    sentences: list[str] = []
+
+    if name and age is not None:
+        sentences.append(f"The user's name is {name} and they are {age} years old")
+    elif name:
+        sentences.append(f"The user's name is {name}")
+    elif age is not None:
+        sentences.append(f"The user is {age} years old")
+
+    if age_range and age is None:
+        sentences.append(f"They are in the {age_range} age range")
+
+    if pronouns:
+        sentences.append(f"Their preferred pronouns are {pronouns}")
+
     if city:
-        parts.append(f"city={city}")
+        sentences.append(f"They live in {city}")
+
     if lang:
-        parts.append(f"language={lang}")
+        lang_display = lang.replace("-", " - ").replace("en", "English").replace("es", "Spanish")
+        sentences.append(f"Their preferred language is {lang_display}")
+
     if tone:
-        parts.append(f"tone={tone}")
+        sentences.append(f"They prefer a {tone} communication tone")
+
+    if income_band:
+        sentences.append(f"Their income band is {income_band}")
+
+    if rent_mortgage:
+        sentences.append(f"Their monthly housing cost is ${rent_mortgage}")
+
+    if subscription_tier:
+        sentences.append(f"They are on the {subscription_tier} subscription tier")
+
+    if money_feelings_str:
+        sentences.append(f"They feel {money_feelings_str} about money")
+
+    if housing_satisfaction:
+        sentences.append(f"Their housing satisfaction is {housing_satisfaction}")
+
+    if health_insurance:
+        sentences.append(f"They have {health_insurance} health insurance")
+
     if goals_str:
-        parts.append(f"goals={goals_str}")
+        sentences.append(f"Their financial goals include: {goals_str}")
+
     if blocked_str:
-        parts.append(f"blocked_topics={blocked_str}")
-    if not parts:
+        sentences.append(f"Topics to avoid: {blocked_str}")
+
+    if not sentences:
         return None
-    core = "; ".join(parts)
+
+    core = ". ".join(sentences) + "."
     guidance = (
         " Use these details to personalize tone and examples. "
-        "Do not restate this line verbatim. Do not override with assumptions. "
-        "If the user contradicts this, prefer the latest user message. "
-        "Respect blocked_topics by not discussing them unless the user initiates."
+        "Do not restate this information verbatim. Do not override with assumptions. "
+        "If the user contradicts this context, prefer the latest user message. "
+        "Respect blocked topics by not discussing them unless the user initiates."
     )
-    return f"CONTEXT_PROFILE: {core}.{guidance}"
-
-
+    return f"CONTEXT_PROFILE: {core}{guidance}"

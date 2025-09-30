@@ -105,6 +105,8 @@ class UserContext(BaseModel):
             self.identity.preferred_name = self.preferred_name
         if self.pronouns:
             self.identity.pronouns = self.pronouns
+        if self.age is not None:
+            self.identity.age = self.age
         if self.tone_preference:
             self.style.tone = self.tone_preference
         if self.city:
@@ -113,10 +115,7 @@ class UserContext(BaseModel):
             self.household.dependents_count = self.dependents
         if self.language:
             self.locale_info.language = self.language
-        if (
-            self.primary_financial_goal
-            and self.primary_financial_goal not in self.goals
-        ):
+        if self.primary_financial_goal and self.primary_financial_goal not in self.goals:
             self.goals.append(self.primary_financial_goal)
         if self.social_signals_consent:
             pass
@@ -126,6 +125,8 @@ class UserContext(BaseModel):
             self.preferred_name = self.identity.preferred_name
         if self.identity.pronouns:
             self.pronouns = self.identity.pronouns
+        if self.identity.age is not None:
+            self.age = self.identity.age
         if self.style.tone:
             self.tone_preference = self.style.tone
         if self.location.city:
