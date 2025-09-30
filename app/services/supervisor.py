@@ -46,12 +46,21 @@ STREAM_WORD_GROUP_SIZE = 3
 
 
 
+# Guardrail handling
+GUARDRAIL_INTERVENED_MARKER: str = "[GUARDRAIL_INTERVENED]"
+GUARDRAIL_USER_PLACEHOLDER: str = "THIS MESSAGE HIT THE BEDROCK GUARDRAIL, SO IT WAS REMOVED"
+
 # Warn if Langfuse env is missing so callbacks would be disabled silently
 if not config.is_langfuse_supervisor_enabled():
     logger.warning("Langfuse env vars missing or incomplete; callback tracing will be disabled")
 
 
 class SupervisorService:
+    def _has_guardrail_intervention(self, text: str) -> bool:
+        if not isinstance(text, str):
+            return False
+        return GUARDRAIL_INTERVENED_MARKER in text
+
     async def _load_user_context_from_external(self, user_id: UUID) -> UserContext:
         """Load UserContext from external FOS service with fallback."""
         try:
@@ -96,7 +105,7 @@ class SupervisorService:
     def _strip_guardrail_marker(self, text: str) -> str:
         if not isinstance(text, str):
             return ""
-        start = text.find("[GUARDRAIL_INTERVENED]")
+        start = text.find(GUARDRAIL_INTERVENED_MARKER)
         if start != -1:
             return text[:start].rstrip()
         return text
@@ -442,6 +451,7 @@ class SupervisorService:
         response_event_count = 0
         seen_responses: set[int] = set()
         streamed_responses: set[str] = set()
+        hit_guardrail: bool = False
 
         async for event in graph.astream_events(
             {
@@ -595,8 +605,11 @@ class SupervisorService:
                 if name == "supervisor" and (supervisor_latest_response_text or latest_response_text):
                     # Prefer the supervisor-specific buffer; fallback to global if needed
                     text_to_stream = (supervisor_latest_response_text or latest_response_text) or ""
+                    # Detect and clean guardrail marker for streaming
+                    hit_guardrail = hit_guardrail or self._has_guardrail_intervention(text_to_stream)
+                    text_to_stream_cleaned = self._strip_guardrail_marker(text_to_stream)
                     # Check if we've already streamed this exact response text (prevents duplicate streaming after handoffs)
-                    response_text_normalized = text_to_stream.strip()
+                    response_text_normalized = text_to_stream_cleaned.strip()
                     if response_text_normalized in streamed_responses:
                         logger.info("[TRACE] supervisor.stream.skip reason=exact_text_duplicate")
                         break
@@ -609,7 +622,7 @@ class SupervisorService:
                     logger.info("[TRACE] supervisor.stream.start")
                     seen_responses.add(response_hash)
                     streamed_responses.add(response_text_normalized)
-                    words = text_to_stream.split(" ")
+                    words = text_to_stream_cleaned.split(" ")
                     chunks_emitted = 0
                     for i in range(0, len(words), STREAM_WORD_GROUP_SIZE):
                         word_group = " ".join(words[i:i+STREAM_WORD_GROUP_SIZE])
@@ -622,7 +635,8 @@ class SupervisorService:
         try:
             final_text = (supervisor_latest_response_text or latest_response_text)
             if final_text:
-                await q.put({"event": "message.completed", "data": {"content": final_text}})
+                final_text_to_emit = self._strip_guardrail_marker(final_text) if hit_guardrail else final_text
+                await q.put({"event": "message.completed", "data": {"content": final_text_to_emit}})
         except Exception as e:
             logger.error(f"[DEBUG] Error sending message.completed: {e}")
 
@@ -632,7 +646,14 @@ class SupervisorService:
         try:
             final_text = (supervisor_latest_response_text or latest_response_text)
             if final_text:
-                assistant_response = final_text.strip()
+                assistant_response = (self._strip_guardrail_marker(final_text) if hit_guardrail else final_text).strip()
+                if hit_guardrail:
+                    # Replace the last user message with a guardrail placeholder to prevent loops
+                    for i in range(len(conversation_messages) - 1, -1, -1):
+                        msg = conversation_messages[i]
+                        if isinstance(msg, dict) and msg.get("role") == "user":
+                            msg["content"] = GUARDRAIL_USER_PLACEHOLDER
+                            break
                 if assistant_response:
                     conversation_messages.append(
                         {"role": "assistant", "content": assistant_response, "sources": sources}
