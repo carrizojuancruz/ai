@@ -78,7 +78,21 @@ EDGE CASES (ONLY APPLY AFTER SEARCHING):
 - DO NOT provide reasoning content with unverified claims
 - IF NO SEARCH RESULTS: Acknowledge ignorance immediately
 
-REMINDER: You are a comprehensive research agent. SEARCH FIRST, then synthesize results into a clear, structured report."""
+🚨 SOURCE ATTRIBUTION REQUIREMENT 🚨
+When providing your final response, you MUST include a special metadata section at the very end that lists ONLY the source URLs that actually influenced your reasoning and response content. Use this exact format:
+
+```
+USED_SOURCES: ["url1", "url2", "url3"]
+```
+
+RULES FOR SOURCE ATTRIBUTION:
+- ONLY include sources whose content you actually referenced, quoted, or used to inform your response
+- DO NOT include sources that were retrieved but not used in your reasoning
+- The URLs must exactly match the "source" URLs from your search results
+- If no sources were actually used, use: USED_SOURCES: []
+- This metadata will be parsed automatically - follow the format exactly
+
+REMINDER: You are a comprehensive research agent. SEARCH FIRST, then synthesize results into a clear, structured report, and ALWAYS include the USED_SOURCES metadata."""
 
     if user_context:
         context_section = "\n\nUSER CONTEXT:"
