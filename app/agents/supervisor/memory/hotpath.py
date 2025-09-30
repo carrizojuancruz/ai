@@ -278,17 +278,22 @@ async def _write_semantic_memory(
             )
 
             if score_val >= AUTO_UPDATE and recency_ok:
+                updated_key = None
                 if MERGE_MODE == "recreate":
-                    _do_recreate(store, namespace, best.key, best, summary, category, candidate_value)
+                    new_id = _do_recreate(store, namespace, best.key, best, summary, category, candidate_value)
                     did_update = True
                     logger.info(
                         "memory.recreate: mode=auto id=%s from=%s score=%.3f", candidate_id, best.key, score_val
                     )
+                    updated_key = new_id
                 else:
                     _do_update(store, namespace, best.key, summary, best)
                     did_update = True
                     logger.info("memory.update: mode=auto id=%s into=%s score=%.3f", candidate_id, best.key, score_val)
-                updated_memory = store.get(namespace, best.key)
+                    updated_key = best.key
+                updated_memory = store.get(namespace, updated_key)
+                if updated_memory:
+                    asyncio.create_task(_profile_sync_from_memory(user_id, thread_id, updated_memory.value))
                 if queue and updated_memory:
                     with contextlib.suppress(Exception):
                         await queue.put(

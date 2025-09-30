@@ -23,11 +23,22 @@ async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], valu
         summary = str(value.get("summary") or "")[:500]
         category = str(value.get("category") or "")[:64]
         prompt = (
-            "Task: From the short summary, extract suggested profile updates.\n"
-            "Output strict JSON with optional keys: {"
-            "\"preferred_name\": string, \"pronouns\": string, \"language\": string, \"city\": string,"
-            " \"tone\": string, \"goals_add\": [string]}.\n"
-            f"Category: {category}\nSummary: {summary}\nJSON:"
+            "Task: From the memory summary below, extract user profile information that should be stored permanently.\n"
+            "Extract only explicitly stated facts. Do not infer or assume.\n\n"
+            "Output strict JSON with these optional keys:\n"
+            "{\n"
+            '  "preferred_name": string (only if the user stated their name),\n'
+            '  "language": string (e.g., "en-US", "es-ES"),\n'
+            '  "city": string (current city of residence),\n'
+            '  "tone": string (preferred communication style: "casual", "professional", "friendly"),\n'
+            '  "age": integer (user\'s age in years),\n'
+            '  "income_band": string (e.g., "under_25k", "25k_50k", "50k_75k", "75k_100k", "over_100k"),\n'
+            '  "money_feelings": string (how they feel about money: "anxious", "confused", "zen", "motivated"),\n'
+            '  "goals_add": [string] (list of financial goals to add, e.g., ["save for vacation", "pay off debt"])\n'
+            "}\n\n"
+            f"Category: {category}\n"
+            f"Summary: {summary}\n\n"
+            "JSON (only include fields explicitly mentioned):"
         )
         body_payload = {
             "messages": [{"role": "user", "content": [{"text": prompt}]}],
@@ -57,10 +68,15 @@ async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], valu
                 parsed = json.loads(out_text[i:j+1]) if i != -1 and j != -1 and j > i else {}
             logger.info("profile_sync.proposed: %s", json.dumps(parsed)[:600])
             if isinstance(parsed, dict):
-                for k in ("tone", "language", "city", "preferred_name", "pronouns"):
+                for k in ("tone", "language", "city", "preferred_name", "income_band", "money_feelings"):
                     v = parsed.get(k)
                     if isinstance(v, str) and v.strip():
                         patch[k] = v.strip()
+
+                age = parsed.get("age")
+                if isinstance(age, (int, float)) and age > 0:
+                    patch["age"] = int(age)
+
                 goals_add = parsed.get("goals_add")
                 if isinstance(goals_add, list):
                     patch["goals_add"] = [str(x) for x in goals_add if isinstance(x, str) and x.strip()]
@@ -94,11 +110,24 @@ async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], valu
                     apply_patch["personal_goals"] = merged
                     changed["goals"] = [g for g in merged if g not in (ctx.goals or [])]
 
-            for k_src, k_dst in (("preferred_name", "preferred_name"), ("pronouns", "pronouns"), ("city", "city"), ("language", "language")):
+            for k_src, k_dst in (
+                ("preferred_name", "preferred_name"),
+                ("city", "city"),
+                ("language", "language"),
+                ("income_band", "income_band"),
+            ):
                 v = patch.get(k_src)
                 if isinstance(v, str) and v.strip():
                     apply_patch[k_dst] = v.strip()
                     changed[k_dst] = v.strip()
+
+            if patch.get("age"):
+                apply_patch["age"] = patch["age"]
+                changed["age"] = patch["age"]
+
+            if patch.get("money_feelings"):
+                apply_patch["money_feelings"] = [patch["money_feelings"]]
+                changed["money_feelings"] = [patch["money_feelings"]]
 
             if apply_patch:
                 state = OnboardingState(user_id=uid, user_context=ctx)

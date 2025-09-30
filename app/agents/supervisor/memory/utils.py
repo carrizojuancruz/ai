@@ -50,7 +50,6 @@ def _build_profile_line(ctx: dict[str, Any]) -> Optional[str]:
     name = (ctx.get("identity", {}) or {}).get("preferred_name") or ctx.get("preferred_name") or None
     age = (ctx.get("identity", {}) or {}).get("age") or ctx.get("age") or None
     age_range = ctx.get("age_range") or None
-    pronouns = (ctx.get("identity", {}) or {}).get("pronouns") or ctx.get("pronouns") or None
     tone = ctx.get("tone_preference") or (ctx.get("style", {}) or {}).get("tone") or None
     lang = ctx.get("language") or (ctx.get("locale_info", {}) or {}).get("language") or None
     city = ctx.get("city") or (ctx.get("location", {}) or {}).get("city") or None
@@ -84,9 +83,6 @@ def _build_profile_line(ctx: dict[str, Any]) -> Optional[str]:
 
     if age_range and age is None:
         sentences.append(f"They are in the {age_range} age range")
-
-    if pronouns:
-        sentences.append(f"Their preferred pronouns are {pronouns}")
 
     if city:
         sentences.append(f"They live in {city}")
