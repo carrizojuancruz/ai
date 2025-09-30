@@ -7,7 +7,7 @@ from app.agents.supervisor.finance_agent.business_rules import get_business_rule
 from app.repositories.postgres.finance_repository import FinanceTables
 
 
-async def build_finance_system_prompt(user_id: UUID, tx_samples: str, asset_samples: str, liability_samples: str) -> str:
+async def build_finance_system_prompt(user_id: UUID, tx_samples: str, asset_samples: str, liability_samples: str, accounts_samples: str) -> str:
     """Build the finance agent system prompt.
 
     This function is pure string construction; it does not access the database.
@@ -153,10 +153,29 @@ async def build_finance_system_prompt(user_id: UUID, tx_samples: str, asset_samp
         - is_active (BOOLEAN), provider (TEXT), meta_data (JSON)
         - created_at (TIMESTAMPTZ), updated_at (TIMESTAMPTZ)
 
+        **{FinanceTables.ACCOUNTS}** (subset)
+        - id (UUID)
+        - user_id (UUID)
+        - name (TEXT)
+        - institution_name (TEXT)
+        - account_type (TEXT)
+        - account_subtype (TEXT)
+        - account_number_last4 (TEXT)
+        - currency_code (TEXT)
+        - current_balance (NUMERIC)
+        - available_balance (NUMERIC)
+        - credit_limit (NUMERIC)
+        - principal_balance (NUMERIC)
+        - minimum_payment_amount (NUMERIC)
+        - next_payment_due_date (TIMESTAMPTZ)
+        - is_active (BOOLEAN), is_overdue (BOOLEAN), is_closed (BOOLEAN)
+        - created_at (TIMESTAMPTZ)
+
         ## 🧪 LIVE SAMPLE ROWS (internal; not shown to user)
         transactions_samples = {tx_samples}
         assets_samples = {asset_samples}
         liabilities_samples = {liability_samples}
+        accounts_samples = {accounts_samples}
 
         ## 🏷️ CATEGORY BUSINESS RULES (for intelligent classification)
         {get_business_rules_context_str()}
@@ -164,7 +183,8 @@ async def build_finance_system_prompt(user_id: UUID, tx_samples: str, asset_samp
         ## 🔧 DATA INTERPRETATION RULES
         - If de-duplication of transactions is required, prefer latest by transaction_date and created_at using external_transaction_id as a stable key.
         - Use transaction_date for time filtering. If no timeframe provided, use last 30 days; do not expand silently.
-        - Apply is_active = true when the task requests current assets or liabilities.
+        - Apply is_active = true when the task requests current assets, liabilities, or accounts.
+        - For account-level queries, use account_type to distinguish regular (checking/savings), investments (401k/ira/brokerage), and liabilities (credit/loan/mortgage).
 
         ## ⚙️ Query Generation Rules
 
