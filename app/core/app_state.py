@@ -147,8 +147,8 @@ def set_last_emitted_text(thread_id: str, text: str) -> None:
     _last_emitted_text[thread_id] = text
 
 
-def get_finance_samples(user_id: UUID) -> Optional[Tuple[str, str, str]]:
-    """Return cached (tx_samples_json, asset_samples_json, liability_samples_json) if fresh, else None."""
+def get_finance_samples(user_id: UUID) -> Optional[Tuple[str, str, str, str]]:
+    """Return cached (tx_samples_json, asset_samples_json, liability_samples_json, account_samples_json) if fresh, else None."""
     try:
         entry = _finance_samples_cache.get(str(user_id))
         if not entry:
@@ -159,19 +159,26 @@ def get_finance_samples(user_id: UUID) -> Optional[Tuple[str, str, str]]:
         tx_samples = entry.get("tx_samples") or "[]"
         asset_samples = entry.get("asset_samples") or "[]"
         liability_samples = entry.get("liability_samples") or "[]"
-        if isinstance(tx_samples, str) and isinstance(asset_samples, str) and isinstance(liability_samples, str):
-            return tx_samples, asset_samples, liability_samples
+        account_samples = entry.get("account_samples") or "[]"
+        if (
+            isinstance(tx_samples, str)
+            and isinstance(asset_samples, str)
+            and isinstance(liability_samples, str)
+            and isinstance(account_samples, str)
+        ):
+            return tx_samples, asset_samples, liability_samples, account_samples
         return None
     except Exception:
         return None
 
 
-def set_finance_samples(user_id: UUID, tx_samples_json: str, asset_samples_json: str, liability_samples_json: str) -> None:
+def set_finance_samples(user_id: UUID, tx_samples_json: str, asset_samples_json: str, liability_samples_json: str, account_samples_json: str) -> None:
     """Cache finance samples for a user (compact JSON strings)."""
     _finance_samples_cache[str(user_id)] = {
         "tx_samples": tx_samples_json or "[]",
         "asset_samples": asset_samples_json or "[]",
         "liability_samples": liability_samples_json or "[]",
+        "account_samples": account_samples_json or "[]",
         "cached_at": time.time(),
     }
 
@@ -213,12 +220,19 @@ def cleanup_expired_finance_agents() -> int:
     expired_keys = []
 
     for user_id, entry in _finance_agent_cache.items():
-        cached_at = entry.get("cached_at", 0)
+        cached_at_raw = entry.get("cached_at")
+        try:
+            cached_at = float(cached_at_raw) if cached_at_raw is not None else 0.0
+        except (TypeError, ValueError):
+            cached_at = 0.0
+
         if (current_time - cached_at) > FINANCE_AGENT_CACHE_TTL_SECONDS:
             expired_keys.append(user_id)
 
     for key in expired_keys:
         _finance_agent_cache.pop(key, None)
+
+    return len(expired_keys)
 
 
 def get_cached_wealth_agent(user_id: UUID) -> "CompiledStateGraph | None":

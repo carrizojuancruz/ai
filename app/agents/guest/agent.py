@@ -13,7 +13,15 @@ def get_guest_graph():
     model_id = config.GUEST_AGENT_MODEL_ID
     region = config.GUEST_AGENT_MODEL_REGION
 
-    chat_bedrock = ChatBedrock(model_id=model_id, region_name=region, streaming=True)
+
+    guardrails = {
+        "guardrailIdentifier": config.GUEST_AGENT_GUARDRAIL_ID,
+        "guardrailVersion": config.GUEST_AGENT_GUARDRAIL_VERSION,
+        "trace": "enabled",
+    }
+
+
+    chat_bedrock = ChatBedrock(model_id=model_id, region_name=region, streaming=True, guardrails=guardrails)
 
     prompt = get_guest_system_prompt(max_messages=config.GUEST_MAX_MESSAGES)
 

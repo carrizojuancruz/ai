@@ -86,6 +86,7 @@ class FinanceAgent:
     MAX_TRANSACTION_SAMPLES: int = 2
     MAX_ASSET_SAMPLES: int = 1
     MAX_LIABILITY_SAMPLES: int = 1
+    MAX_ACCOUNT_SAMPLES: int = 1
 
     def __init__(self):
         logger.info("Initializing FinanceAgent with Bedrock models")
@@ -106,15 +107,15 @@ class FinanceAgent:
         logger.info("FinanceAgent initialization completed")
         self._sample_cache: dict[str, dict[str, Any]] = {}
 
-    async def _fetch_shallow_samples(self, user_id: UUID) -> tuple[str, str, str]:
-        """Fetch sample data for transactions, assets, and liabilities.
+    async def _fetch_shallow_samples(self, user_id: UUID) -> tuple[str, str, str, str]:
+        """Fetch sample data for transactions, assets, liabilities, and accounts.
 
         Returns compact JSON arrays as strings for embedding in the prompt.
         """
         try:
-            cached_triplet = get_finance_samples(user_id)
-            if cached_triplet:
-                return cached_triplet
+            cached_quartet = get_finance_samples(user_id)
+            if cached_quartet:
+                return cached_quartet
 
             now = datetime.datetime.utcnow().timestamp()
             cache_key = str(user_id)
@@ -124,6 +125,7 @@ class FinanceAgent:
                     cached.get("tx_samples", "[]"),
                     cached.get("asset_samples", "[]"),
                     cached.get("liability_samples", "[]"),
+                    cached.get("account_samples", "[]"),
                 )
 
             db_service = get_database_service()
@@ -155,33 +157,46 @@ class FinanceAgent:
                     "WHERE l.user_id = :user_id "
                     f"ORDER BY l.created_at DESC LIMIT {self.MAX_LIABILITY_SAMPLES}"
                 )
+                account_query = (
+                    "SELECT a.id, a.name, a.institution_name, a.account_type, a.account_subtype, "
+                    "a.account_number_last4, a.currency_code, a.current_balance, a.available_balance, "
+                    "a.credit_limit, a.principal_balance, a.minimum_payment_amount, a.next_payment_due_date, "
+                    "a.is_active, a.is_overdue, a.is_closed, a.created_at "
+                    f"FROM {FinanceTables.ACCOUNTS} a "
+                    "WHERE a.user_id = :user_id "
+                    f"ORDER BY a.created_at DESC LIMIT {self.MAX_ACCOUNT_SAMPLES}"
+                )
 
                 tx_rows = await repo.execute_query(tx_query, user_id=str(user_id))
                 asset_rows = await repo.execute_query(asset_query, user_id=str(user_id))
                 liability_rows = await repo.execute_query(liability_query, user_id=str(user_id))
+                account_rows = await repo.execute_query(account_query, user_id=str(user_id))
 
                 tx_rows_serialized = [serialize_sample_row(r) for r in (tx_rows or [])]
                 asset_rows_serialized = [serialize_sample_row(r) for r in (asset_rows or [])]
                 liability_rows_serialized = [serialize_sample_row(r) for r in (liability_rows or [])]
+                account_rows_serialized = [serialize_sample_row(r) for r in (account_rows or [])]
 
                 tx_json = rows_to_json(tx_rows_serialized)
                 asset_json = rows_to_json(asset_rows_serialized)
                 liability_json = rows_to_json(liability_rows_serialized)
+                account_json = rows_to_json(account_rows_serialized)
 
                 self._sample_cache[cache_key] = {
                     "tx_samples": tx_json,
                     "asset_samples": asset_json,
                     "liability_samples": liability_json,
+                    "account_samples": account_json,
                     "cached_at": now,
                 }
                 from contextlib import suppress
 
                 with suppress(Exception):
-                    set_finance_samples(user_id, tx_json, asset_json, liability_json)
-                return tx_json, asset_json, liability_json
+                    set_finance_samples(user_id, tx_json, asset_json, liability_json, account_json)
+                return tx_json, asset_json, liability_json, account_json
         except Exception as e:
             logger.warning(f"Error fetching samples: {e}")
-            return "[]", "[]", "[]"
+            return "[]", "[]", "[]", "[]"
 
 
     def _rows_to_json(self, rows: list[dict[str, Any]]) -> str:
@@ -191,7 +206,7 @@ class FinanceAgent:
         return json.dumps(rows, ensure_ascii=False, separators=(",", ":"))
 
     async def _create_system_prompt(self, user_id: UUID, task_prompt: str) -> str:
-        tx_samples, acct_samples, liability_samples = await self._fetch_shallow_samples(user_id)
+        tx_samples, asset_samples, liability_samples, account_samples = await self._fetch_shallow_samples(user_id)
 
         task_query = _extract_task_query_text(task_prompt)
         search_query = task_query or "finance sql patterns"
@@ -218,7 +233,7 @@ class FinanceAgent:
                 shots.append(f"### {name}\n{desc}\n\n```sql\n{sql}\n```")
             templates_section = "\n\n## Here are few shots related to this specific task\n" + "\n\n".join(shots)
 
-        base_prompt = await build_finance_system_prompt(user_id, tx_samples, acct_samples, liability_samples)
+        base_prompt = await build_finance_system_prompt(user_id, tx_samples, asset_samples, liability_samples, account_samples)
 
         return base_prompt + templates_section
 

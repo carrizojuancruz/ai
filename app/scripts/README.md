@@ -26,7 +26,7 @@ docker compose exec app poetry run python -m app.scripts.dump_memories --help | 
 
 Common flags:
 
-- `--user-id <UUID|STRING>`: Required. The user namespace (ns_0).
+- `--user-id <UUID|STRING>`: Required for most operations. Use "system" for template operations. The user namespace (ns_0).
 - `--type semantic|episodic|supervisor_procedural|finance_contracts`: Memory type (ns_1). Default: `semantic`.
 - `--query "..."`: Semantic query text (required for searches).
 - `--category <Category>`: Optional category filter (e.g., `Finance`, `Personal`).
@@ -256,6 +256,7 @@ docker compose exec app poetry run python -m app.scripts.dump_memories `
 
 ```bash
 docker compose exec app poetry run python -m app.scripts.dump_memories \
+  --user-id "system" \
   --seed-templates
 ```
 
@@ -263,6 +264,7 @@ PowerShell pretty-print:
 
 ```powershell
 docker compose exec app poetry run python -m app.scripts.dump_memories `
+  --user-id "system" `
   --seed-templates |
   ConvertFrom-Json | ConvertTo-Json -Depth 100
 ```
