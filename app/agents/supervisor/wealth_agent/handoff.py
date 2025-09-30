@@ -21,7 +21,7 @@ def handoff_to_supervisor_node(state: WealthState) -> dict[str, Any]:
                 getattr(msg, "name", None) == "wealth_agent" and
                 not getattr(msg, "response_metadata", {}).get("is_handoff_back", False) and
                 "Returning control to supervisor" not in str(msg.content)):
-                
+
                 content = msg.content
                 if isinstance(content, str) and content.strip():
                     analysis_content = content
@@ -32,15 +32,18 @@ def handoff_to_supervisor_node(state: WealthState) -> dict[str, Any]:
 
     handoff_messages = create_handoff_back_messages("wealth_agent", "supervisor")
     filtered_sources = getattr(state, 'filtered_sources', state.get('filtered_sources', []))
-    sources_to_use = filtered_sources or getattr(state, 'retrieved_sources', state.get('retrieved_sources', []))
 
     supervisor_sources = []
-    if sources_to_use:
-        for source in sources_to_use:
+    if filtered_sources:
+        for source in filtered_sources:
+            metadata = source.get("metadata", {})
             supervisor_sources.append({
                 "name": "Knowledge Base",
                 "url": source.get("url", ""),
-                **source.get("metadata", {})
+                "source_name": metadata.get("name", ""),
+                "type": metadata.get("type", ""),
+                "category": metadata.get("category", ""),
+                "description": metadata.get("description", "")
             })
 
     return {
@@ -50,7 +53,7 @@ def handoff_to_supervisor_node(state: WealthState) -> dict[str, Any]:
         ],
         "sources": supervisor_sources,
         "tool_call_count": getattr(state, 'tool_call_count', 0),
-        "retrieved_sources": sources_to_use,
+        "retrieved_sources": filtered_sources,
         "used_sources": getattr(state, 'used_sources', state.get('used_sources', [])),
         "filtered_sources": filtered_sources
     }

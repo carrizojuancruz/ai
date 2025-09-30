@@ -548,7 +548,7 @@ class SupervisorService:
                             if handoff_sources:
                                 sources.extend(handoff_sources)
                                 logger.info(f"[TRACE] supervisor.handoff.sources_added count={len(handoff_sources)}")
-                        
+
                         messages = output.get("messages")
                         if isinstance(messages, list) and messages:
                             def _meta(msg):

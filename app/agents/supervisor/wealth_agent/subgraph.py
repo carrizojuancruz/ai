@@ -31,7 +31,7 @@ def _parse_used_sources(response, logger) -> List[str]:
                     elif isinstance(block, str):
                         text_parts.append(block)
                 content = "\n".join(text_parts)
-        
+
         return _parse_used_sources_from_content(content, logger)
 
     except Exception as e:
@@ -47,7 +47,7 @@ def _parse_used_sources_from_content(content: str, logger) -> List[str]:
             r'\*\*USED_SOURCES:\*\*\s*\[(.*?)\]',  # **USED_SOURCES:** ["url1", "url2"]
             r'USED_SOURCES:\s*\[(.*?)\]'           # USED_SOURCES: ["url1", "url2"]
         ]
-        
+
         for pattern in patterns:
             match = re.search(pattern, content, re.DOTALL)
             if match:
@@ -104,21 +104,20 @@ def _filter_sources_for_response(state: WealthState, logger) -> List[dict]:
     """Filter sources to only include those actually used by the LLM."""
     used_sources = getattr(state, 'used_sources', state.get('used_sources', []))
     retrieved_sources = getattr(state, 'retrieved_sources', state.get('retrieved_sources', []))
-    
+
     if not retrieved_sources:
         logger.info("No retrieved sources to filter")
         return []
-        
+
     if not used_sources:
-        logger.info("No used sources marked by LLM, falling back to all retrieved sources")
-        return retrieved_sources
-        
-    # Filter retrieved sources to only include used ones
+        logger.info("No used sources marked by LLM - returning empty list (no relevant sources)")
+        return []
+
     filtered = [
         source for source in retrieved_sources
         if source.get("url") in used_sources
     ]
-    
+
     logger.info(f"Filtered to {len(filtered)} used sources from {len(retrieved_sources)} retrieved")
     return filtered
 
@@ -273,7 +272,7 @@ def create_wealth_subgraph(
         # Extract used sources and retrieved sources for filtering
         used_sources = getattr(state, 'used_sources', state.get('used_sources', []))
         retrieved_sources = getattr(state, 'retrieved_sources', state.get('retrieved_sources', []))
-        
+
         # Try to parse USED_SOURCES from the final analysis content
         if analysis_content and not used_sources:
             used_sources = _parse_used_sources_from_content(analysis_content, logger)
@@ -284,10 +283,10 @@ def create_wealth_subgraph(
             'used_sources': used_sources,
             'retrieved_sources': retrieved_sources
         }
-        
+
         # Filter retrieved sources to only include used ones
         filtered_sources = _filter_sources_for_response(filter_state, logger)
-        
+
         # Deduplicate filtered sources to show only unique URLs
         unique_filtered_sources = []
         seen_urls = set()
@@ -299,10 +298,10 @@ def create_wealth_subgraph(
                 logger.info(f"Added unique source: {url}")
             else:
                 logger.info(f"Skipped duplicate source: {url}")
-        
+
         logger.info(f"Filtered to {len(unique_filtered_sources)} unique sources from {len(filtered_sources)} total")
         filtered_sources = unique_filtered_sources
-        
+
         formatted_response = f"""===== WEALTH AGENT TASK COMPLETED =====
 
 Task Analyzed: {user_question}
@@ -314,7 +313,7 @@ STATUS: WEALTH AGENT ANALYSIS COMPLETE
 This wealth agent analysis is provided to the supervisor for final user response formatting."""
 
         messages_to_return = [{"role": "assistant", "content": formatted_response, "name": "wealth_agent"}]
-        
+
         return {
             "messages": messages_to_return,
             "tool_call_count": state.tool_call_count if hasattr(state, 'tool_call_count') else state.get('tool_call_count', 0),
