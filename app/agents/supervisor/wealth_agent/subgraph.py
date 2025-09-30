@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Callable, List
+from typing import Callable
 
 from langchain_aws import ChatBedrockConverse
 from langgraph.graph import END, START, StateGraph
@@ -13,66 +13,6 @@ from app.core.config import config
 from .handoff import WealthState, handoff_to_supervisor_node
 
 MAX_TOOL_CALLS = config.WEALTH_AGENT_MAX_TOOL_CALLS
-
-
-def _parse_used_sources_from_content(content: str, logger) -> List[str]:
-    """Parse USED_SOURCES from content string."""
-    try:
-        pattern = r'(?:\*\*)?USED_SOURCES:(?:\*\*)?\s*\[(.*?)\]'
-        match = re.search(pattern, content, re.DOTALL)
-
-        if not match:
-            logger.info("No USED_SOURCES pattern found in content")
-            return []
-
-        sources_str = match.group(1).strip()
-        if not sources_str:
-            logger.info("LLM marked no sources as used (empty USED_SOURCES)")
-            return []
-
-        sources_list = json.loads(f'[{sources_str}]')
-        used_sources = [url for url in sources_list if isinstance(url, str) and url.strip()]
-        logger.info(f"Parsed {len(used_sources)} used sources from content")
-        return used_sources
-
-    except Exception as e:
-        logger.error(f"Failed to parse used sources from content: {e}")
-        return []
-
-
-def _extract_sources_from_tool_message(messages, logger) -> List[dict]:
-    """Extract source metadata from search_kb tool results."""
-    extracted_sources = []
-
-    for msg in messages:
-        if getattr(msg, '__class__', None).__name__ == 'ToolMessage' and getattr(msg, 'name', None) == 'search_kb':
-            try:
-                if isinstance(msg.content, str):
-                    search_results = json.loads(msg.content)
-                    extracted_sources.extend([
-                        {'url': result['source'], 'metadata': result.get('metadata', {})}
-                        for result in search_results
-                        if isinstance(result, dict) and 'source' in result
-                    ])
-                logger.info(f"Extracted {len(extracted_sources)} sources from search_kb tool message")
-            except Exception as e:
-                logger.error(f"Failed to extract sources from tool message: {e}")
-
-    return extracted_sources
-
-
-def _filter_sources_for_response(state: WealthState, logger) -> List[dict]:
-    """Filter sources to only include those actually used by the LLM."""
-    used_sources = getattr(state, 'used_sources', state.get('used_sources', []))
-    retrieved_sources = getattr(state, 'retrieved_sources', state.get('retrieved_sources', []))
-
-    if not retrieved_sources or not used_sources:
-        logger.info("No retrieved sources to filter" if not retrieved_sources else "No used sources marked by LLM - returning empty list (no relevant sources)")
-        return []
-
-    filtered = [source for source in retrieved_sources if source.get("url") in used_sources]
-    logger.info(f"Filtered to {len(filtered)} used sources from {len(retrieved_sources)} retrieved")
-    return filtered
 
 
 def _clean_response(response, tool_call_count: int, state: dict, logger):
@@ -172,10 +112,20 @@ def create_wealth_subgraph(
         used_sources = getattr(state, 'used_sources', state.get('used_sources', []))
 
         retrieved_sources = getattr(state, 'retrieved_sources', state.get('retrieved_sources', []))
-        new_sources = _extract_sources_from_tool_message(state["messages"], logger)
-        if new_sources:
-            retrieved_sources.extend(new_sources)
-            logger.info(f"Added {len(new_sources)} new sources to retrieved_sources")
+
+        for msg in state["messages"]:
+            if getattr(msg, '__class__', None).__name__ == 'ToolMessage' and getattr(msg, 'name', None) == 'search_kb':
+                try:
+                    if isinstance(msg.content, str):
+                        search_results = json.loads(msg.content)
+                        new_sources = [
+                            {'url': result['source'], 'metadata': result.get('metadata', {})}
+                            for result in search_results
+                            if isinstance(result, dict) and 'source' in result
+                        ]
+                        retrieved_sources.extend(new_sources)
+                except Exception:
+                    pass
 
         return {
             "messages": [cleaned_response],
@@ -223,15 +173,17 @@ def create_wealth_subgraph(
         retrieved_sources = getattr(state, 'retrieved_sources', state.get('retrieved_sources', []))
 
         if analysis_content and not used_sources:
-            used_sources = _parse_used_sources_from_content(analysis_content, logger)
-            logger.info(f"Parsed {len(used_sources)} used sources from final response content")
+            try:
+                match = re.search(r'(?:\*\*)?USED_SOURCES:(?:\*\*)?\s*\[(.*?)\]', analysis_content, re.DOTALL)
+                if match and match.group(1).strip():
+                    sources_list = json.loads(f'[{match.group(1).strip()}]')
+                    used_sources = [url for url in sources_list if isinstance(url, str) and url.strip()]
+            except Exception:
+                pass
 
-        filter_state = {
-            'used_sources': used_sources,
-            'retrieved_sources': retrieved_sources
-        }
-
-        filtered_sources = _filter_sources_for_response(filter_state, logger)
+        filtered_sources = []
+        if retrieved_sources and used_sources:
+            filtered_sources = [source for source in retrieved_sources if source.get("url") in used_sources]
 
         unique_filtered_sources = []
         seen_urls = set()
