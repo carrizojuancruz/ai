@@ -19,12 +19,16 @@ from app.repositories.session_store import get_session_store
 
 logger = logging.getLogger(__name__)
 
-HARDCODED_GUEST_WELCOME = (
-    "So tell me, what's on your mind today?"
-)
+HARDCODED_GUEST_WELCOME = "So tell me, what's on your mind today?"
 
 GUARDRAIL_INTERVENED_MARKER = "[GUARDRAIL_INTERVENED]"
 GUARDRAIL_USER_PLACEHOLDER = "THIS MESSAGE HIT THE BEDROCK GUARDRAIL"
+
+
+LAST_MESSAGE_NUDGE_TEXT = (
+    "Hey, by the way, our chat here is a bit limited...\n\n"
+    "If you sign up or log in, I can remember everything we talk about and help you reach your goals. Sounds good?"
+)
 
 
 def _wrap(content: str, count: int, max_messages: int) -> dict[str, Any]:
@@ -80,7 +84,6 @@ class GuestService:
         if start != -1:
             return text[:start].rstrip()
         return text
-
 
     async def initialize(self) -> dict[str, Any]:
         thread_id = str(uuid4())
@@ -201,6 +204,21 @@ class GuestService:
             state.setdefault("messages", []).append({"role": "assistant", "content": content})
 
         next_count = int(state.get("message_count", 0)) + 1
+
+        final_content = content
+        if next_count >= self.max_messages:
+            if LAST_MESSAGE_NUDGE_TEXT not in final_content:
+                final_content = (final_content + "\n\n" + LAST_MESSAGE_NUDGE_TEXT).strip()
+                await queue.put({"event": "token.delta", "data": {"text": "\n\n" + LAST_MESSAGE_NUDGE_TEXT}})
+            messages = state.get("messages", [])
+            for i in range(len(messages) - 1, -1, -1):
+                msg = messages[i]
+                if msg.get("role") == "assistant":
+                    messages[i] = {"role": "assistant", "content": final_content}
+                    break
+            state["messages"] = messages
+
+        content = final_content
         payload = _wrap(content, next_count, self.max_messages)
 
         await queue.put({"event": "message.completed", "data": payload})
