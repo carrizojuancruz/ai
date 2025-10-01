@@ -407,7 +407,9 @@ If you’d prefer not to share, no problem at all.""",
         id=FlowStep.STEP_4_MONEY_FEELINGS,
         message="""Before diving deeper into numbers, let's pause and check in on how you feel about money.
 
-Some say it stresses them out, others are figuring things out, and a few feel pretty zen about it. What about you?""",
+Some say it stresses them out, others are figuring things out, and a few feel pretty zen about it.
+
+How do you feel? Pick the option that fits you best:""",
         interaction_type=InteractionType.SINGLE_CHOICE,
         choices=MONEY_FEELINGS_CHOICES,
         expected_field="money_feelings",
