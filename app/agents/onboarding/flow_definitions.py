@@ -463,7 +463,7 @@ Not ready? Totally fine. You can connect later or add expenses manually. Connect
         id=FlowStep.SUBSCRIPTION_NOTICE,
         message=(
             "Now, just one last thing. Money talk can feel a little awkward, I know, so I’ll keep it simple.\n\n"
-            "You’ve got 30 days of free access left. After that, it’s just $5 per month to keep chatting. You won’t be charged when your free access ends, only when you choose to subscribe. "
+            "You’ve got 30 days of free access left. After that, it’s just $5 per month to keep chatting. You won’t be charged when your free access ends, only when you choose to subscribe.\n\n"
             "Tap the reminder at the top of the screen to subscribe now, during your free access period, or after it ends. Your call!"
         ),
         interaction_type=InteractionType.SINGLE_CHOICE,
