@@ -2,17 +2,21 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Callable
+from typing import Any, Callable, Dict, List
 
 from langchain_aws import ChatBedrockConverse
-from langgraph.graph import END, START, StateGraph
+from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from app.core.config import config
 
-from .handoff import WealthState, handoff_to_supervisor_node
-
 MAX_TOOL_CALLS = config.WEALTH_AGENT_MAX_TOOL_CALLS
+
+class WealthState(MessagesState):
+    tool_call_count: int = 0
+    retrieved_sources: List[Dict[str, Any]] = []
+    used_sources: List[str] = []
+    filtered_sources: List[Dict[str, Any]] = []
 
 
 def _clean_response(response, tool_call_count: int, state: dict, logger):
@@ -209,15 +213,11 @@ Analysis Results:
 STATUS: WEALTH AGENT ANALYSIS COMPLETE
 This wealth agent analysis is provided to the supervisor for final user response formatting."""
 
-        messages_to_return = [{"role": "assistant", "content": formatted_response, "name": "wealth_agent"}]
-
         return {
-            "messages": messages_to_return,
-            "tool_call_count": state.tool_call_count if hasattr(state, 'tool_call_count') else state.get('tool_call_count', 0),
-            "retrieved_sources": retrieved_sources,
-            "used_sources": used_sources,
-            "filtered_sources": filtered_sources,
-            "sources": []
+            "messages": [
+                {"role": "assistant", "content": formatted_response, "name": "wealth_agent"}
+            ],
+            "sources": filtered_sources
         }
 
     def should_continue(state: WealthState):
@@ -231,12 +231,8 @@ This wealth agent analysis is provided to the supervisor for final user response
     workflow.add_node("tools", tool_node)
     workflow.add_node("supervisor", supervisor_node)
 
-    workflow.add_node("handoff_to_supervisor", handoff_to_supervisor_node)
-
     workflow.add_edge(START, "agent")
     workflow.add_conditional_edges("agent", should_continue)
     workflow.add_edge("tools", "agent")
-    workflow.add_edge("supervisor", "handoff_to_supervisor")
-    workflow.add_edge("handoff_to_supervisor", END)
 
-    return workflow.compile(checkpointer=None)
+    return workflow.compile()
