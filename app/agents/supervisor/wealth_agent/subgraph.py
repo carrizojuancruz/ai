@@ -122,11 +122,25 @@ def create_wealth_subgraph(
                 try:
                     if isinstance(msg.content, str):
                         search_results = json.loads(msg.content)
-                        new_sources = [
-                            {'url': result['source'], 'metadata': result.get('metadata', {})}
-                            for result in search_results
-                            if isinstance(result, dict) and 'source' in result
-                        ]
+                        new_sources = []
+                        for result in search_results:
+                            if isinstance(result, dict) and 'source' in result:
+                                source = {'url': result['source']}
+                                metadata = result.get('metadata', {})
+
+                                source['name'] = "Knowledge Base"
+
+                                if isinstance(metadata, dict):
+                                    if metadata.get('name'):
+                                        source['source_name'] = metadata['name']
+                                    if metadata.get('type'):
+                                        source['type'] = metadata['type']
+                                    if metadata.get('category'):
+                                        source['category'] = metadata['category']
+                                    if metadata.get('description'):
+                                        source['description'] = metadata['description']
+
+                                new_sources.append(source)
                         retrieved_sources.extend(new_sources)
                 except Exception:
                     pass
