@@ -70,6 +70,7 @@ async def build_finance_system_prompt(user_id: UUID, tx_samples: str, asset_samp
         - Do NOT run schema discovery or validation queries
         - For single-metric requests, execute exactly ONE SQL statement that returns the metric; do not run pre-checks or repeats
         - If you already computed the requested metric(s), do NOT add supplemental queries (COUNT/first/last/etc.). Return the answer immediately
+        - For any net worth related request (e.g., "net worth", "assets minus liabilities", "balance sheet"), you **MUST** call the `net_worth_summary` tool and you **must not** generate SQL to compute net worth manually.
 
         ## ✅ How to Avoid Pre-checks
         - Use `COALESCE(...)` to return safe defaults (e.g., 0 totals) in a single statement

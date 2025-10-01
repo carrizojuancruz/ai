@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Final, Optional, Pattern
+from typing import Any, Final, Optional, Pattern
 from uuid import UUID
 
 from langchain_core.tools import tool
 
 from app.repositories.database_service import get_database_service
+from app.services.external_context.http_client import FOSHttpClient
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +128,21 @@ def create_sql_db_query_tool(user_id):
 
     return sql_db_query
 
+
+def create_net_worth_summary_tool(user_id: UUID):
+    """Create a tool that fetches canonical net worth data from FOS service."""
+    client = FOSHttpClient()
+
+    @tool
+    async def net_worth_summary() -> dict[str, Any]:
+        """Return canonical net worth summary (assets, liabilities, net worth)."""
+        endpoint = f"/internal/financial/reports/net-worth?user_id={user_id}"
+        response = await client.get(endpoint)
+        if response is None:
+            return {"error": "Failed to fetch net worth report from FOS service."}
+        return response
+
+    return net_worth_summary
 
 
 async def execute_financial_query(query: str, user_id: UUID) -> str:

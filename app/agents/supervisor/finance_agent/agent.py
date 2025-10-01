@@ -21,7 +21,10 @@ from app.agents.supervisor.finance_agent.helpers import (
 from app.agents.supervisor.finance_agent.procedural_memory.sql_hints import get_finance_procedural_templates
 from app.agents.supervisor.finance_agent.prompts import build_finance_system_prompt
 from app.agents.supervisor.finance_agent.subgraph import create_finance_subgraph
-from app.agents.supervisor.finance_agent.tools import create_sql_db_query_tool
+from app.agents.supervisor.finance_agent.tools import (
+    create_net_worth_summary_tool,
+    create_sql_db_query_tool,
+)
 from app.agents.supervisor.handoff import create_handoff_back_messages
 from app.core.app_state import (
     get_cached_finance_agent,
@@ -240,7 +243,7 @@ class FinanceAgent:
     async def _create_agent_with_tools(self, user_id: UUID):
         logger.info(f"Creating financial agent for user {user_id}")
 
-        tools = [create_sql_db_query_tool(user_id)]
+        tools = [create_net_worth_summary_tool(user_id), create_sql_db_query_tool(user_id)]
 
         async def prompt_builder(state: MessagesState) -> str:
             task_prompt = _get_last_user_message_text(state["messages"]) or ""
