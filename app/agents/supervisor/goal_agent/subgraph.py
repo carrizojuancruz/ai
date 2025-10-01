@@ -64,7 +64,11 @@ This goal agent analysis is provided to the supervisor for final user response f
                 if (msg.__class__.__name__ == "AIMessage" and
                     hasattr(msg, "content") and msg.content and
                     not getattr(msg, "tool_calls", None)):
-                    analysis_content = str(msg.content)
+                    if isinstance(msg.content, list):
+                        text_parts = [item.get("text", "") for item in msg.content if isinstance(item, dict)]
+                        analysis_content = "".join(text_parts)
+                    else:
+                        analysis_content = str(msg.content)
                     break
 
             if not analysis_content.strip():
