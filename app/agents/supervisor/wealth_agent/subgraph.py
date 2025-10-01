@@ -2,18 +2,21 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Callable
+from typing import Any, Callable, Dict, List
 
 from langchain_aws import ChatBedrockConverse
-from langgraph.graph import START, StateGraph
+from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
-from app.agents.supervisor.handoff import create_handoff_back_messages
 
 from app.core.config import config
 
-from .handoff import WealthState
-
 MAX_TOOL_CALLS = config.WEALTH_AGENT_MAX_TOOL_CALLS
+
+class WealthState(MessagesState):
+    tool_call_count: int = 0
+    retrieved_sources: List[Dict[str, Any]] = []
+    used_sources: List[str] = []
+    filtered_sources: List[Dict[str, Any]] = []
 
 
 def _clean_response(response, tool_call_count: int, state: dict, logger):
@@ -199,8 +202,6 @@ def create_wealth_subgraph(
 
         logger.info(f"Filtered to {len(unique_filtered_sources)} unique sources from {len(filtered_sources)} total")
         filtered_sources = unique_filtered_sources
-
-        handoff_messages = create_handoff_back_messages("wealth_agent", "supervisor")
 
         formatted_response = f"""===== WEALTH AGENT TASK COMPLETED =====
 

@@ -2,10 +2,8 @@ from typing import Callable, List
 
 from langchain_aws import ChatBedrockConverse
 from langchain_core.tools import BaseTool
-from langgraph.graph import END, START, MessagesState, StateGraph
+from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
-
-from .handoff import handoff_to_supervisor_node
 
 
 class GoalSubgraph:
@@ -94,13 +92,10 @@ This goal agent analysis is provided to the supervisor for final user response f
         workflow.add_node("agent", agent_node)
         workflow.add_node("tools", tool_node)
         workflow.add_node("supervisor", supervisor_node)
-        workflow.add_node("handoff_to_supervisor", handoff_to_supervisor_node)
 
         workflow.add_edge(START, "agent")
         workflow.add_conditional_edges("agent", should_continue)
         workflow.add_edge("tools", "agent")
-        workflow.add_edge("supervisor", "handoff_to_supervisor")
-        workflow.add_edge("handoff_to_supervisor", END)
 
         return workflow.compile(checkpointer=None)
 
