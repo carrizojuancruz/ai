@@ -5,12 +5,13 @@ import re
 from typing import Callable
 
 from langchain_aws import ChatBedrockConverse
-from langgraph.graph import END, START, StateGraph
+from langgraph.graph import START, StateGraph
 from langgraph.prebuilt import ToolNode
+from app.agents.supervisor.handoff import create_handoff_back_messages
 
 from app.core.config import config
 
-from .handoff import WealthState, handoff_to_supervisor_node
+from .handoff import WealthState
 
 MAX_TOOL_CALLS = config.WEALTH_AGENT_MAX_TOOL_CALLS
 
@@ -56,10 +57,10 @@ def _clean_response(response, tool_call_count: int, state: dict, logger):
                 for msg in state.get("messages", [])
             )
 
-            if not has_tool_results:
+            if not has_tool_results and not (hasattr(response, "tool_calls") and response.tool_calls):
                 logger.error("BLOCKED: Response with reasoning content but no tool results - agent should search first")
                 return {"role": "assistant", "content": "I need to search my knowledge base to provide accurate information about this topic.", "name": "wealth_agent"}
-            else:
+            elif has_tool_results:
                 logger.info("Cleaning reasoning content from final response after tool usage")
                 cleaned_content = []
                 for block in response.content:
@@ -199,6 +200,8 @@ def create_wealth_subgraph(
         logger.info(f"Filtered to {len(unique_filtered_sources)} unique sources from {len(filtered_sources)} total")
         filtered_sources = unique_filtered_sources
 
+        handoff_messages = create_handoff_back_messages("wealth_agent", "supervisor")
+
         formatted_response = f"""===== WEALTH AGENT TASK COMPLETED =====
 
 Task Analyzed: {user_question}
@@ -209,15 +212,15 @@ Analysis Results:
 STATUS: WEALTH AGENT ANALYSIS COMPLETE
 This wealth agent analysis is provided to the supervisor for final user response formatting."""
 
-        messages_to_return = [{"role": "assistant", "content": formatted_response, "name": "wealth_agent"}]
-
         return {
-            "messages": messages_to_return,
+            "messages": [
+                {"role": "assistant", "content": formatted_response, "name": "wealth_agent"}
+            ],
             "tool_call_count": state.tool_call_count if hasattr(state, 'tool_call_count') else state.get('tool_call_count', 0),
             "retrieved_sources": retrieved_sources,
             "used_sources": used_sources,
             "filtered_sources": filtered_sources,
-            "sources": []
+            "sources": filtered_sources
         }
 
     def should_continue(state: WealthState):
@@ -231,12 +234,8 @@ This wealth agent analysis is provided to the supervisor for final user response
     workflow.add_node("tools", tool_node)
     workflow.add_node("supervisor", supervisor_node)
 
-    workflow.add_node("handoff_to_supervisor", handoff_to_supervisor_node)
-
     workflow.add_edge(START, "agent")
     workflow.add_conditional_edges("agent", should_continue)
     workflow.add_edge("tools", "agent")
-    workflow.add_edge("supervisor", "handoff_to_supervisor")
-    workflow.add_edge("handoff_to_supervisor", END)
 
-    return workflow.compile(checkpointer=None)
+    return workflow.compile()
