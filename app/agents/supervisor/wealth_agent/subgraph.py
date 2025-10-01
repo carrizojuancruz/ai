@@ -60,10 +60,10 @@ def _clean_response(response, tool_call_count: int, state: dict, logger):
                 for msg in state.get("messages", [])
             )
 
-            if not has_tool_results and not (hasattr(response, "tool_calls") and response.tool_calls):
+            if not has_tool_results:
                 logger.error("BLOCKED: Response with reasoning content but no tool results - agent should search first")
                 return {"role": "assistant", "content": "I need to search my knowledge base to provide accurate information about this topic.", "name": "wealth_agent"}
-            elif has_tool_results:
+            else:
                 logger.info("Cleaning reasoning content from final response after tool usage")
                 cleaned_content = []
                 for block in response.content:
@@ -217,10 +217,6 @@ This wealth agent analysis is provided to the supervisor for final user response
             "messages": [
                 {"role": "assistant", "content": formatted_response, "name": "wealth_agent"}
             ],
-            "tool_call_count": state.tool_call_count if hasattr(state, 'tool_call_count') else state.get('tool_call_count', 0),
-            "retrieved_sources": retrieved_sources,
-            "used_sources": used_sources,
-            "filtered_sources": filtered_sources,
             "sources": filtered_sources
         }
 
