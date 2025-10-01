@@ -457,6 +457,18 @@ class SupervisorService:
         streamed_responses: set[str] = set()
         hit_guardrail: bool = False
 
+        metadata: dict[str, str] = {"langfuse_session_id": thread_id}
+        if user_id:
+            metadata["langfuse_user_id"] = str(user_id)
+
+        config_payload: dict[str, Any] = {
+            "callbacks": [langfuse_handler],
+            "configurable": configurable,
+            "thread_id": thread_id,
+        }
+        if metadata:
+            config_payload["metadata"] = metadata
+
         async for event in graph.astream_events(
             {
                 "messages": [{"role": "user", "content": text}],
@@ -464,11 +476,7 @@ class SupervisorService:
                 "context": {"thread_id": thread_id},
             },
             version="v2",
-            config={
-                "callbacks": [langfuse_handler],
-                "configurable": configurable,
-                "thread_id": thread_id,
-            },
+            config=config_payload,
             stream_mode="values",
             subgraphs=True,
         ):
