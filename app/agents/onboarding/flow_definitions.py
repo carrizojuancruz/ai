@@ -41,10 +41,10 @@ STEP_1_CHOICES = [
 ]
 
 INCOME_DECISION_CHOICES = [
-    Choice(id="income_exact", label="Sure!", value="income_exact", synonyms=["sure", "okay", "yes", "exact"]),
+    Choice(id="income_exact", label="Share exact number", value="income_exact", synonyms=["sure", "okay", "yes", "exact"]),
     Choice(
         id="income_range",
-        label="I'd rather not",
+        label="Pick a range",
         value="income_range",
         synonyms=["prefer not", "rather not", "no", "range"],
     ),
@@ -420,7 +420,9 @@ How do you feel? Pick the option that fits you best:""",
         message="""Thanks for the honesty!
 
 Now, let's talk a few more numbers so I can get a clearer picture and help you spot money wins faster.
+
 Something that gives me a clearer picture is your annual income. But only if you're comfortable.
+
 You could share an exact number, pick a general range, or skip it for now.""",
         interaction_type=InteractionType.SINGLE_CHOICE,
         choices=INCOME_DECISION_CHOICES,
@@ -448,6 +450,7 @@ Would you mind sharing a rough yearly range? That would be helpful too.""",
         message="""Got it. Now let's peek at your spending. No judgment, I'm not here to count how many lattes or tacos you buy each month.
 
 You can safely connect your bank accounts so I can pull in the info automatically. I can only read it, I'll never touch your money.
+
 Not ready? Totally fine. You can connect later or add expenses manually. Connected accounts just give me the clearest picture and save you extra updates each month.""",
         interaction_type=InteractionType.SINGLE_CHOICE,
         choices=[
