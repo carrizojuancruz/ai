@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
@@ -49,6 +50,16 @@ STREAM_WORD_GROUP_SIZE = 3
 # Guardrail handling
 GUARDRAIL_INTERVENED_MARKER: str = "[GUARDRAIL_INTERVENED]"
 GUARDRAIL_USER_PLACEHOLDER: str = "THIS MESSAGE HIT THE BEDROCK GUARDRAIL, SO IT WAS REMOVED"
+
+_EMOJI_STRIP_RE = re.compile(
+    r"[\U0001F300-\U0001FAFF\u2600-\u26FF\u2700-\u27BF\U0001F1E6-\U0001F1FF\U0001F3FB-\U0001F3FF\u200D\uFE0F\u20E3\u2066-\u2069]+",
+    flags=re.UNICODE,
+)
+
+def _strip_emojis(text: str) -> str:
+    if not isinstance(text, str):
+        return text
+    return _EMOJI_STRIP_RE.sub("", text)
 
 # Warn if Langfuse env is missing so callbacks would be disabled silently
 if not config.is_langfuse_supervisor_enabled():
@@ -625,7 +636,7 @@ class SupervisorService:
                     text_to_stream = (supervisor_latest_response_text or latest_response_text) or ""
                     # Detect and clean guardrail marker for streaming
                     hit_guardrail = hit_guardrail or self._has_guardrail_intervention(text_to_stream)
-                    text_to_stream_cleaned = self._strip_guardrail_marker(text_to_stream)
+                    text_to_stream_cleaned = _strip_emojis(self._strip_guardrail_marker(text_to_stream))
                     # Check if we've already streamed this exact response text (prevents duplicate streaming after handoffs)
                     response_text_normalized = text_to_stream_cleaned.strip()
                     if response_text_normalized in streamed_responses:
@@ -653,7 +664,7 @@ class SupervisorService:
         try:
             final_text = (supervisor_latest_response_text or latest_response_text)
             if final_text:
-                final_text_to_emit = self._strip_guardrail_marker(final_text) if hit_guardrail else final_text
+                final_text_to_emit = _strip_emojis(self._strip_guardrail_marker(final_text) if hit_guardrail else final_text)
                 await q.put({"event": "message.completed", "data": {"content": final_text_to_emit}})
         except Exception as e:
             logger.error(f"[DEBUG] Error sending message.completed: {e}")
@@ -664,7 +675,7 @@ class SupervisorService:
         try:
             final_text = (supervisor_latest_response_text or latest_response_text)
             if final_text:
-                assistant_response = (self._strip_guardrail_marker(final_text) if hit_guardrail else final_text).strip()
+                assistant_response = _strip_emojis(self._strip_guardrail_marker(final_text) if hit_guardrail else final_text).strip()
                 if hit_guardrail:
                     # Replace the last user message with a guardrail placeholder to prevent loops
                     for i in range(len(conversation_messages) - 1, -1, -1):
