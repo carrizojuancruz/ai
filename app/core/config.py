@@ -132,8 +132,12 @@ class Config:
     LANGFUSE_PUBLIC_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY")
     LANGFUSE_SECRET_KEY: Optional[str] = os.getenv("LANGFUSE_SECRET_KEY")
     LANGFUSE_HOST: str = os.getenv("LANGFUSE_HOST", "https://langfuse.promtior.ai")
-    LANGFUSE_GUEST_PUBLIC_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_GUEST_KEY")
-    LANGFUSE_GUEST_SECRET_KEY: Optional[str] = os.getenv("LANGFUSE_SECRET_GUEST_KEY")
+    LANGFUSE_GUEST_PUBLIC_KEY: Optional[str] = (
+        os.getenv("LANGFUSE_GUEST_PUBLIC_KEY") or os.getenv("LANGFUSE_PUBLIC_GUEST_KEY")
+    )
+    LANGFUSE_GUEST_SECRET_KEY: Optional[str] = (
+        os.getenv("LANGFUSE_GUEST_SECRET_KEY") or os.getenv("LANGFUSE_SECRET_GUEST_KEY")
+    )
 
     # Langfuse Configuration (Supervisor)
     LANGFUSE_PUBLIC_SUPERVISOR_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_SUPERVISOR_KEY")

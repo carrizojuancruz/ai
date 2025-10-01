@@ -5,7 +5,6 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import HTTPException
-from langfuse.callback import CallbackHandler
 
 from app.agents.guest import get_guest_graph
 from app.core.app_state import (
@@ -24,12 +23,10 @@ HARDCODED_GUEST_WELCOME = "So tell me, what's on your mind today?"
 GUARDRAIL_INTERVENED_MARKER = "[GUARDRAIL_INTERVENED]"
 GUARDRAIL_USER_PLACEHOLDER = "THIS MESSAGE HIT THE BEDROCK GUARDRAIL"
 
-
 LAST_MESSAGE_NUDGE_TEXT = (
     "Hey, by the way, our chat here is a bit limited...\n\n"
     "If you sign up or log in, I can remember everything we talk about and help you reach your goals. Sounds good?"
 )
-
 
 def _wrap(content: str, count: int, max_messages: int) -> dict[str, Any]:
     content = (content or "").strip()
@@ -51,7 +48,6 @@ def _wrap(content: str, count: int, max_messages: int) -> dict[str, Any]:
         "can_continue": True,
     }
 
-
 class GuestService:
     def __init__(self) -> None:
         try:
@@ -60,24 +56,12 @@ class GuestService:
             self.max_messages = 5
         self.graph = get_guest_graph()
 
-        guest_pk = config.LANGFUSE_GUEST_PUBLIC_KEY
-        guest_sk = config.LANGFUSE_GUEST_SECRET_KEY
-        guest_host = config.LANGFUSE_HOST
-        self.callbacks = []
-        if guest_pk and guest_sk and guest_host:
-            try:
-                self.callbacks = [CallbackHandler(public_key=guest_pk, secret_key=guest_sk, host=guest_host)]
-            except Exception as e:
-                logger.warning("[Langfuse][guest] Failed to init callback handler: %s", e)
-
     def _has_guardrail_intervention(self, text: str) -> bool:
-        """Check if the response contains a guardrail intervention marker."""
         if not isinstance(text, str):
             return False
         return GUARDRAIL_INTERVENED_MARKER in text
 
     def _strip_guardrail_marker(self, text: str) -> str:
-        """Remove guardrail intervention marker and any text after it."""
         if not isinstance(text, str):
             return ""
         start = text.find(GUARDRAIL_INTERVENED_MARKER)
@@ -158,7 +142,6 @@ class GuestService:
                 inputs,
                 version="v1",
                 config={
-                    "callbacks": self.callbacks,
                     "run_name": "guest.message",
                     "tags": ["guest"],
                     "metadata": {"thread_id": thread_id, "phase": "message"},
@@ -183,23 +166,18 @@ class GuestService:
 
         content = accumulated.strip()
 
-        # Check for guardrail intervention and handle it
         if self._has_guardrail_intervention(content):
             logger.info("[GUEST] Guardrail intervention detected, removing offending message from state")
 
-            # Replace the offending user message with a placeholder so the agent can respond contextually
             prior_messages = state.get("messages", [])
             if prior_messages and prior_messages[-1].get("role") == "user":
-                # Replace the last user message with a guardrail placeholder
                 prior_messages[-1] = {"role": "user", "content": GUARDRAIL_USER_PLACEHOLDER}
                 state["messages"] = prior_messages
                 logger.info("[GUEST] Replaced offending user message with guardrail placeholder")
 
-            # Keep the original guardrail content (as-is) in the state so the client sees the original response
             state.setdefault("messages", []).append({"role": "assistant", "content": content})
 
         else:
-            # Normal flow - add the original message and response
             state.setdefault("messages", []).append({"role": "user", "content": text})
             state.setdefault("messages", []).append({"role": "assistant", "content": content})
 
@@ -233,6 +211,5 @@ class GuestService:
 
         set_thread_state(thread_id, state)
         return {"status": "accepted"}
-
 
 guest_service = GuestService()
