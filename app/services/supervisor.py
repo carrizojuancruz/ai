@@ -539,6 +539,8 @@ class SupervisorService:
                 if tool_name and tool_name.startswith("transfer_to_"):
                     current_agent_tool = tool_name
                     active_handoffs.add(tool_name)
+                    # Clear global buffer to prevent accidental fallback streaming during handoff
+                    latest_response_text = None
 
                     description = "Consulting a source"
                     if tool_name == "transfer_to_finance_agent":
@@ -630,10 +632,9 @@ class SupervisorService:
                 except Exception as e:
                     logger.info(f"[TRACE] chain_end.handoff_close.error err={e}")
 
-                # Quick fix: Only stream when we have the latest response and it's from supervisor
-                if name == "supervisor" and (supervisor_latest_response_text or latest_response_text):
-                    # Prefer the supervisor-specific buffer; fallback to global if needed
-                    text_to_stream = (supervisor_latest_response_text or latest_response_text) or ""
+                # Stream only when supervisor has authored text and no active handoff is open
+                if name == "supervisor" and supervisor_latest_response_text and not active_handoffs:
+                    text_to_stream = supervisor_latest_response_text or ""
                     # Detect and clean guardrail marker for streaming
                     hit_guardrail = hit_guardrail or self._has_guardrail_intervention(text_to_stream)
                     text_to_stream_cleaned = _strip_emojis(self._strip_guardrail_marker(text_to_stream))
@@ -662,7 +663,7 @@ class SupervisorService:
                     logger.info(f"[TRACE] supervisor.stream.end chunks={chunks_emitted}")
 
         try:
-            final_text = (supervisor_latest_response_text or latest_response_text)
+            final_text = supervisor_latest_response_text
             if final_text:
                 final_text_to_emit = _strip_emojis(self._strip_guardrail_marker(final_text) if hit_guardrail else final_text)
                 await q.put({"event": "message.completed", "data": {"content": final_text_to_emit}})
@@ -673,7 +674,7 @@ class SupervisorService:
         await q.put({"event": "step.update", "data": {"status": "presented", "description": completed_description}})
 
         try:
-            final_text = (supervisor_latest_response_text or latest_response_text)
+            final_text = supervisor_latest_response_text
             if final_text:
                 assistant_response = _strip_emojis(self._strip_guardrail_marker(final_text) if hit_guardrail else final_text).strip()
                 if hit_guardrail:
