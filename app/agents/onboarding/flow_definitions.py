@@ -35,7 +35,9 @@ STEP_1_CHOICES = [
         value="answer_questions",
         synonyms=["questions", "yes", "sure", "okay", "let's go"],
     ),
-    Choice(id="open_chat", label="Open chat", value="open_chat", synonyms=["chat", "talk", "no questions", "skip"]),
+    Choice(
+        id="open_chat", label="Skip questions", value="open_chat", synonyms=["chat", "talk", "no questions", "skip"]
+    ),
 ]
 
 INCOME_DECISION_CHOICES = [
@@ -56,11 +58,11 @@ MONEY_FEELINGS_CHOICES = [
         value="confused",
         synonyms=["lost", "unsure", "don't understand", "complicated"],
     ),
-    Choice(id="zen", label="Totally zen", value="zen", synonyms=["calm", "good", "fine", "comfortable", "confident"]),
+    Choice(id="confident", label="Confident", value="confident", synonyms=["calm", "good", "fine", "comfortable", "confident"]),
     Choice(
-        id="motivated",
-        label="Motivated to improve",
-        value="motivated",
+        id="keen_to_learn",
+        label="Keen to learn",
+        value="keen_to_learn",
         synonyms=["ready", "excited", "determined", "optimistic"],
     ),
 ]
@@ -201,6 +203,7 @@ def get_presentation_message(state: "OnboardingState") -> str:
 I'm Vera
 
 I'm here to make money talk easy and judgment free.
+
 But I'm also happy to chat about life, your dreams, or the mysteries of the universe. Your choice!
 
 By the way, what should I call you?"""
@@ -208,13 +211,13 @@ By the way, what should I call you?"""
 
 def get_step_1_message(state: "OnboardingState") -> str:
     name = state.user_context.preferred_name or "{Name}"
-    return f"""Nice to meet you, {name}! So how would you like to begin?
+    return f"""Nice to meet you, {name}! So, how would you like to begin?
 
-I've got a few quick questions handy that can help personalize our chats and get to know you better. Do you have a minute to answer them?
+I’ve got a few quick questions handy that can help me personalize our chats, mostly about your personal and financial situation. Do you have a minute to answer them?
 
-Or we can just chat openly about what's on your mind, like an specific goal or interest you came here with.
+Or we can skip them and just chat openly about what’s on your mind, like a specific goal or interest you came here with.
 
-Up to you!"""
+Totally up to you!"""
 
 
 def determine_next_step(response: str, state: "OnboardingState") -> FlowStep:
@@ -373,7 +376,7 @@ It's just to confirm you're over 18, promise I'm not being nosy.""",
         id=FlowStep.TERMINATED_UNDER_18,
         message="""I'm really sorry, but you need to be at least 18 to chat with me. It's for safety reasons.
 
-Please choose 'Log out' to end the session.""",
+I hope we can chat in the future!""",
         interaction_type=InteractionType.SINGLE_CHOICE,
         choices=UNDER18_LOGOUT_CHOICES,
         next_step=lambda _r, _s: FlowStep.COMPLETE,
@@ -390,10 +393,11 @@ It helps me get a sense of local living costs because, let's be real, a smoothie
     ),
     FlowStep.STEP_4_HOUSING: StepDefinition(
         id=FlowStep.STEP_4_HOUSING,
-        message="""Another piece that can be useful is what is your monthly rent or mortgage looks like.
+        message="""Another thing that’s useful is knowing what your monthly rent or mortgage looks like.
 
-I know, ouch. Let's pull the Band-Aid off fast. But once it's behind us, I can start piercing together your finances so I can guide you better.
-If you'd rather not to, no stress, we can work around it.""",
+Not the most fun question, I know, but it helps me start putting your finances together so I can guide you better.
+
+If you’d prefer not to share, no problem at all.""",
         interaction_type=InteractionType.FREE_TEXT,
         expected_field="monthly_housing_cost",
         validation=validate_housing_cost,
@@ -401,11 +405,9 @@ If you'd rather not to, no stress, we can work around it.""",
     ),
     FlowStep.STEP_4_MONEY_FEELINGS: StepDefinition(
         id=FlowStep.STEP_4_MONEY_FEELINGS,
-        message="""Got it! So let's pause for a sec before we dive into more numbers.
+        message="""Before diving deeper into numbers, let's pause and check in on how you feel about money.
 
-Could you tell how do you feel about money in general? Anxious? Confused? Totally zen?
-
-No right or wrong answers, this is a judgment-free zone. Type away or pick an option below, your call.""",
+Some say it stresses them out, others are figuring things out, and a few feel pretty zen about it. What about you?""",
         interaction_type=InteractionType.SINGLE_CHOICE,
         choices=MONEY_FEELINGS_CHOICES,
         expected_field="money_feelings",
@@ -456,8 +458,7 @@ Not ready? Totally fine. You can connect later or add expenses manually. Connect
         id=FlowStep.SUBSCRIPTION_NOTICE,
         message=(
             "Now, just one last thing. Money talk can feel a little awkward, I know, so I’ll keep it simple.\n\n"
-            "You’ve got 30 days of free access left. After that, it’s just $5 per month to keep chatting. "
-            "You won’t be charged when your free access ends, only when you choose to subscribe.\n\n"
+            "You’ve got 30 days of free access left. After that, it’s just $5 per month to keep chatting. You won’t be charged when your free access ends, only when you choose to subscribe. "
             "Tap the reminder at the top of the screen to subscribe now, during your free access period, or after it ends. Your call!"
         ),
         interaction_type=InteractionType.SINGLE_CHOICE,
