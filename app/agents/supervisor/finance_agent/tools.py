@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import datetime, timedelta, timezone
 from typing import Any, Final, Optional, Pattern
+from urllib.parse import urlencode
 from uuid import UUID
 
 from langchain_core.tools import tool
@@ -143,6 +145,46 @@ def create_net_worth_summary_tool(user_id: UUID):
         return response
 
     return net_worth_summary
+
+
+def _default_income_expense_window() -> tuple[str, str]:
+    """Return default ISO8601 window for income/expense report (last 30 days)."""
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=30)
+    return start.isoformat(), now.isoformat()
+
+
+def create_income_expense_summary_tool(user_id: UUID):
+    """Create a tool that fetches canonical income/expense data from FOS service."""
+    client = FOSHttpClient()
+
+    @tool
+    async def income_expense_summary(
+        date_from: str | None = None,
+        date_to: str | None = None,
+        include_pending: bool = False,
+    ) -> dict[str, Any]:
+        """Return canonical income & expense report for the specified period."""
+        if date_from is None or date_to is None:
+            default_from, default_to = _default_income_expense_window()
+            date_from = date_from or default_from
+            date_to = date_to or default_to
+
+        query = urlencode(
+            {
+                "user_id": str(user_id),
+                "date_from": date_from,
+                "date_to": date_to,
+                "include_pending": str(include_pending).lower(),
+            }
+        )
+        endpoint = f"/internal/financial/reports/income-expense?{query}"
+        response = await client.get(endpoint)
+        if response is None:
+            return {"error": "Failed to fetch income/expense report from FOS service."}
+        return response
+
+    return income_expense_summary
 
 
 async def execute_financial_query(query: str, user_id: UUID) -> str:
