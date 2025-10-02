@@ -99,12 +99,11 @@ class IcebreakerProcessor:
                 )
                 return nudge.notification_text.strip()
 
-            metadata = nudge.metadata or {}
+            memory_text = nudge.memory_text
             logger.debug(
-                f"icebreaker_processor.metadata_keys: nudge_id={nudge.id}, keys={list(metadata.keys())}"
+                f"icebreaker_processor.memory_fields: nudge_id={nudge.id}, memory_id={nudge.memory_id}, has_text={bool(memory_text)}"
             )
 
-            memory_text = metadata.get("memory_text")
             if memory_text and memory_text.strip():
                 logger.debug(
                     f"icebreaker_processor.found_memory_text: nudge_id={nudge.id}, length={len(memory_text)}"
@@ -117,7 +116,7 @@ class IcebreakerProcessor:
                 )
                 return nudge.preview_text.strip()
 
-            logger.warning(f"icebreaker_processor.no_text_found: nudge_id={nudge.id}, metadata={metadata}")
+            logger.warning(f"icebreaker_processor.no_text_found: nudge_id={nudge.id}, memory_id={nudge.memory_id}")
             return None
 
         except Exception as e:

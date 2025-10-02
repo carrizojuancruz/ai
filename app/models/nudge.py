@@ -33,11 +33,11 @@ class NudgeRecord(BaseModel):
     notification_text: str
     preview_text: str
     created_at: datetime
-    updated_at: datetime | None = None
-    scheduled_for: datetime | None = None
-    sent_at: datetime | None = None
-    error_message: str | None = None
-    metadata: dict = Field(default_factory=dict)
+    # Individual fields replacing nudge_metadata JSONB
+    topic: str | None = None
+    memory_id: str | None = Field(None, max_length=255)
+    importance: str | None = None  # "low", "medium", "high"
+    memory_text: str | None = None
 
     class Config:
         from_attributes = True

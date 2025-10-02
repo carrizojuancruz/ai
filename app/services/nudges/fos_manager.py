@@ -53,13 +53,17 @@ class FOSNudgeManager:
         """
         try:
 
+            metadata = message.payload.get("metadata", {})
 
             payload = {
                 "user_id": str(message.user_id),
                 "nudge_type": message.nudge_type,
                 "notification_text": message.payload.get("notification_text"),
                 "preview_text": message.payload.get("preview_text"),
-                "nudge_metadata": message.payload.get("metadata", {}),
+                "topic": metadata.get("topic"),
+                "memory_id": metadata.get("memory_id"),
+                "importance": metadata.get("importance"),
+                "memory_text": metadata.get("memory_text"),
                 "priority": message.priority,
                 "channel": message.channel,
                 "deduplication_key": message.deduplication_key,
@@ -139,12 +143,14 @@ class FOSNudgeManager:
                         nudge_type=nudge_data["nudge_type"],
                         notification_text=nudge_data["notification_text"],
                         preview_text=nudge_data["preview_text"],
-                        metadata=nudge_data.get("nudge_metadata", {}),
+                        topic=nudge_data.get("topic"),
+                        memory_id=nudge_data.get("memory_id"),
+                        importance=nudge_data.get("importance"),
+                        memory_text=nudge_data.get("memory_text"),
                         priority=nudge_data.get("priority", 1),
                         status=nudge_data["status"],
                         channel=nudge_data.get("channel", "app"),
-                        created_at=nudge_data["created_at"],
-                        updated_at=nudge_data.get("updated_at")
+                        created_at=nudge_data["created_at"]
                     )
                     nudges.append(nudge)
                 except (KeyError, ValueError, TypeError) as e:
@@ -196,12 +202,14 @@ class FOSNudgeManager:
                         nudge_type=nudge_data["nudge_type"],
                         notification_text=nudge_data["notification_text"],
                         preview_text=nudge_data["preview_text"],
-                        metadata=nudge_data.get("nudge_metadata", {}),
+                        topic=nudge_data.get("topic"),
+                        memory_id=nudge_data.get("memory_id"),
+                        importance=nudge_data.get("importance"),
+                        memory_text=nudge_data.get("memory_text"),
                         priority=nudge_data.get("priority", 1),
                         status=nudge_data["status"],
                         channel=nudge_data.get("channel", "app"),
-                        created_at=nudge_data["created_at"],
-                        updated_at=nudge_data.get("updated_at")
+                        created_at=nudge_data["created_at"]
                     )
                     updated_nudges.append(nudge)
                 except (KeyError, ValueError, TypeError) as e:
