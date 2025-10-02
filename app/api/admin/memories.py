@@ -7,16 +7,12 @@ from typing import Annotated, Any, List, Optional, Union
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, field_validator
 
-from app.core.app_state import app_state
+from app.core.app_state import get_fos_nudge_manager
 from app.services.memory_service import memory_service
 from app.services.nudges.fos_manager import FOSNudgeManager
 
 router = APIRouter(prefix="/admin/memories", tags=["Admin Memories"])
 logger = logging.getLogger(__name__)
-
-
-def get_fos_nudge_manager() -> Optional[FOSNudgeManager]:
-    return app_state.fos_nudge_manager
 
 
 class MemoryItem(BaseModel):
