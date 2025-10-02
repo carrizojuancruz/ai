@@ -301,3 +301,105 @@ class FOSNudgeManager:
         except Exception as e:
             logger.error(f"fos_manager.get_stats_error: user_id={user_id}, error={str(e)}")
             raise
+
+    async def delete_nudges_by_memory_id(self, memory_id: str) -> dict:
+        """Delete all nudges for a memory ID.
+
+        Args:
+            memory_id: Memory ID to delete nudges for
+
+        Returns:
+            Dictionary with deletion results
+
+        Raises:
+            Exception: If delete operation fails
+
+        """
+        try:
+            endpoint = f"/internal/nudges/by-memory-id/{memory_id}"
+            response = await self.fos_client.delete(endpoint)
+
+            if not response:
+                logger.warning(f"fos_manager.delete_no_response: memory_id={memory_id}")
+                return {"memory_id": memory_id, "cancelled_count": 0, "cancelled_nudge_ids": []}
+
+            logger.info(
+                f"fos_manager.deleted_nudges: memory_id={memory_id}, "
+                f"count={response.get('cancelled_count', 0)}"
+            )
+
+            return response
+
+        except Exception as e:
+            logger.error(f"fos_manager.delete_error: memory_id={memory_id}, error={str(e)}")
+            raise
+
+    async def bulk_delete_nudges_by_memory_ids(self, memory_ids: List[str]) -> dict:
+        """Delete nudges for multiple memory IDs.
+
+        Args:
+            memory_ids: List of memory IDs to delete nudges for
+
+        Returns:
+            Dictionary with bulk deletion results
+
+        Raises:
+            Exception: If bulk delete operation fails
+
+        """
+        if not memory_ids:
+            return {"total_cancelled": 0, "memory_results": [], "skipped_memory_ids": []}
+
+        try:
+            payload = {"memory_ids": memory_ids}
+            response = await self.fos_client.delete("/internal/nudges/by-memory-id/bulk", payload)
+
+            if not response:
+                logger.warning(f"fos_manager.bulk_delete_no_response: memory_count={len(memory_ids)}")
+                return {"total_cancelled": 0, "memory_results": [], "skipped_memory_ids": memory_ids}
+
+            logger.info(
+                f"fos_manager.bulk_deleted_nudges: memory_count={len(memory_ids)}, "
+                f"total_cancelled={response.get('total_cancelled', 0)}"
+            )
+
+            return response
+
+        except Exception as e:
+            logger.error(f"fos_manager.bulk_delete_error: memory_count={len(memory_ids)}, error={str(e)}")
+            raise
+
+    async def delete_nudges_by_user_id(self, user_id: str) -> dict:
+        """Delete all nudges for a user.
+
+        Args:
+            user_id: User ID to delete nudges for
+
+        Returns:
+            Dictionary with deletion results
+
+        Raises:
+            Exception: If delete operation fails
+
+        """
+        if not user_id:
+            raise ValueError("user_id cannot be empty")
+
+        try:
+            endpoint = f"/internal/nudges/by-user-id/{user_id}"
+            response = await self.fos_client.delete(endpoint)
+
+            if not response:
+                logger.warning(f"fos_manager.delete_by_user_no_response: user_id={user_id}")
+                return {"user_id": user_id, "cancelled_count": 0, "cancelled_nudge_ids": []}
+
+            logger.info(
+                f"fos_manager.deleted_nudges_by_user: user_id={user_id}, "
+                f"count={response.get('cancelled_count', 0)}"
+            )
+
+            return response
+
+        except Exception as e:
+            logger.error(f"fos_manager.delete_by_user_error: user_id={user_id}, error={str(e)}")
+            raise
