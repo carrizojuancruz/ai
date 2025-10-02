@@ -185,17 +185,17 @@ async def delete_all_memories(
         )
 
     try:
-        if fos_manager:
+        result = memory_service.delete_all_memories(
+            user_id=user_id,
+            memory_type=memory_type
+        )
+
+        if result["ok"] and fos_manager:
             try:
                 await fos_manager.delete_nudges_by_user_id(user_id)
                 logger.info(f"Deleted all nudges for user {user_id}")
             except Exception as e:
                 logger.error(f"Failed to delete nudges for user {user_id}: {e}")
-
-        result = memory_service.delete_all_memories(
-            user_id=user_id,
-            memory_type=memory_type
-        )
 
         return MemoryDeleteResponse(**result)
 

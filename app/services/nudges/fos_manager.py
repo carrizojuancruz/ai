@@ -315,6 +315,9 @@ class FOSNudgeManager:
             Exception: If delete operation fails
 
         """
+        if not memory_id:
+            raise ValueError("memory_id cannot be empty")
+
         try:
             endpoint = f"/internal/nudges/by-memory-id/{memory_id}"
             response = await self.fos_client.delete(endpoint)
