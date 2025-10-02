@@ -105,6 +105,9 @@ class FinanceAgent:
             region_name=config.FINANCIAL_AGENT_MODEL_REGION,
             temperature=config.FINANCIAL_AGENT_TEMPERATURE,
             guardrail_config=guardrails,
+            additional_model_request_fields={
+                "reasoning_effort": config.FINANCIAL_AGENT_REASONING_EFFORT
+            }
         )
 
         logger.info("FinanceAgent initialization completed")

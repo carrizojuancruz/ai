@@ -148,6 +148,9 @@ def compile_supervisor_graph() -> CompiledStateGraph:
         region_name=app_config.SUPERVISOR_AGENT_MODEL_REGION,
         temperature=app_config.SUPERVISOR_AGENT_TEMPERATURE,
         guardrail_config=guardrails,
+        additional_model_request_fields={
+            "reasoning_effort": app_config.SUPERVISOR_AGENT_REASONING_EFFORT
+        }
     )
     checkpointer = MemorySaver()
 
