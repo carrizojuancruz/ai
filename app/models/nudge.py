@@ -33,10 +33,9 @@ class NudgeRecord(BaseModel):
     notification_text: str
     preview_text: str
     created_at: datetime
-    # Individual fields replacing nudge_metadata JSONB
     topic: str | None = None
     memory_id: str | None = Field(None, max_length=255)
-    importance: str | None = None  # "low", "medium", "high"
+    importance: str | None = None
     memory_text: str | None = None
 
     class Config:
