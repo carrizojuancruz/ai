@@ -36,7 +36,10 @@ class WealthAgent:
             model_id=config.WEALTH_AGENT_MODEL_ID,
             region_name=config.WEALTH_AGENT_MODEL_REGION,
             temperature=config.WEALTH_AGENT_TEMPERATURE,
-            guardrail_config=guardrails
+            guardrail_config=guardrails,
+            additional_model_request_fields={
+                "reasoning_effort": config.WEALTH_AGENT_REASONING_EFFORT
+            }
         )
 
         logger.info("WealthAgent initialization completed")

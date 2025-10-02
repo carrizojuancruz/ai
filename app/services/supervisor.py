@@ -150,11 +150,21 @@ class SupervisorService:
         return ""
 
     def _add_source_from_tool_end(
-        self, sources: list[dict[str, Any]], name: str, data: dict[str, Any]
+        self, sources: list[dict[str, Any]], name: str, data: dict[str, Any], current_agent: Optional[str] = None
     ) -> list[dict[str, Any]]:
-        """Add the source to the sources list from the tool end event."""
+        """Add the source to the sources list from the tool end event.
+
+        Args:
+            sources: Current list of sources
+            name: Tool name
+            data: Tool output data
+            current_agent: Currently active agent (e.g., 'transfer_to_finance_agent')
+
+        """
+        if current_agent in ["transfer_to_finance_agent", "transfer_to_goal_agent"]:
+            return sources
+
         if name == "search_kb":
-            logger.info(f"[SUPERVISOR] Skipping source accumulation for wealth agent tool '{name}' - using intelligent filtering")
             return sources
 
         if "output" not in data:
@@ -567,7 +577,7 @@ class SupervisorService:
 
 
             elif etype == "on_tool_end":
-                sources = self._add_source_from_tool_end(sources, name, data)
+                sources = self._add_source_from_tool_end(sources, name, data, current_agent_tool)
                 if name and not name.startswith("transfer_to_"):
                     await q.put({"event": "tool.end", "data": {"tool": name}})
             elif etype == "on_chain_end":
