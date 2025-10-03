@@ -33,28 +33,42 @@ class ExternalSourcesRepository(ExternalSourcesRepositoryInterface):
         )
 
     async def get_all(self) -> List[ExternalSource]:
-        """Get all sources from external API."""
+        """Get all sources from external API with pagination support."""
         endpoint = "/internal/kb-sources"
+        all_sources = []
+        page = 1
 
-        response_data = await self.client.get(endpoint)
-        if response_data is None:
-            # HTTP client returned None, which means the API call failed
-            raise ConnectionError("Failed to connect to external sources API")
+        while True:
+            params = {"page": page}
+            response_data = await self.client.get(endpoint, params)
 
-        if not response_data:
-            logger.warning("No data received from external sources API")
-            return []
+            if response_data is None:
+                raise ConnectionError("Failed to connect to external sources API")
 
-        try:
-            api_response = APIResponse(**response_data)
-            external_sources = [
-                self._map_api_to_external_source(api_source)
-                for api_source in api_response.items
-            ]
+            if not response_data:
+                logger.warning("No data received from external sources API")
+                break
 
-            logger.debug(f"Retrieved {len(external_sources)} sources from external API")
-            return external_sources
+            try:
+                api_response = APIResponse(**response_data)
 
-        except Exception as e:
-            logger.error(f"Error processing external API response: {e}")
-            raise e
+                page_sources = [
+                    self._map_api_to_external_source(api_source)
+                    for api_source in api_response.items
+                ]
+                all_sources.extend(page_sources)
+
+                logger.debug(f"Retrieved page {page} with {len(page_sources)} sources "
+                           f"(total so far: {len(all_sources)}/{api_response.total})")
+
+                if len(api_response.items) == 0 or len(all_sources) >= api_response.total:
+                    break
+
+                page += 1
+
+            except Exception as e:
+                logger.error(f"Error processing external API response for page {page}: {e}")
+                raise e
+
+        logger.info(f"Retrieved {len(all_sources)} total sources from external API across {page} pages")
+        return all_sources
