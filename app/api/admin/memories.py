@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
-from typing import Any, List, Optional, Union
+from typing import Annotated, Any, List, Optional, Union
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, field_validator
 
+from app.core.app_state import get_fos_nudge_manager
 from app.services.memory_service import memory_service
+from app.services.nudges.fos_manager import FOSNudgeManager
 
 router = APIRouter(prefix="/admin/memories", tags=["Admin Memories"])
+logger = logging.getLogger(__name__)
 
 
 class MemoryItem(BaseModel):
@@ -129,9 +133,10 @@ async def get_memory_by_key(
 async def delete_memory_by_key(
     user_id: str,
     memory_key: str,
-    memory_type: str = Query("semantic", description="Memory type: semantic or episodic")
+    memory_type: str = Query("semantic", description="Memory type: semantic or episodic"),
+    fos_manager: Annotated[Optional[FOSNudgeManager], Depends(get_fos_nudge_manager)] = None
 ) -> MemoryDeleteResponse:
-    """Delete a single memory by key.
+    """Delete a single memory by key and its associated nudges.
 
     - **user_id**: User ID
     - **memory_key**: Memory key to delete
@@ -144,6 +149,13 @@ async def delete_memory_by_key(
             memory_type=memory_type
         )
 
+        if result["ok"] and fos_manager:
+            try:
+                await fos_manager.delete_nudges_by_memory_id(memory_key)
+                logger.info(f"Deleted nudges for memory {memory_key}")
+            except Exception as e:
+                logger.error(f"Failed to delete nudges for memory {memory_key}: {e}")
+
         return MemoryDeleteResponse(**result)
 
     except ValueError as e:
@@ -154,9 +166,10 @@ async def delete_memory_by_key(
 async def delete_all_memories(
     user_id: str,
     memory_type: str = Query("semantic", description="Memory type: semantic or episodic"),
-    confirm: bool = Query(False, description="Must be true to confirm deletion")
+    confirm: bool = Query(False, description="Must be true to confirm deletion"),
+    fos_manager: Annotated[Optional[FOSNudgeManager], Depends(get_fos_nudge_manager)] = None
 ) -> MemoryDeleteResponse:
-    """Delete all memories for a user and type.
+    """Delete all memories for a user and type, and their associated nudges.
 
     **WARNING**: This will delete ALL memories for the specified user and type.
     Set confirm=true to proceed.
@@ -176,6 +189,13 @@ async def delete_all_memories(
             user_id=user_id,
             memory_type=memory_type
         )
+
+        if result["ok"] and fos_manager:
+            try:
+                await fos_manager.delete_nudges_by_user_id(user_id)
+                logger.info(f"Deleted all nudges for user {user_id}")
+            except Exception as e:
+                logger.error(f"Failed to delete nudges for user {user_id}: {e}")
 
         return MemoryDeleteResponse(**result)
 

@@ -42,3 +42,6 @@ class APIResponse(BaseModel):
     """Root API response model."""
 
     items: list[APISourceResponse]
+    total: int
+    page: int
+    page_size: int

@@ -24,7 +24,7 @@ class FOSHttpClient:
             headers["x-api-key"] = self.api_key
         return headers
 
-    async def get(self, endpoint: str) -> Dict[str, Any] | None:
+    async def get(self, endpoint: str, params: Dict[str, Any] = None) -> Dict[str, Any] | None:
         """GET request to FOS service."""
         if not self.base_url:
             logger.warning("FOS_SERVICE_URL not configured - skipping external API call")
@@ -35,8 +35,8 @@ class FOSHttpClient:
 
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
-                logger.debug(f"Calling FOS API: {url}")
-                resp = await client.get(url, headers=headers)
+                logger.debug(f"Calling FOS API: {url}" + (f" with params: {params}" if params else ""))
+                resp = await client.get(url, headers=headers, params=params)
                 if resp.status_code == 404:
                     logger.warning(f"FOS API endpoint not found: {endpoint}")
                     return None
