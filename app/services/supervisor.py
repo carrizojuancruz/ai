@@ -305,9 +305,11 @@ class SupervisorService:
         system_prompt = (
             "You are a helpful assistant summarizing past conversations. "
             "Write a natural, conversational summary as if you were catching up with an old friend. "
-            "Use first-person perspective where appropriate. "
+            "Use first-person perspective consistently. "
             "Focus on key topics, decisions, and memorable moments. "
-            "Keep it under 500 characters. Return ONLY the summary paragraph, no extra text."
+            "Keep it under 500 characters. Return ONLY the summary paragraph, no extra text. "
+            "IMPORTANT: Always maintain consistent narrative perspective - refer to Vera as 'Me' "
+            "and the user as 'You'. Use 'we' when appropriate. Keep the same perspective throughout the summary."
             "\n\nExamples:"
             "\n- We talked about your cat Luna being extra playful lately and how you're thinking about her birthday party."
             "\n- You mentioned trying that new vegan ramen recipe and we discussed some fun variations to try."
