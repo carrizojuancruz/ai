@@ -1,12 +1,15 @@
+import logging
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.models import UserContext
 
 from .types import Choice, FlowStep, InteractionType
+
+logger = logging.getLogger(__name__)
 
 
 class OnboardingState(BaseModel):
@@ -26,6 +29,19 @@ class OnboardingState(BaseModel):
 
     current_interaction_type: InteractionType = InteractionType.FREE_TEXT
     current_choices: list[Choice] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _sync_user_context_user_id(self) -> "OnboardingState":
+        try:
+            if (
+                self.user_context is not None
+                and self.user_id is not None
+                and getattr(self.user_context, "user_id", None) != self.user_id
+            ):
+                self.user_context.user_id = self.user_id
+        except Exception as e:
+            logger.warning("[ONBOARDING] Failed to sync user_context.user_id: %s", e)
+        return self
 
     def ensure_completion_consistency(self) -> None:
         if getattr(self.user_context, "ready_for_orchestrator", False):
