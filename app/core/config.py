@@ -76,7 +76,7 @@ class Config:
     WEALTH_AGENT_GUARDRAIL_VERSION: str = os.getenv("WEALTH_AGENT_GUARDRAIL_VERSION")
     WEALTH_AGENT_MODEL_REGION: str = os.getenv("WEALTH_AGENT_MODEL_REGION")
     WEALTH_AGENT_TEMPERATURE: float = float(os.getenv("WEALTH_AGENT_TEMPERATURE", "0.2"))
-    WEALTH_AGENT_MAX_TOOL_CALLS: int = int(os.getenv("WEALTH_AGENT_MAX_TOOL_CALLS", "5"))
+    WEALTH_AGENT_MAX_TOOL_CALLS: int = int(os.getenv("WEALTH_AGENT_MAX_TOOL_CALLS", "7"))
     WEALTH_AGENT_REASONING_EFFORT: str = os.getenv("WEALTH_AGENT_REASONING_EFFORT", "low")
 
     # Goal Agent Configuration
@@ -170,7 +170,7 @@ class Config:
     MAX_DOCUMENTS_PER_SOURCE: int = int(os.getenv("MAX_DOCUMENTS_PER_SOURCE", "20"))
 
     # Search Configuration
-    TOP_K_SEARCH: int = int(os.getenv("TOP_K_SEARCH", "10"))
+    TOP_K_SEARCH: int = int(os.getenv("TOP_K_SEARCH", "5"))
     CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "1500"))
     CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "200"))
     MAX_CHUNKS_PER_SOURCE: int = int(os.getenv("MAX_CHUNKS_PER_SOURCE", "150"))
