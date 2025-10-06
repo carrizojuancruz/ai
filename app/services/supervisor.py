@@ -308,7 +308,7 @@ class SupervisorService:
             "Use first-person perspective consistently. "
             "Focus on key topics, decisions, and memorable moments. "
             "Keep it under 500 characters. Return ONLY the summary paragraph, no extra text. "
-            "IMPORTANT: Always maintain consistent narrative perspective - refer to Vera as 'Me' "
+            "IMPORTANT: Always maintain consistent narrative perspective - refer to Vera as 'I' (subject) or 'me' (object) "
             "and the user as 'You'. Use 'we' when appropriate. Keep the same perspective throughout the summary."
             "\n\nExamples:"
             "\n- We talked about your cat Luna being extra playful lately and how you're thinking about her birthday party."
