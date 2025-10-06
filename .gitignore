@@ -198,3 +198,6 @@ knowledge/sources.json
 
 # Knowledge base crawling logs
 app/knowledge/log.txt
+
+# Cursor commands
+.cursor/commands/
