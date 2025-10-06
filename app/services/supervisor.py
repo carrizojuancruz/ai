@@ -654,12 +654,12 @@ class SupervisorService:
                     response_text_normalized = text_to_stream_cleaned.strip()
                     if response_text_normalized in streamed_responses:
                         logger.info("[TRACE] supervisor.stream.skip reason=exact_text_duplicate")
-                        break
+                        continue
 
                     response_hash = hash(response_text_normalized)
                     if response_hash in seen_responses:
                         logger.info("[TRACE] supervisor.stream.skip reason=hash_duplicate")
-                        break
+                        continue
 
                     logger.info("[TRACE] supervisor.stream.start")
                     seen_responses.add(response_hash)
