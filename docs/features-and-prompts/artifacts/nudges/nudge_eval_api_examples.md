@@ -193,7 +193,7 @@ Key environment variables for testing:
 NUDGES_ENABLED=true
 
 # SQS Configuration
-SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/909418399862/fos-ai-dev-nudges
+SQS_NUDGES_AI_ICEBREAKER=https://sqs.us-east-1.amazonaws.com/909418399862/fos-ai-dev-nudges
 SQS_QUEUE_REGION=us-east-1
 
 # Rate Limits

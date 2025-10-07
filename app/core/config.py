@@ -217,8 +217,8 @@ class Config:
     BILL_MIN_OCCURRENCES: int = int(os.getenv("BILL_MIN_OCCURRENCES", "3"))
     BILL_PREDICTION_WINDOW_DAYS: int = int(os.getenv("BILL_PREDICTION_WINDOW_DAYS", "35"))
 
-    SQS_QUEUE_URL: str = os.getenv(
-        "SQS_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/905418355862/fos-ai-dev-nudges"
+    SQS_NUDGES_AI_ICEBREAKER: str = os.getenv(
+        "SQS_NUDGES_AI_ICEBREAKER", "https://sqs.us-east-1.amazonaws.com/905418355862/fos-ai-dev-nudges"
     )
     SQS_QUEUE_REGION: str = os.getenv("SQS_QUEUE_REGION", "us-east-1")
     SQS_MAX_MESSAGES: int = int(os.getenv("SQS_MAX_MESSAGES", "10"))
@@ -308,11 +308,67 @@ class Config:
                     "get_bedrock_config",
                     "validate_required_s3_vars",
                     "get_actual_config",
+                    "reload_config",
                 ]
             ):
                 config_dict[attr_name] = getattr(cls, attr_name)
 
         return config_dict
+
+    @classmethod
+    def reload_config(cls) -> bool:
+        """Reload configuration from AWS Secrets Manager and environment variables.
+
+        This method:
+        1. Reloads secrets from AWS Secrets Manager
+        2. Reloads all class attributes from current environment variables
+        3. Returns True if successful, False otherwise
+
+        Returns:
+            bool: True if reload was successful, False otherwise
+
+        """
+        try:
+            # Force reload of AWS secrets
+            cls._initialize()
+
+            # Reload all class attributes from current environment variables
+            cls._reload_from_environment()
+            return True
+        except (ValueError, TypeError, AttributeError) as e:
+            print(f"Failed to reload config: {e}")
+            return False
+
+    @classmethod
+    def _reload_from_environment(cls):
+        """Reload all class attributes from current environment variables."""
+        # Get ALL configuration attributes automatically
+        config_attrs = []
+        for attr_name in dir(cls):
+            # Skip private attributes (start with _)
+            if attr_name.startswith("_"):
+                continue
+
+            # Skip methods (callable attributes)
+            if callable(getattr(cls, attr_name)):
+                continue
+
+            # Skip special Python attributes (start and end with __)
+            if attr_name.startswith("__") and attr_name.endswith("__"):
+                continue
+
+            # This is a configuration variable
+            config_attrs.append(attr_name)
+
+        reloaded_count = 0
+        for attr_name in config_attrs:
+            env_value = os.getenv(attr_name)
+            if env_value is not None:
+                # Apply the same type conversion logic as set_env_var
+                cls.set_env_var(attr_name, env_value)
+                reloaded_count += 1
+
+        print(f"Reloaded {reloaded_count} configuration variables from environment")
 
 
 config = Config()

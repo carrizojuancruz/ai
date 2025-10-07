@@ -114,7 +114,7 @@ async def get_nudge_health() -> Dict[str, Any]:
             "status": "healthy",
             "nudges_enabled": config.NUDGES_ENABLED,
             "queue_depth": queue_depth,
-            "queue_url": config.SQS_QUEUE_URL,
+            "queue_url": config.SQS_NUDGES_AI_ICEBREAKER,
         }
 
     except Exception as e:
