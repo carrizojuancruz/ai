@@ -20,11 +20,11 @@ router = APIRouter(
 
 
 def _audit_config_configuration() -> Dict[str, Any]:
-    """
-    Audit the complete configuration of config.py.
+    """Audit the complete configuration of config.py.
 
     Returns:
         Dict with the configuration status of all important variables
+
     """
     audit_result = {
         "memory_config": {},
@@ -297,29 +297,30 @@ def _audit_config_configuration() -> Dict[str, Any]:
 
 
 def _reload_dependent_services() -> Dict[str, bool]:
-    """
-    Reload services that depend on AWSConfig and AWS secrets.
+    """Reload services that depend on AWSConfig and AWS secrets.
 
     Returns:
         Dict with the reload status of each service
+
     """
     services_status = {}
 
     try:
         # 1. Reload AWS clients (global instances)
         try:
-            from app.core.app_state import dispose_aws_clients, warmup_aws_clients
             import asyncio
+
+            from app.core.app_state import dispose_aws_clients, warmup_aws_clients
 
             # Dispose existing clients
             dispose_aws_clients()
-            
+
             # Warm up new clients
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(warmup_aws_clients())
             loop.close()
-            
+
             services_status["aws_clients"] = True
             logger.info("✅ AWS clients reloaded successfully")
         except Exception as e:
@@ -328,17 +329,18 @@ def _reload_dependent_services() -> Dict[str, bool]:
 
         # 2. Reload Database Connection (if needed)
         try:
-            from app.db.session import dispose_engine, _get_engine
             import asyncio
+
+            from app.db.session import _get_engine, dispose_engine
 
             # Dispose existing connections
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(dispose_engine())
-            
+
             # Recreate engine
             _get_engine()
-            
+
             services_status["database_connection"] = True
             logger.info("✅ Database connection reloaded successfully")
         except Exception as e:
@@ -348,10 +350,10 @@ def _reload_dependent_services() -> Dict[str, bool]:
         # 3. Reload SQS Manager (global instance)
         try:
             import app.services.queue.sqs_manager as sqs_module
-            
+
             # Reset global SQS manager instance
             sqs_module._sqs_manager = None
-            
+
             services_status["sqs_manager"] = True
             logger.info("✅ SQS Manager reloaded successfully")
         except (ImportError, AttributeError) as e:
@@ -386,8 +388,7 @@ class UpdateSecretsResponse(BaseModel):
 
 @router.post("/update-secrets", response_model=UpdateSecretsResponse)
 async def update_secrets():
-    """
-    Internal webhook to reload all values from AWS Secrets Manager.
+    """Reload all values from AWS Secrets Manager.
 
     This endpoint:
     1. Reloads secrets from AWS Secrets Manager using AWSConfig
@@ -480,8 +481,7 @@ async def update_secrets():
 
 @router.get("/secrets-status")
 async def get_secrets_status():
-    """
-    Endpoint to check the current state of the secrets configuration.
+    """Endpoint to check the current state of the secrets configuration.
 
     Returns information about:
     - Environment variables configured
