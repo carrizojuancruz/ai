@@ -12,7 +12,6 @@ from langchain_core.messages.utils import count_tokens_approximately
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.prebuilt import create_react_agent
 from langgraph.types import RunnableConfig
 from langmem.short_term import RunningSummary
 
@@ -23,6 +22,7 @@ from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
 from .handoff import create_task_description_handoff_tool
 from .prompts import SUPERVISOR_PROMPT
+from .subgraph import create_supervisor_subgraph
 from .workers import finance_router, goal_agent
 
 logger = logging.getLogger(__name__)
@@ -169,15 +169,14 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     except Exception as exc:
         logger.info("summary.model.bind.skip err=%s", exc)
 
-    supervisor_agent_with_description = create_react_agent(
-        model=chat_bedrock,
-        tools=[
+    supervisor_agent_with_description = create_supervisor_subgraph(
+        chat_bedrock,
+        [
             assign_to_finance_agent_with_description,
             assign_to_wealth_agent_with_description,
             assign_to_goal_agent_with_description,
         ],
-        prompt=SUPERVISOR_PROMPT,
-        name="supervisor",
+        SUPERVISOR_PROMPT,
     )
 
     class SupervisorState(MessagesState):
@@ -274,6 +273,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
 
     # --- Main supervisor node and destinations ---
     builder.add_node(
+        "supervisor",
         supervisor_agent_with_description,
         destinations=("finance_agent", "goal_agent", "episodic_capture"),
     )
