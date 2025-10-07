@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import re
+from os import environ
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
@@ -34,6 +35,8 @@ from app.services.utils import get_blocked_topics
 from app.utils.mapping import get_source_name
 from app.utils.tools import check_repeated_sources
 from app.utils.welcome import call_llm, generate_personalized_welcome
+
+environ["LANGFUSE_TRACING_ENVIRONMENT"] = config.LANGFUSE_TRACING_ENVIRONMENT
 
 langfuse_handler = CallbackHandler(
     public_key=config.LANGFUSE_PUBLIC_SUPERVISOR_KEY,
