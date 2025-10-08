@@ -29,9 +29,7 @@ class GoalStatus(str, Enum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
-    PAUSED = "paused"
     OFF_TRACK = "off_track"
-    ERROR = "error"
     DELETED = "deleted"
 
 # Frequency types for goal evaluation

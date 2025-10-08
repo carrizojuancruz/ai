@@ -13,30 +13,17 @@ class GoalStatusTransitionValidator:
     VALID_TRANSITIONS = {
         GoalStatus.PENDING: [
             GoalStatus.IN_PROGRESS,
-            GoalStatus.PAUSED,
             GoalStatus.OFF_TRACK
         ],
         GoalStatus.IN_PROGRESS: [
             GoalStatus.COMPLETED,
-            GoalStatus.PAUSED,
-            GoalStatus.OFF_TRACK,
-            GoalStatus.ERROR
-        ],
-        GoalStatus.PAUSED: [
-            GoalStatus.IN_PROGRESS,
             GoalStatus.OFF_TRACK
         ],
         GoalStatus.OFF_TRACK: [
-            GoalStatus.IN_PROGRESS,
-            GoalStatus.PAUSED
+            GoalStatus.IN_PROGRESS
         ],
         GoalStatus.COMPLETED: [
-            GoalStatus.PAUSED,
             GoalStatus.OFF_TRACK
-        ],
-        GoalStatus.ERROR: [
-            GoalStatus.IN_PROGRESS,
-            GoalStatus.PAUSED
         ],
         GoalStatus.DELETED: []  # Cannot transition from deleted state
     }
