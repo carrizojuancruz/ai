@@ -89,12 +89,22 @@ async def trigger_nudge_manual(request: ManualTriggerRequest) -> Dict[str, Any]:
         if request.force:
             logger.warning(f"nudge_eval.manual_force: user_id={str(request.user_id)}, nudge_type={request.nudge_type}")
 
-        result = await evaluator._evaluate_single_user(user_id=request.user_id, nudge_type=request.nudge_type)
+        batch_result = await evaluator.evaluate_nudges_batch(
+            user_ids=[str(request.user_id)], 
+            nudge_type=request.nudge_type
+        )
 
-        if request.priority_override and result["status"] == "queued":
-            result["priority_override"] = request.priority_override
-
-        return result
+        if batch_result.get("results"):
+            result = batch_result["results"][0]
+            if request.priority_override and result.get("status") == "queued":
+                result["priority_override"] = request.priority_override
+            return result
+        else:
+            return {
+                "user_id": str(request.user_id),
+                "status": "error",
+                "reason": "No evaluation result returned"
+            }
 
     except Exception as e:
         logger.error(
