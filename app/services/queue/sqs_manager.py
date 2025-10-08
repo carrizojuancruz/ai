@@ -48,9 +48,14 @@ class NudgeMessage:
 
 class SQSManager:
     def __init__(self):
+        if not config.is_sqs_enabled():
+            error_msg = "SQS_NUDGES_AI_ICEBREAKER is not configured. Cannot initialize SQSManager."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
         boto_config = BotoConfig(region_name=config.SQS_QUEUE_REGION, retries={"max_attempts": 3, "mode": "adaptive"})
         self.sqs_client = boto3.client("sqs", config=boto_config)
-        self.queue_url = config.SQS_QUEUE_URL
+        self.queue_url = config.SQS_NUDGES_AI_ICEBREAKER
         self._in_flight_messages: Dict[str, datetime] = {}
 
     async def enqueue_nudge(self, nudge: NudgeMessage) -> str:

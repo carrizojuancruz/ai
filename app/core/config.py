@@ -3,10 +3,13 @@
 Centralizes all environment variables and provides type-safe access to configuration values.
 """
 
+import logging
 import os
 from typing import Optional
 
 from app.core.aws_config import AWSConfig
+
+logger = logging.getLogger(__name__)
 
 
 class Config:
@@ -217,9 +220,8 @@ class Config:
     BILL_MIN_OCCURRENCES: int = int(os.getenv("BILL_MIN_OCCURRENCES", "3"))
     BILL_PREDICTION_WINDOW_DAYS: int = int(os.getenv("BILL_PREDICTION_WINDOW_DAYS", "35"))
 
-    SQS_QUEUE_URL: str = os.getenv(
-        "SQS_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/905418355862/fos-ai-dev-nudges"
-    )
+    # SQS Configuration
+    SQS_NUDGES_AI_ICEBREAKER: Optional[str] = os.getenv("SQS_NUDGES_AI_ICEBREAKER")
     SQS_QUEUE_REGION: str = os.getenv("SQS_QUEUE_REGION", "us-east-1")
     SQS_MAX_MESSAGES: int = int(os.getenv("SQS_MAX_MESSAGES", "10"))
     SQS_VISIBILITY_TIMEOUT: int = int(os.getenv("SQS_VISIBILITY_TIMEOUT", "300"))  # 5 minutes
@@ -248,7 +250,7 @@ class Config:
                     value = float(value)
             setattr(cls, key, value)
         except (ValueError, TypeError):
-            print(f"Failed to set environment variable {key} with value {value}")
+            logger.error("Failed to set environment variable %s with value %s", key, value)
 
     @classmethod
     def get_aws_region(cls) -> str:
@@ -291,6 +293,16 @@ class Config:
         return [name for name, value in required_vars.items() if not value]
 
     @classmethod
+    def is_sqs_enabled(cls) -> bool:
+        """Check if SQS is properly configured for nudge queue operations.
+
+        Returns:
+            bool: True if SQS_NUDGES_AI_ICEBREAKER is configured, False otherwise
+
+        """
+        return bool(cls.SQS_NUDGES_AI_ICEBREAKER)
+
+    @classmethod
     def get_actual_config(cls) -> dict[str, any]:
         """Get the actual configuration values."""
         config_dict = {}
@@ -307,12 +319,69 @@ class Config:
                     "is_langfuse_supervisor_enabled",
                     "get_bedrock_config",
                     "validate_required_s3_vars",
+                    "is_sqs_enabled",
                     "get_actual_config",
+                    "reload_config",
                 ]
             ):
                 config_dict[attr_name] = getattr(cls, attr_name)
 
         return config_dict
+
+    @classmethod
+    def reload_config(cls) -> bool:
+        """Reload configuration from AWS Secrets Manager and environment variables.
+
+        This method:
+        1. Reloads secrets from AWS Secrets Manager
+        2. Reloads all class attributes from current environment variables
+        3. Returns True if successful, False otherwise
+
+        Returns:
+            bool: True if reload was successful, False otherwise
+
+        """
+        try:
+            # Force reload of AWS secrets
+            cls._initialize()
+
+            # Reload all class attributes from current environment variables
+            cls._reload_from_environment()
+            return True
+        except (ValueError, TypeError, AttributeError) as e:
+            logger.error("Failed to reload config: %s", e)
+            return False
+
+    @classmethod
+    def _reload_from_environment(cls):
+        """Reload all class attributes from current environment variables."""
+        # Get ALL configuration attributes automatically
+        config_attrs = []
+        for attr_name in dir(cls):
+            # Skip private attributes (start with _)
+            if attr_name.startswith("_"):
+                continue
+
+            # Skip methods (callable attributes)
+            if callable(getattr(cls, attr_name)):
+                continue
+
+            # Skip special Python attributes (start and end with __)
+            if attr_name.startswith("__") and attr_name.endswith("__"):
+                continue
+
+            # This is a configuration variable
+            config_attrs.append(attr_name)
+
+        reloaded_count = 0
+        for attr_name in config_attrs:
+            env_value = os.getenv(attr_name)
+            if env_value is not None:
+                # Apply the same type conversion logic as set_env_var
+                cls.set_env_var(attr_name, env_value)
+                reloaded_count += 1
+
+        logger.info("Reloaded %s configuration variables from environment", reloaded_count)
 
 
 config = Config()

@@ -1,4 +1,4 @@
-name: Create Release
+name: Create Release to promote environment
 
 on:
   workflow_dispatch:
@@ -23,89 +23,9 @@ permissions:
 jobs:
   create-release:
     name: Create Release
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Configure Git
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-
-      - name: Determine release version
-        id: version
-        run: |
-          cd release
-          if [[ "${{ github.event.inputs.release_type }}" == "patch" ]]; then
-            NEW_VERSION=$(python3 scripts/version_bump.py --patch | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-          elif [[ "${{ github.event.inputs.release_type }}" == "minor" ]]; then
-            CURRENT=$(python3 scripts/version_bump.py --current)
-            IFS='.' read -ra PARTS <<< "$CURRENT"
-            python3 scripts/version_bump.py --major ${PARTS[0]} --minor $((${PARTS[1]} + 1))
-            NEW_VERSION="${PARTS[0]}.$((${PARTS[1]} + 1)).0"
-          else
-            CURRENT=$(python3 scripts/version_bump.py --current)
-            IFS='.' read -ra PARTS <<< "$CURRENT"
-            python3 scripts/version_bump.py --major $((${PARTS[0]} + 1)) --minor 0
-            NEW_VERSION="$((${PARTS[0]} + 1)).0.0"
-          fi
-          echo "release_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-
-      - name: Commit version changes
-        run: |
-          git add version.json
-          git commit -m "chore: bump version to ${{ steps.version.outputs.release_version }}"
-
-      - name: Create and push tag
-        run: |
-          git tag -a "${{ steps.version.outputs.release_version }}" -m "Release ${{ steps.version.outputs.release_version }}"
-          git push origin dev
-          git push origin "${{ steps.version.outputs.release_version }}"
-
-      - name: Generate release notes
-        id: release_notes
-        run: |
-          # Get commit messages since last tag
-          LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ]; then
-            COMMITS=$(git log --pretty=format:"- %s" --no-merges)
-          else
-            COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --no-merges)
-          fi
-          
-          # Create release notes content
-          NOTES="## Release ${{ steps.version.outputs.release_version }}"
-          NOTES="${NOTES}\n\n### Changes"
-          NOTES="${NOTES}\n${COMMITS}"
-          if [[ -n "${{ github.event.inputs.release_notes }}" ]]; then
-            NOTES="${NOTES}\n\n### Custom Notes"
-            NOTES="${NOTES}\n${{ github.event.inputs.release_notes }}"
-          fi
-          
-          # Write to file
-          echo -e "${NOTES}" > release_notes.md
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.version.outputs.release_version }}
-          name: Release ${{ steps.version.outputs.release_version }}
-          body_path: release_notes.md
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Post-release actions
-        run: |
-          echo "Release ${{ steps.version.outputs.release_version }} completed successfully!"
+    uses: verde-money/reusable-workflows/.github/workflows/release.yml@main
+    with:
+      release_type: ${{ github.event.inputs.release_type }}
+      release_notes: ${{ github.event.inputs.release_notes }}
+    secrets:
+      inherit
