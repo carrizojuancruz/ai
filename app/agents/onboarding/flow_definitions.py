@@ -314,7 +314,7 @@ def determine_next_step(response: str, state: "OnboardingState") -> FlowStep:
     elif current == FlowStep.STEP_5_1_INCOME_EXACT:
         state.user_context.income = response.strip() if response else None
         logger.info("[ONBOARDING] Income exact stored")
-        return FlowStep.STEP_6_CONNECT_ACCOUNTS
+        return FlowStep.FINAL_WRAP_UP
 
     elif current == FlowStep.STEP_5_2_INCOME_RANGE:
         r = (response or "").lower().strip()
@@ -323,7 +323,7 @@ def determine_next_step(response: str, state: "OnboardingState") -> FlowStep:
                 state.user_context.income_band = choice.value
                 logger.info("[ONBOARDING] Income range stored (income_band): %s", choice.value)
                 break
-        return FlowStep.STEP_6_CONNECT_ACCOUNTS
+        return FlowStep.FINAL_WRAP_UP
 
     elif current == FlowStep.STEP_6_CONNECT_ACCOUNTS:
         logger.info("[ONBOARDING] Moving to COMPLETE")
@@ -458,6 +458,20 @@ Not ready? Totally fine. You can connect later or add expenses manually. Connect
             Choice(id="not_now", label="Not right now", value="not_now", synonyms=["not now", "later", "skip"]),
         ],
         next_step=determine_next_step,
+    ),
+    FlowStep.FINAL_WRAP_UP: StepDefinition(
+        id=FlowStep.FINAL_WRAP_UP,
+        message=(
+            "Great!  When you’re done with this setup, you’ll be able to add your spending info too.\n\n"
+            "By the way, you’ve got 30 days of free access left. After that, it’s just $5 per month to keep chatting. "
+            "You won’t be charged when your free access ends, only when you choose to subscribe.\n\n"
+            "Ready to wrap up and go after some money wins together?"
+        ),
+        interaction_type=InteractionType.SINGLE_CHOICE,
+        choices=[
+            Choice(id="lets_do_this", label="Let's do this", value="lets_do_this", synonyms=["lets do this", "let's do this", "do this", "ready"])  # noqa: E501
+        ],
+        next_step=lambda _r, _s: FlowStep.COMPLETE,
     ),
     FlowStep.SUBSCRIPTION_NOTICE: StepDefinition(
         id=FlowStep.SUBSCRIPTION_NOTICE,

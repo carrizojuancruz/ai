@@ -24,6 +24,7 @@ class FlowStep(str, Enum):
     STEP_5_1_INCOME_EXACT = "step_5_1_income_exact"
     STEP_5_2_INCOME_RANGE = "step_5_2_income_range"
     STEP_6_CONNECT_ACCOUNTS = "step_6_connect_accounts"
+    FINAL_WRAP_UP = "final_wrap_up"
     SUBSCRIPTION_NOTICE = "subscription_notice"
     COMPLETE = "complete"
     TERMINATED_UNDER_18 = "terminated_under_18"
@@ -131,5 +132,6 @@ def get_step_index(step: FlowStep) -> int | None:
         FlowStep.STEP_5_1_INCOME_EXACT: 5,
         FlowStep.STEP_5_2_INCOME_RANGE: 5,
         FlowStep.STEP_6_CONNECT_ACCOUNTS: 6,
+        FlowStep.FINAL_WRAP_UP: 6,
     }
     return mapping.get(step)
