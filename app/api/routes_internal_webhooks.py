@@ -296,7 +296,7 @@ def _audit_config_configuration() -> Dict[str, Any]:
     return audit_result
 
 
-def _reload_dependent_services() -> Dict[str, bool]:
+async def _reload_dependent_services() -> Dict[str, bool]:
     """Reload services that depend on AWSConfig and AWS secrets.
 
     Returns:
@@ -308,18 +308,13 @@ def _reload_dependent_services() -> Dict[str, bool]:
     try:
         # 1. Reload AWS clients (global instances)
         try:
-            import asyncio
-
             from app.core.app_state import dispose_aws_clients, warmup_aws_clients
 
             # Dispose existing clients
             dispose_aws_clients()
 
-            # Warm up new clients
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(warmup_aws_clients())
-            loop.close()
+            # Warm up new clients using the existing event loop
+            await warmup_aws_clients()
 
             services_status["aws_clients"] = True
             logger.info("✅ AWS clients reloaded successfully")
@@ -329,17 +324,13 @@ def _reload_dependent_services() -> Dict[str, bool]:
 
         # 2. Reload Database Connection (if needed)
         try:
-            import asyncio
+            from app.db.session import dispose_engine, get_engine
 
-            from app.db.session import _get_engine, dispose_engine
+            # Dispose existing connections using the existing event loop
+            await dispose_engine()
 
-            # Dispose existing connections
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(dispose_engine())
-
-            # Recreate engine
-            _get_engine()
+            # Recreate engine using public function
+            get_engine()
 
             services_status["database_connection"] = True
             logger.info("✅ Database connection reloaded successfully")
@@ -395,7 +386,7 @@ async def update_secrets():
     2. Updates environment variables with the new values
     3. Reloads the configuration of config.py
 
-    No requires authentication - for internal use between services.
+    No authentication required - for internal use between services.
     """
     try:
         logger.info("🔄 Starting reload of secrets from AWS Secrets Manager")
@@ -459,8 +450,7 @@ async def update_secrets():
             config_reloaded = False
 
         # Reload services that depend on AWSConfig
-        services_reloaded = {}
-        services_reloaded.update(_reload_dependent_services())
+        services_reloaded = await _reload_dependent_services()
 
         return UpdateSecretsResponse(
             success=True,

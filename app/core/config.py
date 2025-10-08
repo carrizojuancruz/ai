@@ -218,7 +218,7 @@ class Config:
     BILL_PREDICTION_WINDOW_DAYS: int = int(os.getenv("BILL_PREDICTION_WINDOW_DAYS", "35"))
 
     SQS_NUDGES_AI_ICEBREAKER: str = os.getenv(
-        "SQS_NUDGES_AI_ICEBREAKER", "https://sqs.us-east-1.amazonaws.com/905418355862/fos-ai-dev-nudges"
+        "SQS_NUDGES_AI_ICEBREAKER", ""
     )
     SQS_QUEUE_REGION: str = os.getenv("SQS_QUEUE_REGION", "us-east-1")
     SQS_MAX_MESSAGES: int = int(os.getenv("SQS_MAX_MESSAGES", "10"))
