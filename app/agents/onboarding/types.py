@@ -131,6 +131,7 @@ def get_step_index(step: FlowStep) -> int | None:
         FlowStep.STEP_5_INCOME_DECISION: 5,
         FlowStep.STEP_5_1_INCOME_EXACT: 5,
         FlowStep.STEP_5_2_INCOME_RANGE: 5,
+        FlowStep.STEP_6_CONNECT_ACCOUNTS: 6,
         FlowStep.FINAL_WRAP_UP: 6,
     }
     return mapping.get(step)
