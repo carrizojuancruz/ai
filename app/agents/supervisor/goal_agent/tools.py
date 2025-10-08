@@ -305,10 +305,10 @@ async def delete_goal(goal_id: str, config: RunnableConfig) -> str:
 
 @tool(
     name_or_callable="switch_goal_status",
-    description="Switch the status of a goal using the goal_id and the new status. Valid transitions: pending/paused/off_track → in_progress, in_progress → completed, any → paused/off_track/deleted",
+    description="Switch the status of a goal using the goal_id and the new status. Valid transitions: pending/paused/off_track → in_progress, in_progress → completed/paused/off_track/error. Note: To delete a goal, use delete_goal tool instead.",
 )
 async def switch_goal_status(goal_id: str, status: str, config: RunnableConfig) -> str:
-    """Switch the status of a goal with validation of state transitions."""
+    """Switch the status of a goal with validation of state transitions. Cannot transition to 'deleted' - use delete_goal tool instead."""
     try:
         user_key = str(get_config_value(config, "user_id"))
 
@@ -320,6 +320,14 @@ async def switch_goal_status(goal_id: str, status: str, config: RunnableConfig) 
             return ResponseBuilder.error(
                 error_code=ErrorCodes.INVALID_STATUS,
                 message=f"Invalid status '{status}'. Valid statuses are: {', '.join(available_statuses)}",
+                user_id=user_key
+            )
+
+        # Check if trying to delete - should use delete_goal tool instead
+        if new_status == GoalStatus.DELETED:
+            return ResponseBuilder.error(
+                error_code=ErrorCodes.INVALID_TRANSITION,
+                message="To delete a goal, use the delete_goal tool instead of changing status to 'deleted'",
                 user_id=user_key
             )
 

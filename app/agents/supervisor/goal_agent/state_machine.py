@@ -9,41 +9,36 @@ class GoalStatusTransitionValidator:
     """Validates goal status transitions according to business rules."""
 
     # Define valid transitions based on the prompt rules
+    # Note: DELETED status is excluded - use delete_goal tool instead
     VALID_TRANSITIONS = {
         GoalStatus.PENDING: [
             GoalStatus.IN_PROGRESS,
             GoalStatus.PAUSED,
-            GoalStatus.OFF_TRACK,
-            GoalStatus.DELETED
+            GoalStatus.OFF_TRACK
         ],
         GoalStatus.IN_PROGRESS: [
             GoalStatus.COMPLETED,
             GoalStatus.PAUSED,
             GoalStatus.OFF_TRACK,
-            GoalStatus.ERROR,
-            GoalStatus.DELETED
+            GoalStatus.ERROR
         ],
         GoalStatus.PAUSED: [
             GoalStatus.IN_PROGRESS,
-            GoalStatus.OFF_TRACK,
-            GoalStatus.DELETED
+            GoalStatus.OFF_TRACK
         ],
         GoalStatus.OFF_TRACK: [
             GoalStatus.IN_PROGRESS,
-            GoalStatus.PAUSED,
-            GoalStatus.DELETED
+            GoalStatus.PAUSED
         ],
         GoalStatus.COMPLETED: [
             GoalStatus.PAUSED,
-            GoalStatus.OFF_TRACK,
-            GoalStatus.DELETED
+            GoalStatus.OFF_TRACK
         ],
         GoalStatus.ERROR: [
             GoalStatus.IN_PROGRESS,
-            GoalStatus.PAUSED,
-            GoalStatus.DELETED
+            GoalStatus.PAUSED
         ],
-        GoalStatus.DELETED: []  # Cannot transition from deleted
+        GoalStatus.DELETED: []  # Cannot transition from deleted state
     }
 
     @classmethod
