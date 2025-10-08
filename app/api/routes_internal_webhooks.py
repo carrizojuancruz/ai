@@ -12,6 +12,11 @@ from app.core.config import config
 
 logger = logging.getLogger(__name__)
 
+# Critical configuration fields that must be present
+CRITICAL_DATABASE_FIELDS = ["DATABASE_HOST", "DATABASE_NAME", "DATABASE_USER", "DATABASE_PASSWORD"]
+CRITICAL_LLM_FIELDS = ["LLM_PROVIDER", "BEDROCK_EMBED_MODEL_ID"]
+CRITICAL_AWS_FIELD = "AWS_REGION"
+
 # Internal router for webhook service-to-service communication (no auth required)
 router = APIRouter(
     prefix="/internal/webhooks",
@@ -86,7 +91,7 @@ def _audit_config_configuration() -> Dict[str, Any]:
             audit_result["summary"]["total_configured"] += 1
         else:
             audit_result["summary"]["total_missing"] += 1
-            if field == "AWS_REGION":
+            if field == CRITICAL_AWS_FIELD:
                 audit_result["summary"]["critical_missing"].append(field)
 
     # LLM Configuration
@@ -111,7 +116,7 @@ def _audit_config_configuration() -> Dict[str, Any]:
             audit_result["summary"]["total_configured"] += 1
         else:
             audit_result["summary"]["total_missing"] += 1
-            if field in ["LLM_PROVIDER", "BEDROCK_EMBED_MODEL_ID"]:
+            if field in CRITICAL_LLM_FIELDS:
                 audit_result["summary"]["critical_missing"].append(field)
 
     # Database Configuration
@@ -134,7 +139,7 @@ def _audit_config_configuration() -> Dict[str, Any]:
             audit_result["summary"]["total_configured"] += 1
         else:
             audit_result["summary"]["total_missing"] += 1
-            if field in ["DATABASE_HOST", "DATABASE_NAME", "DATABASE_USER", "DATABASE_PASSWORD"]:
+            if field in CRITICAL_DATABASE_FIELDS:
                 audit_result["summary"]["critical_missing"].append(field)
 
     # Langfuse Configuration
