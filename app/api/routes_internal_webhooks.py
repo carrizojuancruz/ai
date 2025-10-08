@@ -80,7 +80,7 @@ def _audit_config_configuration() -> Dict[str, Any]:
         value = getattr(config, field, None)
         audit_result["aws_config"][field] = {
             "configured": value is not None,
-            "value": "***" if "SECRET" in field or "KEY" in field and value else value,
+            "value": "***" if ("SECRET" in field or "KEY" in field) and value else value,
         }
         if value is not None:
             audit_result["summary"]["total_configured"] += 1
@@ -153,7 +153,7 @@ def _audit_config_configuration() -> Dict[str, Any]:
         value = getattr(config, field, None)
         audit_result["langfuse_config"][field] = {
             "configured": value is not None,
-            "value": "***" if "SECRET" in field or "KEY" in field and value else value,
+            "value": "***" if ("SECRET" in field or "KEY" in field) and value else value,
         }
         if value is not None:
             audit_result["summary"]["total_configured"] += 1
@@ -285,7 +285,7 @@ def _audit_config_configuration() -> Dict[str, Any]:
         value = getattr(config, field, None)
         audit_result["other_config"][field] = {
             "configured": value is not None,
-            "value": "***" if "SECRET" in field or "KEY" in field and value else value,
+            "value": "***" if ("SECRET" in field or "KEY" in field) and value else value,
         }
         if value is not None:
             audit_result["summary"]["total_configured"] += 1
