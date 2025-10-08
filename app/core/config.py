@@ -298,6 +298,7 @@ class Config:
 
         Returns:
             bool: True if SQS_NUDGES_AI_ICEBREAKER is configured, False otherwise
+
         """
         return bool(cls.SQS_NUDGES_AI_ICEBREAKER)
 
