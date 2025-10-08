@@ -48,7 +48,7 @@ Return clear English messages and JSON results.
 ### STATUS TRANSITION VALIDATION (Bug Fix #2)
 **MANDATORY**: For ALL status changes to "in_progress":
 1. First call `get_goal_by_id` to verify current status
-2. Validate transition is allowed: only from "pending", "paused", or "off_track"
+2. Validate transition is allowed: only from "pending" or "off_track"
 3. Use `switch_goal_status` tool with explicit status validation
 4. After status change, IMMEDIATELY call `get_goal_by_id` again to confirm the update
 5. If status didn't change after tool call, report error and suggest retry
@@ -92,15 +92,18 @@ Return clear English messages and JSON results.
 ---
 
 ## GOAL STATES & ENHANCED TRANSITION LOGIC
-**Complete state list**: pending, in_progress, completed, error, deleted, off_track, paused
+**Complete state list**: pending, in_progress, completed, off_track, deleted
 
 **Enhanced state transitions with validation**:
 - pending → in_progress: REQUIRES user confirmation AND configuration completeness check
+- pending → off_track: when goal cannot proceed or has issues
 - in_progress → completed: when target is reached within timeline
-- in_progress → error: when technical problems occur (>48h sync failure)
-- any state → deleted: manual user action (soft delete) - CONFIRM first
-- any state → off_track: when goal is not on track
-- any state → paused: when goal is paused
+- in_progress → off_track: when goal is not on track
+- off_track → in_progress: when goal is back on track
+- completed → off_track: if goal needs to be reactivated with issues
+- deleted: ONLY via delete_goal tool - CONFIRM first
+
+**CRITICAL**: The 'deleted' status can ONLY be set via the delete_goal tool, never via switch_goal_status.
 
 **Status Change Protocol**:
 1. Get current goal state with `get_goal_by_id`
@@ -121,7 +124,7 @@ User: "Set my vacation goal to in progress"
 Process:
 1. Call `list_goals` to find vacation goal
 2. Call `get_goal_by_id` to verify current status
-3. Validate transition (pending/paused/off_track → in_progress is allowed)
+3. Validate transition (pending/off_track → in_progress is allowed)
 4. Ask: "Ready to activate your vacation savings goal? This will start tracking progress."
 5. Call `switch_goal_status` with goal_id and new status
 6. Call `get_goal_by_id` again to confirm change

@@ -10,7 +10,11 @@ from langchain_core.tools import tool
 
 from app.utils.tools import get_config_value
 
+from .constants import ErrorCodes
+from .helpers import extract_goal_from_response, extract_goal_id
 from .models import Audit, Goal, GoalStatus, GoalStatusInfo
+from .response_builder import ResponseBuilder
+from .state_machine import GoalStatusTransitionValidator
 from .utils import (
     delete_goal_api,
     edit_goal,
@@ -21,6 +25,8 @@ from .utils import (
     save_goal,
     switch_goal_status_api,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _now() -> datetime:
@@ -97,41 +103,37 @@ async def create_goal(data, config: RunnableConfig) -> str:
 
 @tool(
     name_or_callable="update_goal",
-    description="Update an existing goal using the new goal data",
+    description="Update an existing goal using the new goal data. Cannot change status - use switch_goal_status tool instead.",
 )
 async def update_goal(data, config: RunnableConfig) -> str:
-    """Update an existing goal."""
+    """Update an existing goal. Status changes are not allowed through this tool - use switch_goal_status instead."""
     try:
         user_key = str(get_config_value(config, "user_id"))
 
-        # Preprocess the input data
-        if hasattr(data, 'goal_id'):
-            goal_id = str(data.goal_id)
-        elif isinstance(data, dict):
-            goal_id = str(data.get('goal_id'))
-        else:
-            return json.dumps({
-                "error": "INVALID_DATA",
-                "message": "Invalid goal data provided",
-                "goal": None,
-                "user_id": user_key
-            })
+        # Extract goal_id using helper
+        goal_id = extract_goal_id(data)
+        if not goal_id:
+            return ResponseBuilder.invalid_data(user_key, "Invalid goal data provided")
 
-        goal_to_update_response = await fetch_goal_by_id(goal_id,user_id=user_key)
+        # Fetch existing goal
+        goal_to_update_response = await fetch_goal_by_id(goal_id, user_id=user_key)
+        existing_goal_data = extract_goal_from_response(goal_to_update_response)
 
-        if not goal_to_update_response or not goal_to_update_response.get('goal'):
-            return json.dumps({
-                "error": "NO_GOAL_TO_UPDATE",
-                "message": "No goal to update, please search all goals or create a new goal using the create_goal tool",
-                "goal": None,
-                "user_id": user_key
-            })
-
-        # Extract goal data from response
-        existing_goal_data = goal_to_update_response.get('goal', {})
+        if not existing_goal_data:
+            return ResponseBuilder.error(
+                error_code=ErrorCodes.NO_GOAL_TO_UPDATE,
+                message="No goal to update, please search all goals or create a new goal using the create_goal tool",
+                user_id=user_key
+            )
 
         # Preprocess the new data
         processed_data = preprocess_goal_data(data, user_key)
+
+        # Check if status change is being attempted
+        status_change_attempted = False
+        if 'status' in processed_data and processed_data['status'] is not None:
+            status_change_attempted = True
+            del processed_data['status']
 
         # Merge existing data with new data (new data takes precedence)
         updated_data = existing_goal_data.copy()
@@ -156,19 +158,21 @@ async def update_goal(data, config: RunnableConfig) -> str:
         goal_json = updated_goal.model_dump_json()
         goal_dict = json.loads(goal_json)
 
-        return json.dumps({
-            "message": "Goal updated",
-            "goal": goal_dict,
-            "user_id": user_key
-        })
+        # Build response message
+        message = "Goal updated"
+        if status_change_attempted:
+            available_statuses = [status.value for status in GoalStatus]
+            message += f" except the status. To change the status, use the switch_goal_status tool with one of these values: {', '.join(available_statuses)}"
+
+        return ResponseBuilder.success(message=message, user_id=user_key, goal=goal_dict)
+
     except Exception as e:
-        logging.error(f"Error updating goal: {e}")
-        return json.dumps({
-            "error": "UPDATE_FAILED",
-            "message": f"Failed to update goal: {str(e)}",
-            "goal": None,
-            "user_id": user_key
-        })
+        logger.error(f"Error updating goal: {e}", exc_info=True)
+        return ResponseBuilder.error(
+            error_code=ErrorCodes.UPDATE_FAILED,
+            message=f"Failed to update goal: {str(e)}",
+            user_id=user_key
+        )
 
 @tool(
     name_or_callable="list_goals",
@@ -179,40 +183,36 @@ async def list_goals(config: RunnableConfig) -> str:
     try:
         user_id = str(get_config_value(config, "user_id"))
         if not user_id:
-            return json.dumps({
-                "error": "MISSING_USER_ID",
-                "message": "User ID not found in context",
-                "goals": []
-            })
+            return ResponseBuilder.missing_user_id()
 
         user_goals_response = await get_goals_for_user(user_id)
 
         if not user_goals_response or not user_goals_response.get('goals'):
-            return json.dumps({
-                "message": "No goals found for user",
-                "goals": [],
-                "user_id": user_id
-            })
+            return ResponseBuilder.success(
+                message="No goals found for user",
+                user_id=user_id,
+                goals=[],
+                count=0
+            )
 
         goals_data = user_goals_response.get('goals', [])
         active_goals = [g for g in goals_data if g.get('status', {}).get('value') != 'deleted']
 
-        active_goals_dict = active_goals
-
-        return json.dumps({
-            "message": f"Found {len(active_goals)} active goals",
-            "goals": active_goals_dict,
-            "user_id": user_id,
-            "count": len(active_goals)
-        })
+        return ResponseBuilder.success(
+            message=f"Found {len(active_goals)} active goals",
+            user_id=user_id,
+            goals=active_goals,
+            count=len(active_goals)
+        )
 
     except Exception as e:
-        print(f"Error listing goals: {e}")
-        return json.dumps({
-            "error": "READ_FAILED",
-            "message": f"Failed to get goals: {str(e)}",
-            "goals": []
-        })
+        logger.error(f"Error listing goals: {e}", exc_info=True)
+        return ResponseBuilder.error(
+            error_code=ErrorCodes.READ_FAILED,
+            message=f"Failed to get goals: {str(e)}",
+            user_id="",
+            goals=[]
+        )
 
 @tool(
     name_or_callable="get_in_progress_goal",
@@ -223,48 +223,41 @@ async def get_in_progress_goal(config: RunnableConfig) -> str:
     try:
         user_id = str(get_config_value(config, "user_id"))
         if not user_id:
-            return json.dumps({
-                "error": "MISSING_USER_ID",
-                "message": "User ID not found in context",
-                "goals": []
-            })
+            return ResponseBuilder.missing_user_id()
 
         in_progress_response = await get_in_progress_goals_for_user(user_id)
 
         if not in_progress_response or not in_progress_response.get('goals'):
-            return json.dumps({
-                "error": "USER_HAS_NO_IN_PROGRESS_GOALS",
-                "message": "User has no in progress goals",
-                "goal": None,
-                "user_id": user_id
-            })
+            return ResponseBuilder.error(
+                error_code=ErrorCodes.USER_HAS_NO_IN_PROGRESS_GOALS,
+                message="User has no in progress goals",
+                user_id=user_id
+            )
 
         goals_data = in_progress_response.get('goals', [])
         if not goals_data:
-            return json.dumps({
-                "error": "USER_HAS_NO_IN_PROGRESS_GOALS",
-                "message": "User has no in progress goals",
-                "goal": None,
-                "user_id": user_id
-            })
+            return ResponseBuilder.error(
+                error_code=ErrorCodes.USER_HAS_NO_IN_PROGRESS_GOALS,
+                message="User has no in progress goals",
+                user_id=user_id
+            )
 
         # Get the first in-progress goal (should be unique)
-        in_progress_goal_dict = goals_data[0]
+        in_progress_goal = goals_data[0]
 
+        return ResponseBuilder.success(
+            message="The user has an in progress goal",
+            user_id=user_id,
+            goal=in_progress_goal
+        )
 
-        return json.dumps({
-            "message": "The user has an in progress goal",
-            "goal": in_progress_goal_dict,
-            "user_id": user_id
-        })
     except Exception as e:
-        logging.error(f"Error getting in-progress goal: {e}")
-        return json.dumps({
-            "error": "READ_FAILED",
-            "message": f"Failed to get goal: {str(e)}",
-            "goal": None,
-            "user_id": user_id
-        })
+        logger.error(f"Error getting in-progress goal: {e}", exc_info=True)
+        return ResponseBuilder.error(
+            error_code=ErrorCodes.READ_FAILED,
+            message=f"Failed to get goal: {str(e)}",
+            user_id=user_id if 'user_id' in locals() else ""
+        )
 
 @tool(
     name_or_callable="delete_goal",
@@ -277,69 +270,103 @@ async def delete_goal(goal_id: str, config: RunnableConfig) -> str:
 
         # First check if goal exists
         goal_response = await fetch_goal_by_id(goal_id, user_key)
+        existing_goal = extract_goal_from_response(goal_response)
 
-        if not goal_response or not goal_response.get('goal'):
-            return json.dumps({
-                "error": "NO_GOAL_TO_DELETE",
-                "message": "No goal to delete, please search all goals and ask to the user what goal to delete",
-                "user_id": user_key
-            })
+        if not existing_goal:
+            return ResponseBuilder.error(
+                error_code=ErrorCodes.NO_GOAL_TO_DELETE,
+                message="No goal to delete, please search all goals and ask to the user what goal to delete",
+                user_id=user_key
+            )
 
         # Delete via API
         delete_response = await delete_goal_api(goal_id, user_key)
 
         if delete_response:
-            return json.dumps({
-                "message": "Goal deleted",
-                "goal": goal_response.get('goal'),
-                "user_id": user_key
-            })
+            return ResponseBuilder.success(
+                message="Goal deleted",
+                user_id=user_key,
+                goal=existing_goal
+            )
         else:
-            return json.dumps({
-                "error": "DELETE_FAILED",
-                "message": "Failed to delete goal via API",
-                "goal": None,
-                "user_id": user_key
-            })
+            return ResponseBuilder.error(
+                error_code=ErrorCodes.DELETE_FAILED,
+                message="Failed to delete goal via API",
+                user_id=user_key
+            )
+
     except Exception as e:
-        logging.error(f"Error deleting goal: {e}")
-        return json.dumps({
-            "error": "DELETE_FAILED",
-            "message": f"Failed to delete goal: {str(e)}",
-            "goal": None,
-            "user_id": user_key
-        })
+        logger.error(f"Error deleting goal: {e}", exc_info=True)
+        return ResponseBuilder.error(
+            error_code=ErrorCodes.DELETE_FAILED,
+            message=f"Failed to delete goal: {str(e)}",
+            user_id=user_key if 'user_key' in locals() else ""
+        )
 
 @tool(
     name_or_callable="switch_goal_status",
-    description="Switch the status of a goal using the goal_id and the new status",
+    description="Switch the status of a goal using the goal_id and the new status. Valid transitions: pending/paused/off_track → in_progress, in_progress → completed/paused/off_track/error. Note: To delete a goal, use delete_goal tool instead.",
 )
 async def switch_goal_status(goal_id: str, status: str, config: RunnableConfig) -> str:
-    """Switch the status of a goal."""
+    """Switch the status of a goal with validation of state transitions. Cannot transition to 'deleted' - use delete_goal tool instead."""
     try:
         user_key = str(get_config_value(config, "user_id"))
 
-        # Validate status
+        # Validate status exists in enum
         try:
-            GoalStatus(status)  # Just validate, don't store
+            new_status = GoalStatus(status)
         except ValueError:
-            return json.dumps({
-                "error": "INVALID_STATUS",
-                "message": f"Invalid status '{status}'. Valid statuses are: {[s.value for s in GoalStatus]}",
-                "goal": None,
-                "user_id": user_key
-            })
+            available_statuses = [s.value for s in GoalStatus]
+            return ResponseBuilder.error(
+                error_code=ErrorCodes.INVALID_STATUS,
+                message=f"Invalid status '{status}'. Valid statuses are: {', '.join(available_statuses)}",
+                user_id=user_key
+            )
 
-        # First check if goal exists
+        # Check if trying to delete - should use delete_goal tool instead
+        if new_status == GoalStatus.DELETED:
+            return ResponseBuilder.error(
+                error_code=ErrorCodes.INVALID_TRANSITION,
+                message="To delete a goal, use the delete_goal tool instead of changing status to 'deleted'",
+                user_id=user_key
+            )
+
+        # First check if goal exists and get current status
         goal_response = await fetch_goal_by_id(goal_id, user_key)
+        current_goal = extract_goal_from_response(goal_response)
 
-        if not goal_response or not goal_response.get('goal'):
-            return json.dumps({
-                "error": "NO_GOAL_TO_SWITCH",
-                "message": "No goal to switch, please search all goals and ask to the user what goal to switch",
-                "goal": None,
-                "user_id": user_key
-            })
+        if not current_goal:
+            return ResponseBuilder.error(
+                error_code=ErrorCodes.NO_GOAL_TO_SWITCH,
+                message="No goal to switch, please search all goals and ask to the user what goal to switch",
+                user_id=user_key
+            )
+
+        # Extract current status
+        current_status_str = current_goal.get('status', {}).get('value')
+
+        if not current_status_str:
+            return ResponseBuilder.error(
+                error_code=ErrorCodes.INVALID_GOAL_STATE,
+                message="Cannot determine current goal status",
+                user_id=user_key
+            )
+
+        # Validate state transition using state machine
+        current_status = GoalStatus(current_status_str)
+        is_valid, error_message = GoalStatusTransitionValidator.can_transition(current_status, new_status)
+
+        if not is_valid:
+            available_transitions = GoalStatusTransitionValidator.get_valid_transitions(current_status)
+            return ResponseBuilder.error(
+                error_code=ErrorCodes.INVALID_TRANSITION,
+                message=error_message,
+                user_id=user_key,
+                goal=current_goal,
+                current_status=current_status.value,
+                attempted_status=status,
+                valid_transitions=available_transitions
+            )
 
         # Switch status via API
         switch_response = await switch_goal_status_api(goal_id, status, user_key)
@@ -347,29 +374,30 @@ async def switch_goal_status(goal_id: str, status: str, config: RunnableConfig) 
         if switch_response:
             # Get updated goal to return
             updated_goal_response = await fetch_goal_by_id(goal_id, user_key)
-            updated_goal = updated_goal_response.get('goal', {}) if updated_goal_response else {}
+            updated_goal = extract_goal_from_response(updated_goal_response) or {}
 
-            return json.dumps({
-                "message": "Goal status switched",
-                "goal": updated_goal,
-                "user_id": user_key
-            })
+            return ResponseBuilder.success(
+                message=f"Goal status switched from '{current_status.value}' to '{status}'",
+                user_id=user_key,
+                goal=updated_goal,
+                previous_status=current_status.value,
+                new_status=status
+            )
         else:
-            return json.dumps({
-                "error": "SWITCH_FAILED",
-                "message": "Failed to switch goal status via API",
-                "goal": None,
-                "user_id": user_key
-            })
+            return ResponseBuilder.error(
+                error_code=ErrorCodes.SWITCH_FAILED,
+                message="Failed to switch goal status via API. The transition may not be allowed by the backend.",
+                user_id=user_key,
+                goal=current_goal
+            )
 
     except Exception as e:
-        logging.error(f"Error switching goal status: {e}")
-        return json.dumps({
-            "error": "SWITCH_FAILED",
-            "message": f"Failed to switch goal status: {str(e)}",
-            "goal": None,
-            "user_id": user_key
-        })
+        logger.error(f"Error switching goal status: {e}", exc_info=True)
+        return ResponseBuilder.error(
+            error_code=ErrorCodes.SWITCH_FAILED,
+            message=f"Failed to switch goal status: {str(e)}",
+            user_id=user_key
+        )
 
 
 @tool(
@@ -381,28 +409,25 @@ async def get_goal_by_id(goal_id: str, config: RunnableConfig) -> str:
     try:
         user_key = str(config.get("configurable", {}).get("user_id"))
         goal_response = await fetch_goal_by_id(goal_id, user_key)
+        goal_dict = extract_goal_from_response(goal_response)
 
-        if not goal_response or not goal_response.get('goal'):
-            return json.dumps({
-                "error": "GOAL_NOT_FOUND",
-                "message": f"No goal found with ID: {goal_id}",
-                "goal": None,
-                "user_id": user_key
-            })
+        if not goal_dict:
+            return ResponseBuilder.error(
+                error_code=ErrorCodes.GOAL_NOT_FOUND,
+                message=f"No goal found with ID: {goal_id}",
+                user_id=user_key
+            )
 
-        # Extract goal from response
-        goal_dict = goal_response.get('goal', {})
+        return ResponseBuilder.success(
+            message="Goal found",
+            user_id=user_key,
+            goal=goal_dict
+        )
 
-        return json.dumps({
-            "message": "Goal found",
-            "goal": goal_dict,
-            "user_id": user_key
-        })
     except Exception as e:
-        logging.error(f"Error fetching goal by ID: {e}")
-        return json.dumps({
-            "error": "READ_FAILED",
-            "message": f"Failed to get goal: {str(e)}",
-            "goal": None,
-            "user_id": user_key
-        })
+        logger.error(f"Error fetching goal by ID: {e}", exc_info=True)
+        return ResponseBuilder.error(
+            error_code=ErrorCodes.READ_FAILED,
+            message=f"Failed to get goal: {str(e)}",
+            user_id=user_key if 'user_key' in locals() else ""
+        )
