@@ -122,11 +122,15 @@ class GoalBase(BaseModel):
 class GoalCategoryInfo(BaseModel):
     """Classification of the objective for intelligent routing."""
 
+    model_config = ConfigDict(use_enum_values=True)
+
     value: GoalCategory = Field(..., description="Goal category for routing")
 
 # Goal nature
 class GoalNatureInfo(BaseModel):
     """Defines the desired direction of change."""
+
+    model_config = ConfigDict(use_enum_values=True)
 
     value: GoalNature = Field(..., description="Desired direction: increase or reduce")
 
@@ -225,14 +229,16 @@ class Reminders(BaseModel):
 class GoalStatusInfo(BaseModel):
     """Current goal status."""
 
+    model_config = ConfigDict(use_enum_values=True)
+
     value: GoalStatus = Field(default=GoalStatus.PENDING, description="Current status")
 
 class Progress(BaseModel):
     """Current progress tracking."""
 
-    current_value: Optional[Decimal] = Field(None, description="Current value toward objective")
-    percent_complete: Optional[Decimal] = Field(None, ge=0, le=100, description="Completion percentage")
-    updated_at: Optional[datetime] = Field(None, description="Last progress update")
+    current_value: Decimal = Field(default=Decimal("0"), description="Current value toward objective")
+    percent_complete: Decimal = Field(default=Decimal("0"), ge=0, le=100, description="Completion percentage")
+    updated_at: datetime = Field(default_factory=datetime.now, description="Last progress update")
 
 # Audit trail
 class Audit(BaseModel):
@@ -264,7 +270,7 @@ class Goal(BaseModel):
 
     # Status and progress
     status: GoalStatusInfo = Field(default=GoalStatusInfo(), description="Current status")
-    progress: Optional[Progress] = Field(None, description="Current progress")
+    progress: Progress = Field(default_factory=Progress, description="Current progress")
 
     # Metadata and extensibility
     metadata: Optional[Dict[str, str]] = Field(None, description="Additional metadata")

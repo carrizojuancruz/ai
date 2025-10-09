@@ -3,8 +3,15 @@ from app.services.external_context.http_client import FOSHttpClient
 from .models import Goal
 
 
-def preprocess_goal_data(data, user_id: str) -> dict:
-    """Preprocess goal data to fix common validation issues and provide sensible defaults."""
+def preprocess_goal_data(data, user_id: str, is_update: bool = False) -> dict:
+    """Preprocess goal data to fix common validation issues and provide sensible defaults.
+
+    Args:
+        data: The goal data to preprocess
+        user_id: The user ID
+        is_update: If True, only normalizes data without adding defaults for missing fields
+
+    """
     from datetime import datetime, timedelta
 
     from .models import FrequencyUnit, GoalCategory, GoalNature
@@ -20,64 +27,70 @@ def preprocess_goal_data(data, user_id: str) -> dict:
     # Ensure user_id is set
     data_dict['user_id'] = user_id
 
-    # Ensure 'goal' field (GoalBase) has required title
-    if 'goal' not in data_dict or not data_dict['goal']:
-        if 'title' in data_dict:
-            # Move title to goal structure if provided at top level
-            data_dict['goal'] = {'title': data_dict['title']}
-        else:
-            # Provide default title if completely missing
-            data_dict['goal'] = {'title': 'Enter goal title'}
-    elif isinstance(data_dict['goal'], dict) and 'title' not in data_dict['goal']:
-        data_dict['goal']['title'] = 'Enter goal title'
+    # Only add defaults for missing fields if NOT an update
+    if not is_update:
+        # Ensure 'goal' field (GoalBase) has required title
+        if 'goal' not in data_dict or not data_dict['goal']:
+            if 'title' in data_dict:
+                # Move title to goal structure if provided at top level
+                data_dict['goal'] = {'title': data_dict['title']}
+            else:
+                # Provide default title if completely missing
+                data_dict['goal'] = {'title': 'Enter goal title'}
+        elif isinstance(data_dict['goal'], dict) and 'title' not in data_dict['goal']:
+            data_dict['goal']['title'] = 'Enter goal title'
 
-    # Ensure 'category' field exists with default
-    if 'category' not in data_dict or not data_dict['category']:
-        data_dict['category'] = {'value': GoalCategory.SAVING.value}
-    elif isinstance(data_dict['category'], str):
+        # Ensure 'category' field exists with default
+        if 'category' not in data_dict or not data_dict['category']:
+            data_dict['category'] = {'value': GoalCategory.SAVING.value}
+
+        # Ensure 'nature' field exists with default
+        if 'nature' not in data_dict or not data_dict['nature']:
+            data_dict['nature'] = {'value': GoalNature.INCREASE.value}
+
+        # Ensure 'frequency' field exists with default recurrent monthly
+        if 'frequency' not in data_dict or not data_dict['frequency']:
+            now = datetime.now()
+            data_dict['frequency'] = {
+                'type': 'recurrent',
+                'recurrent': {
+                    'unit': FrequencyUnit.MONTH.value,
+                    'every': 1,
+                    'start_date': now.isoformat(),
+                    'end_date': (now + timedelta(days=365)).isoformat()  # 1 year from now
+                }
+            }
+        elif isinstance(data_dict['frequency'], dict) and data_dict['frequency'].get('type') == 'recurrent':
+            # Ensure recurrent frequency has all required fields
+            if 'recurrent' not in data_dict['frequency']:
+                now = datetime.now()
+                data_dict['frequency']['recurrent'] = {
+                    'unit': FrequencyUnit.MONTH.value,
+                    'every': 1,
+                    'start_date': now.isoformat(),
+                    'end_date': (now + timedelta(days=365)).isoformat()
+                }
+
+        # Ensure 'amount' field exists with proper structure
+        if 'amount' not in data_dict or not data_dict['amount']:
+            data_dict['amount'] = {
+                'type': 'absolute',
+                'absolute': {
+                    'currency': 'USD',
+                    'target': 1000
+                }
+            }
+
+    # Always normalize structure if fields are present (for both create and update)
+    if 'category' in data_dict and isinstance(data_dict['category'], str):
         # Convert string category to proper structure
         data_dict['category'] = {'value': data_dict['category']}
 
-    # Ensure 'nature' field exists with default
-    if 'nature' not in data_dict or not data_dict['nature']:
-        data_dict['nature'] = {'value': GoalNature.INCREASE.value}
-    elif isinstance(data_dict['nature'], str):
+    if 'nature' in data_dict and isinstance(data_dict['nature'], str):
         # Convert string nature to proper structure
         data_dict['nature'] = {'value': data_dict['nature']}
 
-    # Ensure 'frequency' field exists with default recurrent monthly
-    if 'frequency' not in data_dict or not data_dict['frequency']:
-        now = datetime.now()
-        data_dict['frequency'] = {
-            'type': 'recurrent',
-            'recurrent': {
-                'unit': FrequencyUnit.MONTH.value,
-                'every': 1,
-                'start_date': now.isoformat(),
-                'end_date': (now + timedelta(days=365)).isoformat()  # 1 year from now
-            }
-        }
-    elif isinstance(data_dict['frequency'], dict) and data_dict['frequency'].get('type') == 'recurrent':
-        # Ensure recurrent frequency has all required fields
-        if 'recurrent' not in data_dict['frequency']:
-            now = datetime.now()
-            data_dict['frequency']['recurrent'] = {
-                'unit': FrequencyUnit.MONTH.value,
-                'every': 1,
-                'start_date': now.isoformat(),
-                'end_date': (now + timedelta(days=365)).isoformat()
-            }
-
-    # Ensure 'amount' field exists with proper structure
-    if 'amount' not in data_dict or not data_dict['amount']:
-        data_dict['amount'] = {
-            'type': 'absolute',
-            'absolute': {
-                'currency': 'USD',
-                'target': 1000
-            }
-        }
-    elif isinstance(data_dict['amount'], dict):
+    if 'amount' in data_dict and isinstance(data_dict['amount'], dict):
         amount = data_dict['amount']
         # Fix amount structure if it's a simple value or incomplete
         if 'type' not in amount:

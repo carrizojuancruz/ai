@@ -12,7 +12,7 @@ from app.utils.tools import get_config_value
 
 from .constants import ErrorCodes
 from .helpers import extract_goal_from_response, extract_goal_id
-from .models import Audit, Goal, GoalStatus, GoalStatusInfo
+from .models import Goal, GoalStatus
 from .response_builder import ResponseBuilder
 from .state_machine import GoalStatusTransitionValidator
 from .utils import (
@@ -58,9 +58,9 @@ async def create_goal(data, config: RunnableConfig) -> str:
         # Add default values to processed data
         processed_data['user_id'] = str(user_uuid)
         processed_data['version'] = processed_data.get('version') or 1
-        processed_data['status'] = GoalStatusInfo(value=GoalStatus.PENDING)
-        processed_data['progress'] = None
-        processed_data['audit'] = Audit(created_at=_now(), updated_at=_now())
+        processed_data['status'] = {'value': 'pending'}
+        processed_data['progress'] = {'current_value': 0, 'percent_complete': 0, 'updated_at': _now().isoformat()}
+        processed_data['audit'] = {'created_at': _now().isoformat(), 'updated_at': _now().isoformat()}
 
         # Validate that all required fields are present before creating Goal
         required_fields = ['goal', 'category', 'nature', 'frequency', 'amount']
@@ -88,9 +88,14 @@ async def create_goal(data, config: RunnableConfig) -> str:
         # Save goal using async function
         response_goal = await save_goal(goal)
 
+        # Serialize goal properly
+        goal_dict = response_goal.get('goal')
+        if hasattr(goal_dict, 'model_dump'):
+            goal_dict = goal_dict.model_dump(mode='json')
+
         return json.dumps({
             "message": "Goal created",
-            "goal": response_goal.get('goal'),
+            "goal": goal_dict,
             "user_id": user_key
         })
     except Exception as e:
@@ -126,8 +131,8 @@ async def update_goal(data, config: RunnableConfig) -> str:
                 user_id=user_key
             )
 
-        # Preprocess the new data
-        processed_data = preprocess_goal_data(data, user_key)
+        # Preprocess the new data (is_update=True to avoid adding defaults)
+        processed_data = preprocess_goal_data(data, user_key, is_update=True)
 
         # Check if status change is being attempted
         status_change_attempted = False
@@ -140,6 +145,32 @@ async def update_goal(data, config: RunnableConfig) -> str:
         for key, value in processed_data.items():
             if value is not None:
                 updated_data[key] = value
+
+        # Auto-calculate percent_complete if progress.current_value was updated
+        if 'progress' in updated_data and updated_data['progress']:
+            from decimal import Decimal
+
+            progress = updated_data['progress']
+            try:
+                current_value = Decimal(str(progress.get('current_value', 0)))
+
+                # Get target from amount
+                amount = updated_data.get('amount', {})
+                if amount.get('type') == 'absolute' and amount.get('absolute'):
+                    target = Decimal(str(amount['absolute'].get('target', 0)))
+
+                    if target > 0:
+                        percent = (current_value / target) * Decimal('100')
+                        # Cap at 100% and format as string
+                        progress['percent_complete'] = str(min(percent, Decimal('100')))
+                    else:
+                        progress['percent_complete'] = '0'
+
+                # Always update timestamp
+                progress['updated_at'] = _now().isoformat()
+            except (ValueError, TypeError, ZeroDivisionError) as e:
+                logger.warning(f"Error calculating percent_complete: {e}")
+                # Keep existing percent_complete if calculation fails
 
         # Update version and audit info
         updated_data['version'] = updated_data.get('version', 1) + 1
