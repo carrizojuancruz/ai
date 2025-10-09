@@ -96,12 +96,15 @@ class FOSHttpClient:
         headers = self._build_headers()
 
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=15.0) as client:
                 resp = await client.post(url, headers=headers, json=data)
                 resp.raise_for_status()
                 return resp.json()
+        except httpx.HTTPStatusError as e:
+            logger.warning(f"FOS API POST failed for {endpoint}: Client error '{e.response.status_code} {e.response.reason_phrase}' for url '{e.request.url}'")
+            return None
         except Exception as e:
-            logger.warning(f"FOS API POST failed for {endpoint}: {e}")
+            logger.warning(f"FOS API POST failed for {endpoint}: {type(e).__name__}: {e}")
             return None
 
     async def delete(self, endpoint: str) -> Dict[str, Any] | None:
