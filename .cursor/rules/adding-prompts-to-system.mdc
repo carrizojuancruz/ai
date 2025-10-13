@@ -1,0 +1,135 @@
+---
+description: How to add new prompts to the centralized prompt system and ensure they're tested
+alwaysApply: false
+---
+# Adding New Prompts to the System
+
+## 🚨 **Important: Only Add Actual LLM Prompts**
+
+**DO NOT add:**
+- UI messages displayed to users
+- Hardcoded text strings
+- Error messages
+- Welcome text
+
+**ONLY add prompts that are sent to language models for processing.**
+
+## 📝 **Step-by-Step: Adding a New Prompt**
+
+### 1. **Choose the Right File**
+Select based on prompt category:
+
+| File | When to Use |
+|------|-------------|
+| `app/services/llm/agent_prompts.py` | Agent system prompts (supervisor, finance, wealth, goal, guest) |
+| `app/services/llm/memory_prompts.py` | Memory processing (hotpath, episodic, icebreaker, summarizer) |
+| `app/services/llm/utility_prompts.py` | Utility functions (title gen, conversation summarizer, welcome) |
+| `app/services/llm/onboarding_prompts.py` | Onboarding (name/location extraction) |
+
+### 2. **Add to the Appropriate File**
+```python
+# Add at the end of the file with _LOCAL suffix
+NEW_PROMPT_LOCAL = """Your prompt text here.
+
+## Instructions
+- Be specific and clear
+- Include examples if needed
+- No emojis (prompts should be professional)
+- Follow formatting rules: ## headers, - bullets, --- horizontal rules
+"""
+
+# For prompts with variables:
+DYNAMIC_PROMPT_LOCAL = """Analyze this {content_type}:
+
+{content}
+
+Provide a {analysis_type} response."""
+```
+
+### 2. **Add Loader Method to `app/services/llm/prompt_loader.py`**
+
+#### For Static Prompts (no variables):
+```python
+def _get_new_prompt_local(self) -> str:
+    from .agent_prompts import NEW_PROMPT_LOCAL
+    return NEW_PROMPT_LOCAL.strip()
+```
+
+#### For Dynamic Prompts (with variables):
+```python
+def _get_dynamic_prompt_local(self, **kwargs) -> str:
+    from .agent_prompts import DYNAMIC_PROMPT_LOCAL
+    content_type = kwargs.get('content_type', 'text')
+    content = kwargs.get('content', '')
+    analysis_type = kwargs.get('analysis_type', 'brief')
+    return DYNAMIC_PROMPT_LOCAL.format(
+        content_type=content_type,
+        content=content,
+        analysis_type=analysis_type
+    )
+```
+
+### 3. **Register in `_register_defaults()`**
+```python
+self._bundled_defaults["new_prompt"] = self._get_new_prompt_local
+self._bundled_defaults["dynamic_prompt"] = self._get_dynamic_prompt_local
+```
+
+### 4. **Add to Test Registry `tests/supervisor_prompts/prompt_specs.json`**
+```json
+{
+  "name": "new_prompt",
+  "module": "app.services.llm.agent_prompts",
+  "symbol": "NEW_PROMPT_LOCAL",
+  "callable": false,
+  "loader": "app.services.llm.prompt_loader:prompt_loader",
+  "type": "constant",
+  "parameters": [],
+  "prompt_preview": "Your prompt text here...",
+  "description": "Brief description of what this prompt does",
+  "evaluation": {
+    "instructions": [
+      "Validation rules for semantic testing (future P1)"
+    ]
+  }
+}
+```
+
+### 5. **Test Your Addition**
+```bash
+# Run static tests (should include your new prompt)
+poetry run pytest tests/supervisor_prompts/static/ -v
+
+# Test loading your prompt manually
+python -c "from app.services.llm.prompt_loader import prompt_loader; print(prompt_loader.load('new_prompt'))"
+```
+
+## 🎯 **Usage in Code**
+```python
+from app.services.llm.prompt_loader import prompt_loader
+
+# Static prompt
+prompt = prompt_loader.load("new_prompt")
+
+# Dynamic prompt with variables
+prompt = prompt_loader.load("dynamic_prompt",
+                           content_type="document",
+                           content="Hello world",
+                           analysis_type="detailed")
+```
+
+## ✅ **Validation Rules**
+Your prompt must pass:
+- ✅ UTF-8 encoding
+- ✅ No tabs or trailing spaces
+- ✅ Headers use `##` (not `#`)
+- ✅ Bullets use `- ` or `---`
+- ✅ No emoji characters
+- ✅ No Unicode escape sequences
+
+## 🚫 **Common Mistakes to Avoid**
+- Adding UI messages instead of LLM prompts
+- Forgetting to register in `_bundled_defaults`
+- Not adding to `prompt_specs.json`
+- Using wrong parameter names in format strings
+- Including emojis in prompts

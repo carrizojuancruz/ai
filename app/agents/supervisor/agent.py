@@ -21,7 +21,6 @@ from app.core.config import config as app_config
 from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
 from .handoff import create_task_description_handoff_tool
-from .prompts import SUPERVISOR_PROMPT
 from .subgraph import create_supervisor_subgraph
 from .workers import finance_router, goal_agent
 
@@ -169,6 +168,9 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     except Exception as exc:
         logger.info("summary.model.bind.skip err=%s", exc)
 
+    from app.services.llm.prompt_loader import prompt_loader
+    supervisor_prompt = prompt_loader.load("supervisor_system_prompt")
+
     supervisor_agent_with_description = create_supervisor_subgraph(
         chat_bedrock,
         [
@@ -176,7 +178,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
             assign_to_wealth_agent_with_description,
             assign_to_goal_agent_with_description,
         ],
-        SUPERVISOR_PROMPT,
+        supervisor_prompt,
     )
 
     class SupervisorState(MessagesState):

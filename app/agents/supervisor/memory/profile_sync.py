@@ -20,26 +20,12 @@ async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], valu
     try:
         model_id = config.MEMORY_TINY_LLM_MODEL_ID
         bedrock = get_bedrock_runtime_client()
+        from app.services.llm.prompt_loader import prompt_loader
         summary = str(value.get("summary") or "")[:500]
         category = str(value.get("category") or "")[:64]
-        prompt = (
-            "Task: From the memory summary below, extract user profile information that should be stored permanently.\n"
-            "Extract only explicitly stated facts. Do not infer or assume.\n\n"
-            "Output strict JSON with these optional keys:\n"
-            "{\n"
-            '  "preferred_name": string (only if the user stated their name),\n'
-            '  "language": string (e.g., "en-US", "es-ES"),\n'
-            '  "city": string (current city of residence),\n'
-            '  "tone": string (preferred communication style: "casual", "professional", "friendly"),\n'
-            '  "age": integer (user\'s age in years),\n'
-            '  "income_band": string (e.g., "under_25k", "25k_50k", "50k_75k", "75k_100k", "over_100k"),\n'
-            '  "money_feelings": string (how they feel about money: "anxious", "confused", "zen", "motivated"),\n'
-            '  "goals_add": [string] (list of financial goals to add, e.g., ["save for vacation", "pay off debt"])\n'
-            "}\n\n"
-            f"Category: {category}\n"
-            f"Summary: {summary}\n\n"
-            "JSON (only include fields explicitly mentioned):"
-        )
+        prompt = prompt_loader.load("profile_sync_extractor",
+                                   category=category,
+                                   summary=summary)
         body_payload = {
             "messages": [{"role": "user", "content": [{"text": prompt}]}],
             "inferenceConfig": {"temperature": 0.0, "topP": 0.1, "maxTokens": 96, "stopSequences": []},

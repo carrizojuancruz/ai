@@ -10,7 +10,6 @@ from langgraph.types import Command
 from app.core.config import config
 from app.observability.logging_config import configure_logging
 
-from .prompts import GOAL_AGENT_PROMPT
 from .subgraph import create_goal_subgraph
 from .tools import (
     create_goal,
@@ -51,7 +50,8 @@ class GoalAgent:
         return create_goal_subgraph(self.llm, tools, prompt_builder)
 
     def _create_system_prompt(self) -> str:
-        return GOAL_AGENT_PROMPT
+        from app.services.llm.prompt_loader import prompt_loader
+        return prompt_loader.load("goal_agent_system_prompt")
 
     async def process_query_with_agent(self, query: str, user_id) -> Command:
         agent = self._create_agent_with_tools()

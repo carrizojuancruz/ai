@@ -44,6 +44,7 @@ mypy = "^1.15.0"
 black = "^25.1.0"
 isort = "^5.13.2"
 pytest-asyncio = "^1.2.0"
+opentelemetry-exporter-otlp-proto-http = "^1.37.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -161,8 +162,10 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+pythonpath = ["."]
 markers = [
     "asyncio: marks tests as async",
+    "prompt_static: marks prompt static quality tests",
 ]
 addopts = [
     "--strict-markers",

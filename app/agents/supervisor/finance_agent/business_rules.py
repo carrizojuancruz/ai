@@ -76,9 +76,11 @@ General Analysis Patterns:
 • Use primary category names: "FOOD_AND_DRINK", "GENERAL_MERCHANDISE", etc.
 • System handles 100+ category variations automatically"""
 
+    cleaned_query_patterns = '\n'.join(line.rstrip() for line in query_patterns.split('\n'))
+
     return f"""{primary_info}
 
-{query_patterns}
+{cleaned_query_patterns}
 
 Category Groups: {groups_info}.
 

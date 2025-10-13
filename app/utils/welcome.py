@@ -31,15 +31,8 @@ async def generate_personalized_welcome(
 
     chat = ChatBedrock(model_id=model_id, region_name=region)
 
-    system = (
-        "You are Vera, a warm, concise financial assistant.\n"
-        "Greet the user personally if a name is available.\n"
-        "Keep the welcome to one short sentence (<= 30 words).\n"
-        "If a brief summary of the LAST conversation is provided, optionally and subtly invite continuing it, in the SAME sentence.\n"
-        "If an icebreaker hint is provided, naturally weave it into the single sentence without saying 'memory', 'nudge', or 'icebreaker'.\n"
-        "Use 'you' (second person), never third person.\n"
-        "Do not include emojis. Do not ask multiple questions."
-    )
+    from app.services.llm.prompt_loader import prompt_loader
+    system = prompt_loader.load("welcome_generator_system_prompt")
     context_str = _format_user_context_for_prompt(user_context)
     last_gist = None
     if isinstance(prior_summary, dict):

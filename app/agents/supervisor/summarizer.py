@@ -75,11 +75,9 @@ class ConversationSummarizer:
             return {}
 
         # Build a focused summarization prompt to avoid answering user queries
-        system_instr = (
-            "You are a summarizer. Summarize the following earlier conversation strictly as a concise, "
-            "factual summary for internal memory. Do not answer user questions. Do not provide step-by-step instructions. "
-            f"Limit to roughly {self.summary_max_tokens} tokens. Use 3-7 bullet points, neutral tone."
-        )
+        from app.services.llm.prompt_loader import prompt_loader
+        system_instr = prompt_loader.load("conversation_summarizer_instruction",
+                                         summary_max_tokens=self.summary_max_tokens)
         transcript = self._messages_to_transcript(head_for_summary)
         prompt_messages = [
             SystemMessage(content=system_instr),

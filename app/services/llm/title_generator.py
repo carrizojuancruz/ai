@@ -26,22 +26,10 @@ class TitleGeneratorLLM:
 
     async def generate_title_and_summary(self, body: str) -> dict[str, str]:
         """Generate title and summary from content body."""
-        system_prompt = """You are an expert assistant in creating concise titles and summaries for financial content.
-        Your task is to generate an attractive title and a summary of maximum 125 characters for the provided content.
+        from app.services.llm.prompt_loader import prompt_loader
+        system_prompt = prompt_loader.load("title_generator_system_prompt")
 
-        Rules:
-        1. The title should be clear, descriptive, and attractive
-        2. The summary should capture the essence of the content in maximum 125 characters
-        3. Respond ONLY with a valid JSON with the keys "title" and "summary"
-        4. Do not include additional explanations"""
-
-        user_prompt = f"""Analyze the following content and generate a title and summary:
-
-        Content:
-        {body}
-
-        Respond with the JSON format:s
-        {{"title": "title here", "summary": "summary here"}}"""
+        user_prompt = prompt_loader.load("title_generator_user_prompt_template", body=body)
 
         try:
             # Prepare the request for GPT-OSS

@@ -1,0 +1,185 @@
+---
+description: How the prompt testing system works and what each test validates
+globs: tests/supervisor_prompts/**/*.py,tests/supervisor_prompts/**/*.json
+---
+
+# Prompt Testing System Architecture
+
+## 🏗️ **Two-Tier Testing System**
+
+### **P0: Static Tests** (Completed ✅)
+**Location:** `tests/supervisor_prompts/static/test_prompt_format.py`
+**Purpose:** Enforce meta-invariants and formatting rules
+**Tests:** 9 validation checks on all prompts
+
+### **P1: Semantic Tests** (Future 🚧)
+**Location:** `tests/supervisor_prompts/semantic/test_prompts.py`
+**Purpose:** LLM judge evaluation of prompt quality
+**Status:** Currently broken (import issues)
+
+---
+
+## 📋 **P0 Static Test Details**
+
+### **Test Execution**
+```bash
+# Run all static tests
+poetry run pytest tests/supervisor_prompts/static/ -v
+
+# Use Poetry (required for imports)
+poetry run pytest -m prompt_static -v
+```
+
+### **What Each Test Validates**
+
+#### 1. **`test_all_prompts_load_successfully`**
+- ✅ Loads every prompt from `prompt_specs.json` via `prompt_loader.load()`
+- ✅ Ensures no exceptions during loading
+- ✅ Verifies all prompts are properly registered
+
+#### 2. **`test_prompt_utf8_valid`**
+- ✅ Validates UTF-8 encoding (allows ñ, ó, é, etc.)
+- ✅ Rejects invalid Unicode characters
+- ✅ Allows international characters but not corruption
+
+#### 3. **`test_prompt_no_unicode_escapes`**
+- ✅ No `\uXXXX` Unicode escape sequences
+- ✅ Ensures prompts use literal characters
+- ✅ Prevents encoding issues
+
+#### 4. **`test_prompt_no_tabs`**
+- ✅ No tab characters (`\t`)
+- ✅ All indentation uses spaces
+- ✅ Maintains consistent formatting
+
+#### 5. **`test_prompt_no_trailing_spaces`**
+- ✅ No trailing whitespace on lines
+- ✅ Clean line endings
+- ✅ Prevents formatting issues
+
+#### 6. **`test_prompt_headers_format`**
+- ✅ Headers use `##` (double hash)
+- ✅ Not single `#` (which is comments)
+- ✅ Consistent header formatting
+
+#### 7. **`test_prompt_bullets_format`**
+- ✅ Bullets use `- ` (dash + space)
+- ✅ Horizontal rules use `---` (three dashes)
+- ✅ Not bare `-` or other formats
+
+#### 8. **`test_prompt_no_emojis`**
+- ✅ No emoji characters in prompts
+- ✅ Scans Unicode ranges for common emojis
+- ✅ Maintains professional tone
+
+#### 9. **`test_no_hardcoded_prompt_literals`**
+- ✅ AST parsing of all Python files
+- ✅ Detects hardcoded prompt strings
+- ✅ Only allows prompts in designated files
+- ✅ Prevents prompt scattering
+
+---
+
+## 🔧 **Test Infrastructure**
+
+### **`prompt_specs.json` - Central Registry**
+```json
+[
+  {
+    "name": "supervisor_system_prompt",
+    "module": "app.services.llm.agent_prompts",
+    "symbol": "SUPERVISOR_SYSTEM_PROMPT_LOCAL",
+    "callable": false,
+    "type": "constant",
+    "parameters": [],
+    "prompt_preview": "You are Vera...",
+    "description": "Main supervisor agent prompt",
+    "evaluation": {
+      "instructions": ["Future semantic validation rules"]
+    }
+  }
+]
+```
+
+**Module Categories:**
+- `app.services.llm.agent_prompts` - Agent system prompts
+- `app.services.llm.memory_prompts` - Memory processing
+- `app.services.llm.utility_prompts` - Utility functions
+- `app.services.llm.onboarding_prompts` - Onboarding prompts
+
+**Purpose:**
+- Lists all prompts in the system
+- Used by static tests to know what to validate
+- Metadata for future semantic testing
+- Documentation of prompt purposes
+
+### **Test Markers**
+```toml
+# pyproject.toml
+[tool.pytest.ini_options]
+markers = [
+    "prompt_static: marks prompt static quality tests",
+]
+```
+
+### **Poetry Configuration**
+```toml
+# pyproject.toml - Required for imports
+[tool.pytest.ini_options]
+pythonpath = ["."]
+```
+
+---
+
+## 🎯 **Test Results Interpretation**
+
+### **Expected Output**
+```
+==================================== test session starts ================================
+tests/supervisor_prompts/static/test_prompt_format.py::test_all_prompts_load_successfully PASSED
+tests/supervisor_prompts/static/test_prompt_format.py::test_prompt_utf8_valid PASSED
+tests/supervisor_prompts/static/test_prompt_format.py::test_prompt_no_unicode_escapes PASSED
+tests/supervisor_prompts/static/test_prompt_format.py::test_prompt_no_tabs PASSED
+tests/supervisor_prompts/static/test_prompt_format.py::test_prompt_no_trailing_spaces PASSED
+tests/supervisor_prompts/static/test_prompt_format.py::test_prompt_headers_format PASSED
+tests/supervisor_prompts/static/test_prompt_format.py::test_prompt_bullets_format PASSED
+tests/supervisor_prompts/static/test_prompt_format.py::test_no_emojis PASSED
+tests/supervisor_prompts/static/test_prompt_format.py::test_no_hardcoded_prompt_literals PASSED
+==================================== 9 passed ================================
+```
+
+### **Failure Examples**
+```
+# Header format violation
+test_prompt_headers_format.py line 289: # Wrong Header (headers must start with '##')
+
+# Hardcoded prompt detected
+Found 1 hardcoded prompt literal:
+LLM call at line 123: "You are a helpful assistant..."
+```
+
+---
+
+## 🔍 **Coverage Explanation**
+
+**Why most files show 0% coverage:**
+- Static tests only exercise prompt loading/validation logic
+- Only touches: `prompt_loader.py`, `agent_prompts.py`, `memory_prompts.py`, `utility_prompts.py`, `onboarding_prompts.py`, `config.py`
+- **This is correct** - validates prompts without testing entire app
+- Full coverage requires integration/end-to-end tests
+
+---
+
+## 🚀 **For Merging P0**
+```bash
+poetry run pytest tests/supervisor_prompts/static/ -v
+```
+**All 9 tests should pass** before merging prompt changes! ✅
+
+---
+
+## 🔮 **Future P1 Semantic Tests**
+- LLM judge evaluation of prompt quality
+- Complex reasoning validation
+- Behavioral testing of prompts
+- Currently broken (import issues)

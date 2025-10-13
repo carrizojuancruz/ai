@@ -5,10 +5,6 @@ from typing import TYPE_CHECKING, Callable
 
 from app.services.llm.client import get_llm_client
 
-from .prompts import (
-    location_extraction_instructions,
-    name_extraction_instructions,
-)
 from .types import Choice, FlowStep, InteractionType
 
 if TYPE_CHECKING:
@@ -88,7 +84,8 @@ def validate_name(response: str, state: "OnboardingState") -> tuple[bool, str | 
     try:
         llm = get_llm_client()
         schema = {"type": "object", "properties": {"preferred_name": {"type": ["string", "null"]}}}
-        instructions = name_extraction_instructions()
+        from app.services.llm.prompt_loader import prompt_loader
+        instructions = prompt_loader.load("onboarding_name_extraction")
         out = llm.extract(schema=schema, text=raw, instructions=instructions)
         extracted = (out or {}).get("preferred_name")
         if isinstance(extracted, str):
@@ -166,7 +163,8 @@ def validate_location(response: str, state: "OnboardingState") -> tuple[bool, st
                     "region": {"type": ["string", "null"]},
                 },
             }
-            instructions = location_extraction_instructions()
+            from app.services.llm.prompt_loader import prompt_loader
+            instructions = prompt_loader.load("onboarding_location_extraction")
             out = llm.extract(schema=schema, text=response, instructions=instructions)
             if isinstance(out, dict):
                 city = (out.get("city") or city or "").strip()

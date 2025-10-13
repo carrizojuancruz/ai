@@ -19,7 +19,6 @@ from app.agents.supervisor.finance_agent.helpers import (
     serialize_sample_row,
 )
 from app.agents.supervisor.finance_agent.procedural_memory.sql_hints import get_finance_procedural_templates
-from app.agents.supervisor.finance_agent.prompts import build_finance_system_prompt
 from app.agents.supervisor.finance_agent.subgraph import create_finance_subgraph
 from app.agents.supervisor.finance_agent.tools import (
     create_income_expense_summary_tool,
@@ -240,7 +239,15 @@ class FinanceAgent:
                 shots.append(f"### {name}\n{desc}\n\n```sql\n{sql}\n```")
             templates_section = "\n\n## Here are few shots related to this specific task\n" + "\n\n".join(shots)
 
-        base_prompt = await build_finance_system_prompt(user_id, tx_samples, asset_samples, liability_samples, account_samples)
+        from app.services.llm.prompt_loader import prompt_loader
+        base_prompt = await prompt_loader.load_async(
+            "finance_agent_system_prompt",
+            user_id=user_id,
+            tx_samples=tx_samples,
+            asset_samples=asset_samples,
+            liability_samples=liability_samples,
+            accounts_samples=account_samples
+        )
 
         return base_prompt + templates_section
 

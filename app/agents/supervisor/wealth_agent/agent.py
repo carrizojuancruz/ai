@@ -14,7 +14,6 @@ from app.core.config import config
 from app.observability.logging_config import configure_logging
 
 from .helpers import create_error_command
-from .prompts import build_wealth_system_prompt
 from .tools import search_kb
 
 logger = logging.getLogger(__name__)
@@ -68,7 +67,8 @@ class WealthAgent:
 
     def _create_system_prompt(self, user_context: dict = None) -> str:
         """Create system prompt for the wealth agent."""
-        return build_wealth_system_prompt(user_context)
+        from app.services.llm.prompt_loader import prompt_loader
+        return prompt_loader.load("wealth_agent_system_prompt", user_context=user_context)
 
     def _create_agent_with_tools(self):
         """Create wealth agent with knowledge base search tool."""

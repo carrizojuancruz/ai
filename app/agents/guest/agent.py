@@ -7,8 +7,6 @@ from langgraph.prebuilt import create_react_agent  # type: ignore
 
 from app.core.config import config
 
-from .prompts import get_guest_system_prompt
-
 logger = logging.getLogger(__name__)
 
 
@@ -47,7 +45,8 @@ def get_guest_graph():
         callbacks=callbacks,
     )
 
-    prompt = get_guest_system_prompt(max_messages=config.GUEST_MAX_MESSAGES)
+    from app.services.llm.prompt_loader import prompt_loader
+    prompt = prompt_loader.load("guest_system_prompt", max_messages=config.GUEST_MAX_MESSAGES)
 
     graph = create_react_agent(
         model=chat_bedrock,

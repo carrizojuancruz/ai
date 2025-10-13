@@ -1,0 +1,159 @@
+[
+  {
+    "name": "supervisor_system_prompt",
+    "module": "app.agents.supervisor.prompts",
+    "symbol": "SUPERVISOR_PROMPT",
+    "callable": false,
+    "loader": "app.agents.supervisor.prompts:SUPERVISOR_PROMPT",
+    "type": "constant",
+    "parameters": [],
+    "prompt_preview": "You are Vera, an AI made by Verde. Your job is to analyze user requests, decide whether to answer directly or route...",
+    "description": "Main supervisor agent system prompt that defines Vera's personality, routing rules, and interaction policies"
+  },
+  {
+    "name": "finance_agent_system_prompt",
+    "module": "app.services.llm.agent_prompts",
+    "symbol": "build_finance_system_prompt_local",
+    "callable": true,
+    "loader": "app.services.llm.agent_prompts:build_finance_system_prompt_local",
+    "type": "builder_function",
+    "parameters": [
+      {"name": "user_id", "type": "UUID", "required": true},
+      {"name": "tx_samples", "type": "str", "required": true},
+      {"name": "asset_samples", "type": "str", "required": true},
+      {"name": "liability_samples", "type": "str", "required": true},
+      {"name": "accounts_samples", "type": "str", "required": true}
+    ],
+    "prompt_preview": "You are an AI text-to-SQL agent over the user's Plaid-mirrored PostgreSQL database. Your goal is to generate correct...",
+    "description": "Finance agent system prompt for SQL generation and financial data analysis. Includes table schemas, security rules, and query strategies"
+  },
+  {
+    "name": "wealth_agent_system_prompt",
+    "module": "app.services.llm.agent_prompts",
+    "symbol": "build_wealth_system_prompt_local",
+    "callable": true,
+    "loader": "app.services.llm.agent_prompts:build_wealth_system_prompt_local",
+    "type": "builder_function",
+    "parameters": [
+      {"name": "user_context", "type": "dict", "required": false, "default": null}
+    ],
+    "prompt_preview": "You are Verde Money's Wealth Specialist Agent, an expert AI assistant focused on providing accurate, evidence-based...",
+    "description": "Wealth agent system prompt for educational finance content and knowledge base searches. Enforces mandatory search-first workflow"
+  },
+  {
+    "name": "wealth_agent_constant_prompt",
+    "module": "app.agents.supervisor.wealth_agent.prompts",
+    "symbol": "WEALTH_AGENT_PROMPT",
+    "callable": false,
+    "loader": "app.agents.supervisor.wealth_agent.prompts:WEALTH_AGENT_PROMPT",
+    "type": "constant",
+    "parameters": [],
+    "prompt_preview": "You are Verde Money's Wealth Specialist Agent, an expert AI assistant focused on providing accurate, evidence-based...",
+    "description": "Pre-built constant version of wealth agent prompt without user context"
+  },
+  {
+    "name": "goal_agent_system_prompt",
+    "module": "app.services.llm.agent_prompts",
+    "symbol": "build_goal_agent_system_prompt_local",
+    "callable": true,
+    "loader": "app.services.llm.agent_prompts:build_goal_agent_system_prompt_local",
+    "type": "builder_function",
+    "parameters": [],
+    "prompt_preview": "TODAY: {today}\\nYou are the Goal subagent for Vera's financial goals system. You help users define, track, and achieve...",
+    "description": "Goal agent system prompt for financial goals CRUD operations and intelligent coaching. Includes duplicate prevention and status transition validation"
+  },
+  {
+    "name": "memory_hotpath_trigger_classifier",
+    "module": "app.agents.supervisor.memory.hotpath",
+    "symbol": "_trigger_decide",
+    "callable": true,
+    "loader": "app.agents.supervisor.memory.hotpath:_trigger_decide",
+    "type": "classifier_prompt",
+    "parameters": [
+      {"name": "text", "type": "str", "required": true}
+    ],
+    "prompt_preview": "You classify whether to CREATE a user memory from recent user messages. This node ONLY creates semantic memories...",
+    "description": "LLM prompt for deciding whether to create a semantic memory from user messages. Includes scope rules and authoritative domain exclusions"
+  },
+  {
+    "name": "memory_same_fact_classifier",
+    "module": "app.agents.supervisor.memory.hotpath",
+    "symbol": "_same_fact_classify",
+    "callable": true,
+    "loader": "app.agents.supervisor.memory.hotpath:_same_fact_classify",
+    "type": "classifier_prompt",
+    "parameters": [
+      {"name": "existing_summary", "type": "str", "required": true},
+      {"name": "candidate_summary", "type": "str", "required": true},
+      {"name": "category", "type": "str", "required": true}
+    ],
+    "prompt_preview": "Same-Fact Classifier (language-agnostic). Your job: Return whether two short summaries express the SAME underlying fact...",
+    "description": "LLM prompt for determining if two memory summaries refer to the same fact. Handles multilingual synonyms and numeric updates"
+  },
+  {
+    "name": "memory_compose_summaries",
+    "module": "app.agents.supervisor.memory.hotpath",
+    "symbol": "_compose_summaries",
+    "callable": true,
+    "loader": "app.agents.supervisor.memory.hotpath:_compose_summaries",
+    "type": "composer_prompt",
+    "parameters": [
+      {"name": "existing_summary", "type": "str", "required": true},
+      {"name": "candidate_summary", "type": "str", "required": true},
+      {"name": "category", "type": "str", "required": true}
+    ],
+    "prompt_preview": "Task: Combine two short summaries about the SAME user fact into one concise statement. Keep it neutral, third person...",
+    "description": "LLM prompt for merging two memory summaries into a single concise statement. Removes temporal references"
+  },
+  {
+    "name": "episodic_memory_summarizer",
+    "module": "app.agents.supervisor.memory.episodic",
+    "symbol": "_summarize_with_bedrock",
+    "callable": true,
+    "loader": "app.agents.supervisor.memory.episodic:_summarize_with_bedrock",
+    "type": "summarizer_prompt",
+    "parameters": [
+      {"name": "msgs", "type": "list[tuple[str, str]]", "required": true}
+    ],
+    "prompt_preview": "Episodic Summarizer. Task: Summarize the most recent interaction in 1–2 sentences focusing on what was decided...",
+    "description": "LLM prompt for creating episodic memory summaries from conversation turns. Redacts numeric financial values and temporal references"
+  },
+  {
+    "name": "profile_sync_extractor",
+    "module": "app.agents.supervisor.memory.profile_sync",
+    "symbol": "_profile_sync_from_memory",
+    "callable": true,
+    "loader": "app.agents.supervisor.memory.profile_sync:_profile_sync_from_memory",
+    "type": "extractor_prompt",
+    "parameters": [
+      {"name": "user_id", "type": "str", "required": true},
+      {"name": "thread_id", "type": "Optional[str]", "required": false},
+      {"name": "value", "type": "dict[str, Any]", "required": true}
+    ],
+    "prompt_preview": "Task: From the memory summary below, extract user profile information that should be stored permanently. Extract only...",
+    "description": "LLM prompt for extracting user profile fields from semantic memory summaries. Maps to profile fields like name, language, city, tone, etc."
+  },
+  {
+    "name": "onboarding_name_extraction",
+    "module": "app.agents.onboarding.prompts",
+    "symbol": "name_extraction_instructions",
+    "callable": true,
+    "loader": "app.agents.onboarding.prompts:name_extraction_instructions",
+    "type": "extractor_prompt",
+    "parameters": [],
+    "prompt_preview": "Extract the user's preferred name. If the entire message itself looks like a name (1-3 words using letters...",
+    "description": "LLM prompt for extracting user's preferred name from onboarding conversation. Returns JSON with preferred_name field"
+  },
+  {
+    "name": "onboarding_location_extraction",
+    "module": "app.agents.onboarding.prompts",
+    "symbol": "location_extraction_instructions",
+    "callable": true,
+    "loader": "app.agents.onboarding.prompts:location_extraction_instructions",
+    "type": "extractor_prompt",
+    "parameters": [],
+    "prompt_preview": "Extract the user's location as city and state/region. Infer full names from common abbreviations (e.g., 'LA' ->...",
+    "description": "LLM prompt for extracting user's location from onboarding conversation. Returns JSON with city and region fields"
+  }
+]
+

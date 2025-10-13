@@ -467,37 +467,12 @@ async def _write_semantic_memory(
 
 
 def _same_fact_classify(existing_summary: str, candidate_summary: str, category: str) -> bool:
+    from app.services.llm.prompt_loader import prompt_loader
+    prompt = prompt_loader.load("memory_same_fact_classifier",
+                               category=category[:64],
+                               existing_summary=existing_summary[:500],
+                               candidate_summary=candidate_summary[:500])
     bedrock = get_bedrock_runtime_client()
-    prompt = (
-        "Same-Fact Classifier (language-agnostic)\n"
-        "Your job: Return whether two short summaries express the SAME underlying fact about the user.\n"
-        "Decide by meaning, not wording. Ignore casing, punctuation, and minor phrasing differences.\n"
-        "\n"
-        "Core rules\n"
-        "1) Same subject: Treat these as the same subject: exact same name (e.g., Luna), or clear role synonyms\n"
-        "   (pet/cat/dog; spouse/partner/wife/husband; kid/child/son/daughter).\n"
-        "2) Same attribute: If both describe the same attribute (e.g., age in years, relationship/name, number of kids),\n"
-        "   then they are the SAME FACT even if phrased differently.\n"
-        "3) Numeric updates: If the attribute is numeric or count-like and changes plausibly (e.g., 3→4 years), treat as\n"
-        "   the SAME FACT (updated value).\n"
-        "4) Different entities: If the named entities differ (e.g., Luna vs Bruno) for the same attribute, NOT the same.\n"
-        "5) Preference contradictions: Opposite preferences (e.g., prefers email vs prefers phone) are NOT the same.\n"
-        "6) Episodic vs stable: One-off events vs stable facts are NOT the same.\n"
-        "7) Multilingual: Treat cross-language synonyms as equivalent (e.g., 'español' == 'Spanish').\n"
-        "\n"
-        "Examples\n"
-        "- 'Luna is 3 years old.' vs 'Luna is 4 years old.' -> same_fact=true (numeric update)\n"
-        "- 'User's spouse is Natalia.' vs 'User's partner is Natalia.' -> same_fact=true (synonyms, same person)\n"
-        "- 'Has two children.' vs 'Has 2 kids.' -> same_fact=true (synonyms, same count)\n"
-        "- 'User prefers email.' vs 'User prefers phone calls.' -> same_fact=false (contradictory preference)\n"
-        "- 'Lives in Austin.' vs 'Moved to Dallas.' -> same_fact=false (different locations, not a numeric update)\n"
-        "- 'Luna is a cat.' vs 'Luna is a dog.' -> same_fact=false (conflicting species)\n"
-        "\n"
-        'Output: Return STRICT JSON only: {"same_fact": true|false}. No extra text.\n'
-        f"Category: {category[:64]}\n"
-        f"Existing: {existing_summary[:500]}\n"
-        f"Candidate: {candidate_summary[:500]}\n"
-    )
     try:
         t0 = time.perf_counter()
         logger.info("memory.llm.samefact.start model=%s", MODEL_ID)
@@ -541,18 +516,12 @@ def _same_fact_classify(existing_summary: str, candidate_summary: str, category:
 
 
 def _compose_summaries(existing_summary: str, candidate_summary: str, category: str) -> str:
+    from app.services.llm.prompt_loader import prompt_loader
+    prompt = prompt_loader.load("memory_compose_summaries",
+                               category=category[:64],
+                               existing_summary=existing_summary[:500],
+                               candidate_summary=candidate_summary[:500])
     bedrock = get_bedrock_runtime_client()
-    prompt = (
-        "Task: Combine two short summaries about the SAME user fact into one concise statement.\n"
-        "- Keep it neutral, third person, and include both details without redundancy.\n"
-        "- 1–2 sentences, max 280 characters.\n"
-        "- Do NOT include absolute dates or relative-time words (today, yesterday, this morning/afternoon/evening/tonight, last/next week/month/year, recently, soon).\n"
-        "- Express the timeless fact only.\n"
-        "Output ONLY the composed text.\n"
-        f"Category: {category[:64]}\n"
-        f"Existing: {existing_summary[:500]}\n"
-        f"New: {candidate_summary[:500]}\n"
-    )
     try:
         t0 = time.perf_counter()
         logger.info("memory.llm.compose.start model=%s", MODEL_ID)

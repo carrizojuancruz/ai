@@ -1,0 +1,301 @@
+[
+  {
+    "name": "supervisor_system_prompt",
+    "module": "app.services.llm.agent_prompts",
+    "symbol": "SUPERVISOR_PROMPT",
+    "callable": false,
+    "loader": "app.agents.supervisor.prompts:SUPERVISOR_PROMPT",
+    "type": "constant",
+    "parameters": [],
+    "prompt_preview": "You are Vera, an AI made by Verde. Your job is to analyze user requests, decide whether to answer directly or route...",
+    "description": "Main supervisor agent system prompt that defines Vera's personality, routing rules, and interaction policies",
+    "evaluation": {
+      "instructions": [
+        "Confirm the prompt identifies Vera as a supervisor agent that routes work to finance, wealth, and goal specialists instead of answering every request directly.",
+        "Verify it outlines routing criteria, guardrails, and compliance requirements that prevent unsafe or unauthorized responses.",
+        "Ensure it describes how the supervisor formats or hands off responses rather than performing specialist actions itself."
+      ]
+    }
+  },
+  {
+    "name": "finance_agent_system_prompt",
+    "module": "app.services.llm.agent_prompts",
+    "symbol": "build_finance_system_prompt_local",
+    "callable": true,
+    "loader": "app.services.llm.agent_prompts:build_finance_system_prompt_local",
+    "type": "builder_function",
+    "parameters": [
+      {"name": "user_id", "type": "UUID", "required": true, "default": "00000000-0000-0000-0000-000000000000"},
+      {"name": "tx_samples", "type": "str", "required": true, "default": "[]"},
+      {"name": "asset_samples", "type": "str", "required": true, "default": "[]"},
+      {"name": "liability_samples", "type": "str", "required": true, "default": "[]"},
+      {"name": "accounts_samples", "type": "str", "required": true, "default": "[]"}
+    ],
+    "prompt_preview": "You are an AI text-to-SQL agent over the user's Plaid-mirrored PostgreSQL database. Your goal is to generate correct...",
+    "description": "Finance agent system prompt for SQL generation and financial data analysis. Includes table schemas, security rules, and query strategies",
+    "evaluation": {
+      "instructions": [
+        "Confirm it caps analysis at a maximum of five database queries and encourages combining work into efficient SQL.",
+        "Verify it mandates WHERE user_id filters on every query and forbids connectivity probes or schema discovery like SELECT 1.",
+        "Ensure it requires using the net_worth_summary and income_expense_summary tools when those topics are requested."
+      ]
+    }
+  },
+  {
+    "name": "wealth_agent_system_prompt",
+    "module": "app.services.llm.agent_prompts",
+    "symbol": "build_wealth_system_prompt_local",
+    "callable": true,
+    "loader": "app.services.llm.agent_prompts:build_wealth_system_prompt_local",
+    "type": "builder_function",
+    "parameters": [
+      {"name": "user_context", "type": "dict", "required": false, "default": null}
+    ],
+    "prompt_preview": "You are Verde Money's Wealth Specialist Agent, an expert AI assistant focused on providing accurate, evidence-based...",
+    "description": "Wealth agent system prompt for educational finance content and knowledge base searches. Enforces mandatory search-first workflow",
+    "evaluation": {
+      "instructions": [
+        "Verify it forces the agent to call the search_kb tool before responding and forbids answering without search results.",
+        "Ensure it limits the number of searches using the configured maximum and provides an explicit stopping rule once a structured report is delivered.",
+        "Confirm it requires USED_SOURCES metadata listing only the URLs that informed the response."
+      ]
+    }
+  },
+  {
+    "name": "wealth_agent_constant_prompt",
+    "module": "app.services.llm.agent_prompts",
+    "symbol": "WEALTH_AGENT_PROMPT",
+    "callable": false,
+    "loader": "app.agents.supervisor.wealth_agent.prompts:WEALTH_AGENT_PROMPT",
+    "type": "constant",
+    "parameters": [],
+    "prompt_preview": "You are Verde Money's Wealth Specialist Agent, an expert AI assistant focused on providing accurate, evidence-based...",
+    "description": "Pre-built constant version of wealth agent prompt without user context",
+    "evaluation": {
+      "instructions": [
+        "Verify it forces the agent to call the search_kb tool before responding and forbids answering without search results.",
+        "Ensure it limits the number of searches using the configured maximum and provides an explicit stopping rule once a structured report is delivered.",
+        "Confirm it requires USED_SOURCES metadata listing only the URLs that informed the response."
+      ]
+    }
+  },
+  {
+    "name": "goal_agent_system_prompt",
+    "module": "app.services.llm.agent_prompts",
+    "symbol": "build_goal_agent_system_prompt_local",
+    "callable": true,
+    "loader": "app.services.llm.agent_prompts:build_goal_agent_system_prompt_local",
+    "type": "builder_function",
+    "parameters": [],
+    "prompt_preview": "TODAY: {today}\\nYou are the Goal subagent for Vera's financial goals system. You help users define, track, and achieve...",
+    "description": "Goal agent system prompt for financial goals CRUD operations and intelligent coaching. Includes duplicate prevention and status transition validation",
+    "evaluation": {
+      "instructions": [
+        "Ensure it mandates calling list_goals and comparing titles before creating a new goal to prevent duplicates.",
+        "Confirm it requires validating status transitions with get_goal_by_id and switch_goal_status plus verification after the change.",
+        "Verify it insists on confirmations before destructive actions and returning goal JSON that matches the expected schema."
+      ]
+    }
+  },
+  {
+    "name": "memory_hotpath_trigger_classifier",
+    "module": "app.services.llm.memory_prompts",
+    "symbol": "_trigger_decide",
+    "callable": true,
+    "loader": "app.agents.supervisor.memory.hotpath:_trigger_decide",
+    "type": "classifier_prompt",
+    "parameters": [
+      {"name": "text", "type": "str", "required": true, "default": "Please remember my name is Ana"}
+    ],
+    "prompt_preview": "You classify whether to CREATE a user memory from recent user messages. This node ONLY creates semantic memories...",
+    "description": "LLM prompt for deciding whether to create a semantic memory from user messages. Includes scope rules and authoritative domain exclusions",
+    "evaluation": {
+      "instructions": [
+        "Verify it defines semantic memory scope and forbids adding time-bound events or capability questions.",
+        "Ensure it instructs that finance, goals, and wealth domain facts must not be stored as semantic memories.",
+        "Confirm it demands strict JSON output with should_create, type, category, summary, and importance fields."
+      ]
+    }
+  },
+  {
+    "name": "memory_same_fact_classifier",
+    "module": "app.services.llm.memory_prompts",
+    "symbol": "_same_fact_classify",
+    "callable": true,
+    "loader": "app.agents.supervisor.memory.hotpath:_same_fact_classify",
+    "type": "classifier_prompt",
+    "parameters": [
+      {"name": "existing_summary", "type": "str", "required": true, "default": "User has two children."},
+      {"name": "candidate_summary", "type": "str", "required": true, "default": "User has 2 kids."},
+      {"name": "category", "type": "str", "required": true, "default": "Personal"}
+    ],
+    "prompt_preview": "Same-Fact Classifier (language-agnostic). Your job: Return whether two short summaries express the SAME underlying fact...",
+    "description": "LLM prompt for determining if two memory summaries refer to the same fact. Handles multilingual synonyms and numeric updates",
+    "evaluation": {
+      "instructions": [
+        "Confirm it treats synonyms and numeric updates as the same fact while rejecting conflicting entities or opposite preferences.",
+        "Ensure it reminds the model to consider multilingual equivalents when comparing summaries.",
+        "Verify it outputs strict JSON containing a same_fact boolean field."
+      ]
+    }
+  },
+  {
+    "name": "memory_compose_summaries",
+    "module": "app.services.llm.memory_prompts",
+    "symbol": "_compose_summaries",
+    "callable": true,
+    "loader": "app.agents.supervisor.memory.hotpath:_compose_summaries",
+    "type": "composer_prompt",
+    "parameters": [
+      {"name": "existing_summary", "type": "str", "required": true, "default": "User prefers email communication."},
+      {"name": "candidate_summary", "type": "str", "required": true, "default": "User likes email over phone calls."},
+      {"name": "category", "type": "str", "required": true, "default": "Personal"}
+    ],
+    "prompt_preview": "Task: Combine two short summaries about the SAME user fact into one concise statement. Keep it neutral, third person...",
+    "description": "LLM prompt for merging two memory summaries into a single concise statement. Removes temporal references",
+    "evaluation": {
+      "instructions": [
+        "Ensure it limits the composed summary to neutral third-person narration within one or two sentences (<= 280 characters).",
+        "Verify it forbids absolute dates and relative time expressions in the merged output.",
+        "Confirm it instructs the model to return only the composed text without additional commentary or JSON wrappers."
+      ]
+    }
+  },
+  {
+    "name": "episodic_memory_summarizer",
+    "module": "app.services.llm.memory_prompts",
+    "symbol": "_summarize_with_bedrock",
+    "callable": true,
+    "loader": "app.agents.supervisor.memory.episodic:_summarize_with_bedrock",
+    "type": "summarizer_prompt",
+    "parameters": [
+      {"name": "msgs", "type": "list[tuple[str, str]]", "required": true, "default": [["user", "How am I doing with budgeting?"], ["assistant", "We reviewed your weekly spending plan."]]}
+    ],
+    "prompt_preview": "Episodic Summarizer. Task: Summarize the most recent interaction in 1–2 sentences focusing on what was decided...",
+    "description": "LLM prompt for creating episodic memory summaries from conversation turns. Redacts numeric financial values and temporal references",
+    "evaluation": {
+      "instructions": [
+        "Verify it emphasizes summarizing decisions or actions within 160 characters and omits chit-chat.",
+        "Ensure it forbids exposing numeric financial values or specialized agent facts in the summary.",
+        "Confirm it requires strict JSON output containing summary, category, and importance fields."
+      ]
+    }
+  },
+  {
+    "name": "profile_sync_extractor",
+    "module": "app.services.llm.memory_prompts",
+    "symbol": "_profile_sync_from_memory",
+    "callable": true,
+    "loader": "app.agents.supervisor.memory.profile_sync:_profile_sync_from_memory",
+    "type": "extractor_prompt",
+    "parameters": [
+      {"name": "user_id", "type": "str", "required": true, "default": "00000000-0000-0000-0000-000000000000"},
+      {"name": "thread_id", "type": "Optional[str]", "required": false, "default": null},
+      {"name": "value", "type": "dict[str, Any]", "required": true, "default": {"summary": "User prefers email communication.", "category": "Personal", "importance": 2}}
+    ],
+    "prompt_preview": "Task: From the memory summary below, extract user profile information that should be stored permanently. Extract only...",
+    "description": "LLM prompt for extracting user profile fields from semantic memory summaries. Maps to profile fields like name, language, city, tone, etc.",
+    "evaluation": {
+      "instructions": [
+        "Ensure it only allows extracting profile fields that are explicitly stated in the memory summary with no inference or assumptions.",
+        "Verify it limits the JSON schema to optional keys like preferred_name, language, city, tone, age, income_band, money_feelings, and goals_add.",
+        "Confirm it instructs the model to return strict JSON containing only the detected fields."
+      ]
+    }
+  },
+  {
+    "name": "onboarding_name_extraction",
+    "module": "app.services.llm.onboarding_prompts",
+    "symbol": "name_extraction_instructions",
+    "callable": true,
+    "loader": "app.agents.onboarding.prompts:name_extraction_instructions",
+    "type": "extractor_prompt",
+    "parameters": [],
+    "prompt_preview": "Extract the user's preferred name. If the entire message itself looks like a name (1-3 words using letters...",
+    "description": "LLM prompt for extracting user's preferred name from onboarding conversation. Returns JSON with preferred_name field",
+    "evaluation": {
+      "instructions": [
+        "Verify it describes how to detect explicit name statements and handle greetings by returning only the name portion.",
+        "Ensure it directs the model to return null when no clear name is present.",
+        "Confirm it outputs JSON containing only the preferred_name key set to a string or null."
+      ]
+    }
+  },
+  {
+    "name": "onboarding_location_extraction",
+    "module": "app.services.llm.onboarding_prompts",
+    "symbol": "location_extraction_instructions",
+    "callable": true,
+    "loader": "app.agents.onboarding.prompts:location_extraction_instructions",
+    "type": "extractor_prompt",
+    "parameters": [],
+    "prompt_preview": "Extract the user's location as city and state/region. Infer full names from common abbreviations (e.g., 'LA' ->...",
+    "description": "LLM prompt for extracting user's location from onboarding conversation. Returns JSON with city and region fields",
+    "evaluation": {
+      "instructions": [
+        "Ensure it instructs the model to expand common location abbreviations and infer region only when unambiguous.",
+        "Verify it allows returning null values when city or region cannot be confidently determined.",
+        "Confirm it outputs JSON containing city and region keys only."
+      ]
+    }
+  },
+  {
+    "name": "supervisor_delegation_template",
+    "module": "app.services.llm.agent_prompts",
+    "symbol": "SUPERVISOR_DELEGATION_TEMPLATE_LOCAL",
+    "callable": true,
+    "loader": "app.services.llm.prompt_loader:prompt_loader",
+    "type": "template",
+    "parameters": [
+      {"name": "task_description", "type": "str", "required": false, "default": ""},
+      {"name": "instruction_block", "type": "str", "required": false, "default": ""}
+    ],
+    "prompt_preview": "Please analyze and complete the following task as a specialized agent. You are providing analysis...",
+    "description": "Template for supervisor to delegate tasks to specialized agents",
+    "evaluation": {
+      "instructions": [
+        "Confirm it clearly establishes the agent role and reporting structure",
+        "Verify it includes placeholders for task description and guidelines"
+      ]
+    }
+  },
+  {
+    "name": "memory_icebreaker_generation_prompt",
+    "module": "app.services.llm.agent_prompts",
+    "symbol": "MEMORY_ICEBREAKER_GENERATION_PROMPT_LOCAL",
+    "callable": true,
+    "loader": "app.services.llm.prompt_loader:prompt_loader",
+    "type": "template",
+    "parameters": [
+      {"name": "icebreaker_text", "type": "str", "required": false, "default": ""}
+    ],
+    "prompt_preview": "Create a warm, natural conversation starter based on this memory: Memory: {icebreaker_text}...",
+    "description": "Prompt for generating natural conversation starters from user memories",
+    "evaluation": {
+      "instructions": [
+        "Confirm it provides clear requirements for Vera's personality",
+        "Verify it includes examples of good vs bad icebreaker generation"
+      ]
+    }
+  },
+  {
+    "name": "conversation_summarizer_instruction",
+    "module": "app.services.llm.agent_prompts",
+    "symbol": "CONVERSATION_SUMMARIZER_INSTRUCTION_LOCAL",
+    "callable": true,
+    "loader": "app.services.llm.prompt_loader:prompt_loader",
+    "type": "template",
+    "parameters": [
+      {"name": "summary_max_tokens", "type": "int", "required": false, "default": 100}
+    ],
+    "prompt_preview": "You are a summarizer. Summarize the following earlier conversation strictly as a concise...",
+    "description": "Instruction for summarizing conversations for memory storage",
+    "evaluation": {
+      "instructions": [
+        "Confirm it establishes clear boundaries against answering questions",
+        "Verify it specifies format requirements (bullet points, neutral tone)"
+      ]
+    }
+  }
+]
+
