@@ -15,6 +15,6 @@ jobs:
   test:
     uses: verde-money/reusable-workflows/.github/workflows/test.yml@main
     with:
-      python_version: ${{ env.PYTHON_VERSION }}
+      python_version: "3.11" 
     secrets:
       inherit
