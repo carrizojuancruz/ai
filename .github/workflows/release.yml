@@ -23,7 +23,7 @@ permissions:
 jobs:
   create-release:
     name: Create Release
-    uses: verde-money/reusable-workflows/.github/workflows/release.yml@main
+    uses: verde-money/reusable-workflows/.github/workflows/create-release.yml@main
     with:
       release_type: ${{ github.event.inputs.release_type }}
       release_notes: ${{ github.event.inputs.release_notes }}
