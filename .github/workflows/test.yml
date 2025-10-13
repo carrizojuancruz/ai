@@ -1,0 +1,20 @@
+name: Test On Pull Request
+
+on:
+  pull_request:
+    paths-ignore:
+      - '.github/workflows/**'  # Ignore changes in workflow folder
+  workflow_dispatch:
+env:
+  PYTHON_VERSION:  "3.11" 
+permissions:
+  id-token: write
+  contents: read  
+jobs:
+      
+  test:
+    uses: verde-money/reusable-workflows/.github/workflows/test.yml@main
+    with:
+      environment: ${{ github.ref_name }}
+    secrets:
+      inherit
