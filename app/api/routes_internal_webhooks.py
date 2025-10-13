@@ -24,279 +24,157 @@ router = APIRouter(
 )
 
 
-def _audit_config_configuration() -> Dict[str, Any]:
-    """Audit the complete configuration of config.py.
+def _categorize_config_field(field_name: str) -> str:
+    """Categorize configuration field based on its name prefix.
+
+    Args:
+        field_name: Name of the configuration field
 
     Returns:
-        Dict with the configuration status of all important variables
+        Category name for the field
 
     """
-    audit_result = {
-        "memory_config": {},
-        "aws_config": {},
-        "llm_config": {},
-        "database_config": {},
-        "langfuse_config": {},
-        "logging_config": {},
-        "crawling_config": {},
-        "search_config": {},
-        "sqs_config": {},
-        "nudge_config": {},
-        "other_config": {},
-        "summary": {
-            "total_configured": 0,
-            "total_missing": 0,
-            "critical_missing": [],
-            "optional_missing": [],
-        },
+    # Define category prefixes in order of priority
+    category_mapping = [
+        ("MEMORY_", "memory_config"),
+        ("EPISODIC_", "memory_config"),
+        ("SUMMARY_", "summarization_config"),
+        ("FINANCE_", "finance_config"),
+        ("AWS_", "aws_config"),
+        ("DATABASE_", "database_config"),
+        ("LANGFUSE_", "langfuse_config"),
+        ("LOG_", "logging_config"),
+        ("SUPERVISOR_TRACE_", "logging_config"),
+        ("CRAWL_", "crawling_config"),
+        ("CHUNK_", "search_config"),
+        ("TOP_K_", "search_config"),
+        ("MAX_CHUNKS_", "search_config"),
+        ("SQS_", "sqs_config"),
+        ("NUDGE", "nudge_config"),
+        ("BEDROCK_", "llm_config"),
+        ("LLM_", "llm_config"),
+        ("WEALTH_AGENT_", "agents_config"),
+        ("GOAL_AGENT_", "agents_config"),
+        ("FINANCIAL_AGENT_", "agents_config"),
+        ("GUEST_AGENT_", "agents_config"),
+        ("ONBOARDING_AGENT_", "agents_config"),
+        ("SUPERVISOR_AGENT_", "agents_config"),
+        ("TITLE_GENERATOR_", "agents_config"),
+        ("FOS_", "external_services_config"),
+        ("EVAL_", "evaluation_config"),
+        ("BILL_", "bill_detection_config"),
+        ("S3V_", "s3_vectors_config"),
+        ("MEMORIES_INDEX_", "s3_vectors_config"),
+        ("EMBEDDING_INDEX_", "s3_vectors_config"),
+        ("SOURCES_", "knowledge_base_config"),
+        ("MAX_DOCUMENTS_", "crawling_config"),
+    ]
+
+    for prefix, category in category_mapping:
+        if field_name.startswith(prefix):
+            return category
+
+    # Default category for uncategorized fields
+    return "other_config"
+
+
+def _is_sensitive_field(field_name: str) -> bool:
+    """Check if a field contains sensitive data that should be masked.
+
+    Args:
+        field_name: Name of the configuration field
+
+    Returns:
+        True if field should be masked, False otherwise
+
+    """
+    sensitive_keywords = [
+        "SECRET",
+        "KEY",
+        "PASSWORD",
+        "TOKEN",
+        "CREDENTIAL",
+        "PRIVATE",
+        "AUTH",
+        "CERT",
+        "PASSPHRASE",
+    ]
+    return any(keyword in field_name.upper() for keyword in sensitive_keywords)
+
+
+def _is_critical_field(field_name: str) -> bool:
+    """Check if a field is critical for system operation.
+
+    Args:
+        field_name: Name of the configuration field
+
+    Returns:
+        True if field is critical, False otherwise
+
+    """
+    critical_fields = CRITICAL_DATABASE_FIELDS + CRITICAL_LLM_FIELDS + [CRITICAL_AWS_FIELD]
+    return field_name in critical_fields
+
+
+def _audit_config_configuration() -> Dict[str, Any]:
+    """Audit the complete configuration of config.py dynamically.
+
+    This function automatically detects all configuration variables from the Config class
+    and categorizes them dynamically based on their name prefixes.
+
+    Returns:
+        Dict with the configuration status of all variables
+
+    """
+    # Get all configuration attributes dynamically from Config class
+    all_config_attrs = []
+    for attr_name in dir(config):
+        # Skip private attributes, methods, and special Python attributes
+        if attr_name.startswith("_") or callable(getattr(config, attr_name)):
+            continue
+        all_config_attrs.append(attr_name)
+
+    # Initialize audit result with dynamic categories
+    categories = set()
+    for attr_name in all_config_attrs:
+        category = _categorize_config_field(attr_name)
+        categories.add(category)
+
+    audit_result = {category: {} for category in sorted(categories)}
+    audit_result["summary"] = {
+        "total_configured": 0,
+        "total_missing": 0,
+        "critical_missing": [],
+        "optional_missing": [],
+        "total_variables": len(all_config_attrs),
+        "categories": sorted(categories),
     }
 
-    # Memory Configuration
-    memory_fields = [
-        "MEMORY_MERGE_TOPK",
-        "MEMORY_MERGE_AUTO_UPDATE",
-        "MEMORY_MERGE_CHECK_LOW",
-        "MEMORY_MERGE_MODE",
-        "MEMORY_SEMANTIC_MIN_IMPORTANCE",
-        "MEMORY_MERGE_FALLBACK_ENABLED",
-        "EPISODIC_COOLDOWN_TURNS",
-        "EPISODIC_COOLDOWN_MINUTES",
-        "EPISODIC_MAX_PER_DAY",
-        "MEMORY_CONTEXT_TOPK",
-        "MEMORY_CONTEXT_TOPN",
-        "MEMORY_PROCEDURAL_TOPK",
-        "MEMORY_PROCEDURAL_MIN_SCORE",
-    ]
-    for field in memory_fields:
-        value = getattr(config, field, None)
-        audit_result["memory_config"][field] = {
-            "configured": value is not None,
-            "value": value,
-        }
-        if value is not None:
-            audit_result["summary"]["total_configured"] += 1
-        else:
-            audit_result["summary"]["total_missing"] += 1
-            audit_result["summary"]["optional_missing"].append(field)
+    # Audit each configuration field
+    for field_name in sorted(all_config_attrs):
+        value = getattr(config, field_name, None)
+        category = _categorize_config_field(field_name)
 
-    # AWS Configuration
-    aws_fields = ["AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
-    for field in aws_fields:
-        value = getattr(config, field, None)
-        audit_result["aws_config"][field] = {
-            "configured": value is not None,
-            "value": "***" if ("SECRET" in field or "KEY" in field) and value else value,
-        }
-        if value is not None:
-            audit_result["summary"]["total_configured"] += 1
-        else:
-            audit_result["summary"]["total_missing"] += 1
-            if field == CRITICAL_AWS_FIELD:
-                audit_result["summary"]["critical_missing"].append(field)
+        # Mask sensitive values
+        display_value = value
+        if _is_sensitive_field(field_name) and value:
+            display_value = "***"
 
-    # LLM Configuration
-    llm_fields = [
-        "LLM_PROVIDER",
-        "BEDROCK_EMBED_MODEL_ID",
-        "WEALTH_AGENT_MODEL_ID",
-        "GOAL_AGENT_MODEL_ID",
-        "FINANCIAL_AGENT_MODEL_ID",
-        "GUEST_AGENT_MODEL_ID",
-        "ONBOARDING_AGENT_MODEL_ID",
-        "SUPERVISOR_AGENT_MODEL_ID",
-        "TITLE_GENERATOR_MODEL_ID",
-    ]
-    for field in llm_fields:
-        value = getattr(config, field, None)
-        audit_result["llm_config"][field] = {
+        # Add field to appropriate category
+        audit_result[category][field_name] = {
             "configured": value is not None,
-            "value": value,
+            "value": display_value,
         }
-        if value is not None:
-            audit_result["summary"]["total_configured"] += 1
-        else:
-            audit_result["summary"]["total_missing"] += 1
-            if field in CRITICAL_LLM_FIELDS:
-                audit_result["summary"]["critical_missing"].append(field)
 
-    # Database Configuration
-    db_fields = [
-        "DATABASE_HOST",
-        "DATABASE_PORT",
-        "DATABASE_NAME",
-        "DATABASE_USER",
-        "DATABASE_PASSWORD",
-        "DATABASE_URL",
-        "DATABASE_TYPE",
-    ]
-    for field in db_fields:
-        value = getattr(config, field, None)
-        audit_result["database_config"][field] = {
-            "configured": value is not None,
-            "value": "***" if "PASSWORD" in field and value else value,
-        }
+        # Update summary statistics
         if value is not None:
             audit_result["summary"]["total_configured"] += 1
         else:
             audit_result["summary"]["total_missing"] += 1
-            if field in CRITICAL_DATABASE_FIELDS:
-                audit_result["summary"]["critical_missing"].append(field)
-
-    # Langfuse Configuration
-    langfuse_fields = [
-        "LANGFUSE_PUBLIC_KEY",
-        "LANGFUSE_SECRET_KEY",
-        "LANGFUSE_HOST",
-        "LANGFUSE_GUEST_PUBLIC_KEY",
-        "LANGFUSE_GUEST_SECRET_KEY",
-        "LANGFUSE_PUBLIC_SUPERVISOR_KEY",
-        "LANGFUSE_SECRET_SUPERVISOR_KEY",
-        "LANGFUSE_HOST_SUPERVISOR",
-        "LANGFUSE_TRACING_ENVIRONMENT",
-    ]
-    for field in langfuse_fields:
-        value = getattr(config, field, None)
-        audit_result["langfuse_config"][field] = {
-            "configured": value is not None,
-            "value": "***" if ("SECRET" in field or "KEY" in field) and value else value,
-        }
-        if value is not None:
-            audit_result["summary"]["total_configured"] += 1
-        else:
-            audit_result["summary"]["total_missing"] += 1
-            audit_result["summary"]["optional_missing"].append(field)
-
-    # Logging Configuration
-    logging_fields = [
-        "LOG_LEVEL",
-        "LOG_SIMPLE",
-        "LOG_FORMAT",
-        "LOG_DATEFMT",
-        "LOG_QUIET_LIBS",
-        "LOG_LIB_LEVEL",
-        "SUPERVISOR_TRACE_ENABLED",
-        "SUPERVISOR_TRACE_PATH",
-    ]
-    for field in logging_fields:
-        value = getattr(config, field, None)
-        audit_result["logging_config"][field] = {
-            "configured": value is not None,
-            "value": value,
-        }
-        if value is not None:
-            audit_result["summary"]["total_configured"] += 1
-        else:
-            audit_result["summary"]["total_missing"] += 1
-            audit_result["summary"]["optional_missing"].append(field)
-
-    # Crawling Configuration
-    crawling_fields = [
-        "CRAWL_TYPE",
-        "CRAWL_MAX_DEPTH",
-        "CRAWL_MAX_PAGES",
-        "CRAWL_TIMEOUT",
-        "MAX_DOCUMENTS_PER_SOURCE",
-    ]
-    for field in crawling_fields:
-        value = getattr(config, field, None)
-        audit_result["crawling_config"][field] = {
-            "configured": value is not None,
-            "value": value,
-        }
-        if value is not None:
-            audit_result["summary"]["total_configured"] += 1
-        else:
-            audit_result["summary"]["total_missing"] += 1
-            audit_result["summary"]["optional_missing"].append(field)
-
-    # Search Configuration
-    search_fields = [
-        "TOP_K_SEARCH",
-        "CHUNK_SIZE",
-        "CHUNK_OVERLAP",
-        "MAX_CHUNKS_PER_SOURCE",
-    ]
-    for field in search_fields:
-        value = getattr(config, field, None)
-        audit_result["search_config"][field] = {
-            "configured": value is not None,
-            "value": value,
-        }
-        if value is not None:
-            audit_result["summary"]["total_configured"] += 1
-        else:
-            audit_result["summary"]["total_missing"] += 1
-            audit_result["summary"]["optional_missing"].append(field)
-
-    # SQS Configuration
-    sqs_fields = [
-        "SQS_NUDGES_AI_ICEBREAKER",
-        "SQS_QUEUE_REGION",
-        "SQS_MAX_MESSAGES",
-        "SQS_VISIBILITY_TIMEOUT",
-        "SQS_WAIT_TIME_SECONDS",
-    ]
-    for field in sqs_fields:
-        value = getattr(config, field, None)
-        audit_result["sqs_config"][field] = {
-            "configured": value is not None,
-            "value": value,
-        }
-        if value is not None:
-            audit_result["summary"]["total_configured"] += 1
-        else:
-            audit_result["summary"]["total_missing"] += 1
-            audit_result["summary"]["optional_missing"].append(field)
-
-    # Nudge Configuration
-    nudge_fields = [
-        "NUDGES_ENABLED",
-        "NUDGES_TYPE2_ENABLED",
-        "NUDGES_TYPE3_ENABLED",
-    ]
-    for field in nudge_fields:
-        value = getattr(config, field, None)
-        audit_result["nudge_config"][field] = {
-            "configured": value is not None,
-            "value": value,
-        }
-        if value is not None:
-            audit_result["summary"]["total_configured"] += 1
-        else:
-            audit_result["summary"]["total_missing"] += 1
-            audit_result["summary"]["optional_missing"].append(field)
-
-    # Other Configuration
-    other_fields = [
-        "ENVIRONMENT",
-        "DEBUG",
-        "FOS_SERVICE_URL",
-        "FOS_API_KEY",
-        "FOS_SECRETS_ID",
-        "FOS_SECRETS_REGION",
-        "SOURCES_FILE_PATH",
-        "GUEST_MAX_MESSAGES",
-        "FOS_USERS_PAGE_SIZE",
-        "FOS_USERS_MAX_PAGES",
-        "FOS_USERS_API_TIMEOUT_MS",
-        "EVAL_CONCURRENCY_LIMIT",
-        "NUDGE_EVAL_BATCH_SIZE",
-        "NUDGE_EVAL_TIMEOUT",
-        "BILL_DETECTION_LOOKBACK_DAYS",
-        "BILL_MIN_OCCURRENCES",
-        "BILL_PREDICTION_WINDOW_DAYS",
-    ]
-    for field in other_fields:
-        value = getattr(config, field, None)
-        audit_result["other_config"][field] = {
-            "configured": value is not None,
-            "value": "***" if ("SECRET" in field or "KEY" in field) and value else value,
-        }
-        if value is not None:
-            audit_result["summary"]["total_configured"] += 1
-        else:
-            audit_result["summary"]["total_missing"] += 1
-            audit_result["summary"]["optional_missing"].append(field)
+            if _is_critical_field(field_name):
+                audit_result["summary"]["critical_missing"].append(field_name)
+            else:
+                audit_result["summary"]["optional_missing"].append(field_name)
 
     return audit_result
 
@@ -479,10 +357,9 @@ async def get_secrets_status():
     """Endpoint to check the current state of the secrets configuration.
 
     Returns information about:
-    - Environment variables configured
     - AWS Secrets Manager status
     - Current config configuration
-    - Complete audit of all variables in config.py
+    - Complete audit of all variables in config.py (dynamically detected)
 
     No requires authentication - for internal use between services.
     """
@@ -515,27 +392,6 @@ async def get_secrets_status():
                 status_info["aws_connection"] = f"error: {str(e)}"
         else:
             status_info["aws_connection"] = "not_configured"
-
-        # Key environment variables (without sensitive values)
-        key_env_vars = [
-            "ENVIRONMENT",
-            "AWS_REGION",
-            "DATABASE_HOST",
-            "DATABASE_NAME",
-            "LLM_PROVIDER",
-            "BEDROCK_EMBED_MODEL_ID",
-            "FOS_SERVICE_URL",
-            "LOG_LEVEL",
-        ]
-
-        env_vars_info = {}
-        for var in key_env_vars:
-            if var in os.environ:
-                env_vars_info[var] = "configured"
-            else:
-                env_vars_info[var] = "not_set"
-
-        status_info["key_environment_variables"] = env_vars_info
 
         # Complete audit of config.py
         audit_result = _audit_config_configuration()
