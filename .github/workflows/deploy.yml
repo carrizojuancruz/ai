@@ -5,7 +5,6 @@ on:
     branches:
       - develop  # Change if needed
       - uat  # Change if needed
-      - prod
       - main
     paths-ignore:
       - '.github/workflows/**'  # Ignore changes in workflow folder
@@ -26,3 +25,14 @@ jobs:
     uses: verde-money/reusable-workflows/.github/workflows/deploy-ecs.yml@main
     secrets:
       inherit
+      
+  notify-slack:
+    uses: verde-money/reusable-workflows/.github/workflows/slack-notification.yml@main
+    needs: [deploy]
+    with:
+      environment: ${{ github.ref_name }}
+      version_file_path: "version.json"
+      deploy_result: ${{ needs.deploy.result }}
+      title: "FOS: ${{ github.repository }} -  ${{ github.ref_name }} Deployment"
+    secrets:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
