@@ -7,7 +7,6 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import MessagesState
 
-from app.core.app_state import get_goal_agent_graph
 from app.repositories.session_store import get_session_store
 from app.utils.tools import get_config_value
 
@@ -95,22 +94,32 @@ async def wealth_agent(state: MessagesState, config: RunnableConfig) -> dict[str
 async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
     """Goal agent worker that handles financial goals management."""
     try:
+        # Extract Langfuse callback from supervisor config if available
+        langfuse_callback = config.get("configurable", {}).get("langfuse_callback_goals")
+        callbacks_list = [langfuse_callback] if langfuse_callback else []
 
+        # Import here to avoid circular dependencies
+        from app.agents.supervisor.goal_agent.agent import GoalAgent
 
-        goal_graph = get_goal_agent_graph()
+        # Create GoalAgent instance with supervisor's callback
+        goal_agent_instance = GoalAgent(callbacks=callbacks_list if callbacks_list else None)
+        goal_graph = goal_agent_instance._create_agent_with_tools()
+
         user_id = get_config_value(config, "user_id")
 
         # Create unique thread for each supervisor handoff
-
         unique_thread_id = f"goal-task-{uuid.uuid4()}"
 
+        # Propagate callbacks through config
         goal_config = {
             "configurable": {
                 "thread_id": unique_thread_id,
                 "user_id": user_id
-            }
+            },
+            "callbacks": callbacks_list
         }
 
+        logger.info("[Langfuse][goal] Invoking goal_agent with %d callbacks", len(callbacks_list))
         result = await goal_graph.ainvoke(state, config=goal_config)
 
         goal_response = ""

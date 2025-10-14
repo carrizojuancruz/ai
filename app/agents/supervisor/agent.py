@@ -9,6 +9,7 @@ from typing import Any, Callable, Iterable, Sequence
 from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import BaseMessage
 from langchain_core.messages.utils import count_tokens_approximately
+from langfuse.callback import CallbackHandler
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -97,6 +98,25 @@ def serialize_running_summary(running_summary: RunningSummary | None) -> dict[st
         "summarized_message_ids": sorted(running_summary.summarized_message_ids),
         "last_summarized_message_id": running_summary.last_summarized_message_id,
     }
+
+
+def _create_goal_langfuse_callback():
+    """Create Langfuse callback handler for goal agent tracing."""
+    goal_pk = app_config.LANGFUSE_PUBLIC_GOAL_KEY
+    goal_sk = app_config.LANGFUSE_SECRET_GOAL_KEY
+    goal_host = app_config.LANGFUSE_HOST_GOAL
+
+    if goal_pk and goal_sk and goal_host:
+        try:
+            callback = CallbackHandler(public_key=goal_pk, secret_key=goal_sk, host=goal_host)
+            logger.info("[Langfuse][supervisor] Goal agent callback handler created successfully")
+            return callback
+        except Exception as e:
+            logger.warning("[Langfuse][supervisor] Failed to create goal callback handler: %s: %s", type(e).__name__, e)
+            return None
+    else:
+        logger.warning("[Langfuse][supervisor] Goal agent Langfuse env vars missing; tracing disabled")
+        return None
 
 
 def compile_supervisor_graph() -> CompiledStateGraph:

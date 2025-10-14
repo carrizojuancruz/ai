@@ -21,17 +21,18 @@ Analysis Results:
 STATUS: GOAL AGENT ANALYSIS COMPLETE
 This goal agent analysis is provided to the supervisor for final user response formatting."""
 
-    def __init__(self, llm: ChatBedrockConverse, tools: List[BaseTool], prompt_builder: Callable[[], str]):
+    def __init__(self, llm: ChatBedrockConverse, tools: List[BaseTool], prompt_builder: Callable[[], str], callbacks: list = None):
         self.llm = llm
         self.tools = tools
         self.prompt_builder = prompt_builder
+        self.callbacks = callbacks or []
 
     def create(self):
         """Create the goal subgraph workflow."""
         tool_node = ToolNode(self.tools)
         model_with_tools = self.llm.bind_tools(self.tools)
 
-        async def agent_node(state: MessagesState) -> dict:
+        async def agent_node(state: MessagesState, config) -> dict:
             """Agent node that processes messages with tools."""
             system_prompt = self.prompt_builder()
 
@@ -46,7 +47,9 @@ This goal agent analysis is provided to the supervisor for final user response f
                     valid_messages.append(msg)
 
             messages = [{"role": "system", "content": system_prompt}] + valid_messages
-            response = await model_with_tools.ainvoke(messages)
+
+            # Invoke model with callbacks from config (LangGraph propagates them automatically)
+            response = await model_with_tools.ainvoke(messages, config=config)
             return {"messages": [response]}
 
         def supervisor_node(state: MessagesState) -> dict:
@@ -100,7 +103,7 @@ This goal agent analysis is provided to the supervisor for final user response f
         return workflow.compile(checkpointer=None)
 
 
-def create_goal_subgraph(llm: ChatBedrockConverse, tools: List[BaseTool], prompt_builder: Callable[[], str]):
+def create_goal_subgraph(llm: ChatBedrockConverse, tools: List[BaseTool], prompt_builder: Callable[[], str], callbacks: list = None):
     """Create the goal subgraph."""
-    subgraph = GoalSubgraph(llm, tools, prompt_builder)
+    subgraph = GoalSubgraph(llm, tools, prompt_builder, callbacks)
     return subgraph.create()

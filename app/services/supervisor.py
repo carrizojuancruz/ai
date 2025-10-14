@@ -46,6 +46,19 @@ langfuse_handler = CallbackHandler(
 
 logger = logging.getLogger(__name__)
 
+# Create Langfuse callback handler for goal agent tracing
+langfuse_goal_handler = None
+if config.LANGFUSE_PUBLIC_GOAL_KEY and config.LANGFUSE_SECRET_GOAL_KEY and config.LANGFUSE_HOST_GOAL:
+    try:
+        langfuse_goal_handler = CallbackHandler(
+            public_key=config.LANGFUSE_PUBLIC_GOAL_KEY,
+            secret_key=config.LANGFUSE_SECRET_GOAL_KEY,
+            host=config.LANGFUSE_HOST_GOAL,
+        )
+        logger.info("[Langfuse][supervisor] Goal agent callback handler initialized")
+    except Exception as e:
+        logger.warning("[Langfuse][supervisor] Failed to create goal callback handler: %s: %s", type(e).__name__, e)
+
 STREAM_WORD_GROUP_SIZE = 3
 
 
@@ -459,6 +472,10 @@ class SupervisorService:
             **session_ctx,
             "user_id": user_id,
         }
+
+        # Add goal agent callback to configurable for propagation to workers
+        if langfuse_goal_handler:
+            configurable["langfuse_callback_goals"] = langfuse_goal_handler
 
         emitted_handoff_back_keys: set[str] = set()
         current_agent_tool: Optional[str] = None

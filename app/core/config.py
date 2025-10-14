@@ -151,6 +151,11 @@ class Config:
     LANGFUSE_HOST_SUPERVISOR: str = os.getenv("LANGFUSE_HOST_SUPERVISOR", "https://langfuse.promtior.ai")
     LANGFUSE_TRACING_ENVIRONMENT: str = os.getenv("LANGFUSE_TRACING_ENVIRONMENT", "development")
 
+    # Langfuse Configuration (Goal)
+    LANGFUSE_PUBLIC_GOAL_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_GOAL_KEY")
+    LANGFUSE_SECRET_GOAL_KEY: Optional[str] = os.getenv("LANGFUSE_SECRET_GOAL_KEY")
+    LANGFUSE_HOST_GOAL: str = os.getenv("LANGFUSE_HOST_GOAL", "https://langfuse.promtior.ai")
+
     # Logging Configuration
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
     LOG_SIMPLE: bool = os.getenv("LOG_SIMPLE", "").lower() in {"1", "true", "yes", "on"}
