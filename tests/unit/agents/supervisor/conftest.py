@@ -250,9 +250,11 @@ def mock_goal_agent_graph(mocker):
         "app.core.app_state.get_goal_agent_graph",
         return_value=mock_graph,
     )
+    mock_goal_agent_instance = mocker.MagicMock()
+    mock_goal_agent_instance._create_agent_with_tools.return_value = mock_graph
     mocker.patch(
-        "app.agents.supervisor.workers.get_goal_agent_graph",
-        return_value=mock_graph,
+        "app.agents.supervisor.goal_agent.agent.GoalAgent",
+        return_value=mock_goal_agent_instance,
     )
     return mock_graph
 

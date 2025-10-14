@@ -82,14 +82,16 @@ class TestGoalAgent:
         mock_workflow.ainvoke.return_value = mock_command
 
         with patch.object(agent, '_create_agent_with_tools', return_value=mock_workflow):
-            # Act
             result = await agent.process_query_with_agent("Test query", "user123")
 
-            # Assert
             assert result == mock_command
             mock_workflow.ainvoke.assert_called_once_with(
                 {"messages": [{"role": "user", "content": "Test query"}]},
-                config={"recursion_limit": 10}
+                config={
+                    "recursion_limit": 10,
+                    "callbacks": [],
+                    "configurable": {"user_id": "user123"}
+                }
             )
 
 
