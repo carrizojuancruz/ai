@@ -227,6 +227,13 @@ class Config:
     SQS_VISIBILITY_TIMEOUT: int = int(os.getenv("SQS_VISIBILITY_TIMEOUT", "300"))  # 5 minutes
     SQS_WAIT_TIME_SECONDS: int = int(os.getenv("SQS_WAIT_TIME_SECONDS", "20"))  # Long polling
 
+    # Fallback configuration
+    MODEL_STATE: str = os.getenv("MODEL_STATE")
+    MODEL_REGION_ACTIVE: str = os.getenv("MODEL_REGION_ACTIVE")
+    MODEL_GUARDRAIL_ACTIVE: str = os.getenv("MODEL_GUARDRAIL_ACTIVE")
+    MODEL_REGION_STANDBY: str = os.getenv("MODEL_REGION_STANDBY")
+    MODEL_GUARDRAIL_STANDBY: str = os.getenv("MODEL_GUARDRAIL_STANDBY")
+
     def __init__(self):
         self.__class__._initialize()
 
@@ -237,6 +244,34 @@ class Config:
         if secrets:
             for key, value in secrets.items():
                 cls.set_env_var(key, value)
+
+        # Apply fallback configuration after loading secrets
+        agents = ["WEALTH", "FINANCIAL", "GUEST", "ONBOARDING", "SUPERVISOR"]
+        cls.MODEL_STATE = secrets.get("MODEL_STATE", cls.MODEL_STATE)
+
+        if cls.MODEL_STATE == "ACTIVE":
+            fallback_region = cls.MODEL_REGION_ACTIVE
+            fallback_guardrail = cls.MODEL_GUARDRAIL_ACTIVE
+        elif cls.MODEL_STATE == "STANDBY":
+            fallback_region = cls.MODEL_REGION_STANDBY
+            fallback_guardrail = cls.MODEL_GUARDRAIL_STANDBY
+        else:
+            fallback_region = None
+            fallback_guardrail = None
+
+        if fallback_region or fallback_guardrail:
+            for agent in agents:
+                region_attr = f"{agent}_AGENT_MODEL_REGION"
+                guardrail_attr = f"{agent}_AGENT_GUARDRAIL_ID"
+
+                current_region = getattr(cls, region_attr, None)
+                current_guardrail = getattr(cls, guardrail_attr, None)
+
+                if fallback_region and (current_region is None or current_region == ""):
+                    setattr(cls, region_attr, fallback_region)
+
+                if fallback_guardrail and (current_guardrail is None or current_guardrail == ""):
+                    setattr(cls, guardrail_attr, fallback_guardrail)
 
     @classmethod
     def set_env_var(cls, key: str, value: str):
