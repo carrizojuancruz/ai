@@ -16,7 +16,7 @@ class S3VectorStoreService:
         self.client = boto3.client('s3vectors', region_name=config.AWS_REGION)
 
     def add_documents(self, documents: List[Document], embeddings: List[List[float]]):
-
+        """Add documents to vector store."""
         vectors = []
         for i, (doc, embedding) in enumerate(zip(documents, embeddings, strict=False)):
             content_hash = doc.metadata.get('content_hash', '')
@@ -24,21 +24,23 @@ class S3VectorStoreService:
 
             key = f"doc_{source_id[:16]}_{content_hash[:16]}_{i}"
 
+            metadata = {
+                'source_id': source_id,
+                'content_hash': content_hash,
+                'chunk_index': i,
+                'content': doc.page_content,
+                'content_source': doc.metadata.get('content_source', 'unknown'),
+                'name': doc.metadata.get('name') or doc.metadata.get('filename', ''),
+                'url': doc.metadata.get('section_url') or doc.metadata.get('source_url', ''),
+                'type': doc.metadata.get('type') or doc.metadata.get('file_type', ''),
+                'category': doc.metadata.get('category', ''),
+                'description': doc.metadata.get('description', ''),
+            }
+
             vectors.append({
                 'key': key,
                 'data': {'float32': [float(x) for x in embedding]},
-                'metadata': {
-                    'section_url': doc.metadata.get('section_url', ''),
-                    'source_url': doc.metadata.get('source_url', ''),
-                    'name': doc.metadata.get('name', ''),
-                    'source_id': source_id,
-                    'chunk_index': i,
-                    'content': doc.page_content,
-                    'content_hash': content_hash,
-                    'type': doc.metadata.get('type', ''),
-                    'category': doc.metadata.get('category', ''),
-                    'description': doc.metadata.get('description', '')
-                }
+                'metadata': metadata
             })
 
         try:
@@ -240,31 +242,70 @@ class S3VectorStoreService:
 
         return hashes
 
-    def similarity_search(self, query_embedding: List[float], k: int) -> List[Dict[str, Any]]:
-        response = self.client.query_vectors(
-            vectorBucketName=self.bucket_name,
-            indexName=self.index_name,
-            topK=k,
-            queryVector={'float32': [float(x) for x in query_embedding]},
-            returnMetadata=True,
-            returnDistance=True
-        )
+    def similarity_search(
+        self,
+        query_embedding: List[float],
+        k: int,
+        metadata_filter: Dict[str, str] | None = None
+    ) -> List[Dict[str, Any]]:
+        """Perform similarity search with optional metadata filtering.
+
+        Args:
+            query_embedding: Query vector embedding
+            k: Number of top results to return
+            metadata_filter: Optional metadata filter dict, e.g. {"content_source": "internal"}
+
+        Returns:
+            List of search results with content, metadata, score, and vector_key
+
+        """
+        query_params = {
+            'vectorBucketName': self.bucket_name,
+            'indexName': self.index_name,
+            'topK': k,
+            'queryVector': {'float32': [float(x) for x in query_embedding]},
+            'returnMetadata': True,
+            'returnDistance': True
+        }
+
+        if metadata_filter:
+            if metadata_filter == {"content_source": "external"}:
+                logger.info("Skipping filter for content_source='external' to include documents without the field")
+                metadata_filter = None
+
+            if metadata_filter:
+                if len(metadata_filter) == 1:
+                    field, value = next(iter(metadata_filter.items()))
+                    query_params['filter'] = {field: value}
+                else:
+                    conditions = [
+                        {field: value}
+                        for field, value in metadata_filter.items()
+                    ]
+                    query_params['filter'] = {"$and": conditions}
+                logger.info(f"Performing filtered search with: {metadata_filter}")
+
+        response = self.client.query_vectors(**query_params)
 
         results = []
         for v in response.get('vectors', []):
             metadata = v.get('metadata', {})
+            url = metadata.get('url', '')
+
             results.append({
                 'content': metadata.get('content', ''),
                 'metadata': {
-                    'section_url': metadata.get('section_url', ''),
-                    'source_url': metadata.get('source_url', ''),
                     'source_id': metadata.get('source_id', ''),
-                    'chunk_index': metadata.get('chunk_index', 0),
                     'content_hash': metadata.get('content_hash', ''),
+                    'chunk_index': metadata.get('chunk_index', 0),
+                    'content_source': metadata.get('content_source', ''),
                     'name': metadata.get('name', ''),
+                    'url': url,
                     'type': metadata.get('type', ''),
                     'category': metadata.get('category', ''),
-                    'description': metadata.get('description', '')
+                    'description': metadata.get('description', ''),
+                    'section_url': url,
+                    'source_url': url,
                 },
                 'score': 1 - v.get('distance', 0),
                 'vector_key': v.get('key', '')

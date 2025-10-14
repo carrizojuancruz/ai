@@ -35,6 +35,7 @@ streamlit = "^1.49.1"
 sseclient = "^0.0.27"
 playwright = "^1.55.0"
 pypdf = "^6.0.0"
+python-multipart = "^0.0.20"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.11.12"

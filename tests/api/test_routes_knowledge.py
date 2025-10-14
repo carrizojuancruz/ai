@@ -41,7 +41,7 @@ class TestKnowledgeRoutes:
             for key in ("content", "section_url", "source_url", "source_id", "name", "type", "category", "description"):
                 assert key in item and isinstance(item[key], str)
 
-            mock_knowledge_service.search.assert_called_once_with("test query")
+            mock_knowledge_service.search.assert_called_once_with("test query", filter=None)
 
     def test_search_knowledge_base_error(self, client: TestClient, mock_knowledge_service):
         """Test knowledge base search with service error."""

@@ -130,6 +130,7 @@ class Config:
     S3V_INDEX_MEMORY: str = os.getenv("S3V_INDEX_MEMORY", "memory-search")
     S3V_BUCKET: Optional[str] = os.getenv("S3V_BUCKET")
     S3V_INDEX_KB: Optional[str] = os.getenv("S3V_INDEX_KB")
+    S3V_KB_S3_FILES: Optional[str] = os.getenv("S3V_KB_S3_FILES")
     S3V_DISTANCE: str = os.getenv("S3V_DISTANCE", "cosine").upper()
     S3V_DIMS: int = int(os.getenv("S3V_DIMS", "1024"))
     S3V_MAX_TOP_K: int = int(os.getenv("S3V_MAX_TOP_K", "30"))

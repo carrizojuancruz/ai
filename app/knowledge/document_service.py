@@ -48,6 +48,9 @@ class DocumentService:
             doc.metadata["category"] = source.category
             doc.metadata["description"] = source.description
 
+            if "content_source" not in doc.metadata:
+                doc.metadata["content_source"] = "external"
+
             chunks = self.text_splitter.split_documents([doc])
             for i, chunk in enumerate(chunks):
                 chunk.metadata["content"] = doc.page_content

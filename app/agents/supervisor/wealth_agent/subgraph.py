@@ -139,6 +139,8 @@ def create_wealth_subgraph(
                                         source['category'] = metadata['category']
                                     if metadata.get('description'):
                                         source['description'] = metadata['description']
+                                    if metadata.get('content_source'):
+                                        source['content_source'] = metadata['content_source']
 
                                 new_sources.append(source)
                         retrieved_sources.extend(new_sources)
@@ -215,7 +217,8 @@ def create_wealth_subgraph(
                 logger.info(f"Skipped duplicate source: {url}")
 
         logger.info(f"Filtered to {len(unique_filtered_sources)} unique sources from {len(filtered_sources)} total")
-        filtered_sources = unique_filtered_sources
+
+        final_sources = [s for s in unique_filtered_sources if s.get('content_source') != 'internal']
 
         formatted_response = f"""===== WEALTH AGENT TASK COMPLETED =====
 
@@ -231,7 +234,7 @@ This wealth agent analysis is provided to the supervisor for final user response
             "messages": [
                 {"role": "assistant", "content": formatted_response, "name": "wealth_agent"}
             ],
-            "sources": filtered_sources
+            "sources": final_sources
         }
 
     def should_continue(state: WealthState):

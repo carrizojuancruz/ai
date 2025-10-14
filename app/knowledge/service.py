@@ -91,6 +91,9 @@ class KnowledgeService:
         chunks = self.document_service.split_documents(documents, source)
         logger.info(f"Split into {len(chunks)} chunks for {source.url}")
 
+        for chunk in chunks:
+            chunk.metadata["content_source"] = "external"
+
         original_chunk_count = len(chunks)
         if len(chunks) > config.MAX_CHUNKS_PER_SOURCE:
             chunks = chunks[:config.MAX_CHUNKS_PER_SOURCE]
@@ -160,10 +163,37 @@ class KnowledgeService:
 
         return result
 
-    async def search(self, query: str) -> List[Dict[str, Any]]:
+    async def search(self, query: str, filter: Dict[str, str] | None = None) -> List[Dict[str, Any]]:
+        """Search the knowledge base with optional metadata filtering.
+
+        Args:
+            query: Search query string
+            filter: Optional metadata filter, e.g. {"content_source": "internal"}
+                   - Filter by content_source: "internal" for S3 files, "external" for crawled content
+                   - Filter by file_type: "markdown", "text", "json", etc.
+                   - Multiple filters can be combined
+
+        Returns:
+            List of search results with content and metadata
+
+        Examples:
+            # Search all content
+            results = await search("bank connection")
+
+            # Search only internal S3 files
+            results = await search("bank connection", {"content_source": "internal"})
+
+            # Search only external crawled content
+            results = await search("bank connection", {"content_source": "external"})
+
+        """
         try:
             query_embedding = self.document_service.generate_query_embedding(query)
-            results = self.vector_store_service.similarity_search(query_embedding, k=config.TOP_K_SEARCH)
+            results = self.vector_store_service.similarity_search(
+                query_embedding,
+                k=config.TOP_K_SEARCH,
+                metadata_filter=filter
+            )
             out = []
             for r in results:
                 meta = r.get('metadata', {})
@@ -175,10 +205,16 @@ class KnowledgeService:
                     'name': meta.get('name', ''),
                     'type': meta.get('type', ''),
                     'category': meta.get('category', ''),
-                    'description': meta.get('description', '')
+                    'description': meta.get('description', ''),
+                    'content_source': meta.get('content_source', ''),
+                    'filename': meta.get('filename', ''),
+                    'file_type': meta.get('file_type', ''),
+                    's3_key': meta.get('s3_key', ''),
+                    'source': meta.get('source', '')
                 })
             return out
-        except Exception:
+        except Exception as e:
+            logger.error(f"Search failed: {str(e)}", exc_info=True)
             return []
 
     def get_sources(self) -> List[Source]:

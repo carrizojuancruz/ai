@@ -1,11 +1,34 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SearchRequest(BaseModel):
     query: str
+    filter: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Optional metadata filter for search results",
+        examples=[
+            {"content_source": "internal"},
+            {"content_source": "external"},
+            {"file_type": "markdown"}
+        ]
+    )
+
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "query": "How do I connect my bank?",
+                    "filter": {"content_source": "internal"}
+                },
+                {
+                    "query": "Investment strategies",
+                    "filter": {"content_source": "external"}
+                }
+            ]
+        }
 
 class SearchResponse(BaseModel):
     results: list

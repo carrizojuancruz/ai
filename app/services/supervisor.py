@@ -235,9 +235,13 @@ class SupervisorService:
             ):
                 continue
 
+            metadata = item.get("metadata", {})
+            if isinstance(metadata, dict) and metadata.get("content_source") == "internal":
+                logger.info(f"[SUPERVISOR] Skipping internal source: {source_content}")
+                continue
+
             new_source = {"name": get_source_name(name), "url": source_content}
 
-            metadata = item.get("metadata", {})
             if isinstance(metadata, dict):
                 for key, meta_key in [
                     ("name", "source_name"),

@@ -146,8 +146,10 @@ class TestSearchKB:
         result = await search_kb.ainvoke({"query": "test"})
         parsed = json.loads(result)
 
-        assert len(parsed) == 1
+        # The tool filters out results without content, but includes results with content even if source_url is empty
+        assert len(parsed) == 2
         assert parsed[0]["content"] == "Valid content"
+        assert parsed[1]["content"] == "Another valid"
 
     @pytest.mark.asyncio
     async def test_search_kb_preserves_unicode(self, mock_knowledge_service):
@@ -187,4 +189,4 @@ class TestSearchKB:
         parsed = json.loads(result)
 
         assert isinstance(parsed, list)
-        mock_knowledge_service.search.assert_called_once_with(query)
+        mock_knowledge_service.search.assert_called_once_with(query, filter={'content_source': 'external'})
