@@ -64,7 +64,7 @@ class UrlFilter:
         url_lower = url.lower()
         url_path = url.split('?')[0].split('#')[0]
 
-        if any(url_path.endswith(ext) for ext in cls.EXCLUDED_EXTENSIONS):
+        if any(url_path.lower().endswith(ext) for ext in cls.EXCLUDED_EXTENSIONS):
             return True
         return any(pattern in url_lower for pattern in cls.EXCLUDED_PATH_PATTERNS)
 
@@ -101,7 +101,7 @@ class JavaScriptDetector:
     @classmethod
     def needs_javascript(cls, documents: List[Document]) -> bool:
         if not documents:
-            return True
+            return False
 
         all_content = ' '.join(doc.page_content for doc in documents)
 

@@ -71,19 +71,19 @@ class PromptLoader:
         from .memory_prompts import MEMORY_HOTPATH_TRIGGER_CLASSIFIER_LOCAL
         return MEMORY_HOTPATH_TRIGGER_CLASSIFIER_LOCAL.strip()
 
-    def _get_memory_same_fact_classifier_local(self) -> str:
+    def _get_memory_same_fact_classifier_local(self, **kwargs) -> str:
         from .memory_prompts import MEMORY_SAME_FACT_CLASSIFIER_LOCAL
         return MEMORY_SAME_FACT_CLASSIFIER_LOCAL.strip()
 
-    def _get_memory_compose_summaries_local(self) -> str:
+    def _get_memory_compose_summaries_local(self, **kwargs) -> str:
         from .memory_prompts import MEMORY_COMPOSE_SUMMARIES_LOCAL
         return MEMORY_COMPOSE_SUMMARIES_LOCAL.strip()
 
-    def _get_episodic_memory_summarizer_local(self) -> str:
+    def _get_episodic_memory_summarizer_local(self, **kwargs) -> str:
         from .memory_prompts import MEMORY_EPISODIC_SUMMARIZER_LOCAL
         return MEMORY_EPISODIC_SUMMARIZER_LOCAL.strip()
 
-    def _get_profile_sync_extractor_local(self) -> str:
+    def _get_profile_sync_extractor_local(self, **kwargs) -> str:
         from .memory_prompts import MEMORY_PROFILE_SYNC_EXTRACTOR_LOCAL
         return MEMORY_PROFILE_SYNC_EXTRACTOR_LOCAL.strip()
 

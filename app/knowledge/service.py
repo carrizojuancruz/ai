@@ -46,8 +46,12 @@ class KnowledgeService:
                 "vectors_failed": deletion_result["vectors_failed"]
             }
 
-    def delete_source(self, source: Source) -> Dict[str, Any]:
+    def delete_source(self, source_url: str) -> Dict[str, Any]:
         """Delete a source from the knowledge base."""
+        source = self.source_repository.find_by_url(source_url)
+        if not source:
+            return {"success": False, "error": f"Source not found: {source_url}"}
+
         deletion_result = self.vector_store_service.delete_documents_by_source_id(source.id)
         if deletion_result["success"]:
             self.source_repository.delete_by_url(source.url)
@@ -110,7 +114,7 @@ class KnowledgeService:
                 }
 
             logger.info(f"Source {source.url} needs reindexing - deleting old documents")
-            delete_result = self.delete_source(existing_source)
+            delete_result = self.delete_source(existing_source.url)
             if not delete_result["success"]:
                 logger.error(f"Failed to delete existing source during reindex: {delete_result['error']}")
                 return {

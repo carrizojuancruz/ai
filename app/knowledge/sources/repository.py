@@ -12,8 +12,8 @@ from app.knowledge.sources.base_repository import SourceRepositoryInterface
 class SourceRepository(SourceRepositoryInterface):
     """JSON file-based implementation of SourceRepositoryInterface."""
 
-    def __init__(self):
-        self.file_path = str(Path(appConfig.SOURCES_FILE_PATH).resolve())
+    def __init__(self, file_path: Optional[str] = None):
+        self.file_path = file_path or str(Path(appConfig.SOURCES_FILE_PATH).resolve())
         self._ensure_file_exists()
 
     def load_all(self) -> List[Source]:

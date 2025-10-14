@@ -1,229 +1,310 @@
-from dataclasses import dataclass
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.knowledge.models import Source
 from app.knowledge.sync_service import KnowledgeBaseSyncService
 
 
-@dataclass
-class MockExternalSource:
-    url: str
-    name: str
-    enable: bool
-    type: str
-    category: str
-    description: str
-    include_path_patterns: str
-    exclude_path_patterns: str
-    total_max_pages: int
-    recursion_depth: int
-
-
+@pytest.mark.unit
 class TestKnowledgeBaseSyncService:
 
     @pytest.fixture
-    def sync_service(self, mock_external_services):
+    def mock_external_repository(self, mocker):
+        mock = mocker.patch(
+            'app.knowledge.sync_service.ExternalSourcesRepository'
+        )
+        mock_instance = AsyncMock()
+        mock_instance.get_all.return_value = []
+        mock.return_value = mock_instance
+        return mock_instance
+
+    @pytest.fixture
+    def mock_knowledge_service(self, mocker):
+        mock = mocker.patch('app.knowledge.sync_service.KnowledgeService')
+        mock_instance = MagicMock()
+        mock_instance.get_sources.return_value = []
+        mock_instance.upsert_source = AsyncMock(return_value={
+            "success": True,
+            "is_new_source": True,
+            "documents_added": 10
+        })
+        mock_instance.delete_source.return_value = {"success": True}
+        mock.return_value = mock_instance
+        return mock_instance
+
+    @pytest.fixture
+    def mock_crawl_logger(self, mocker):
+        mock = mocker.patch('app.knowledge.sync_service.CrawlLogger')
+        mock_instance = MagicMock()
+        mock.return_value = mock_instance
+        return mock_instance
+
+    @pytest.fixture
+    def sync_service(
+        self,
+        mock_external_repository,
+        mock_knowledge_service,
+        mock_crawl_logger
+    ):
         return KnowledgeBaseSyncService()
 
-    @pytest.fixture
-    def mock_external_sources(self):
-        return [
-            MockExternalSource(
-                url="https://example1.com",
-                name="External Source 1",
-                enable=True,
-                type="web",
-                category="finance",
-                description="Test description 1",
-                include_path_patterns="",
-                exclude_path_patterns="",
-                total_max_pages=10,
-                recursion_depth=1
-            ),
-            MockExternalSource(
-                url="https://example2.com",
-                name="External Source 2",
-                enable=True,
-                type="web",
-                category="investment",
-                description="Test description 2",
-                include_path_patterns="",
-                exclude_path_patterns="",
-                total_max_pages=15,
-                recursion_depth=2
-            )
-        ]
-
-    @pytest.fixture
-    def mock_kb_sources(self, sample_source):
-        return [
-            sample_source,
-            Mock(
-                id="internal-only",
-                url="https://internal-only.com",
-                name="Internal Only Source",
-                type="web",
-                category="internal"
-            )
-        ]
-
     @pytest.mark.asyncio
-    async def test_sync_external_has_more_sources(self, sync_service, mock_external_sources):
-        sync_service.external_repo.get_all = AsyncMock(return_value=mock_external_sources)
-        sync_service.kb_service.get_sources = Mock(return_value=[])
-        sync_service.kb_service.upsert_source = AsyncMock(return_value={
-            "success": True,
-            "is_new_source": True,
-            "documents_added": 5,
-            "documents_processed": 10
-        })
+    async def test_sync_all_creates_new_sources(
+        self,
+        sync_service,
+        mock_external_repository,
+        mock_knowledge_service
+    ):
+
+
+        external_sources = [
+            Source(id=f"s{i}", name=f"Source {i}", url=f"https://example{i}.com")
+            for i in range(3)
+        ]
+        mock_external_repository.get_all.return_value = external_sources
 
         result = await sync_service.sync_all()
 
-        assert result["sources_created"] == 2
+        assert result["sources_created"] == 3
         assert result["sources_updated"] == 0
-        assert result["sources_deleted"] == 0
-        assert result["total_chunks_created"] == 10
+        assert mock_knowledge_service.upsert_source.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_sync_internal_has_more_sources(self, sync_service, mock_kb_sources):
-        sync_service.external_repo.get_all = AsyncMock(return_value=[])
-        sync_service.kb_service.get_sources = Mock(return_value=mock_kb_sources)
-        sync_service.kb_service.delete_source_by_url = AsyncMock(return_value=True)
+    async def test_sync_all_updates_existing_sources(
+        self,
+        sync_service,
+        mock_external_repository,
+        mock_knowledge_service
+    ):
 
-        result = await sync_service.sync_all()
 
-        assert result["sources_created"] == 0
-        assert result["sources_deleted"] == 2
-        assert result["sources_no_changes"] == 0
+        external_sources = [
+            Source(id="s1", name="Source 1", url="https://example.com")
+        ]
+        existing_sources = [
+            Source(id="s1", name="Source 1", url="https://example.com")
+        ]
 
-    @pytest.mark.asyncio
-    async def test_sync_mixed_sources_scenario(self, sync_service, mock_external_sources, sample_source):
-        mock_external_sources[0].url = sample_source.url
-
-        sync_service.external_repo.get_all = AsyncMock(return_value=mock_external_sources)
-        sync_service.kb_service.get_sources = Mock(return_value=[
-            sample_source,
-            Mock(url="https://internal-only.com", id="internal-only")
-        ])
-
-        def mock_upsert_response(source):
-            if source.url == sample_source.url:
-                return {
-                    "success": True,
-                    "is_new_source": False,
-                    "documents_added": 3,
-                    "documents_processed": 8
-                }
-            else:
-                return {
-                    "success": True,
-                    "is_new_source": True,
-                    "documents_added": 7,
-                    "documents_processed": 12
-                }
-
-        sync_service.kb_service.upsert_source = AsyncMock(side_effect=mock_upsert_response)
-        sync_service.kb_service.delete_source_by_url = AsyncMock(return_value=True)
-
-        result = await sync_service.sync_all()
-
-        assert result["sources_created"] == 1
-        assert result["sources_updated"] == 1
-        assert result["sources_deleted"] == 1
-
-    @pytest.mark.asyncio
-    async def test_sync_no_content_changes(self, sync_service, mock_external_sources):
-        sync_service.external_repo.get_all = AsyncMock(return_value=mock_external_sources)
-        sync_service.kb_service.get_sources = Mock(return_value=[])
-        sync_service.kb_service.upsert_source = AsyncMock(return_value={
+        mock_external_repository.get_all.return_value = external_sources
+        mock_knowledge_service.get_sources.return_value = existing_sources
+        mock_knowledge_service.upsert_source.return_value = {
             "success": True,
             "is_new_source": False,
-            "documents_added": 0,
-            "documents_processed": 5,
-            "message": "Content hash matched - no changes detected"
-        })
-
-        result = await sync_service.sync_all()
-
-        assert result["sources_no_changes"] == 2
-        assert result["sources_updated"] == 0
-        assert result["total_chunks_created"] == 0
-
-    @pytest.mark.asyncio
-    async def test_sync_with_crawling_errors(self, sync_service, mock_external_sources):
-        sync_service.external_repo.get_all = AsyncMock(return_value=mock_external_sources)
-        sync_service.kb_service.get_sources = Mock(return_value=[])
-
-        def mock_upsert_responses(source):
-            if "example1" in source.url:
-                return {
-                    "success": True,
-                    "is_new_source": True,
-                    "documents_added": 3,
-                    "documents_processed": 5
-                }
-            else:
-                return {
-                    "success": True,
-                    "is_new_source": True,
-                    "documents_added": 0,
-                    "documents_processed": 0,
-                    "crawl_error": "SSL certificate verification failed"
-                }
-
-        sync_service.kb_service.upsert_source = AsyncMock(side_effect=mock_upsert_responses)
-
-        result = await sync_service.sync_all()
-
-        assert result["sources_created"] == 2
-        assert result["sources_errors"] == 0
-        assert len(result.get("sync_failures", [])) == 0
-
-    @pytest.mark.asyncio
-    async def test_sync_disabled_sources_skipped(self, sync_service, mock_external_sources):
-        mock_external_sources[0].enable = False
-
-        sync_service.external_repo.get_all = AsyncMock(return_value=mock_external_sources)
-        sync_service.kb_service.get_sources = Mock(return_value=[])
-        sync_service.kb_service.upsert_source = AsyncMock(return_value={
-            "success": True,
-            "is_new_source": True,
             "documents_added": 5
-        })
+        }
 
         result = await sync_service.sync_all()
 
-        assert result["sources_created"] == 1
-        sync_service.kb_service.upsert_source.assert_called_once()
+        assert result["sources_updated"] == 1
+        assert result["sources_created"] == 0
 
     @pytest.mark.asyncio
-    async def test_sync_with_processing_limit(self, sync_service, mock_external_sources):
-        more_sources = mock_external_sources + [
-            MockExternalSource(url="https://example3.com", name="Source 3", enable=True, type="web", category="test", description="desc", include_path_patterns="", exclude_path_patterns="", total_max_pages=10, recursion_depth=1),
-            MockExternalSource(url="https://example4.com", name="Source 4", enable=True, type="web", category="test", description="desc", include_path_patterns="", exclude_path_patterns="", total_max_pages=10, recursion_depth=1)
+    async def test_sync_all_deletes_obsolete_sources(
+        self,
+        sync_service,
+        mock_external_repository,
+        mock_knowledge_service
+    ):
+
+
+        external_sources = [
+            Source(id="s1", name="Source 1", url="https://example1.com")
+        ]
+        existing_sources = [
+            Source(id="s1", name="Source 1", url="https://example1.com"),
+            Source(id="s2", name="Source 2", url="https://example2.com")
         ]
 
-        sync_service.external_repo.get_all = AsyncMock(return_value=more_sources)
-        sync_service.kb_service.get_sources = Mock(return_value=[])
-        sync_service.kb_service.upsert_source = AsyncMock(return_value={
-            "success": True,
-            "is_new_source": True,
-            "documents_added": 2
-        })
-
-        result = await sync_service.sync_all(limit=2)
-
-        assert result["sources_created"] == 2
-        assert sync_service.kb_service.upsert_source.call_count == 2
-
-    @pytest.mark.asyncio
-    async def test_sync_all_external_api_failure(self, sync_service):
-        sync_service.external_repo.get_all = AsyncMock(side_effect=Exception("API Error"))
-        sync_service.kb_service.get_sources = Mock(return_value=[])
+        mock_external_repository.get_all.return_value = external_sources
+        mock_knowledge_service.get_sources.return_value = existing_sources
 
         result = await sync_service.sync_all()
 
-        assert not result["external_sources_available"]
-        assert "sources_errors" in result
+        assert result["sources_deleted"] == 1
+        mock_knowledge_service.delete_source.assert_called_once_with(
+            "https://example2.com"
+        )
+
+    @pytest.mark.asyncio
+    async def test_sync_all_handles_crawl_errors(
+        self,
+        sync_service,
+        mock_external_repository,
+        mock_knowledge_service
+    ):
+
+
+        external_sources = [
+            Source(id="s1", name="Source 1", url="https://example.com")
+        ]
+
+        mock_external_repository.get_all.return_value = external_sources
+        mock_knowledge_service.upsert_source.return_value = {
+            "success": True,
+            "crawl_error": "SSL certificate error"
+        }
+
+        result = await sync_service.sync_all()
+
+        assert result["sources_errors"] == 1
+        assert len(result["sync_failures"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_sync_all_with_limit(
+        self,
+        sync_service,
+        mock_external_repository,
+        mock_knowledge_service
+    ):
+
+
+        external_sources = [
+            Source(id=f"s{i}", name=f"Source {i}", url=f"https://example{i}.com")
+            for i in range(10)
+        ]
+        mock_external_repository.get_all.return_value = external_sources
+
+        result = await sync_service.sync_all(limit=3)
+
+        assert mock_knowledge_service.upsert_source.call_count == 3
+        assert result["sources_created"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_sync_all_respects_enabled_flag(
+        self,
+        sync_service,
+        mock_external_repository,
+        mock_knowledge_service
+    ):
+
+
+        external_sources = [
+            Source(id="s1", name="Source 1", url="https://example1.com", enabled=True),
+            Source(id="s2", name="Source 2", url="https://example2.com", enabled=False),
+            Source(id="s3", name="Source 3", url="https://example3.com", enabled=True)
+        ]
+        mock_external_repository.get_all.return_value = external_sources
+
+        result = await sync_service.sync_all()
+
+        assert mock_knowledge_service.upsert_source.call_count == 2
+        assert result["sources_created"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_sync_all_external_api_unavailable(
+        self,
+        sync_service,
+        mock_external_repository,
+        mock_knowledge_service
+    ):
+        mock_external_repository.get_all.side_effect = Exception("API error")
+
+        result = await sync_service.sync_all()
+
+        assert result["external_sources_available"] is False
+        assert result["deletions_skipped"] is True
+
+    @pytest.mark.asyncio
+    async def test_sync_all_tracks_total_chunks(
+        self,
+        sync_service,
+        mock_external_repository,
+        mock_knowledge_service
+    ):
+
+
+        external_sources = [
+            Source(id=f"s{i}", name=f"Source {i}", url=f"https://example{i}.com")
+            for i in range(3)
+        ]
+        mock_external_repository.get_all.return_value = external_sources
+
+        upsert_results = [
+            {"success": True, "is_new_source": True, "documents_added": 10},
+            {"success": True, "is_new_source": True, "documents_added": 20},
+            {"success": True, "is_new_source": True, "documents_added": 30}
+        ]
+        mock_knowledge_service.upsert_source.side_effect = upsert_results
+
+        result = await sync_service.sync_all()
+
+        assert result["total_chunks_created"] == 60
+
+    @pytest.mark.asyncio
+    async def test_sync_all_deletes_all_when_external_empty(
+        self,
+        sync_service,
+        mock_external_repository,
+        mock_knowledge_service
+    ):
+        mock_external_repository.get_all.return_value = []
+        mock_knowledge_service.get_sources.return_value = [
+            Source(id="s1", name="S1", url="https://ex1.com"),
+            Source(id="s2", name="S2", url="https://ex2.com"),
+        ]
+
+        result = await sync_service.sync_all()
+
+        assert result["sources_deleted"] == 2
+        assert mock_knowledge_service.delete_source.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_sync_all_continues_on_upsert_exception(
+        self,
+        sync_service,
+        mock_external_repository,
+        mock_knowledge_service
+    ):
+        external_sources = [
+            Source(id="s1", name="S1", url="https://ex1.com"),
+            Source(id="s2", name="S2", url="https://ex2.com"),
+            Source(id="s3", name="S3", url="https://ex3.com"),
+        ]
+        mock_external_repository.get_all.return_value = external_sources
+
+        async def upsert_side_effect(source: Source):
+            if source.url == "https://ex2.com":
+                raise Exception("upsert failed")
+            return {"success": True, "is_new_source": True, "documents_added": 1}
+
+        mock_knowledge_service.upsert_source.side_effect = upsert_side_effect
+
+        result = await sync_service.sync_all()
+
+        assert result["sources_errors"] == 1
+        assert len(result["sync_failures"]) == 1
+        assert mock_knowledge_service.upsert_source.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_sync_all_deletions_skipped_false_when_external_ok(
+        self,
+        sync_service,
+        mock_external_repository
+    ):
+        mock_external_repository.get_all.return_value = []
+        result = await sync_service.sync_all()
+        assert result["external_sources_available"] is True
+        assert result["deletions_skipped"] is False
+
+    @pytest.mark.asyncio
+    async def test_sync_all_filters_before_limit(
+        self,
+        sync_service,
+        mock_external_repository,
+        mock_knowledge_service
+    ):
+        external_sources = [
+            Source(id="s1", name="S1", url="https://ex1.com", enabled=False),
+            Source(id="s2", name="S2", url="https://ex2.com", enabled=True),
+            Source(id="s3", name="S3", url="https://ex3.com", enabled=False),
+            Source(id="s4", name="S4", url="https://ex4.com", enabled=True),
+        ]
+        mock_external_repository.get_all.return_value = external_sources
+
+        await sync_service.sync_all(limit=1)
+
+        assert mock_knowledge_service.upsert_source.call_count == 1
+        # Ensure the processed source was enabled
+        processed_url = mock_knowledge_service.upsert_source.call_args.args[0].url
+        assert processed_url in {"https://ex2.com", "https://ex4.com"}

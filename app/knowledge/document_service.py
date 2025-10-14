@@ -49,9 +49,10 @@ class DocumentService:
             doc.metadata["description"] = source.description
 
             chunks = self.text_splitter.split_documents([doc])
-            for chunk in chunks:
+            for i, chunk in enumerate(chunks):
                 chunk.metadata["content"] = doc.page_content
                 chunk.metadata["content_hash"] = hashlib.sha256(chunk.page_content.encode()).hexdigest()
+                chunk.metadata["chunk_index"] = i
             all_chunks.extend(chunks)
 
         return all_chunks

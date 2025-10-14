@@ -44,7 +44,7 @@ class KnowledgeBaseSyncService:
         sync_failures = []
         total_chunks_created = 0
 
-        enabled_sources = [s for s in external_sources if s.enable]
+        enabled_sources = [s for s in external_sources if s.enabled]
 
         if limit is not None:
             if limit == 0:
@@ -157,7 +157,7 @@ class KnowledgeBaseSyncService:
                 logger.info(f"Deleting {len(sources_to_delete)} obsolete sources")
 
             for source in sources_to_delete:
-                deletion_result = self.kb_service.delete_source(source)
+                deletion_result = self.kb_service.delete_source(source.url)
                 if deletion_result["success"]:
                     sources_deleted += 1
                     logger.info(f"Deleted source: {source.url}")

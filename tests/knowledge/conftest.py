@@ -1,73 +1,234 @@
-from unittest.mock import Mock, patch
+"""Shared fixtures for knowledge module tests."""
+
+import json
+from datetime import UTC, datetime
+from typing import List
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from langchain_core.documents import Document
 
 from app.knowledge.models import Source
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "unit: Unit tests (no external dependencies)")
+    config.addinivalue_line("markers", "integration: Integration tests (with external dependencies)")
+    config.addinivalue_line("markers", "slow: Slow running tests")
 
 
 @pytest.fixture
 def sample_source():
     return Source(
-        id="test-source-1",
-        name="Test Documentation",
-        url="https://example.com/docs",
-        type="documentation",
+        id="test123",
+        name="Test Source",
+        url="https://example.com",
+        enabled=True,
+        type="article",
         category="finance",
-        enabled=True
+        total_max_pages=20,
+        recursion_depth=2
+    )
+
+
+@pytest.fixture
+def sample_source_with_sections():
+    return Source(
+        id="test_source_456",
+        name="Multi-Section Source",
+        url="https://example.com/main",
+        enabled=True,
+        type="guide",
+        category="education",
+        section_urls=[
+            "https://example.com/section1",
+            "https://example.com/section2",
+            "https://example.com/section3"
+        ],
+        total_chunks=15,
+        last_sync=datetime.now(UTC)
+    )
+
+
+@pytest.fixture
+def multiple_sources() -> List[Source]:
+    return [
+        Source(
+            id=f"source_{i}",
+            name=f"Source {i}",
+            url=f"https://example{i}.com",
+            enabled=i % 2 == 0,
+            type="article",
+            category="finance"
+        )
+        for i in range(1, 6)
+    ]
+
+
+@pytest.fixture
+def sample_document():
+    return Document(
+        page_content="This is test content for document processing.",
+        metadata={"source": "https://example.com/page1", "title": "Test Page"}
     )
 
 
 @pytest.fixture
 def sample_documents():
-    from langchain_core.documents import Document
-
     return [
         Document(
-            page_content="Investment strategies are crucial for building wealth.",
-            metadata={"source": "https://example.com/docs/investments", "title": "Investment Guide"}
-        ),
-        Document(
-            page_content="Retirement planning requires long-term thinking.",
-            metadata={"source": "https://example.com/docs/retirement", "title": "Retirement Planning"}
+            page_content=f"Content {i} with some substantial text to process. This is a longer piece of content that should not trigger JavaScript detection. It contains enough text to be considered valid content without needing JavaScript rendering. The content includes multiple sentences and provides meaningful information for testing purposes. This ensures that the document processing pipeline works correctly with realistic content lengths.",
+            metadata={"source": f"https://example.com/page{i}"}
         )
+        for i in range(3)
     ]
 
 
 @pytest.fixture
-def mock_sources_file(tmp_path):
+def sample_embedding():
+    return [0.1] * 1536
+
+
+@pytest.fixture
+def sample_embeddings():
+    return [[0.1 * i + j * 0.01 for i in range(1536)] for j in range(5)]
+
+
+@pytest.fixture
+def temp_sources_file(tmp_path):
     sources_file = tmp_path / "sources.json"
-    sources_file.write_text('[]')
-
-    with patch('app.core.config.config.SOURCES_FILE_PATH', str(sources_file)):
-        yield sources_file
+    sources_file.write_text("[]")
+    return str(sources_file)
 
 
-@pytest.fixture(autouse=True)
-def mock_external_services():
-    with patch('boto3.client') as mock_boto, \
-         patch('app.knowledge.document_service.BedrockEmbeddings') as mock_bedrock, \
-         patch('aiohttp.ClientSession'), \
-         patch('requests.get'), \
-         patch('app.core.config.config.MAX_CHUNKS_PER_SOURCE', 1000), \
-         patch('app.core.config.config.S3V_BUCKET', 'test-bucket'), \
-         patch('app.core.config.config.S3V_INDEX_KB', 'test-index'):
+@pytest.fixture
+def temp_sources_file_with_data(tmp_path, multiple_sources):
+    sources_file = tmp_path / "sources.json"
+    data = [source.model_dump(mode='json') for source in multiple_sources]
+    sources_file.write_text(json.dumps(data, indent=2, default=str))
+    return str(sources_file)
 
-        s3_client = Mock()
-        s3_client.put_vectors.return_value = {'ResponseMetadata': {'HTTPStatusCode': 200}}
-        s3_client.query_vectors.return_value = {
-            'vectors': [{
-                'key': 'test_doc_1',
-                'metadata': {'content': 'Sample financial content', 'source_id': 'test-source-1'},
-                'score': 0.95
-            }]
+
+@pytest.fixture
+def temp_log_file(tmp_path):
+    log_file = tmp_path / "test_crawl.log"
+    log_file.touch()
+    return str(log_file)
+
+
+@pytest.fixture
+def mock_bedrock_embeddings(mocker):
+    mock = mocker.patch('app.knowledge.document_service.BedrockEmbeddings')
+    mock_instance = MagicMock()
+    mock_instance.embed_documents.return_value = [[0.1] * 1536 for _ in range(10)]
+    mock_instance.embed_query.return_value = [0.1] * 1536
+    mock.return_value = mock_instance
+    return mock_instance
+
+
+@pytest.fixture
+def mock_s3_vectors_client(mocker):
+    mock_client = MagicMock()
+    mock_client.put_vectors.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
+    mock_client.delete_vectors.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
+    mock_client.get_paginator.return_value.paginate.return_value = []
+    mock_client.query_vectors.return_value = {"vectors": []}
+    mock_boto3 = mocker.patch('boto3.client')
+    mock_boto3.return_value = mock_client
+    return mock_client
+
+
+@pytest.fixture
+def mock_text_splitter(mocker):
+    mock = mocker.patch('app.knowledge.document_service.RecursiveCharacterTextSplitter')
+    mock_instance = MagicMock()
+
+    def split_documents(docs):
+        chunks = []
+        for doc in docs:
+            for i in range(2):
+                chunk = Document(
+                    page_content=doc.page_content[:len(doc.page_content)//2] if i == 0 else doc.page_content[len(doc.page_content)//2:],
+                    metadata=doc.metadata.copy()
+                )
+                chunks.append(chunk)
+        return chunks
+
+    mock_instance.split_documents.side_effect = split_documents
+    mock.return_value = mock_instance
+    return mock_instance
+
+
+@pytest.fixture
+def mock_crawler_service(mocker):
+    mock = mocker.patch('app.knowledge.service.CrawlerService')
+    mock_instance = AsyncMock()
+
+    async def crawl_source(source):
+        return {
+            "documents": [],
+            "documents_loaded": 0,
+            "source_url": source.url,
+            "message": "Mock crawl",
+            "crawl_type": "mock"
         }
-        s3_client.delete_vectors.return_value = {'deleted_count': 5}
-        s3_client.list_vectors.return_value = {'vectors': []}
-        mock_boto.return_value = s3_client
 
-        embeddings_mock = Mock()
-        embeddings_mock.embed_documents.return_value = [[0.1] * 384]
-        embeddings_mock.embed_query.return_value = [0.1] * 384
-        mock_bedrock.return_value = embeddings_mock
+    mock_instance.crawl_source.side_effect = crawl_source
+    mock.return_value = mock_instance
+    return mock_instance
 
-        yield
+
+@pytest.fixture
+def mock_config(mocker):
+    mock = mocker.patch('app.knowledge.service.config')
+    mock.MAX_CHUNKS_PER_SOURCE = 100
+    mock.CHUNK_SIZE = 1000
+    mock.CHUNK_OVERLAP = 200
+    mock.BEDROCK_EMBED_MODEL_ID = "amazon.titan-embed-text-v1"
+    mock.AWS_REGION = "us-east-1"
+    mock.S3V_BUCKET = "test-bucket"
+    mock.S3V_INDEX_KB = "test-index"
+    mock.TOP_K_SEARCH = 5
+    mock.CRAWL_TYPE = "recursive"
+    mock.CRAWL_TIMEOUT = 30
+    mock.MAX_DOCUMENTS_PER_SOURCE = 1000
+    mock.SOURCES_FILE_PATH = "/tmp/sources.json"
+    return mock
+
+
+VALID_URLS = [
+    "https://example.com",
+    "http://example.com/page",
+    "https://example.com/path/to/page.html",
+    "https://example.com/document.pdf"
+]
+
+INVALID_URLS = [
+    "not-a-url",
+    "ftp://example.com",
+    "",
+    None
+]
+
+EXCLUDED_URLS = [
+    "https://example.com/style.css",
+    "https://example.com/script.js",
+    "https://example.com/image.png",
+    "https://example.com/wp-admin/",
+    "https://example.com/api/endpoint"
+]
+
+VALID_CONTENT_URLS = [
+    "https://example.com/about",
+    "https://example.com/blog/post",
+    "https://example.com/products/item-1",
+    "https://example.com/documentation.pdf"
+]
+
+
+__all__ = [
+    'VALID_URLS',
+    'INVALID_URLS',
+    'EXCLUDED_URLS',
+    'VALID_CONTENT_URLS'
+]

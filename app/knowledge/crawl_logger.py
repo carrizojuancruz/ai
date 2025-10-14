@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 class CrawlLogger:
     """Logger for tracking crawling results for external sources."""
 
-    def __init__(self):
-        self.log_file = os.path.join(os.path.dirname(__file__), "log.txt")
+    def __init__(self, log_file: Optional[str] = None):
+        self.log_file = log_file or os.path.join(os.path.dirname(__file__), "log.txt")
 
     def _write_log(self, message: str) -> None:
         """Write a message to the crawl log file."""
