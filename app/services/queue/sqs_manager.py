@@ -49,13 +49,21 @@ class NudgeMessage:
 class SQSManager:
     def __init__(self):
         if not config.is_sqs_enabled():
-            error_msg = "SQS_NUDGES_AI_ICEBREAKER is not configured. Cannot initialize SQSManager."
+            error_msg = "SQS_NUDGES_AI_INFO_BASED is not configured. Cannot initialize SQSManager."
             logger.error(error_msg)
             raise ValueError(error_msg)
 
         boto_config = BotoConfig(region_name=config.SQS_QUEUE_REGION, retries={"max_attempts": 3, "mode": "adaptive"})
         self.sqs_client = boto3.client("sqs", config=boto_config)
-        self.queue_url = config.SQS_NUDGES_AI_ICEBREAKER
+        queue_identifier = config.SQS_NUDGES_AI_INFO_BASED
+        if queue_identifier.startswith("arn:aws:sqs:"):
+            queue_name = queue_identifier.split(":")[-1]
+            response = self.sqs_client.get_queue_url(QueueName=queue_name)
+            self.queue_url = response["QueueUrl"]
+            logger.info(f"sqs.queue_url_resolved: queue_name={queue_name}, url={self.queue_url}")
+        else:
+            self.queue_url = queue_identifier
+
         self._in_flight_messages: Dict[str, datetime] = {}
 
     async def enqueue_nudge(self, nudge: NudgeMessage) -> str:
@@ -64,7 +72,8 @@ class SQSManager:
 
             logger.debug(
                 f"sqs.enqueue_attempt: user_id={nudge.user_id}, nudge_type={nudge.nudge_type}, "
-                f"priority={nudge.priority}, dedup_key={dedup_key}, expires_at={nudge.expires_at.isoformat()}"
+                f"priority={nudge.priority}, dedup_key={dedup_key}, expires_at={nudge.expires_at.isoformat()}, "
+                f"queue_url={self.queue_url}"
             )
 
             await self._mark_as_replaced(dedup_key)
@@ -82,7 +91,8 @@ class SQSManager:
             self._in_flight_messages[dedup_key] = nudge.timestamp
             logger.info(
                 f"sqs.nudge_enqueued: message_id={message_id}, user_id={nudge.user_id}, "
-                f"nudge_type={nudge.nudge_type}, priority={nudge.priority}, dedup_key={dedup_key}"
+                f"nudge_type={nudge.nudge_type}, priority={nudge.priority}, dedup_key={dedup_key}, "
+                f"queue_url={self.queue_url}"
             )
             return message_id
         except Exception as e:

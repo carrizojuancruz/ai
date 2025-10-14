@@ -57,7 +57,6 @@ class Config:
     FINANCE_PROCEDURAL_TOPK: int = int(os.getenv("FINANCE_PROCEDURAL_TOPK", "3"))
     FINANCE_PROCEDURAL_MIN_SCORE: float = float(os.getenv("FINANCE_PROCEDURAL_MIN_SCORE", "0.45"))
 
-
     # AWS Configuration
     AWS_REGION: str = os.getenv("AWS_REGION")
     AWS_ACCESS_KEY_ID: Optional[str] = os.getenv("AWS_ACCESS_KEY_ID")
@@ -139,11 +138,11 @@ class Config:
     LANGFUSE_PUBLIC_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY")
     LANGFUSE_SECRET_KEY: Optional[str] = os.getenv("LANGFUSE_SECRET_KEY")
     LANGFUSE_HOST: str = os.getenv("LANGFUSE_HOST", "https://langfuse.promtior.ai")
-    LANGFUSE_GUEST_PUBLIC_KEY: Optional[str] = (
-        os.getenv("LANGFUSE_GUEST_PUBLIC_KEY") or os.getenv("LANGFUSE_PUBLIC_GUEST_KEY")
+    LANGFUSE_GUEST_PUBLIC_KEY: Optional[str] = os.getenv("LANGFUSE_GUEST_PUBLIC_KEY") or os.getenv(
+        "LANGFUSE_PUBLIC_GUEST_KEY"
     )
-    LANGFUSE_GUEST_SECRET_KEY: Optional[str] = (
-        os.getenv("LANGFUSE_GUEST_SECRET_KEY") or os.getenv("LANGFUSE_SECRET_GUEST_KEY")
+    LANGFUSE_GUEST_SECRET_KEY: Optional[str] = os.getenv("LANGFUSE_GUEST_SECRET_KEY") or os.getenv(
+        "LANGFUSE_SECRET_GUEST_KEY"
     )
 
     # Langfuse Configuration (Supervisor)
@@ -227,7 +226,7 @@ class Config:
     BILL_PREDICTION_WINDOW_DAYS: int = int(os.getenv("BILL_PREDICTION_WINDOW_DAYS", "35"))
 
     # SQS Configuration
-    SQS_NUDGES_AI_ICEBREAKER: Optional[str] = os.getenv("SQS_NUDGES_AI_ICEBREAKER")
+    SQS_NUDGES_AI_INFO_BASED: Optional[str] = os.getenv("SQS_NUDGES_AI_INFO_BASED")
     SQS_QUEUE_REGION: str = os.getenv("SQS_QUEUE_REGION", "us-east-1")
     SQS_MAX_MESSAGES: int = int(os.getenv("SQS_MAX_MESSAGES", "10"))
     SQS_VISIBILITY_TIMEOUT: int = int(os.getenv("SQS_VISIBILITY_TIMEOUT", "300"))  # 5 minutes
@@ -338,10 +337,10 @@ class Config:
         """Check if SQS is properly configured for nudge queue operations.
 
         Returns:
-            bool: True if SQS_NUDGES_AI_ICEBREAKER is configured, False otherwise
+            bool: True if SQS_NUDGES_AI_INFO_BASED is configured, False otherwise
 
         """
-        return bool(cls.SQS_NUDGES_AI_ICEBREAKER)
+        return bool(cls.SQS_NUDGES_AI_INFO_BASED)
 
     @classmethod
     def get_actual_config(cls) -> dict[str, any]:

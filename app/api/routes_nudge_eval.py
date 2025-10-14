@@ -39,8 +39,6 @@ class ManualTriggerRequest(BaseModel):
     priority_override: Optional[int] = None
 
 
-
-
 @router.post("/evaluate", response_model=EvaluateResponse)
 async def evaluate_nudges(request: EvaluateRequest, background_tasks: BackgroundTasks) -> EvaluateResponse:
     try:
@@ -49,7 +47,9 @@ async def evaluate_nudges(request: EvaluateRequest, background_tasks: Background
             f"nudge_id={request.nudge_id}, has_text={bool(request.notification_text)}"
         )
 
-        if request.nudge_type == "info_based" and not all([request.nudge_id, request.notification_text, request.preview_text]):
+        if request.nudge_type == "info_based" and not all(
+            [request.nudge_id, request.notification_text, request.preview_text]
+        ):
             raise HTTPException(
                 status_code=400, detail="info_based nudges require nudge_id, notification_text, and preview_text"
             )
@@ -90,8 +90,7 @@ async def trigger_nudge_manual(request: ManualTriggerRequest) -> Dict[str, Any]:
             logger.warning(f"nudge_eval.manual_force: user_id={str(request.user_id)}, nudge_type={request.nudge_type}")
 
         batch_result = await evaluator.evaluate_nudges_batch(
-            user_ids=[str(request.user_id)],
-            nudge_type=request.nudge_type
+            user_ids=[str(request.user_id)], nudge_type=request.nudge_type
         )
 
         if batch_result.get("results"):
@@ -100,11 +99,7 @@ async def trigger_nudge_manual(request: ManualTriggerRequest) -> Dict[str, Any]:
                 result["priority_override"] = request.priority_override
             return result
         else:
-            return {
-                "user_id": str(request.user_id),
-                "status": "error",
-                "reason": "No evaluation result returned"
-            }
+            return {"user_id": str(request.user_id), "status": "error", "reason": "No evaluation result returned"}
 
     except Exception as e:
         logger.error(
@@ -124,12 +119,13 @@ async def get_nudge_health() -> Dict[str, Any]:
             "status": "healthy",
             "nudges_enabled": config.NUDGES_ENABLED,
             "queue_depth": queue_depth,
-            "queue_url": config.SQS_NUDGES_AI_ICEBREAKER,
+            "queue_url": config.SQS_NUDGES_AI_INFO_BASED,
         }
 
     except Exception as e:
         logger.error(f"nudge_eval.health_check_failed: {str(e)}")
         return {"status": "unhealthy", "error": str(e)}
+
 
 async def _evaluate_all_users(
     task_id: str,
