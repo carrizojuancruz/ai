@@ -50,7 +50,6 @@ class PlaidBill:
 
 class PlaidBillsService:
     SUPPORTED_ACCOUNT_TYPES = ("credit", "loan")
-    DEFAULT_WINDOW_DAYS = 35
     PRIORITY_OVERDUE = 5
     PRIORITY_TODAY_TOMORROW = 5
     PRIORITY_THREE_DAYS = 4
@@ -60,6 +59,8 @@ class PlaidBillsService:
 
     def __init__(self):
         self.db_service = get_database_service()
+        self.lookback_days = config.BILL_DETECTION_LOOKBACK_DAYS
+        self.min_occurrences = config.BILL_MIN_OCCURRENCES
         self.window_days = config.BILL_PREDICTION_WINDOW_DAYS
 
     async def get_upcoming_bills(self, user_id: UUID) -> List[PlaidBill]:
@@ -84,7 +85,7 @@ class PlaidBillsService:
                 WHERE user_id = :user_id
                     AND next_payment_due_date IS NOT NULL
                     AND next_payment_due_date > CURRENT_DATE
-                    AND next_payment_due_date <= CURRENT_DATE + INTERVAL '35 days'
+                    AND next_payment_due_date <= CURRENT_DATE + (INTERVAL '1 day' * :window_days)
                     AND is_active = true
                     AND account_type = ANY(:account_types)
                 ORDER BY next_payment_due_date ASC
@@ -94,6 +95,7 @@ class PlaidBillsService:
                     query,
                     user_id=str(user_id),
                     account_types=list(self.SUPPORTED_ACCOUNT_TYPES),
+                    window_days=self.window_days,
                 )
 
                 bills = self._parse_bills(result)
