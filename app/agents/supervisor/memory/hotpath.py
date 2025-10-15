@@ -705,6 +705,15 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
         trigger.get("importance"),
     )
     if not trigger.get("should_create"):
+        thread_id = get_config_value(config, "thread_id")
+        user_id = get_config_value(config, "user_id")
+        if user_id and recent_user_texts:
+            synthetic_value = {
+                "category": "Personal",
+                "summary": _sanitize_semantic_time_phrases(recent_user_texts[-1])[:280],
+            }
+            asyncio.create_task(_profile_sync_from_memory(user_id, thread_id, synthetic_value))
+
         ctx = get_config_value(config, "user_context") or {}
         prof = _build_profile_line(ctx) if isinstance(ctx, dict) else None
         return {"messages": [AIMessage(content=prof)]} if prof else {}

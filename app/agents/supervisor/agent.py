@@ -32,7 +32,6 @@ TRACE_STAGE_AFTER_SUMMARIZE = "after_summarize"
 TRACE_STAGE_AFTER_HOTPATH = "after_memory_hotpath"
 TRACE_STAGE_AFTER_CONTEXT = "after_memory_context"
 
-# Summarization defaults from config
 SUMMARY_MAX_SUMMARY_TOKENS_DEFAULT: int = int(app_config.SUMMARY_MAX_SUMMARY_TOKENS)
 SUMMARY_TAIL_TOKEN_BUDGET_DEFAULT: int = int(app_config.SUMMARY_TAIL_TOKEN_BUDGET)
 
@@ -167,9 +166,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
         region_name=app_config.SUPERVISOR_AGENT_MODEL_REGION,
         temperature=app_config.SUPERVISOR_AGENT_TEMPERATURE,
         guardrail_config=guardrails,
-        additional_model_request_fields={
-            "reasoning_effort": app_config.SUPERVISOR_AGENT_REASONING_EFFORT
-        }
+        additional_model_request_fields={"reasoning_effort": app_config.SUPERVISOR_AGENT_REASONING_EFFORT},
     )
     checkpointer = MemorySaver()
 
@@ -269,7 +266,6 @@ def compile_supervisor_graph() -> CompiledStateGraph:
         if isinstance(content, str):
             return content
         return str(value)
-
 
     def post_summarize_tokens(state: SupervisorState, run_config: RunnableConfig | None = None) -> dict[str, Any]:
         """After summarization, recompute visible tokens for downstream nodes."""
