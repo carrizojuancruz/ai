@@ -144,7 +144,7 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     )
     assign_to_wealth_agent_with_description = create_task_description_handoff_tool(
         agent_name="wealth_agent",
-        description="Assign task to a wealth agent for financial assistance and education: government benefits (SNAP, LIHEAP, housing assistance), consumer protection, credit/debt management, student loans, budgeting tools, emergency funds, tax credits, state-specific financial programs, crisis resources, scam prevention, and general financial literacy.",
+        description="Assign task to a wealth agent for Vera app usage questions AND financial education topics.",
         destination_agent_name="wealth_router",
         tool_name="transfer_to_wealth_agent",
         guidelines="""

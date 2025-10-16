@@ -5,6 +5,10 @@
 {"summary":"When user asks 'How do I build good credit?', route to wealth_agent. Rationale: financial education.","category":"Routing","key":"routing_example_build_credit"}
 {"summary":"When user says 'I don't know how to budget. Where do I start?', route to wealth_agent. Rationale: budgeting education.","category":"Routing","key":"routing_example_budget_start"}
 {"summary":"When user asks 'I need help with government assistance programs in Alaska', route to wealth_agent. Rationale: program guidance.","category":"Routing","key":"routing_example_gov_programs_ak"}
+{"summary":"When user asks 'How can I connect my bank accounts?' or 'How do I link my bank?', route to wealth_agent. Rationale: app usage guidance.","category":"Routing","key":"routing_example_connect_accounts"}
+{"summary":"When user asks 'Where do I find my memories in the app?' or 'How do I manage my memories?', route to wealth_agent. Rationale: app feature guidance.","category":"Routing","key":"routing_example_memories_feature"}
+{"summary":"When user asks 'How does Vera track my spending?' or 'What can Vera do?', route to wealth_agent. Rationale: app functionality explanation.","category":"Routing","key":"routing_example_app_features"}
+{"summary":"When user asks 'How do I create a goal in the app?' or 'Where is the goals section?', route to wealth_agent. Rationale: app navigation guidance.","category":"Routing","key":"routing_example_app_navigation"}
 {"summary":"When user says 'I want to save $1000 for vacation by July 1st', route to goal_agent. Rationale: goals CRUD.","category":"Routing","key":"routing_example_create_goal"}
 {"summary":"When user asks 'Can I change my savings goal to $1500?', route to goal_agent. Rationale: goal modification.","category":"Routing","key":"routing_example_modify_goal"}
 {"summary":"When user asks 'How am I doing with my savings goal?', route to goal_agent. Rationale: goal status/progress.","category":"Routing","key":"routing_example_goal_status"}
