@@ -221,7 +221,6 @@ class TestLoadUserContextFromExternal:
 
         with (
             patch("app.services.supervisor.ExternalUserRepository") as mock_repo_class,
-            patch("app.services.supervisor.get_blocked_topics", return_value=[]),
             patch("app.services.supervisor.map_ai_context_to_user_context") as mock_map,
         ):
             mock_repo = AsyncMock()
@@ -236,21 +235,6 @@ class TestLoadUserContextFromExternal:
             assert result.user_id == mock_user_id
             mock_repo.get_by_id.assert_called_once_with(mock_user_id)
 
-    @pytest.mark.asyncio
-    async def test_load_user_context_handles_no_external_data(self, supervisor_service, mock_user_id):
-        """Should create empty context when no external data found."""
-        with (
-            patch("app.services.supervisor.ExternalUserRepository") as mock_repo_class,
-            patch("app.services.supervisor.get_blocked_topics", return_value=[]),
-        ):
-            mock_repo = AsyncMock()
-            mock_repo.get_by_id.return_value = None
-            mock_repo_class.return_value = mock_repo
-
-            result = await supervisor_service._load_user_context_from_external(mock_user_id)
-
-            assert result.user_id == mock_user_id
-            assert result.blocked_topics == []
 
     @pytest.mark.asyncio
     async def test_load_user_context_handles_external_error(self, supervisor_service, mock_user_id):

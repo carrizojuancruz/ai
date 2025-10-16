@@ -16,5 +16,6 @@ jobs:
     uses: verde-money/reusable-workflows/.github/workflows/test.yml@main
     with:
       python_version: "3.11" 
+      component: "fos-ai"
     secrets:
       inherit

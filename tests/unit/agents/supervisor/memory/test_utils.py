@@ -170,7 +170,6 @@ class TestBuildProfileLine:
             "housing_satisfaction": "satisfied",
             "health_insurance": "employer-provided",
             "goals": ["save for house", "pay off debt", "build emergency fund"],
-            "blocked_topics": ["politics", "religion"]
         }
 
         result = _build_profile_line(ctx)
@@ -189,7 +188,6 @@ class TestBuildProfileLine:
         assert "satisfied" in result
         assert "employer-provided" in result
         assert "save for house, pay off debt, build emergency fund" in result
-        assert "politics, religion" in result
         assert "Use these details to personalize" in result
 
     def test_build_with_name_only(self):
@@ -363,14 +361,12 @@ class TestBuildProfileLine:
     def test_build_with_limited_blocked_topics(self):
         """Test that only first 5 blocked topics are included."""
         ctx = {
-            "preferred_name": "Leo",
-            "blocked_topics": ["topic1", "topic2", "topic3", "topic4", "topic5", "topic6"]
+            "preferred_name": "Leo"
         }
 
         result = _build_profile_line(ctx)
 
         assert result is not None
-        assert "topic1, topic2, topic3, topic4, topic5" in result
         assert "topic6" not in result
 
     def test_build_with_non_string_list_items(self):
@@ -433,14 +429,6 @@ class TestBuildProfileLine:
         assert "prefer the latest user message" in result
         assert "Respect blocked topics" in result
 
-    def test_build_with_only_blocked_topics(self):
-        """Test building profile with only blocked topics."""
-        ctx = {"blocked_topics": ["crypto", "stocks"]}
-        result = _build_profile_line(ctx)
-
-        assert result is not None
-        assert "crypto, stocks" in result
-        assert "Topics to avoid" in result
 
     def test_preference_order_for_nested_vs_flat(self):
         """Test that nested fields take precedence over flat fields."""

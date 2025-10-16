@@ -73,7 +73,7 @@ class TestS3SyncServiceHelpers:
 
     def test_get_content_type_unknown(self):
         """Test unknown extension returns text/plain."""
-        content_type = S3SyncService._get_content_type("test.xyz")
+        content_type = S3SyncService._get_content_type("test.unknown")
         assert content_type == "text/plain"
 
 
