@@ -66,12 +66,7 @@ def _build_profile_line(ctx: dict[str, Any]) -> Optional[str]:
     health_insurance = ctx.get("health_insurance") or None
     goals = ctx.get("goals") or []
     goals_str = ", ".join([str(g) for g in goals[:3] if isinstance(g, str)]) if isinstance(goals, list) else ""
-    blocked_topics = ctx.get("blocked_topics", [])
-    blocked_str = (
-        ", ".join([str(b) for b in blocked_topics[:5] if isinstance(b, str)])
-        if isinstance(blocked_topics, list)
-        else ""
-    )
+    personal_information = ctx.get("personal_information") or None
     sentences: list[str] = []
 
     if name and age is not None:
@@ -115,8 +110,8 @@ def _build_profile_line(ctx: dict[str, Any]) -> Optional[str]:
     if goals_str:
         sentences.append(f"Their financial goals include: {goals_str}")
 
-    if blocked_str:
-        sentences.append(f"Topics to avoid: {blocked_str}")
+    if personal_information:
+        sentences.append(personal_information)
 
     if not sentences:
         return None

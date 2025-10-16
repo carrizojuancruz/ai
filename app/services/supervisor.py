@@ -30,8 +30,8 @@ from app.models.user import UserContext
 from app.repositories.database_service import get_database_service
 from app.repositories.session_store import InMemorySessionStore, get_session_store
 from app.services.external_context.user.mapping import map_ai_context_to_user_context
+from app.services.external_context.user.personal_information import PersonalInformationService
 from app.services.external_context.user.repository import ExternalUserRepository
-from app.services.utils import get_blocked_topics
 from app.utils.mapping import get_source_name
 from app.utils.tools import check_repeated_sources
 from app.utils.welcome import call_llm, generate_personalized_welcome
@@ -92,10 +92,13 @@ class SupervisorService:
         """Load UserContext from external FOS service with fallback."""
         try:
             repo = ExternalUserRepository()
+            personal_info_service = PersonalInformationService()
             external_ctx = await repo.get_by_id(user_id)
 
             ctx = UserContext(user_id=user_id)
-            ctx.blocked_topics = await get_blocked_topics(user_id)
+            personal_info = await personal_info_service.get_all_personal_info(str(user_id))
+            if personal_info:
+                ctx.personal_information = personal_info
             if external_ctx:
                 ctx = map_ai_context_to_user_context(external_ctx, ctx)
                 logger.info(f"[SUPERVISOR] External AI Context loaded for user: {user_id}")

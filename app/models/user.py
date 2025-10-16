@@ -99,6 +99,7 @@ class UserContext(BaseModel):
     household: Household = Field(default_factory=Household)
     assets_high_level: list[str] = Field(default_factory=list)
     blocked_topics: list[str] | None = Field(default=None)
+    personal_information: str | None = Field(default=None)
 
     def sync_flat_to_nested(self) -> None:
         if self.preferred_name:
