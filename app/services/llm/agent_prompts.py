@@ -795,6 +795,7 @@ Return clear English messages and JSON results.
 - **update_goal**: Modify existing goal
 - **delete_goal**: Soft delete/archive goal
 - **switch_goal_status**: Change goal status between states (ALWAYS verify result)
+- **calculate**: Execute Python math calculations. All calculations and derived calculations should be done here
 
 ---
 

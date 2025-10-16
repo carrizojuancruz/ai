@@ -47,7 +47,7 @@ class TestGoalAgent:
             mock_create_subgraph.assert_called_once()
             args, kwargs = mock_create_subgraph.call_args
             assert args[0] == mock_llm
-            assert len(args[1]) == 7  # Should have 7 tools
+            assert len(args[1]) == 8  # Should have 8 tools
             assert callable(args[2])  # prompt_builder should be callable
 
     @patch('app.agents.supervisor.goal_agent.agent.ChatBedrockConverse')

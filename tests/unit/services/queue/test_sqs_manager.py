@@ -90,7 +90,7 @@ class TestSQSManager:
         with patch("app.services.queue.sqs_manager.config") as mock:
             mock.is_sqs_enabled.return_value = True
             mock.SQS_QUEUE_REGION = "us-east-1"
-            mock.SQS_NUDGES_AI_ICEBREAKER = "https://sqs.us-east-1.amazonaws.com/123456789/test-queue"
+            mock.SQS_NUDGES_AI_INFO_BASED = "https://sqs.us-east-1.amazonaws.com/123456789/test-queue"
             mock.SQS_MAX_MESSAGES = 10
             mock.SQS_VISIBILITY_TIMEOUT = 30
             mock.SQS_WAIT_TIME_SECONDS = 20
@@ -115,7 +115,7 @@ class TestSQSManager:
     def test_initialization_fails_when_sqs_disabled(self, mock_config):
         mock_config.is_sqs_enabled.return_value = False
 
-        with pytest.raises(ValueError, match="SQS_NUDGES_AI_ICEBREAKER is not configured"):
+        with pytest.raises(ValueError, match="No SQS queue URL is configured"):
             SQSManager()
 
     @pytest.mark.asyncio

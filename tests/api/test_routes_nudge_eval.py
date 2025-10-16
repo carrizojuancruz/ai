@@ -162,7 +162,7 @@ class TestNudgeEvalRoutes:
     ):
         """Test health check in success and error scenarios."""
         mock_config.NUDGES_ENABLED = True
-        mock_config.SQS_NUDGES_AI_ICEBREAKER = ["https://sqs.us-east-1.amazonaws.com/123456789012/test-queue"]
+        mock_config.SQS_NUDGES_AI_INFO_BASED = "https://sqs.us-east-1.amazonaws.com/123456789012/test-queue"
 
         if has_error:
             mock_get_sqs_manager.side_effect = Exception("SQS connection failed")
@@ -181,4 +181,4 @@ class TestNudgeEvalRoutes:
         else:
             assert data["nudges_enabled"] is True
             assert data["queue_depth"] == expected_depth
-            assert data["queue_url"] == ["https://sqs.us-east-1.amazonaws.com/123456789012/test-queue"]
+            assert data["queue_url"] == "https://sqs.us-east-1.amazonaws.com/123456789012/test-queue"

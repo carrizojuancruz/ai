@@ -69,9 +69,12 @@ class GoalAgent:
         )
 
     def _create_agent_with_tools(self):
+        from .tools_math import calculate
+
         tools = [
             create_goal, update_goal, get_in_progress_goal,
-            list_goals, delete_goal, switch_goal_status, get_goal_by_id
+            list_goals, delete_goal, switch_goal_status, get_goal_by_id,
+            calculate
         ]
 
         def prompt_builder():

@@ -49,7 +49,7 @@ class NudgeMessage:
 class SQSManager:
     def __init__(self):
         if not config.is_sqs_enabled():
-            error_msg = "SQS_NUDGES_AI_INFO_BASED is not configured. Cannot initialize SQSManager."
+            error_msg = "No SQS queue URL is configured. Cannot initialize SQSManager."
             logger.error(error_msg)
             raise ValueError(error_msg)
 

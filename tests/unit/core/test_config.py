@@ -441,20 +441,20 @@ class TestConfigSQSSettings:
 
             reload(config_module)
 
-            assert config_module.Config.SQS_NUDGES_AI_ICEBREAKER is None
+            assert config_module.Config.SQS_NUDGES_AI_INFO_BASED is None
             assert config_module.Config.SQS_QUEUE_REGION == "us-east-1"
             assert config_module.Config.SQS_MAX_MESSAGES == 10
 
     def test_sqs_config_custom(self, mock_env_vars):
         """Test SQS configuration with custom values."""
         with patch.dict(os.environ, {
-            "SQS_NUDGES_AI_ICEBREAKER": "https://sqs.us-west-2.amazonaws.com/123/test-queue",
+            "SQS_NUDGES_AI_INFO_BASED": "https://sqs.us-west-2.amazonaws.com/123/test-queue",
             "SQS_QUEUE_REGION": "us-west-2",
             "SQS_MAX_MESSAGES": "5"
         }, clear=False):
 
             reload(config_module)
 
-            assert config_module.Config.SQS_NUDGES_AI_ICEBREAKER == "https://sqs.us-west-2.amazonaws.com/123/test-queue"
+            assert config_module.Config.SQS_NUDGES_AI_INFO_BASED == "https://sqs.us-west-2.amazonaws.com/123/test-queue"
             assert config_module.Config.SQS_QUEUE_REGION == "us-west-2"
             assert config_module.Config.SQS_MAX_MESSAGES == 5
