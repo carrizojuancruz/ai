@@ -59,6 +59,43 @@ class PersonalInformationService:
         goals_str = ", ".join(goals) if goals else "none specified"
         return f"The user's financial goals are: {goals_str}."
 
+    def _format_housing_household_info(self, data: Dict[str, Any]) -> str:
+        """Format housing household info into natural language."""
+        if not data:
+            return ""
+        housing_info = data.get("housing_household_info", [])
+        if not housing_info:
+            return ""
+
+        housing_items = []
+        dependents_count = 0
+
+        for item in housing_info:
+            if isinstance(item, dict):
+                display = item.get("display_value", "")
+                supports_under_18 = item.get("supports_under_18", False)
+                value = item.get("value", 0)
+
+                if display:
+                    housing_items.append(display.lower())
+
+                if supports_under_18 and value > 0:
+                    dependents_count = value
+
+        if not housing_items and dependents_count == 0:
+            return ""
+
+        parts = []
+        if housing_items:
+            housing_str = ", ".join(housing_items)
+            parts.append(f"The user's housing situation: {housing_str}")
+
+        if dependents_count > 0:
+            dependent_text = "dependent" if dependents_count == 1 else "dependents"
+            parts.append(f"They support {dependents_count} minor {dependent_text}")
+
+        return ". ".join(parts) + "." if parts else ""
+
     async def get_all_personal_info(self, user_id: str) -> str | None:
         """Fetch all personal information for a user and format in natural language."""
         endpoints = {
@@ -67,6 +104,7 @@ class PersonalInformationService:
             "learning_topics": f"/internal/users/profile/learning-topics/{user_id}",
             "health_insurance": f"/internal/users/profile/health-insurance/{user_id}",
             "financial_goals": f"/internal/users/profile/financial-goals/{user_id}",
+            "housing_household_info": f"/internal/users/profile/housing-info/{user_id}"
         }
 
         tasks = [self.http_client.get(endpoint) for endpoint in endpoints.values()]
@@ -82,18 +120,13 @@ class PersonalInformationService:
 
         # Format each section into natural language
         formatted_sections = [
-            # self._format_profile(combined_data.get("profile")), TODO: Verify if this information is needed
             self._format_vera_approach(combined_data.get("vera_approach")),
             self._format_learning_topics(combined_data.get("learning_topics")),
             self._format_health_insurance(combined_data.get("health_insurance")),
             self._format_financial_goals(combined_data.get("financial_goals")),
+            self._format_housing_household_info(combined_data.get("housing_household_info")),
         ]
 
         # Combine all sections into one natural language string
         natural_description = " ".join(filter(None, formatted_sections))
         return natural_description if natural_description else None
-
-    def _format_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Format the combined response data."""
-        # Implement any necessary formatting logic here
-        return data

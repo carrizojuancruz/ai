@@ -155,13 +155,14 @@ class TestGetAllPersonalInfo:
 
         # Assert
         calls = mock_client_instance.get.call_args_list
-        assert len(calls) == 4
+        assert len(calls) == 5
 
         expected_endpoints = [
             f"/internal/users/profile/vera-approach/{user_id}",
             f"/internal/users/profile/learning-topics/{user_id}",
             f"/internal/users/profile/health-insurance/{user_id}",
             f"/internal/users/profile/financial-goals/{user_id}",
+            f"/internal/users/profile/housing-info/{user_id}"
         ]
 
         actual_endpoints = [call[0][0] for call in calls]
@@ -446,15 +447,4 @@ class TestEdgeCases:
         await service.get_all_personal_info("")
 
         # Assert - Should still make API calls (validation is API's responsibility)
-        assert mock_client_instance.get.call_count == 4
-
-    def test_format_response_returns_unchanged_data(self, service):
-        """Test that _format_response returns data unchanged (placeholder method)."""
-        # Arrange
-        data = {"key": "value", "nested": {"data": "test"}}
-
-        # Act
-        result = service._format_response(data)
-
-        # Assert
-        assert result == data
+        assert mock_client_instance.get.call_count == 5
