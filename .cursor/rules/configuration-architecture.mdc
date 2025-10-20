@@ -1,9 +1,7 @@
 ---
-alwaysApply: true
 description: How to add new environment variables and configuration
-globs: app/core/config.py
+alwaysApply: false
 ---
-
 # Configuration Management
 
 **When you need to add a new environment variable, follow this simple process:**
