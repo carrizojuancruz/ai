@@ -21,6 +21,7 @@ from app.agents.supervisor.finance_agent.helpers import (
 from app.agents.supervisor.finance_agent.procedural_memory.sql_hints import get_finance_procedural_templates
 from app.agents.supervisor.finance_agent.subgraph import create_finance_subgraph
 from app.agents.supervisor.finance_agent.tools import (
+    create_calculate_tool,
     create_income_expense_summary_tool,
     create_net_worth_summary_tool,
     create_sql_db_query_tool,
@@ -258,6 +259,7 @@ class FinanceAgent:
             create_net_worth_summary_tool(user_id),
             create_income_expense_summary_tool(user_id),
             create_sql_db_query_tool(user_id),
+            create_calculate_tool(),
         ]
 
         async def prompt_builder(state: MessagesState) -> str:

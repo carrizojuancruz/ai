@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import calendar
+import datetime as dt_module
 import logging
+import math
 import re
+import statistics
+import time
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any, Final, Optional, Pattern
 from urllib.parse import urlencode
 from uuid import UUID
@@ -231,3 +237,62 @@ async def execute_financial_query(query: str, user_id: UUID) -> str:
     except Exception as e:
         logger.error(f"Query execution failed: {e}")
         return f"Error: {str(e)}"
+
+
+
+ALLOWED_MODULES = {'math', 'statistics', 'datetime', 'decimal', 'calendar', 'time'}
+
+
+def _safe_import(name, *args, **kwargs):
+    """Allow imports only for whitelisted modules."""
+    base_module = name.split('.')[0]
+    if base_module not in ALLOWED_MODULES:
+        raise ImportError(f"Module '{name}' is not allowed")
+    return __import__(name, *args, **kwargs)
+
+
+def _get_calculate_description():
+    """Generate tool description with available modules."""
+    available_modules = sorted(ALLOWED_MODULES)
+    modules_str = ", ".join(available_modules)
+    return f"Execute Python math calculations. Must assign result to 'result' variable. Available modules: {modules_str}."
+
+
+SAFE_GLOBALS = {
+    '__builtins__': {
+        'abs': abs, 'round': round, 'min': min, 'max': max, 'sum': sum,
+        'len': len, 'int': int, 'float': float, 'str': str, 'list': list,
+        'print': print, '__import__': _safe_import,
+    },
+    'math': math,
+    'statistics': statistics,
+    'datetime': dt_module,
+    'timedelta': timedelta,
+    'Decimal': Decimal,
+    'calendar': calendar,
+    'time': time,
+}
+
+
+def create_calculate_tool():
+    """Create the calculate tool for mathematical computations."""
+    @tool(
+        name_or_callable="calculate",
+        description=_get_calculate_description(),
+    )
+    def calculate(code: str) -> str:
+        """Execute Python calculations. Must assign final value to 'result' variable."""
+        locals_dict = {}
+        try:
+            exec(code, SAFE_GLOBALS, locals_dict)
+        except ZeroDivisionError:
+            return "Error: Division by zero"
+        except Exception as e:
+            return f"Error: {type(e).__name__}: {e}"
+
+        if 'result' not in locals_dict:
+            return "Error: Must assign to 'result' variable. Example: result = 100 * 1.05"
+
+        return str(locals_dict['result'])
+
+    return calculate

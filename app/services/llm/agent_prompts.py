@@ -399,6 +399,8 @@ def build_finance_system_prompt_local(user_id="test_user", tx_samples: str = "Sa
 
         **QUERY STRATEGY**: Prefer complex, comprehensive SQL queries that return complete results in one call over multiple simple queries. Use CTEs, joins, and advanced SQL features to get all needed data efficiently. The database is much faster than agent round-trips.
 
+        **CALCULATE TOOL**: Use `calculate` for math operations SQL cannot handle. Must assign final result to 'result' variable.
+
         EXECUTION LIMITS
         **MAXIMUM 5 DATABASE QUERIES TOTAL per analysis**
         **PLAN EFFICIENTLY - Prefer fewer queries when possible**
