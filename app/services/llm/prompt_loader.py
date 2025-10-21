@@ -67,9 +67,9 @@ class PromptLoader:
         from .onboarding_prompts import ONBOARDING_LOCATION_EXTRACTION_LOCAL
         return ONBOARDING_LOCATION_EXTRACTION_LOCAL.strip()
 
-    def _get_memory_hotpath_trigger_classifier_local(self) -> str:
+    def _get_memory_hotpath_trigger_classifier_local(self, **kwargs) -> str:
         from .memory_prompts import MEMORY_HOTPATH_TRIGGER_CLASSIFIER_LOCAL
-        return MEMORY_HOTPATH_TRIGGER_CLASSIFIER_LOCAL.strip()
+        return MEMORY_HOTPATH_TRIGGER_CLASSIFIER_LOCAL.format(**kwargs).strip()
 
     def _get_memory_same_fact_classifier_local(self, **kwargs) -> str:
         from .memory_prompts import MEMORY_SAME_FACT_CLASSIFIER_LOCAL

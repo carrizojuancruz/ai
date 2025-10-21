@@ -4,7 +4,7 @@ import ast
 import json
 import os
 from pathlib import Path
-from typing import Set
+from typing import Any, Dict, Set
 
 import pytest
 
@@ -121,6 +121,7 @@ def find_python_files() -> Set[Path]:
         'node_modules',
         'venv',
         '.venv',
+        '.venv-evals',
         'env',
         '.env',
         'htmlcov',
@@ -138,6 +139,14 @@ def find_python_files() -> Set[Path]:
     return python_files
 
 
+def _build_prompt_params(prompt_spec: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        param["name"]: param["default"]
+        for param in prompt_spec.get("parameters", [])
+        if "default" in param
+    }
+
+
 @pytest.mark.prompt_static
 def test_all_prompts_load_successfully():
     """Test that all prompts in the inventory can be loaded."""
@@ -150,7 +159,7 @@ def test_all_prompts_load_successfully():
         for prompt_spec in inventory:
             prompt_name = prompt_spec["name"]
             try:
-                text = prompt_loader.load(prompt_name)
+                text = prompt_loader.load(prompt_name, **_build_prompt_params(prompt_spec))
                 assert isinstance(text, str)
                 assert len(text.strip()) > 0
             except Exception as e:
@@ -173,7 +182,7 @@ def test_prompt_utf8_valid():
     for prompt_spec in inventory:
         prompt_name = prompt_spec["name"]
         try:
-            text = prompt_loader.load(prompt_name)
+            text = prompt_loader.load(prompt_name, **_build_prompt_params(prompt_spec))
             try:
                 text.encode('utf-8')
             except UnicodeEncodeError as e:
@@ -197,7 +206,7 @@ def test_prompt_no_unicode_escapes():
     for prompt_spec in inventory:
         prompt_name = prompt_spec["name"]
         try:
-            text = prompt_loader.load(prompt_name)
+            text = prompt_loader.load(prompt_name, **_build_prompt_params(prompt_spec))
             if '\\u' in text or '\\U' in text:
                 lines = text.split('\n')
                 for i, line in enumerate(lines, 1):
@@ -223,7 +232,7 @@ def test_prompt_no_tabs():
     for prompt_spec in inventory:
         prompt_name = prompt_spec["name"]
         try:
-            text = prompt_loader.load(prompt_name)
+            text = prompt_loader.load(prompt_name, **_build_prompt_params(prompt_spec))
             if '\t' in text:
                 lines = text.split('\n')
                 for i, line in enumerate(lines, 1):
@@ -248,7 +257,7 @@ def test_prompt_no_trailing_spaces():
     for prompt_spec in inventory:
         prompt_name = prompt_spec["name"]
         try:
-            text = prompt_loader.load(prompt_name)
+            text = prompt_loader.load(prompt_name, **_build_prompt_params(prompt_spec))
             lines = text.split('\n')
             for i, line in enumerate(lines, 1):
                 if line.rstrip() != line and line.strip() != '':
@@ -272,7 +281,7 @@ def test_prompt_headers_format():
     for prompt_spec in inventory:
         prompt_name = prompt_spec["name"]
         try:
-            text = prompt_loader.load(prompt_name)
+            text = prompt_loader.load(prompt_name, **_build_prompt_params(prompt_spec))
             lines = text.split('\n')
             for i, line in enumerate(lines, 1):
                 stripped = line.strip()
@@ -297,7 +306,7 @@ def test_prompt_bullets_format():
     for prompt_spec in inventory:
         prompt_name = prompt_spec["name"]
         try:
-            text = prompt_loader.load(prompt_name)
+            text = prompt_loader.load(prompt_name, **_build_prompt_params(prompt_spec))
             lines = text.split('\n')
             for i, line in enumerate(lines, 1):
                 stripped = line.strip()
@@ -322,7 +331,7 @@ def test_prompt_no_emojis():
     for prompt_spec in inventory:
         prompt_name = prompt_spec["name"]
         try:
-            text = prompt_loader.load(prompt_name)
+            text = prompt_loader.load(prompt_name, **_build_prompt_params(prompt_spec))
             # Check for emoji characters (basic check for common emoji ranges)
             emoji_ranges = [
                 (0x1F600, 0x1F64F),  # Emoticons

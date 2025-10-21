@@ -9,15 +9,21 @@ from pydantic import BaseModel, Field
 
 
 class MemoryCategory(str, Enum):
-    """Memory category tags as defined in the architecture."""
+    """Memory category tags for semantic memories - user-facing categories focused on life/personality facts."""
 
-    FINANCE = "Finance"
-    BUDGET = "Budget"
-    GOALS = "Goals"
-    PERSONAL = "Personal"
-    EDUCATION = "Education"
-    CONVERSATION_SUMMARY = "Conversation_Summary"
-    OTHER = "Other"
+    PERSONAL_IDENTITY = "Personal_Identity"
+    HOUSEHOLD_RELATIONSHIPS = "Household_Relationships"
+    COMMUNICATION_PREFERENCES = "Communication_Preferences"
+    CONVERSATION_STYLE = "Conversation_Style"
+    ROUTINES_HABITS = "Routines_Habits"
+    INTERESTS_PREFERENCES = "Interests_Preferences"
+    WORK_PROFILE = "Work_Profile"
+    EDUCATION_SKILLS = "Education_Skills"
+    ACCESSIBILITY_UX = "Accessibility_UX"
+    TOOLS_SERVICES = "Tools_Services"
+    TRAVEL_PREFERENCES = "Travel_Preferences"
+    VALUES_PRINCIPLES = "Values_Principles"
+    PERSONAL_OTHER = "Personal_Other"
 
 
 class SemanticMemory(BaseModel):

@@ -4,41 +4,65 @@ This module contains prompts related to memory processing, episodic memory summa
 semantic memory extraction, and contextual icebreaker generation.
 """
 
+
 # Memory Hotpath Trigger Classifier
-MEMORY_HOTPATH_TRIGGER_CLASSIFIER_LOCAL = """You are a classifier that determines if user messages contain information worth storing as durable user facts (semantic memory).
+MEMORY_HOTPATH_TRIGGER_CLASSIFIER_LOCAL = """You classify whether to CREATE a user memory from recent user messages.
+This node ONLY creates semantic memories (durable, re-usable facts).
 
-Your task: Analyze the message and classify whether it contains NEW, DURABLE user information that should be remembered for future conversations.
+Semantic scope includes (non-exhaustive):
+- Identity & relationships: preferred name/pronouns; partner/family/pets; roles (student/parent/manager).
+- Stable attributes: age/birthday, home city/region, employer/school, time zone, languages.
+- Preferences & constraints: communication channel, tone, dietary, risk tolerance, price caps, brand/tool choices.
+- Recurring routines/schedules: weekly reviews on Sundays, gym Tue/Thu.
+- Memberships/subscriptions/providers: bank, insurer, plan tiers.
 
-## Classification Criteria
+Rules:
+- If the user explicitly asks to 'remember' something, set should_create=true.
+- Create semantic if the message states OR UPDATES a stable fact about the user or close entities.
+- DO NOT create here for time-bound events/experiences or one-off actions (episodic handled later).
+- DO NOT create for meta/capability questions such as 'what do you know about me', 'do you remember me',
+  'what's in my profile', 'what have you saved about me'.
+- For the summary: NEVER include absolute dates or relative-time words (today, yesterday, this morning/afternoon/evening/tonight, last/next week/month/year, recently, soon).
+- If the input mixes time-bound details with a durable fact, EXTRACT ONLY the durable fact and DROP time phrasing.
+- If uncertain about durability or domain, return {{"should_create": false}}.
+- Extract only explicitly stated facts; do not infer or summarize plans/requests as facts.
+- Choose category from: [{categories}].
+- summary must be 1–2 sentences, concise and neutral (third person).
+- Output ONLY strict JSON: {{"should_create": bool, "type": "semantic", "category": string, "summary": string, "importance": 1..5}}.
 
-**STORE (return "store")** if the message contains:
-- Personal facts about the user (age, location, occupation, family, preferences)
-- Financial situation details (income, expenses, goals, challenges)
-- Life circumstances (moving, job changes, relationship changes)
-- Preferences or habits (how they like to be communicated with)
-- Important context for future conversations
+AUTHORITATIVE DOMAINS POLICY — NEVER create semantic memories for facts owned by specialized agents:
+- Finance (Plaid/SQL): budgets, balances, account details, transaction totals, spending amounts/trends, bills due, interest rates.
+- Goals system: goal targets/amounts/percentages, dates/timelines, statuses (in_progress/completed/etc.).
+- Wealth knowledge: investment returns/rules, financial program/tax rules, general financial facts.
+If the input asserts a numeric financial value or any detail above, return {{"should_create": false}}.
+Even if the user says 'remember ...', still return {{"should_create": false}} for these domains.
 
-**IGNORE (return "ignore")** if the message contains:
-- Casual conversation or small talk
-- Questions asking for information
-- Commands or requests for actions
-- Emotional expressions without factual content
-- Temporary states or current activities
+Hard negatives — Finance/Goals/Wealth actions & queries:
+- If the input is a question or command about amounts, targets, budgets, bills, balances, accounts, transactions,
+  goals, interest, investments, etc., return {{"should_create": false}} even if the user says "remember".
+- Heuristics (non-exhaustive):
+  - Imperatives with finance/goal terms: set/create/update/change/increase/decrease/add/remove/track/calculate/review
+    + (budget|spend(ing)|expense(s)|bill(s)|payment(s)|balance(s)|account(s)|transaction(s)|goal|target|percent(age)|interest|rate|APR|investment(s)).
+  - Currency cues: presence of $, €, £, or amounts tied to those terms.
+  - Pure queries for amounts/status/dates (e.g., "How much did I spend last month?").
 
-## Response Format
-Return ONLY a JSON object:
-{"classification": "store|ignore", "reason": "brief explanation"}
+Examples (create):
+- Input: 'Please remember my name is Ana' -> {{"should_create": true, "type": "semantic", "category": "Personal_Identity", "summary": "User's preferred name is Ana.", "importance": 2}}
+- Input: 'We usually speak Spanish at home' -> {{"should_create": true, "type": "semantic", "category": "Personal_Identity", "summary": "User usually speaks Spanish at home.", "importance": 2}}
+- Input: 'I prefer email over phone calls' -> {{"should_create": true, "type": "semantic", "category": "Communication_Preferences", "summary": "User prefers email communication over calls.", "importance": 2}}
+- Input: 'I go to the gym on Tue/Thu' -> {{"should_create": true, "type": "semantic", "category": "Routines_Habits", "summary": "User goes to the gym on Tuesdays and Thursdays.", "importance": 2}}
 
-## Examples
-
-Input: "I'm 35 years old and work as a software engineer in San Francisco"
-Output: {"classification": "store", "reason": "contains personal facts about age, occupation, and location"}
-
-Input: "How much should I save for retirement?"
-Output: {"classification": "ignore", "reason": "question asking for information, no personal facts"}
-
-Input: "I'm feeling stressed about money lately"
-Output: {"classification": "ignore", "reason": "emotional expression without durable facts"}"""
+Examples (do not create here):
+- Input: 'We celebrated at the park today' -> {{"should_create": false}}
+- Input: 'Book an appointment' -> {{"should_create": false}}
+- Input: 'What do you know about me?' -> {{"should_create": false}}
+- Input: 'Do you remember me?' -> {{"should_create": false}}
+- Input: 'What have you saved in my profile?' -> {{"should_create": false}}
+- Input: 'Increase my groceries budget to $400.' -> {{"should_create": false}}
+- Input: 'Set my emergency fund goal to 2000.' -> {{"should_create": false}}
+RecentMessages:
+{text}
+JSON:"""
 
 # Memory Same Fact Classifier
 MEMORY_SAME_FACT_CLASSIFIER_LOCAL = """Same-Fact Classifier (language-agnostic)

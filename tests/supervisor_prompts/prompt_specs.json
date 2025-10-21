@@ -105,7 +105,8 @@
     "loader": "app.agents.supervisor.memory.hotpath:_trigger_decide",
     "type": "classifier_prompt",
     "parameters": [
-      {"name": "text", "type": "str", "required": true, "default": "Please remember my name is Ana"}
+      {"name": "text", "type": "str", "required": true, "default": "Please remember my name is Ana"},
+      {"name": "categories", "type": "str", "required": true, "default": "identity, preferences, relationships, routines, memberships"}
     ],
     "prompt_preview": "You classify whether to CREATE a user memory from recent user messages. This node ONLY creates semantic memories...",
     "description": "LLM prompt for deciding whether to create a semantic memory from user messages. Includes scope rules and authoritative domain exclusions",

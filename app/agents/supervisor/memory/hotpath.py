@@ -19,6 +19,7 @@ from langgraph.graph import MessagesState
 
 from app.core.app_state import get_bedrock_runtime_client, get_sse_queue
 from app.core.config import config
+from app.models.memory import MemoryCategory
 from app.utils.tools import get_config_value
 
 from .profile_sync import _profile_sync_from_memory
@@ -56,52 +57,11 @@ def _collect_recent_user_texts(messages: list[Any], max_messages: int = 3) -> li
 
 
 def _trigger_decide(text: str) -> dict[str, Any]:
+    from app.services.llm.prompt_loader import prompt_loader
+
+    categories_list = ', '.join([cat.value for cat in MemoryCategory])
+    prompt = prompt_loader.load("memory_hotpath_trigger_classifier", text=text[:1000], categories=categories_list)
     bedrock = get_bedrock_runtime_client()
-    allowed_categories = "Finance, Budget, Goals, Personal, Education, Conversation_Summary, Other"
-    instr = (
-        "You classify whether to CREATE a user memory from recent user messages.\n"
-        "This node ONLY creates semantic memories (durable, re-usable facts).\n"
-        "\n"
-        "Semantic scope includes (non-exhaustive):\n"
-        "- Identity & relationships: preferred name/pronouns; partner/family/pets; roles (student/parent/manager).\n"
-        "- Stable attributes: age/birthday, home city/region, employer/school, time zone, languages.\n"
-        "- Preferences & constraints: communication channel, tone, dietary, risk tolerance, price caps, brand/tool choices.\n"
-        "- Recurring routines/schedules: weekly reviews on Sundays, gym Tue/Thu.\n"
-        "- Memberships/subscriptions/providers: bank, insurer, plan tiers.\n"
-        "\n"
-        "Rules:\n"
-        "- If the user explicitly asks to 'remember' something, set should_create=true.\n"
-        "- Create semantic if the message states OR UPDATES a stable fact about the user or close entities.\n"
-        "- DO NOT create here for time-bound events/experiences or one-off actions (episodic handled later).\n"
-        "- DO NOT create for meta/capability questions such as 'what do you know about me', 'do you remember me',\n"
-        "  'what's in my profile', 'what have you saved about me'.\n"
-        "- For the summary: NEVER include absolute dates or relative-time words (today, yesterday, this morning/afternoon/evening/tonight, last/next week/month/year, recently, soon).\n"
-        "- If the input mixes time-bound details with a durable fact, EXTRACT ONLY the durable fact and DROP time phrasing.\n"
-        "- Choose category from: [" + allowed_categories + "].\n"
-        "- summary must be 1–2 sentences, concise and neutral (third person).\n"
-        '- Output ONLY strict JSON: {"should_create": bool, "type": "semantic", "category": string, "summary": string, "importance": 1..5}.\n'
-        "\n"
-        "AUTHORITATIVE DOMAINS POLICY — NEVER create semantic memories for facts owned by specialized agents:\n"
-        "- Finance (Plaid/SQL): budgets, balances, account details, transaction totals, spending amounts/trends, bills due, interest rates.\n"
-        "- Goals system: goal targets/amounts/percentages, dates/timelines, statuses (in_progress/completed/etc.).\n"
-        "- Wealth knowledge: investment returns/rules, financial program/tax rules, general financial facts.\n"
-        "If the input asserts a numeric financial value or any detail above, return {\"should_create\": false}.\n"
-        "Even if the user says 'remember ...', still return {\"should_create\": false} for these domains.\n"
-        "\n"
-        "Examples (create):\n"
-        '- Input: \'Please remember my name is Ana\' -> {"should_create": true, "type": "semantic", "category": "Personal", "summary": "User\'s preferred name is Ana.", "importance": 2}\n'
-        '- Input: \'My cat just turned 4 today\' -> {"should_create": true, "type": "semantic", "category": "Personal", "summary": "User\'s cat is 4 years old.", "importance": 3}\n'
-        '- Input: \'I prefer email over phone calls\' -> {"should_create": true, "type": "semantic", "category": "Personal", "summary": "User prefers email communication over calls.", "importance": 2}\n'
-        '- Input: \'We\'re saving for a house down payment this year\' -> {"should_create": true, "type": "semantic", "category": "Finance", "summary": "User is saving for a house down payment.", "importance": 3}\n'
-        "\n"
-        "Examples (do not create here):\n"
-        "- Input: 'We celebrated at the park today' -> {\"should_create\": false}\n"
-        "- Input: 'Book an appointment' -> {\"should_create\": false}\n"
-        "- Input: 'What do you know about me?' -> {\"should_create\": false}\n"
-        "- Input: 'Do you remember me?' -> {\"should_create\": false}\n"
-        "- Input: 'What have you saved in my profile?' -> {\"should_create\": false}\n"
-    )
-    prompt = f"{instr}\nRecentMessages:\n{text[:1000]}\nJSON:"
     try:
         t0 = time.perf_counter()
         logger.info("memory.llm.trigger.start model=%s text_len=%d", MODEL_ID, len(text or ""))
@@ -726,9 +686,11 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
     mem_type = str(trigger.get("type") or "semantic").lower()
     if mem_type not in ("semantic", "episodic"):
         mem_type = "semantic"
-    category = str(trigger.get("category") or "Other").replace(" ", "_")
-    if category not in {"Finance", "Budget", "Goals", "Personal", "Education", "Conversation_Summary", "Other"}:
-        category = "Other"
+    category_raw = str(trigger.get("category") or "Personal_Other").replace(" ", "_")
+    try:
+        category = MemoryCategory(category_raw).value
+    except ValueError:
+        category = MemoryCategory.PERSONAL_OTHER.value
     summary_raw = str(trigger.get("summary") or recent_user_texts[0] or combined_text).strip()[:280]
     summary = _normalize_summary_text(summary_raw)
     summary = _sanitize_semantic_time_phrases(summary)
