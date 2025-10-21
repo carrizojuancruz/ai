@@ -180,6 +180,7 @@ async def semantic_memory_put(
         "pinned": bool(pinned) if pinned is not None else False,
         "created_at": now,
         "last_accessed": now,
+        "last_used_at": None,
     }
     store.put(namespace, eff_key, value, index=["summary"])
     return {"ok": True, "key": eff_key, "value": value}
@@ -284,6 +285,7 @@ async def semantic_memory_update(
     if not existing:
         return {"ok": False, "error": "not_found"}
     value = dict(existing.value)
+
     if summary is not None:
         value["summary"] = summary
     if category is not None:
@@ -295,6 +297,7 @@ async def semantic_memory_update(
     if pinned is not None:
         value["pinned"] = bool(pinned)
     value["last_accessed"] = _utc_now_iso()
+
     store.put(namespace, key, value, index=["summary"])
     return {"ok": True, "key": key, "value": value}
 

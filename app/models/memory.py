@@ -29,6 +29,10 @@ class SemanticMemory(BaseModel):
     category: MemoryCategory
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    last_used_at: datetime | None = Field(
+        default=None,
+        description="Timestamp when this memory was last included in agent context"
+    )
     source: str = Field(default="onboarding", description="Source of this memory")
 
 

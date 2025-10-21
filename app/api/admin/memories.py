@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
-from typing import Annotated, Any, List, Optional, Union
+from typing import Annotated, Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 
 from app.core.app_state import get_fos_nudge_manager
 from app.services.memory_service import memory_service
@@ -18,17 +17,8 @@ logger = logging.getLogger(__name__)
 class MemoryItem(BaseModel):
     key: str
     namespace: List[str]
-    created_at: Optional[Union[str, datetime]] = None
-    updated_at: Optional[Union[str, datetime]] = None
     score: Optional[float] = None
     value: dict[str, Any]
-
-    @field_validator('created_at', 'updated_at', mode='before')
-    @classmethod
-    def convert_datetime_to_string(cls, v):
-        if isinstance(v, datetime):
-            return v.isoformat()
-        return v
 
 
 class MemorySearchResponse(BaseModel):
@@ -40,16 +30,7 @@ class MemorySearchResponse(BaseModel):
 class MemoryGetResponse(BaseModel):
     key: str
     namespace: List[str]
-    created_at: Optional[Union[str, datetime]] = None
-    updated_at: Optional[Union[str, datetime]] = None
     value: dict[str, Any]
-
-    @field_validator('created_at', 'updated_at', mode='before')
-    @classmethod
-    def convert_datetime_to_string(cls, v):
-        if isinstance(v, datetime):
-            return v.isoformat()
-        return v
 
 
 class MemoryDeleteResponse(BaseModel):

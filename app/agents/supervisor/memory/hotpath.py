@@ -754,6 +754,7 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
         "source": "chat",
         "importance": importance,
         "created_at": now,
+        "last_used_at": None,
         **nudge_metadata,
     }
 

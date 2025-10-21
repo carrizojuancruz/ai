@@ -8,7 +8,6 @@ Tests cover:
 - DELETE /admin/memories/{user_id} - delete all memories with confirmation
 """
 
-from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -34,48 +33,24 @@ class TestMemoryItemModel:
         item = MemoryItem(
             key="test_key",
             namespace=["user", "123", "semantic"],
-            created_at="2024-01-01T00:00:00",
-            updated_at="2024-01-02T00:00:00",
             score=0.95,
             value={"summary": "Test memory", "category": "Finance"},
         )
 
         assert item.key == "test_key"
         assert item.namespace == ["user", "123", "semantic"]
-        assert item.created_at == "2024-01-01T00:00:00"
-        assert item.updated_at == "2024-01-02T00:00:00"
         assert item.score == 0.95
         assert item.value == {"summary": "Test memory", "category": "Finance"}
-
-    def test_memory_item_converts_datetime_to_string(self):
-        """Test that datetime objects are converted to ISO strings."""
-        dt = datetime(2024, 1, 1, 12, 30, 45)
-        item = MemoryItem(
-            key="test_key",
-            namespace=["user", "123"],
-            created_at=dt,
-            updated_at=dt,
-            value={"test": "data"},
-        )
-
-        assert isinstance(item.created_at, str)
-        assert item.created_at == "2024-01-01T12:30:45"
-        assert isinstance(item.updated_at, str)
-        assert item.updated_at == "2024-01-01T12:30:45"
 
     def test_memory_item_with_optional_fields_none(self):
         """Test MemoryItem with optional fields as None."""
         item = MemoryItem(
             key="test_key",
             namespace=["user", "123"],
-            created_at=None,
-            updated_at=None,
             score=None,
             value={},
         )
 
-        assert item.created_at is None
-        assert item.updated_at is None
         assert item.score is None
 
     def test_memory_item_minimal_required_fields(self):
@@ -121,26 +96,22 @@ class TestMemoryGetResponseModel:
         response = MemoryGetResponse(
             key="test_key",
             namespace=["user", "123"],
-            created_at="2024-01-01T00:00:00",
-            updated_at="2024-01-02T00:00:00",
             value={"summary": "Test"},
         )
 
         assert response.key == "test_key"
         assert response.namespace == ["user", "123"]
-        assert response.created_at == "2024-01-01T00:00:00"
-        assert response.updated_at == "2024-01-02T00:00:00"
         assert response.value == {"summary": "Test"}
 
-    def test_memory_get_response_converts_datetime(self):
-        """Test datetime conversion in MemoryGetResponse."""
-        dt = datetime(2024, 1, 1, 10, 0, 0)
+    def test_memory_get_response_minimal(self):
+        """Test MemoryGetResponse with minimal fields."""
         response = MemoryGetResponse(
-            key="key", namespace=["ns"], created_at=dt, updated_at=dt, value={}
+            key="key", namespace=["ns"], value={}
         )
 
-        assert response.created_at == "2024-01-01T10:00:00"
-        assert response.updated_at == "2024-01-01T10:00:00"
+        assert response.key == "key"
+        assert response.namespace == ["ns"]
+        assert response.value == {}
 
 
 class TestMemoryDeleteResponseModel:

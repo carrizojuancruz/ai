@@ -15,6 +15,7 @@ from langgraph.graph import MessagesState
 from app.core.config import config
 from app.utils.tools import get_config_value
 
+from .usage_tracking import update_memory_usage_tracking
 from .utils import _parse_iso, _parse_weights
 
 logger = logging.getLogger(__name__)
@@ -264,6 +265,9 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
         logger.info("memory_context.results: sem=%d epi=%d proc=%d", len(sem or []), len(epi or []), len(proc or []))
         score = _score_factory(w)
         merged_sem = _merge_semantic_items(sem, CONTEXT_TOPN, score)
+
+        update_memory_usage_tracking(store, user_id, merged_sem)
+
         try:
             sem_preview = [
                 {
