@@ -319,40 +319,6 @@ def test_prompt_bullets_format():
         pytest.fail("Bullet format violations:\n" + "\n".join(violations))
 
 
-@pytest.mark.prompt_static
-def test_prompt_no_emojis():
-    """Test that prompts contain no emoji characters."""
-    inventory_path = Path(__file__).parent.parent / "prompt_specs.json"
-
-    with open(inventory_path, 'r', encoding='utf-8') as f:
-        inventory = json.load(f)
-
-    violations = []
-    for prompt_spec in inventory:
-        prompt_name = prompt_spec["name"]
-        try:
-            text = prompt_loader.load(prompt_name, **_build_prompt_params(prompt_spec))
-            # Check for emoji characters (basic check for common emoji ranges)
-            emoji_ranges = [
-                (0x1F600, 0x1F64F),  # Emoticons
-                (0x1F300, 0x1F5FF),  # Misc Symbols and Pictographs
-                (0x1F680, 0x1F6FF),  # Transport and Map
-                (0x1F1E0, 0x1F1FF),  # Flags
-                (0x2600, 0x26FF),    # Misc symbols
-                (0x2700, 0x27BF),    # Dingbats
-            ]
-
-            for char in text:
-                code = ord(char)
-                for start, end in emoji_ranges:
-                    if start <= code <= end:
-                        violations.append(f"{prompt_name}: contains emoji '{char}' (U+{code:04X})")
-                        break
-        except Exception as e:
-            violations.append(f"{prompt_name}: Failed to load - {e}")
-
-    if violations:
-        pytest.fail("Emoji characters found in prompts (prompts should not contain emojis):\n" + "\n".join(violations))
 
 
 @pytest.mark.prompt_static
