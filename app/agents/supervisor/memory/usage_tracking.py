@@ -41,7 +41,7 @@ async def _update_single_memory(
         updated_value.pop("last_used_at", None)
         updated_value["last_used_at"] = timestamp
 
-        await store.aput(namespace, key, updated_value, index=False)
+        await store.aput(namespace, key, updated_value, index=["summary"])
 
         logger.debug(
             "memory_usage_tracking.updated key=%s timestamp=%s",

@@ -101,13 +101,13 @@ class PromptLoader:
         memory_prompts = sys.modules.get('app.services.llm.memory_prompts')
         if memory_prompts is None:
             from . import memory_prompts
-        return memory_prompts.MEMORY_SAME_FACT_CLASSIFIER_LOCAL.strip()
+        return memory_prompts.MEMORY_SAME_FACT_CLASSIFIER_LOCAL.format(**kwargs).strip()
 
     def _get_memory_compose_summaries_local(self, **kwargs) -> str:
         memory_prompts = sys.modules.get('app.services.llm.memory_prompts')
         if memory_prompts is None:
             from . import memory_prompts
-        return memory_prompts.MEMORY_COMPOSE_SUMMARIES_LOCAL.strip()
+        return memory_prompts.MEMORY_COMPOSE_SUMMARIES_LOCAL.format(**kwargs).strip()
 
     def _get_episodic_memory_summarizer_local(self, **kwargs) -> str:
         memory_prompts = sys.modules.get('app.services.llm.memory_prompts')

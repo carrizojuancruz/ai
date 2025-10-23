@@ -5,7 +5,6 @@ import contextlib
 import json
 import logging
 import re
-import time
 import unicodedata
 from json import JSONDecodeError
 from typing import Any
@@ -63,15 +62,13 @@ def _trigger_decide(text: str) -> dict[str, Any]:
     prompt = prompt_loader.load("memory_hotpath_trigger_classifier", text=text[:1000], categories=categories_list)
     bedrock = get_bedrock_runtime_client()
     try:
-        t0 = time.perf_counter()
         logger.info("memory.llm.trigger.start model=%s text_len=%d", MODEL_ID, len(text or ""))
         body_payload = {
             "messages": [{"role": "user", "content": [{"text": prompt}]}],
             "inferenceConfig": {"temperature": 0.0, "topP": 0.1, "maxTokens": 96, "stopSequences": []},
         }
         res = bedrock.invoke_model(modelId=MODEL_ID, body=json.dumps(body_payload))
-        t1 = time.perf_counter()
-        logger.info("memory.llm.trigger.done ms=%d", int((t1 - t0) * 1000))
+        logger.info("memory.llm.trigger.done")
         body = res.get("body")
         txt = body.read().decode("utf-8") if hasattr(body, "read") else str(body)
         data = json.loads(txt)
@@ -108,19 +105,7 @@ def _trigger_decide(text: str) -> dict[str, Any]:
 
 def _search_neighbors(store: Any, namespace: tuple[str, ...], summary: str, category: str) -> list[Any]:
     try:
-        t0 = time.perf_counter()
-        ns0_present = bool(namespace and namespace[0])
-        ns1 = namespace[1] if len(namespace) > 1 else ""
-        logger.info(
-            "memory.store.search.start ns0_set=%s ns1=%s topk=%d has_filter=%s",
-            ns0_present,
-            ns1,
-            MERGE_TOPK,
-            True,
-        )
         neighbors = store.search(namespace, query=summary, filter={"category": category}, limit=MERGE_TOPK)
-        t1 = time.perf_counter()
-        logger.info("memory.store.search.done ms=%d results=%d", int((t1 - t0) * 1000), len(neighbors or []))
     except Exception:
         logger.exception("memory.store.search.error")
         neighbors = []
@@ -137,13 +122,7 @@ def _do_update(
         except Exception:
             base_value = None
     if base_value is None:
-        t0g = time.perf_counter()
-        ns0_present = bool(namespace and namespace[0])
-        ns1 = namespace[1] if len(namespace) > 1 else ""
-        logger.info("memory.store.get.start ns0_set=%s ns1=%s", ns0_present, ns1)
         existing = store.get(namespace, existing_key)
-        t1g = time.perf_counter()
-        logger.info("memory.store.get.done ms=%d found=%s", int((t1g - t0g) * 1000), bool(existing))
         if not existing:
             return
         base_value = dict(existing.value)
@@ -151,11 +130,7 @@ def _do_update(
     merged["last_accessed"] = _utc_now_iso()
     if summary and len(summary) > len(merged.get("summary", "")):
         merged["summary"] = summary
-    t0p = time.perf_counter()
-    logger.info("memory.store.put.start ns0_set=%s ns1=%s mode=update", ns0_present, ns1)
-    store.put(namespace, existing_key, merged, index=["summary"])  # re-embed
-    t1p = time.perf_counter()
-    logger.info("memory.store.put.done ms=%d", int((t1p - t0p) * 1000))
+    store.put(namespace, existing_key, merged, index=["summary"])
 
 
 def _do_recreate(
@@ -167,7 +142,6 @@ def _do_recreate(
     category: str,
     candidate_value: dict[str, Any],
 ) -> str:
-    # Prefer using the neighbor's cached metadata to avoid an extra store.get
     existing_value: dict[str, Any] = dict(getattr(existing_item, "value", {}) or {})
     existing_summary = str(existing_value.get("summary") or "")
     composed = _compose_summaries(existing_summary, summary, category)
@@ -190,18 +164,12 @@ def _do_recreate(
     except Exception:
         pass
     new_val["summary"] = composed
-    ns0_present = bool(namespace and namespace[0])
-    ns1 = namespace[1] if len(namespace) > 1 else ""
-    t0p = time.perf_counter()
-    logger.info("memory.store.put.start ns0_set=%s ns1=%s mode=recreate", ns0_present, ns1)
-    store.put(namespace, new_id, new_val, index=["summary"])  # embed
-    t1p = time.perf_counter()
-    logger.info("memory.store.put.done ms=%d", int((t1p - t0p) * 1000))
-    t0d = time.perf_counter()
-    logger.info("memory.store.delete.start ns0_set=%s ns1=%s", ns0_present, ns1)
+    new_val["last_accessed"] = _utc_now_iso()
+    if existing_value.get("created_at"):
+        new_val["created_at"] = existing_value["created_at"]
+
+    store.put(namespace, new_id, new_val, index=["summary"])
     store.delete(namespace, existing_key)
-    t1d = time.perf_counter()
-    logger.info("memory.store.delete.done ms=%d", int((t1d - t0d) * 1000))
     return new_id
 
 
@@ -218,7 +186,6 @@ async def _write_semantic_memory(
         store = get_store()
         namespace = (user_id, "semantic")
         neighbors = _search_neighbors(store, namespace, summary, category)
-        logger.info("memory.search: id=%s ns=%s neighbors=%d", candidate_id, "/".join(namespace), len(neighbors))
 
         best = neighbors[0] if neighbors else None
         did_update = False
@@ -227,29 +194,18 @@ async def _write_semantic_memory(
         if best and isinstance(getattr(best, "score", None), (int, float)):
             score_val = float(best.score or 0.0)
             recency_ok = True
-            logger.info(
-                "memory.match: id=%s best_key=%s score=%.3f recency_ok=%s auto=%.2f low=%.2f",
-                candidate_id,
-                getattr(best, "key", ""),
-                score_val,
-                recency_ok,
-                AUTO_UPDATE,
-                CHECK_LOW,
-            )
 
             if score_val >= AUTO_UPDATE and recency_ok:
                 updated_key = None
                 if MERGE_MODE == "recreate":
                     new_id = _do_recreate(store, namespace, best.key, best, summary, category, candidate_value)
                     did_update = True
-                    logger.info(
-                        "memory.recreate: mode=auto id=%s from=%s score=%.3f", candidate_id, best.key, score_val
-                    )
+                    logger.info("memory.recreate: mode=auto id=%s from=%s", candidate_id, best.key)
                     updated_key = new_id
                 else:
                     _do_update(store, namespace, best.key, summary, best)
                     did_update = True
-                    logger.info("memory.update: mode=auto id=%s into=%s score=%.3f", candidate_id, best.key, score_val)
+                    logger.info("memory.update: mode=auto id=%s into=%s", candidate_id, best.key)
                     updated_key = best.key
                 updated_memory = store.get(namespace, updated_key)
                 if updated_memory:
@@ -281,24 +237,14 @@ async def _write_semantic_memory(
                         candidate_summary=summary,
                         category=category,
                     )
-                    logger.info(
-                        "memory.classify: id=%s cand_into=%s score=%.3f result_same=%s",
-                        candidate_id,
-                        getattr(n, "key", ""),
-                        s,
-                        same,
-                    )
+                    logger.info("memory.classify: id=%s result_same=%s", candidate_id, same)
                     if same:
                         if MERGE_MODE == "recreate":
                             _do_recreate(store, namespace, getattr(n, "key", ""), n, summary, category, candidate_value)
-                            logger.info(
-                                "memory.recreate: mode=classified id=%s from=%s", candidate_id, getattr(n, "key", "")
-                            )
+                            logger.info("memory.recreate: mode=classified id=%s from=%s", candidate_id, getattr(n, "key", ""))
                         else:
                             _do_update(store, namespace, getattr(n, "key", ""), summary, n)
-                            logger.info(
-                                "memory.update: mode=classified id=%s into=%s", candidate_id, getattr(n, "key", "")
-                            )
+                            logger.info("memory.update: mode=classified id=%s into=%s", candidate_id, getattr(n, "key", ""))
                         did_update = True
                         updated_memory = store.get(namespace, getattr(n, "key", ""))
                         if queue and updated_memory:
@@ -347,24 +293,14 @@ async def _write_semantic_memory(
                     candidate_summary=summary,
                     category=category,
                 )
-                logger.info(
-                    "memory.fallback.classify: id=%s cand_into=%s score=%.3f recent_ok=%s lex_ok=%s num_ok=%s result_same=%s",
-                    candidate_id,
-                    getattr(n, "key", ""),
-                    s,
-                    recent_ok,
-                    lex_ok,
-                    num_ok,
-                    same,
-                )
                 checked += 1
                 if same:
                     if MERGE_MODE == "recreate":
                         _do_recreate(store, namespace, getattr(n, "key", ""), n, summary, category, candidate_value)
-                        logger.info("memory.recreate: mode=fallback id=%s from=%s", candidate_id, getattr(n, "key", ""))
+                        logger.info("memory.recreate: mode=fallback id=%s", candidate_id)
                     else:
                         _do_update(store, namespace, getattr(n, "key", ""), summary, n)
-                        logger.info("memory.update: mode=fallback id=%s into=%s", candidate_id, getattr(n, "key", ""))
+                        logger.info("memory.update: mode=fallback id=%s", candidate_id)
                     did_update = True
                     updated_memory = store.get(namespace, getattr(n, "key", ""))
                     if queue and updated_memory:
@@ -389,13 +325,7 @@ async def _write_semantic_memory(
             if int(candidate_value.get("importance") or 1) < SEMANTIC_MIN_IMPORTANCE:
                 logger.info("memory.skip: below_min_importance=%s", SEMANTIC_MIN_IMPORTANCE)
             else:
-                t0p = time.perf_counter()
-                ns0_present = bool(namespace and namespace[0])
-                ns1 = namespace[1] if len(namespace) > 1 else ""
-                logger.info("memory.store.put.start ns0_set=%s ns1=%s mode=create", ns0_present, ns1)
-                store.put(namespace, candidate_value["id"], candidate_value, index=["summary"])  # async context
-                t1p = time.perf_counter()
-                logger.info("memory.store.put.done ms=%d", int((t1p - t0p) * 1000))
+                store.put(namespace, candidate_value["id"], candidate_value, index=["summary"])
                 logger.info("memory.create: id=%s type=%s category=%s", candidate_value["id"], "semantic", category)
 
                 asyncio.create_task(_profile_sync_from_memory(user_id, thread_id, candidate_value))
@@ -434,15 +364,11 @@ def _same_fact_classify(existing_summary: str, candidate_summary: str, category:
                                candidate_summary=candidate_summary[:500])
     bedrock = get_bedrock_runtime_client()
     try:
-        t0 = time.perf_counter()
-        logger.info("memory.llm.samefact.start model=%s", MODEL_ID)
         body_payload = {
             "messages": [{"role": "user", "content": [{"text": prompt}]}],
             "inferenceConfig": {"temperature": 0.0, "topP": 0.1, "maxTokens": 128, "stopSequences": []},
         }
         res = bedrock.invoke_model(modelId=MODEL_ID, body=json.dumps(body_payload))
-        t1 = time.perf_counter()
-        logger.info("memory.llm.samefact.done ms=%d", int((t1 - t0) * 1000))
         body = res.get("body")
         txt = body.read().decode("utf-8") if hasattr(body, "read") else str(body)
         data = json.loads(txt)
@@ -477,21 +403,21 @@ def _same_fact_classify(existing_summary: str, candidate_summary: str, category:
 
 def _compose_summaries(existing_summary: str, candidate_summary: str, category: str) -> str:
     from app.services.llm.prompt_loader import prompt_loader
+
     prompt = prompt_loader.load("memory_compose_summaries",
                                category=category[:64],
                                existing_summary=existing_summary[:500],
                                candidate_summary=candidate_summary[:500])
+
     bedrock = get_bedrock_runtime_client()
     try:
-        t0 = time.perf_counter()
         logger.info("memory.llm.compose.start model=%s", MODEL_ID)
         body_payload = {
             "messages": [{"role": "user", "content": [{"text": prompt}]}],
             "inferenceConfig": {"temperature": 0.2, "topP": 0.5, "maxTokens": 160, "stopSequences": []},
         }
         res = bedrock.invoke_model(modelId=MODEL_ID, body=json.dumps(body_payload))
-        t1 = time.perf_counter()
-        logger.info("memory.llm.compose.done ms=%d", int((t1 - t0) * 1000))
+        logger.info("memory.llm.compose.done")
         body = res.get("body")
         txt = body.read().decode("utf-8") if hasattr(body, "read") else str(body)
         data = json.loads(txt)
@@ -509,10 +435,17 @@ def _compose_summaries(existing_summary: str, candidate_summary: str, category: 
         if not out_text:
             out_text = data.get("outputText") or data.get("generation") or ""
         composed = (out_text or "").strip()
+
         if not composed:
+            logger.error("memory.llm.compose.empty: Nova returned empty output")
             raise ValueError("empty compose")
+        if "{category}" in composed.lower() or "{existing" in composed.lower() or "category:" in composed.lower():
+            logger.warning("memory.llm.compose.template_returned: Nova echoed prompt template")
+            raise ValueError("template returned")
+
         return composed[:280]
-    except Exception:
+    except Exception as e:
+        logger.error("memory.llm.compose.exception: %s", str(e))
         a = (existing_summary or "").strip()
         b = (candidate_summary or "").strip()
         if not a:
@@ -529,7 +462,6 @@ def _compose_summaries(existing_summary: str, candidate_summary: str, category: 
 def _normalize_summary_text(text: str) -> str:
     if not isinstance(text, str):
         return ""
-    # Normalize Unicode and replace smart quotes to prevent mojibake (e.g., \u2019)
     t = unicodedata.normalize("NFC", text)
     t = t.replace("\u2019", "'").replace("\u2018", "'").replace("\u201c", '"').replace("\u201d", '"')
     return t
@@ -716,6 +648,7 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
         "source": "chat",
         "importance": importance,
         "created_at": now,
+        "last_accessed": None,
         "last_used_at": None,
         **nudge_metadata,
     }

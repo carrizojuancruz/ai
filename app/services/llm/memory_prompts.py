@@ -28,7 +28,8 @@ Rules:
 - Extract only explicitly stated facts; do not infer or summarize plans/requests as facts.
 - Choose category from: [{categories}].
 - summary must be 1–2 sentences, concise and neutral (third person).
-- Output ONLY strict JSON: {{"should_create": bool, "type": "semantic", "category": string, "summary": string, "importance": 1..5}}.
+- importance: Rate 1-5 based on how critical this fact is for personalization (1=trivial, 3=useful, 5=essential like name/pronouns).
+- Output ONLY strict JSON: {{"should_create": bool, "type": "semantic", "category": string, "summary": string, "importance": int}}.
 
 AUTHORITATIVE DOMAINS POLICY — NEVER create semantic memories for facts owned by specialized agents:
 - Finance (Plaid/SQL): budgets, balances, account details, transaction totals, spending amounts/trends, bills due, interest rates.
@@ -47,10 +48,18 @@ Hard negatives — Finance/Goals/Wealth actions & queries:
   - Pure queries for amounts/status/dates (e.g., "How much did I spend last month?").
 
 Examples (create):
-- Input: 'Please remember my name is Ana' -> {{"should_create": true, "type": "semantic", "category": "Personal_Identity", "summary": "User's preferred name is Ana.", "importance": 2}}
-- Input: 'We usually speak Spanish at home' -> {{"should_create": true, "type": "semantic", "category": "Personal_Identity", "summary": "User usually speaks Spanish at home.", "importance": 2}}
-- Input: 'I prefer email over phone calls' -> {{"should_create": true, "type": "semantic", "category": "Communication_Preferences", "summary": "User prefers email communication over calls.", "importance": 2}}
-- Input: 'I go to the gym on Tue/Thu' -> {{"should_create": true, "type": "semantic", "category": "Routines_Habits", "summary": "User goes to the gym on Tuesdays and Thursdays.", "importance": 2}}
+- Input: 'Please remember my name is Ana' -> {{"should_create": true, "type": "semantic", "category": "Personal_Identity", "summary": "User's preferred name is Ana.", "importance": 5}}
+- Input: 'We usually speak Spanish at home' -> {{"should_create": true, "type": "semantic", "category": "Personal_Identity", "summary": "User usually speaks Spanish at home.", "importance": 4}}
+- Input: 'I prefer email over phone calls' -> {{"should_create": true, "type": "semantic", "category": "Communication_Preferences", "summary": "User prefers email communication over calls.", "importance": 3}}
+- Input: 'I go to the gym on Tue/Thu' -> {{"should_create": true, "type": "semantic", "category": "Routines_Habits", "summary": "User goes to the gym on Tuesdays and Thursdays.", "importance": 3}}
+- Input: 'My favorite book is Rich Dad Poor Dad' -> {{"should_create": true, "type": "semantic", "category": "Interests_Preferences", "summary": "User's favorite book is 'Rich Dad Poor Dad'.", "importance": 3}}
+- Input: 'My favorite restaurant is Bella Italia' -> {{"should_create": true, "type": "semantic", "category": "Interests_Preferences", "summary": "User's favorite restaurant is Bella Italia.", "importance": 3}}
+- Input: 'I prefer dark mode in apps' -> {{"should_create": true, "type": "semantic", "category": "Communication_Preferences", "summary": "User prefers dark mode in applications.", "importance": 2}}
+
+Examples (corrections/updates):
+- Input: 'Actually, my favorite book is El Inversor Inteligente' -> {{"should_create": true, "type": "semantic", "category": "Interests_Preferences", "summary": "User's favorite book on finance is 'El Inversor Inteligente'.", "importance": 3}}
+- Input: 'I meant my name is Carlos, not Juan' -> {{"should_create": true, "type": "semantic", "category": "Personal_Identity", "summary": "User's preferred name is Carlos.", "importance": 5}}
+- Input: 'Sorry, I go to the gym on Mon/Wed, not Tue/Thu' -> {{"should_create": true, "type": "semantic", "category": "Routines_Habits", "summary": "User goes to the gym on Mondays and Wednesdays.", "importance": 3}}
 
 Examples (do not create here):
 - Input: 'We celebrated at the park today' -> {{"should_create": false}}
@@ -69,27 +78,38 @@ MEMORY_SAME_FACT_CLASSIFIER_LOCAL = """Same-Fact Classifier (language-agnostic)
 Your job: Return whether two short summaries express the SAME underlying fact about the user.
 Decide by meaning, not wording. Ignore casing, punctuation, and minor phrasing differences.
 
+CRITICAL: If both summaries describe the SAME ATTRIBUTE (e.g., favorite book, age, city), return same_fact=true EVEN IF THE VALUES DIFFER.
+EXCEPTION: Contradictory preferences (opposite choices for the same attribute, e.g., "prefers email" vs "prefers phone") are NOT the same fact.
+
 Core rules
 1) Same subject: Treat these as the same subject: exact same name (e.g., Luna), or clear role synonyms
    (pet/cat/dog; spouse/partner/wife/husband; kid/child/son/daughter).
-2) Same attribute: If both describe the same attribute (e.g., age in years, relationship/name, number of kids),
-   then they are the SAME FACT even if phrased differently.
-3) Numeric updates: If the attribute is numeric or count-like and changes plausibly (e.g., 3→4 years), treat as
-   the SAME FACT (updated value).
-4) Different entities: If the named entities differ (e.g., Luna vs Bruno) for the same attribute, NOT the same.
-5) Preference contradictions: Opposite preferences (e.g., prefers email vs prefers phone) are NOT the same.
-6) Episodic vs stable: One-off events vs stable facts are NOT the same.
-7) Multilingual: Treat cross-language synonyms as equivalent (e.g., 'español' == 'Spanish').
+2) Same attribute: If both describe the same attribute (e.g., age, name, favorite X, count of Y),
+   then they are the SAME FACT even if phrased differently or values changed.
+3) Numeric/value updates: If the attribute is the same but the value changed (3→4 years, Book A→Book B),
+   treat as SAME FACT (updated value).
+4) Different entities: If the summaries describe different entities (Luna vs Bruno) for different attributes,
+   they are NOT the same.
+5) Contradictory preferences: If the attribute is a PREFERENCE or CHOICE (prefers X, likes Y, chooses Z) and
+   the values are opposites or mutually exclusive options, they are NOT the same fact.
+   Examples: "prefers email" vs "prefers phone", "prefers casual tone" vs "prefers formal tone",
+   "prefers dark mode" vs "prefers light mode".
+6) Multilingual: Treat cross-language synonyms as equivalent (e.g., 'español' == 'Spanish').
 
 Examples
-- 'Luna is 3 years old.' vs 'Luna is 4 years old.' -> same_fact=true (numeric update)
+- 'Luna is 3 years old.' vs 'Luna is 4 years old.' -> same_fact=true (same attribute, value changed)
 - 'User's spouse is Natalia.' vs 'User's partner is Natalia.' -> same_fact=true (synonyms, same person)
-- 'Has two children.' vs 'Has 2 kids.' -> same_fact=true (synonyms, same count)
-- 'User prefers email.' vs 'User prefers phone calls.' -> same_fact=false (contradictory preference)
-- 'Lives in Austin.' vs 'Moved to Dallas.' -> same_fact=false (different locations, not a numeric update)
+- 'Has two children.' vs 'Has 2 kids.' -> same_fact=true (synonyms, same attribute)
+- 'User's favorite book is Padre Rico Padre Pobre.' vs 'User's favorite book is El Inversor Inteligente.' -> same_fact=true (same attribute, value changed)
+- 'User prefers email.' vs 'User prefers phone calls.' -> same_fact=false (contradictory preferences)
+- 'User prefers casual tone.' vs 'User prefers professional tone.' -> same_fact=false (contradictory preferences)
+- 'User prefers dark mode.' vs 'User prefers light mode.' -> same_fact=false (contradictory preferences)
+- 'Lives in Austin.' vs 'Moved to Dallas.' -> same_fact=false (different locations, no clear update)
+- 'Lives in Austin.' vs 'Lives in Dallas.' -> same_fact=true (same attribute - city, value changed)
 - 'Luna is a cat.' vs 'Luna is a dog.' -> same_fact=false (conflicting species)
+- 'User has a cat named Luna.' vs 'User has a dog named Bruno.' -> same_fact=false (different entities)
 
-Output: Return STRICT JSON only: {"same_fact": true|false}. No extra text.
+Output: Return Strict JSON only: {{"same_fact": true|false}}. No extra text.
 Category: {category}
 Existing: {existing_summary}
 Candidate: {candidate_summary}"""
@@ -100,10 +120,11 @@ MEMORY_COMPOSE_SUMMARIES_LOCAL = """Task: Combine two short summaries about the 
 - 1-2 sentences, max 280 characters.
 - Do NOT include absolute dates or relative-time words (today, yesterday, this morning/afternoon/evening/tonight, last/next week/month/year, recently, soon).
 - Express the timeless fact only.
-Output ONLY the composed text.
-Category: {category}
+
 Existing: {existing_summary}
-New: {candidate_summary}"""
+New: {candidate_summary}
+
+Output only the combined sentence. No preamble, no labels, just the merged fact."""
 
 # Episodic Memory Summarizer
 MEMORY_EPISODIC_SUMMARIZER_LOCAL = """Episodic Summarizer

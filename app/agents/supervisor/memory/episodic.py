@@ -210,7 +210,7 @@ def _create_episodic_value(
         "importance": importance,
         "pinned": False,
         "created_at": now_iso,
-        "last_accessed": now_iso,
+        "last_accessed": None,
     }
 
 

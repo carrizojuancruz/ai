@@ -274,27 +274,32 @@ class TestSameFactClassify:
 class TestComposeSummaries:
     """Test _compose_summaries function."""
 
-    def test_compose_summaries_personal_category(self):
-        """Test summary composition for Personal category."""
+    def test_compose_summaries_when_candidate_contains_existing(self):
+        """Test that candidate is returned when it contains existing summary."""
+        result = _compose_summaries(
+            "User likes coffee",
+            "User likes coffee and prefers espresso",
+            "Personal"
+        )
+        assert result == "User likes coffee and prefers espresso"
+
+    def test_compose_summaries_when_existing_contains_candidate(self):
+        """Test that existing is returned when it contains candidate summary."""
+        result = _compose_summaries(
+            "User has emergency fund of $5000",
+            "has emergency fund",
+            "Finance"
+        )
+        assert result == "User has emergency fund of $5000"
+
+    def test_compose_summaries_when_no_containment(self):
+        """Test that both summaries are concatenated when neither contains the other."""
         result = _compose_summaries(
             "User likes coffee",
             "User prefers espresso",
             "Personal"
         )
-
-        assert "User likes coffee" in result
-        assert "espresso" in result
-
-    def test_compose_summaries_finance_category(self):
-        """Test summary composition for Finance category."""
-        result = _compose_summaries(
-            "User saves $100 monthly",
-            "User has emergency fund",
-            "Finance"
-        )
-
-        assert "User saves $100 monthly" in result
-        assert "emergency fund" in result
+        assert result == "User likes coffee User prefers espresso"
 
 
 class TestNormalizeSummaryText:
@@ -303,13 +308,11 @@ class TestNormalizeSummaryText:
     def test_normalize_summary_text_basic(self):
         """Test basic unicode normalization."""
         result = _normalize_summary_text("User   likes    coffee.")
-        # Function only does unicode normalization, not whitespace cleanup
         assert result == "User   likes    coffee."
 
     def test_normalize_summary_text_unicode(self):
         """Test unicode character normalization."""
         result = _normalize_summary_text("User's café résumé")
-        # Should normalize unicode characters
         assert "café" in result or "cafe" in result
 
 

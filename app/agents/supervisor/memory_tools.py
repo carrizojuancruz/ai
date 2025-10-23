@@ -179,7 +179,7 @@ async def semantic_memory_put(
         "importance": int(importance) if importance is not None else 1,
         "pinned": bool(pinned) if pinned is not None else False,
         "created_at": now,
-        "last_accessed": now,
+        "last_accessed": None,
         "last_used_at": None,
     }
     store.put(namespace, eff_key, value, index=["summary"])
@@ -238,7 +238,7 @@ async def episodic_memory_put(
         "importance": int(importance) if importance is not None else 1,
         "pinned": bool(pinned) if pinned is not None else False,
         "created_at": now,
-        "last_accessed": now,
+        "last_accessed": None,
     }
     store.put(namespace, eff_key, value, index=["summary"])
     return {"ok": True, "key": eff_key, "value": value}

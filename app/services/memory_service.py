@@ -56,8 +56,10 @@ class MemoryService:
         """Get the appropriate query string for memory type."""
         return self.SEMANTIC_QUERY if memory_type == "semantic" else self.EPISODIC_QUERY
 
-    def _map_value_fields(self, value: dict[str, Any]) -> dict[str, Any]:
-        value_dto = dict(value)
+    def _map_value_fields(self, item: Any) -> dict[str, Any]:
+        """Map Item fields to value DTO format."""
+        value_dto = dict(item.value)
+
         value_dto["updated_at"] = value_dto.pop("last_accessed", None)
         value_dto["last_accessed"] = value_dto.pop("last_used_at", None)
         return value_dto
@@ -136,7 +138,7 @@ class MemoryService:
                 "key": item.key,
                 "namespace": list(item.namespace),
                 "score": float(item.score or 0.0),
-                "value": self._map_value_fields(item.value)
+                "value": self._map_value_fields(item)
             })
 
         return {
@@ -188,7 +190,7 @@ class MemoryService:
         return {
             "key": item.key,
             "namespace": list(item.namespace),
-            "value": self._map_value_fields(item.value)
+            "value": self._map_value_fields(item)
         }
 
     def delete_memory_by_key(
