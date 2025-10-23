@@ -4,6 +4,11 @@ Provides a unified interface to load prompts from bundled defaults.
 Enforces ASCII formatting rules and prevents hardcoded prompt literals.
 """
 
+import importlib
+import logging
+import sys
+
+logger = logging.getLogger(__name__)
 
 
 class PromptLoader:
@@ -39,94 +44,139 @@ class PromptLoader:
         })
 
 
-    def _get_supervisor_prompt_local(self) -> str:
-        from .agent_prompts import SUPERVISOR_SYSTEM_PROMPT_LOCAL
-        return SUPERVISOR_SYSTEM_PROMPT_LOCAL.strip()
+    async def _get_supervisor_prompt_local(self) -> str:
+        agent_prompts = sys.modules.get('app.services.llm.agent_prompts')
+        if agent_prompts is None:
+            from . import agent_prompts
+        result = await agent_prompts.get_supervisor_system_prompt()
+        return result.strip()
 
     def _get_wealth_agent_constant_prompt_local(self) -> str:
-        from .agent_prompts import build_wealth_system_prompt_local
-        return build_wealth_system_prompt_local()
+        agent_prompts = sys.modules.get('app.services.llm.agent_prompts')
+        if agent_prompts is None:
+            from . import agent_prompts
+        result = agent_prompts.build_wealth_system_prompt()
+        return result
 
     def _get_goal_agent_prompt_local(self) -> str:
-        from .agent_prompts import build_goal_agent_system_prompt_local
-        return build_goal_agent_system_prompt_local()
+        agent_prompts = sys.modules.get('app.services.llm.agent_prompts')
+        if agent_prompts is None:
+            from . import agent_prompts
+        result = agent_prompts.build_goal_agent_system_prompt()
+        return result
 
     def _get_finance_agent_prompt_local(self, **kwargs) -> str:
-        from .agent_prompts import build_finance_system_prompt_local
-        return build_finance_system_prompt_local(**kwargs)
+        agent_prompts = sys.modules.get('app.services.llm.agent_prompts')
+        if agent_prompts is None:
+            from . import agent_prompts
+        result = agent_prompts.build_finance_system_prompt_local(**kwargs)
+        return result
 
     def _get_wealth_agent_system_prompt_local(self, **kwargs) -> str:
-        from .agent_prompts import build_wealth_system_prompt_local
-        return build_wealth_system_prompt_local(**kwargs)
+        agent_prompts = sys.modules.get('app.services.llm.agent_prompts')
+        if agent_prompts is None:
+            from . import agent_prompts
+        result = agent_prompts.build_wealth_system_prompt_local(**kwargs)
+        return result
 
     def _get_onboarding_name_extraction_local(self) -> str:
-        from .onboarding_prompts import ONBOARDING_NAME_EXTRACTION_LOCAL
-        return ONBOARDING_NAME_EXTRACTION_LOCAL.strip()
+        onboarding_prompts = sys.modules.get('app.services.llm.onboarding_prompts')
+        if onboarding_prompts is None:
+            from . import onboarding_prompts
+        return onboarding_prompts.ONBOARDING_NAME_EXTRACTION_LOCAL.strip()
 
     def _get_onboarding_location_extraction_local(self) -> str:
-        from .onboarding_prompts import ONBOARDING_LOCATION_EXTRACTION_LOCAL
-        return ONBOARDING_LOCATION_EXTRACTION_LOCAL.strip()
+        onboarding_prompts = sys.modules.get('app.services.llm.onboarding_prompts')
+        if onboarding_prompts is None:
+            from . import onboarding_prompts
+        return onboarding_prompts.ONBOARDING_LOCATION_EXTRACTION_LOCAL.strip()
 
     def _get_memory_hotpath_trigger_classifier_local(self, **kwargs) -> str:
-        from .memory_prompts import MEMORY_HOTPATH_TRIGGER_CLASSIFIER_LOCAL
-        return MEMORY_HOTPATH_TRIGGER_CLASSIFIER_LOCAL.format(**kwargs).strip()
+        memory_prompts = sys.modules.get('app.services.llm.memory_prompts')
+        if memory_prompts is None:
+            from . import memory_prompts
+        return memory_prompts.MEMORY_HOTPATH_TRIGGER_CLASSIFIER_LOCAL.format(**kwargs).strip()
 
     def _get_memory_same_fact_classifier_local(self, **kwargs) -> str:
-        from .memory_prompts import MEMORY_SAME_FACT_CLASSIFIER_LOCAL
-        return MEMORY_SAME_FACT_CLASSIFIER_LOCAL.strip()
+        memory_prompts = sys.modules.get('app.services.llm.memory_prompts')
+        if memory_prompts is None:
+            from . import memory_prompts
+        return memory_prompts.MEMORY_SAME_FACT_CLASSIFIER_LOCAL.strip()
 
     def _get_memory_compose_summaries_local(self, **kwargs) -> str:
-        from .memory_prompts import MEMORY_COMPOSE_SUMMARIES_LOCAL
-        return MEMORY_COMPOSE_SUMMARIES_LOCAL.strip()
+        memory_prompts = sys.modules.get('app.services.llm.memory_prompts')
+        if memory_prompts is None:
+            from . import memory_prompts
+        return memory_prompts.MEMORY_COMPOSE_SUMMARIES_LOCAL.strip()
 
     def _get_episodic_memory_summarizer_local(self, **kwargs) -> str:
-        from .memory_prompts import MEMORY_EPISODIC_SUMMARIZER_LOCAL
-        return MEMORY_EPISODIC_SUMMARIZER_LOCAL.strip()
+        memory_prompts = sys.modules.get('app.services.llm.memory_prompts')
+        if memory_prompts is None:
+            from . import memory_prompts
+        return memory_prompts.MEMORY_EPISODIC_SUMMARIZER_LOCAL.strip()
 
     def _get_profile_sync_extractor_local(self, **kwargs) -> str:
-        from .memory_prompts import MEMORY_PROFILE_SYNC_EXTRACTOR_LOCAL
-        return MEMORY_PROFILE_SYNC_EXTRACTOR_LOCAL.strip()
+        memory_prompts = sys.modules.get('app.services.llm.memory_prompts')
+        if memory_prompts is None:
+            from . import memory_prompts
+        return memory_prompts.MEMORY_PROFILE_SYNC_EXTRACTOR_LOCAL.strip()
 
     def _get_guest_system_prompt_local(self, **kwargs) -> str:
-        from .agent_prompts import build_guest_system_prompt_local
+        agent_prompts = sys.modules.get('app.services.llm.agent_prompts')
+        if agent_prompts is None:
+            from . import agent_prompts
         max_messages = kwargs.get('max_messages', 5)
-        return build_guest_system_prompt_local(max_messages)
+        return agent_prompts.build_guest_system_prompt_local(max_messages)
 
     def _get_title_generator_system_prompt_local(self) -> str:
-        from .utility_prompts import TITLE_GENERATOR_SYSTEM_PROMPT_LOCAL
-        return TITLE_GENERATOR_SYSTEM_PROMPT_LOCAL.strip()
+        utility_prompts = sys.modules.get('app.services.llm.utility_prompts')
+        if utility_prompts is None:
+            from . import utility_prompts
+        return utility_prompts.TITLE_GENERATOR_SYSTEM_PROMPT_LOCAL.strip()
 
     def _get_conversation_summarizer_system_prompt_local(self) -> str:
-        from .utility_prompts import CONVERSATION_SUMMARIZER_SYSTEM_PROMPT_LOCAL
-        return CONVERSATION_SUMMARIZER_SYSTEM_PROMPT_LOCAL
+        utility_prompts = sys.modules.get('app.services.llm.utility_prompts')
+        if utility_prompts is None:
+            from . import utility_prompts
+        return utility_prompts.CONVERSATION_SUMMARIZER_SYSTEM_PROMPT_LOCAL
 
     def _get_welcome_generator_system_prompt_local(self) -> str:
-        from .utility_prompts import WELCOME_GENERATOR_SYSTEM_PROMPT_LOCAL
-        return WELCOME_GENERATOR_SYSTEM_PROMPT_LOCAL
+        utility_prompts = sys.modules.get('app.services.llm.utility_prompts')
+        if utility_prompts is None:
+            from . import utility_prompts
+        return utility_prompts.WELCOME_GENERATOR_SYSTEM_PROMPT_LOCAL
 
     def _get_title_generator_user_prompt_template_local(self, **kwargs) -> str:
-        from .utility_prompts import TITLE_GENERATOR_USER_PROMPT_TEMPLATE_LOCAL
+        utility_prompts = sys.modules.get('app.services.llm.utility_prompts')
+        if utility_prompts is None:
+            from . import utility_prompts
         body = kwargs.get('body', '')
-        return TITLE_GENERATOR_USER_PROMPT_TEMPLATE_LOCAL.format(body=body)
+        return utility_prompts.TITLE_GENERATOR_USER_PROMPT_TEMPLATE_LOCAL.format(body=body)
 
     def _get_supervisor_delegation_template_local(self, **kwargs) -> str:
-        from .agent_prompts import SUPERVISOR_DELEGATION_TEMPLATE_LOCAL
+        agent_prompts = sys.modules.get('app.services.llm.agent_prompts')
+        if agent_prompts is None:
+            from . import agent_prompts
         task_description = kwargs.get('task_description', '')
         instruction_block = kwargs.get('instruction_block', '')
-        return SUPERVISOR_DELEGATION_TEMPLATE_LOCAL.format(
+        return agent_prompts.SUPERVISOR_DELEGATION_TEMPLATE_LOCAL.format(
             task_description=task_description,
             instruction_block=instruction_block
         )
 
     def _get_memory_icebreaker_generation_prompt_local(self, **kwargs) -> str:
-        from .memory_prompts import MEMORY_ICEBREAKER_GENERATION_PROMPT_LOCAL
+        memory_prompts = sys.modules.get('app.services.llm.memory_prompts')
+        if memory_prompts is None:
+            from . import memory_prompts
         icebreaker_text = kwargs.get('icebreaker_text', '')
-        return MEMORY_ICEBREAKER_GENERATION_PROMPT_LOCAL.format(icebreaker_text=icebreaker_text)
+        return memory_prompts.MEMORY_ICEBREAKER_GENERATION_PROMPT_LOCAL.format(icebreaker_text=icebreaker_text)
 
     def _get_conversation_summarizer_instruction_local(self, **kwargs) -> str:
-        from .utility_prompts import CONVERSATION_SUMMARIZER_INSTRUCTION_LOCAL
+        utility_prompts = sys.modules.get('app.services.llm.utility_prompts')
+        if utility_prompts is None:
+            from . import utility_prompts
         summary_max_tokens = kwargs.get('summary_max_tokens', 100)
-        return CONVERSATION_SUMMARIZER_INSTRUCTION_LOCAL.format(summary_max_tokens=summary_max_tokens)
+        return utility_prompts.CONVERSATION_SUMMARIZER_INSTRUCTION_LOCAL.format(summary_max_tokens=summary_max_tokens)
 
 
     def _validate_prompt_format(self, text: str, name: str) -> None:
@@ -156,13 +206,51 @@ class PromptLoader:
 
 
     def _load_default(self, name: str, **kwargs) -> str:
-        """Load bundled default prompt."""
+        """Load bundled default prompt (synchronous version)."""
         if name not in self._bundled_defaults:
             raise ValueError(f"No bundled default found for prompt '{name}'")
 
         default = self._bundled_defaults[name]
         if callable(default):
             result = default(**kwargs)
+            # Check if result is a coroutine (async function was called)
+            if hasattr(result, '__await__'):
+                # Run the coroutine synchronously
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # Loop is already running (e.g., in FastAPI context)
+                        # Run in a new thread with its own event loop
+                        import concurrent.futures
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(asyncio.run, result)
+                            return future.result()
+                    else:
+                        return loop.run_until_complete(result)
+                except RuntimeError as e:
+                    if "no running event loop" in str(e).lower() or "no current event loop" in str(e).lower():
+                        # Create new event loop if needed
+                        return asyncio.run(result)
+                    else:
+                        raise
+            if callable(result):
+                return result()
+            return result
+        else:
+            return default
+
+    async def _load_default_async(self, name: str, **kwargs) -> str:
+        """Load bundled default prompt (async version)."""
+        if name not in self._bundled_defaults:
+            raise ValueError(f"No bundled default found for prompt '{name}'")
+
+        default = self._bundled_defaults[name]
+        if callable(default):
+            result = default(**kwargs)
+            # Check if result is a coroutine
+            if hasattr(result, '__await__'):
+                return await result
             if callable(result):
                 return result()
             return result
@@ -188,8 +276,91 @@ class PromptLoader:
         return text
 
     async def load_async(self, name: str, **kwargs) -> str:
-        """Async version of load() for consistency (currently synchronous)."""
-        return self.load(name, **kwargs)
+        """Async version of load() for coroutines.
+
+        Args:
+            name: The prompt name (e.g., 'supervisor_system_prompt')
+            **kwargs: Additional arguments for callable prompts
+
+        Returns:
+            The prompt text as a string
+
+        """
+        text = await self._load_default_async(name, **kwargs)
+        self._validate_prompt_format(text, name)
+        return text
+
+    def reload(self, verify_reload: bool = False) -> dict[str, str]:
+        """Reload prompt modules from disk and re-register defaults.
+
+        This method:
+        1. Reloads all prompt modules (agent_prompts, memory_prompts, etc.) from disk
+        2. Re-registers the default prompts with fresh module references
+        3. Optionally verifies reload by testing a sample prompt
+        4. Returns a list of reloaded modules
+
+        Use this when TEST_MODE configuration changes or when prompt files are modified.
+
+        Args:
+            verify_reload: If True, will test load a prompt after reload to verify it works
+
+        Returns:
+            dict: Status with list of reloaded modules
+
+        """
+        reloaded_modules = []
+        prompt_modules = [
+            'app.services.llm.agent_prompts',
+            'app.services.llm.memory_prompts',
+            'app.services.llm.onboarding_prompts',
+            'app.services.llm.utility_prompts',
+        ]
+
+        logger.info("=== STARTING PROMPT RELOAD ===")
+
+        # Log current module IDs before reload
+        for module_name in prompt_modules:
+            if module_name in sys.modules:
+                module = sys.modules[module_name]
+                logger.info(f"BEFORE reload - {module_name}: id={id(module)}")
+
+        for module_name in prompt_modules:
+            if module_name in sys.modules:
+                try:
+                    old_id = id(sys.modules[module_name])
+                    importlib.reload(sys.modules[module_name])
+                    new_id = id(sys.modules[module_name])
+                    reloaded_modules.append(module_name)
+                    logger.info(f"✓ Reloaded {module_name}: old_id={old_id} → new_id={new_id}")
+                except Exception as e:
+                    logger.error(f"✗ Failed to reload {module_name}: {e}")
+
+        # Re-register defaults with fresh module references
+        logger.info("Re-registering prompt defaults...")
+        self._register_defaults()
+        logger.info("✓ Re-registered prompt defaults")
+
+        result = {
+            "status": "success",
+            "reloaded_modules": reloaded_modules,
+            "total_reloaded": len(reloaded_modules)
+        }
+
+        # Verification test
+        if verify_reload:
+            try:
+                logger.info("=== VERIFYING RELOAD ===")
+                test_prompt = self.load("goal_agent_system_prompt")
+                logger.info(f"✓ Verification successful - loaded prompt length: {len(test_prompt)} chars")
+                result["verification"] = "success"
+                result["test_prompt_length"] = len(test_prompt)
+            except Exception as e:
+                logger.error(f"✗ Verification failed: {e}")
+                result["verification"] = "failed"
+                result["verification_error"] = str(e)
+
+        logger.info("=== PROMPT RELOAD COMPLETE ===")
+        return result
 
 
 prompt_loader = PromptLoader()

@@ -483,3 +483,90 @@ def dispose_finance_agent_cleanup_task() -> None:
         logger.error(f"Error cancelling finance agent cleanup task: {e}")
     finally:
         _finance_agent_cleanup_task = None
+
+
+def reset_agents() -> dict[str, int]:
+    """Reset all agent instances and caches.
+
+    This function clears:
+    - Global agent singletons (_onboarding_agent, _supervisor_graph, _finance_agent, _wealth_agent, _goal_agent)
+    - Per-user agent caches (_finance_agent_cache, _wealth_agent_cache)
+    - User sessions and threads (_user_sessions, _onboarding_threads, _sse_queues, _thread_locks, _last_emitted_text)
+    - Finance samples cache (_finance_samples_cache)
+
+    Returns:
+        dict: Summary of what was cleared with counts
+
+    Note: This does not clear AWS clients or FOS nudge manager as they are expensive to recreate.
+
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # Track what we're clearing
+    cleared_counts = {}
+
+    # Clear global agent singletons
+    global _onboarding_agent, _supervisor_graph, _finance_agent, _wealth_agent, _goal_agent
+
+    agent_globals = [
+        ("onboarding_agent", "_onboarding_agent"),
+        ("supervisor_graph", "_supervisor_graph"),
+        ("finance_agent", "_finance_agent"),
+        ("wealth_agent", "_wealth_agent"),
+        ("goal_agent", "_goal_agent"),
+    ]
+    for key, var_name in agent_globals:
+        if globals()[var_name] is not None:
+            globals()[var_name] = None
+            cleared_counts[key] = 1
+        else:
+            cleared_counts[key] = 0
+    # Clear per-user agent caches
+    finance_agents_cleared = len(_finance_agent_cache)
+    _finance_agent_cache.clear()
+    cleared_counts["finance_agent_cache"] = finance_agents_cleared
+
+    wealth_agents_cleared = len(_wealth_agent_cache)
+    _wealth_agent_cache.clear()
+    cleared_counts["wealth_agent_cache"] = wealth_agents_cleared
+
+    # Clear finance samples cache
+    finance_samples_cleared = len(_finance_samples_cache)
+    _finance_samples_cache.clear()
+    cleared_counts["finance_samples_cache"] = finance_samples_cleared
+
+    # Clear user sessions and threads
+    user_sessions_cleared = len(_user_sessions)
+    _user_sessions.clear()
+    cleared_counts["user_sessions"] = user_sessions_cleared
+
+    onboarding_threads_cleared = len(_onboarding_threads)
+    _onboarding_threads.clear()
+    cleared_counts["onboarding_threads"] = onboarding_threads_cleared
+
+    sse_queues_cleared = len(_sse_queues)
+    _sse_queues.clear()
+    cleared_counts["sse_queues"] = sse_queues_cleared
+
+    thread_locks_cleared = len(_thread_locks)
+    _thread_locks.clear()
+    cleared_counts["thread_locks"] = thread_locks_cleared
+
+    last_emitted_text_cleared = len(_last_emitted_text)
+    _last_emitted_text.clear()
+    cleared_counts["last_emitted_text"] = last_emitted_text_cleared
+
+    # Clear guest agent LRU cache if available
+    try:
+        from app.agents.guest.agent import get_guest_graph
+        get_guest_graph.cache_clear()
+        cleared_counts["guest_graph_cache"] = 1
+    except Exception as e:
+        logger.warning(f"Could not clear guest graph cache: {e}")
+        cleared_counts["guest_graph_cache"] = 0
+
+    total_cleared = sum(cleared_counts.values())
+    logger.info(f"Agent reset completed. Cleared {total_cleared} items: {cleared_counts}")
+
+    return cleared_counts

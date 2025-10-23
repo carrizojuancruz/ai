@@ -3,6 +3,13 @@
 This module contains prompts that define agent behaviors, personalities, and capabilities.
 """
 
+import logging
+
+from app.services.llm.prompt_manager_service import get_prompt_manager_service
+
+logger = logging.getLogger(__name__)
+
+
 # Supervisor Agent Prompt
 SUPERVISOR_SYSTEM_PROMPT_LOCAL = """
 ## Role
@@ -236,6 +243,68 @@ Assistant: "Of course! Last time we looked at your spending breakdown in Septemb
 """
 
 
+
+
+async def get_supervisor_system_prompt() -> str:
+    """Get supervisor system prompt based on TEST_MODE configuration.
+
+    Returns:
+        Supervisor system prompt string
+
+    """
+    from app.core.config import config
+
+    if config.SUPERVISOR_PROMPT_TEST_MODE:
+        prompt_service = get_prompt_manager_service()
+        prompt = await prompt_service.get_agent_prompt("supervisor")
+        if prompt:
+            return prompt
+        logger.warning("Falling back to local supervisor prompt")
+
+    return SUPERVISOR_SYSTEM_PROMPT_LOCAL
+
+
+
+
+async def build_wealth_system_prompt(user_context: dict = None) -> str:
+    """Build dynamic system prompt for wealth agent with optional user context.
+
+    Args:
+        user_context: Optional user context dictionary
+
+    Returns:
+        Formatted wealth agent system prompt
+
+    """
+    from app.core.config import config
+
+    # Try to fetch from endpoint if TEST_MODE is enabled
+    if config.WEALTH_PROMPT_TEST_MODE:
+        prompt_service = get_prompt_manager_service()
+        prompt_template = await prompt_service.get_agent_prompt("wealth-agent")
+        if prompt_template:
+            # Format with variables
+            max_searches = config.WEALTH_AGENT_MAX_TOOL_CALLS
+            prompt = prompt_template.format(max_searches=max_searches)
+
+            # Add user context if provided
+            if user_context:
+                context_section = "\n\nUSER CONTEXT:"
+                if 'location' in user_context:
+                    context_section += f"\n- Location: {user_context['location']}"
+                if 'financial_situation' in user_context:
+                    context_section += f"\n- Financial Situation: {user_context['financial_situation']}"
+                if 'preferences' in user_context:
+                    context_section += f"\n- Preferences: {user_context['preferences']}"
+                prompt += context_section
+
+            return prompt
+        logger.warning("Falling back to local wealth prompt")
+
+    # Fallback to local prompt
+    return build_wealth_system_prompt_local(user_context)
+
+
 def build_wealth_system_prompt_local(user_context: dict = None) -> str:
     """Build dynamic system prompt for wealth agent with optional user context (local version)."""
     from app.core.config import config
@@ -368,6 +437,54 @@ REMINDER: You are a comprehensive research agent. SEARCH FIRST, then synthesize 
         base_prompt += context_section
 
     return base_prompt
+
+
+
+
+async def build_finance_system_prompt(user_id="test_user", tx_samples: str = "Sample transaction data", asset_samples: str = "Sample asset data", liability_samples: str = "Sample liability data", accounts_samples: str = "Sample account data") -> str:
+    """Build the finance agent system prompt.
+
+    Args:
+        user_id: User identifier
+        tx_samples: Sample transaction data
+        asset_samples: Sample asset data
+        liability_samples: Sample liability data
+        accounts_samples: Sample account data
+
+    Returns:
+        Formatted finance agent system prompt
+
+    """
+    from app.core.config import config
+
+    # Try to fetch from endpoint if TEST_MODE is enabled
+    if config.FINANCE_PROMPT_TEST_MODE:
+        prompt_service = get_prompt_manager_service()
+        prompt_template = await prompt_service.get_agent_prompt("finance-agent")
+        if prompt_template:
+            import datetime
+
+            from app.agents.supervisor.finance_agent.business_rules import get_business_rules_context_str
+            from app.repositories.postgres.finance_repository import FinanceTables
+
+            today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+
+            # Format with all variables
+            prompt = prompt_template.format(
+                user_id=user_id,
+                tx_samples=tx_samples,
+                asset_samples=asset_samples,
+                liability_samples=liability_samples,
+                accounts_samples=accounts_samples,
+                today=today,
+                FinanceTables=FinanceTables,
+                business_rules=get_business_rules_context_str()
+            )
+            return prompt
+        logger.warning("Falling back to local finance prompt")
+
+    # Fallback to local prompt
+    return build_finance_system_prompt_local(user_id, tx_samples, asset_samples, liability_samples, accounts_samples)
 
 
 def build_finance_system_prompt_local(user_id="test_user", tx_samples: str = "Sample transaction data", asset_samples: str = "Sample asset data", liability_samples: str = "Sample liability data", accounts_samples: str = "Sample account data") -> str:
@@ -604,6 +721,35 @@ def build_finance_system_prompt_local(user_id="test_user", tx_samples: str = "Sa
     )
 
 
+
+
+async def build_guest_system_prompt(max_messages: int = 5) -> str:
+    """Build the guest system prompt.
+
+    Args:
+        max_messages: Maximum number of messages allowed
+
+    Returns:
+        Formatted guest system prompt
+
+    """
+    from app.core.config import config
+
+    # Try to fetch from endpoint if TEST_MODE is enabled
+    if config.GUEST_PROMPT_TEST_MODE:
+        prompt_service = get_prompt_manager_service()
+        prompt_template = await prompt_service.get_agent_prompt("guest-agent")
+        if prompt_template:
+            # Format with max_messages variable
+            prompt = prompt_template.format(MAX_MESSAGES=max_messages)
+            prompt += "\n\n[Output Behavior]\nRespond with plain user-facing text only. Do not output JSON or code blocks. The examples above are for the frontend; the backend will wrap your text as JSON. Keep replies concise per the guidelines."
+            return prompt
+        logger.warning("Falling back to local guest prompt")
+
+    # Fallback to local prompt
+    return build_guest_system_prompt_local(max_messages)
+
+
 def build_guest_system_prompt_local(max_messages: int = 5) -> str:
     """Build the guest system prompt (local version)."""
     base_prompt = """You are Vera, a friendly personal assistant. This prompt is optimized for brevity and fast, consistent outputs in a conversation.
@@ -717,6 +863,33 @@ If you sign up or log in, I can remember everything we talk about and help you r
         base_prompt.format(MAX_MESSAGES=max_messages)
         + "\n\n[Output Behavior]\nRespond with plain user-facing text only. Do not output JSON or code blocks. The examples above are for the frontend; the backend will wrap your text as JSON. Keep replies concise per the guidelines."
     )
+
+
+
+
+async def build_goal_agent_system_prompt() -> str:
+    """Build the goal agent system prompt.
+
+    Returns:
+        Formatted goal agent system prompt
+
+    """
+    from app.core.config import config
+
+    # Try to fetch from endpoint if TEST_MODE is enabled
+    if config.GOAL_PROMPT_TEST_MODE:
+        prompt_service = get_prompt_manager_service()
+        prompt_template = await prompt_service.get_agent_prompt("goal-agent")
+        if prompt_template:
+            import datetime
+            today = datetime.datetime.now().strftime("%B %d, %Y")
+            # Format with today's date
+            prompt = f"TODAY: {today}\n## GOAL AGENT SYSTEM PROMPT\n\n{prompt_template}"
+            return prompt
+        logger.warning("Falling back to local goal prompt")
+
+    # Fallback to local prompt
+    return build_goal_agent_system_prompt_local()
 
 
 def build_goal_agent_system_prompt_local() -> str:

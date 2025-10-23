@@ -205,6 +205,13 @@ class Config:
     # Knowledge Base Configuration
     SOURCES_FILE_PATH: str = os.getenv("SOURCES_FILE_PATH", "./app/knowledge/sources/sources.json")
 
+    # Prompt Service Configuration
+    SUPERVISOR_PROMPT_TEST_MODE: bool = os.getenv("SUPERVISOR_PROMPT_TEST_MODE", "false").lower() == "true"
+    WEALTH_PROMPT_TEST_MODE: bool = os.getenv("WEALTH_PROMPT_TEST_MODE", "false").lower() == "true"
+    FINANCE_PROMPT_TEST_MODE: bool = os.getenv("FINANCE_PROMPT_TEST_MODE", "false").lower() == "true"
+    GUEST_PROMPT_TEST_MODE: bool = os.getenv("GUEST_PROMPT_TEST_MODE", "false").lower() == "true"
+    GOAL_PROMPT_TEST_MODE: bool = os.getenv("GOAL_PROMPT_TEST_MODE", "false").lower() == "true"
+
     # Nudge System Configuration
     NUDGES_ENABLED: bool = os.getenv("NUDGES_ENABLED", "true").lower() == "true"
     NUDGES_TYPE2_ENABLED: bool = os.getenv("NUDGES_TYPE2_ENABLED", "true").lower() == "true"
@@ -422,6 +429,51 @@ class Config:
                 reloaded_count += 1
 
         logger.info("Reloaded %s configuration variables from environment", reloaded_count)
+
+    @classmethod
+    def reload_prompt_config(cls) -> dict[str, bool]:
+        """Reload only prompt-related configuration variables from environment.
+
+        This method reloads ONLY the prompt service and test mode variables without
+        affecting other configuration values.
+
+        Returns:
+            dict: Dictionary with reloaded variables and their new values
+
+        """
+        prompt_vars = [
+            "SUPERVISOR_PROMPT_TEST_MODE",
+            "WEALTH_PROMPT_TEST_MODE",
+            "FINANCE_PROMPT_TEST_MODE",
+            "GUEST_PROMPT_TEST_MODE",
+            "GOAL_PROMPT_TEST_MODE",
+        ]
+
+        reloaded = {}
+        for var_name in prompt_vars:
+            env_value = os.getenv(var_name)
+            if env_value is not None:
+                cls.set_env_var(var_name, env_value)
+                reloaded[var_name] = getattr(cls, var_name)
+                logger.info(f"Reloaded {var_name} = {reloaded[var_name]}")
+
+        return reloaded
+
+    @classmethod
+    def get_prompt_config_status(cls) -> dict[str, any]:
+        """Get current status of prompt configuration.
+
+        Returns:
+            dict: Current values of all prompt-related configuration
+
+        """
+        return {
+            "SUPERVISOR_PROMPT_TEST_MODE": cls.SUPERVISOR_PROMPT_TEST_MODE,
+            "WEALTH_PROMPT_TEST_MODE": cls.WEALTH_PROMPT_TEST_MODE,
+            "FINANCE_PROMPT_TEST_MODE": cls.FINANCE_PROMPT_TEST_MODE,
+            "GUEST_PROMPT_TEST_MODE": cls.GUEST_PROMPT_TEST_MODE,
+            "GOAL_PROMPT_TEST_MODE": cls.GOAL_PROMPT_TEST_MODE,
+        }
 
 
 config = Config()
