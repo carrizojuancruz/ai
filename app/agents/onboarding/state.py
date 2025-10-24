@@ -18,6 +18,8 @@ class OnboardingState(BaseModel):
     current_flow_step: FlowStep = FlowStep.PRESENTATION
     turn_number: int = 0
 
+    show_complete_welcome_message: bool = True
+
     user_context: UserContext = Field(default_factory=lambda: UserContext())
 
     conversation_history: list[dict[str, Any]] = Field(default_factory=list)

@@ -105,7 +105,7 @@ class TestInitializeOnboarding:
         assert isinstance(data["thread_id"], str)
         assert isinstance(data["welcome"], str)
         assert isinstance(data["sse_url"], str)
-        init_mock.assert_awaited_once_with(user_id=expected_user_id)
+        init_mock.assert_awaited_once_with(user_id=expected_user_id, show_complete_welcome_message=True)
 
 
 class TestOnboardingMessage:
