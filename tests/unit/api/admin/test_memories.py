@@ -71,20 +71,22 @@ class TestMemorySearchResponseModel:
             MemoryItem(key="key1", namespace=["ns"], value={"a": 1}),
             MemoryItem(key="key2", namespace=["ns"], value={"b": 2}),
         ]
-        response = MemorySearchResponse(ok=True, count=2, items=items)
+        response = MemorySearchResponse(ok=True, count=2, total=5, items=items)
 
         assert response.ok is True
         assert response.count == 2
+        assert response.total == 5
         assert len(response.items) == 2
         assert response.items[0].key == "key1"
         assert response.items[1].key == "key2"
 
     def test_memory_search_response_empty_items(self):
         """Test MemorySearchResponse with empty items list."""
-        response = MemorySearchResponse(ok=True, count=0, items=[])
+        response = MemorySearchResponse(ok=True, count=0, total=0, items=[])
 
         assert response.ok is True
         assert response.count == 0
+        assert response.total == 0
         assert response.items == []
 
 
@@ -153,25 +155,21 @@ class TestGetMemoriesEndpoint:
     @pytest.mark.asyncio
     async def test_get_memories_success_with_defaults(self):
         """Test successful memory retrieval with default parameters."""
-        mock_result = {
-            "ok": True,
-            "count": 2,
-            "items": [
-                {
-                    "key": "key1",
-                    "namespace": ["user", "123", "semantic"],
-                    "value": {"summary": "Memory 1"},
-                },
-                {
-                    "key": "key2",
-                    "namespace": ["user", "123", "semantic"],
-                    "value": {"summary": "Memory 2"},
-                },
-            ],
-        }
+        mock_memories = [
+            {
+                "key": "key1",
+                "namespace": ["user", "123", "semantic"],
+                "value": {"summary": "Memory 1"},
+            },
+            {
+                "key": "key2",
+                "namespace": ["user", "123", "semantic"],
+                "value": {"summary": "Memory 2"},
+            },
+        ]
 
         with patch("app.api.admin.memories.memory_service") as mock_service:
-            mock_service.get_memories.return_value = mock_result
+            mock_service.get_memories.return_value = mock_memories
 
             result = await get_memories(
                 user_id="user-123",
@@ -184,6 +182,7 @@ class TestGetMemoriesEndpoint:
 
             assert result.ok is True
             assert result.count == 2
+            assert result.total == 2
             assert len(result.items) == 2
             assert result.items[0].key == "key1"
             assert result.items[1].key == "key2"
@@ -193,27 +192,21 @@ class TestGetMemoriesEndpoint:
                 memory_type="semantic",
                 category=None,
                 search=None,
-                limit=50,
-                offset=0,
             )
 
     @pytest.mark.asyncio
     async def test_get_memories_with_category_filter(self):
         """Test memory retrieval with category filter."""
-        mock_result = {
-            "ok": True,
-            "count": 1,
-            "items": [
-                {
-                    "key": "key1",
-                    "namespace": ["user", "123"],
-                    "value": {"summary": "Finance memory", "category": "Finance"},
-                }
-            ],
-        }
+        mock_memories = [
+            {
+                "key": "key1",
+                "namespace": ["user", "123"],
+                "value": {"summary": "Finance memory", "category": "Finance"},
+            }
+        ]
 
         with patch("app.api.admin.memories.memory_service") as mock_service:
-            mock_service.get_memories.return_value = mock_result
+            mock_service.get_memories.return_value = mock_memories
 
             result = await get_memories(
                 user_id="user-123",
@@ -226,6 +219,7 @@ class TestGetMemoriesEndpoint:
 
             assert result.ok is True
             assert result.count == 1
+            assert result.total == 1
             mock_service.get_memories.assert_called_once()
             call_args = mock_service.get_memories.call_args[1]
             assert call_args["category"] == "Finance"
@@ -233,20 +227,16 @@ class TestGetMemoriesEndpoint:
     @pytest.mark.asyncio
     async def test_get_memories_with_search_filter(self):
         """Test memory retrieval with search filter."""
-        mock_result = {
-            "ok": True,
-            "count": 1,
-            "items": [
-                {
-                    "key": "key1",
-                    "namespace": ["user", "123"],
-                    "value": {"summary": "Budget planning"},
-                }
-            ],
-        }
+        mock_memories = [
+            {
+                "key": "key1",
+                "namespace": ["user", "123"],
+                "value": {"summary": "Budget planning"},
+            }
+        ]
 
         with patch("app.api.admin.memories.memory_service") as mock_service:
-            mock_service.get_memories.return_value = mock_result
+            mock_service.get_memories.return_value = mock_memories
 
             result = await get_memories(
                 user_id="user-123",
@@ -258,16 +248,17 @@ class TestGetMemoriesEndpoint:
             )
 
             assert result.count == 1
+            assert result.total == 1
             call_args = mock_service.get_memories.call_args[1]
             assert call_args["search"] == "budget"
 
     @pytest.mark.asyncio
     async def test_get_memories_with_pagination(self):
         """Test memory retrieval with custom limit and offset."""
-        mock_result = {"ok": True, "count": 100, "items": []}
+        mock_memories = [{"key": f"key{i}", "namespace": ["user", "123"], "value": {}} for i in range(100)]
 
         with patch("app.api.admin.memories.memory_service") as mock_service:
-            mock_service.get_memories.return_value = mock_result
+            mock_service.get_memories.return_value = mock_memories
 
             result = await get_memories(
                 user_id="user-123",
@@ -279,27 +270,24 @@ class TestGetMemoriesEndpoint:
             )
 
             assert result.ok is True
+            assert result.count == 10
+            assert result.total == 100
             call_args = mock_service.get_memories.call_args[1]
-            assert call_args["limit"] == 10
-            assert call_args["offset"] == 20
+            assert call_args["user_id"] == "user-123"
 
     @pytest.mark.asyncio
     async def test_get_memories_episodic_type(self):
         """Test retrieving episodic memories."""
-        mock_result = {
-            "ok": True,
-            "count": 1,
-            "items": [
-                {
-                    "key": "conv_1",
-                    "namespace": ["user", "123", "episodic"],
-                    "value": {"conversation": "User asked about savings"},
-                }
-            ],
-        }
+        mock_memories = [
+            {
+                "key": "conv_1",
+                "namespace": ["user", "123", "episodic"],
+                "value": {"conversation": "User asked about savings"},
+            }
+        ]
 
         with patch("app.api.admin.memories.memory_service") as mock_service:
-            mock_service.get_memories.return_value = mock_result
+            mock_service.get_memories.return_value = mock_memories
 
             result = await get_memories(
                 user_id="user-123",
@@ -311,16 +299,18 @@ class TestGetMemoriesEndpoint:
             )
 
             assert result.ok is True
+            assert result.count == 1
+            assert result.total == 1
             call_args = mock_service.get_memories.call_args[1]
             assert call_args["memory_type"] == "episodic"
 
     @pytest.mark.asyncio
     async def test_get_memories_empty_result(self):
         """Test memory retrieval when no memories found."""
-        mock_result = {"ok": True, "count": 0, "items": []}
+        mock_memories = []
 
         with patch("app.api.admin.memories.memory_service") as mock_service:
-            mock_service.get_memories.return_value = mock_result
+            mock_service.get_memories.return_value = mock_memories
 
             result = await get_memories(
                 user_id="user-999",
@@ -333,6 +323,7 @@ class TestGetMemoriesEndpoint:
 
             assert result.ok is True
             assert result.count == 0
+            assert result.total == 0
             assert result.items == []
 
     @pytest.mark.asyncio

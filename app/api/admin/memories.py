@@ -24,6 +24,7 @@ class MemoryItem(BaseModel):
 class MemorySearchResponse(BaseModel):
     ok: bool
     count: int
+    total: int
     items: List[MemoryItem]
 
 
@@ -53,8 +54,6 @@ async def get_memories(
     """Get all memories for a user with optional filtering.
 
     This endpoint retrieves ALL memories for display in settings/profile views.
-    Use filters to narrow down results as needed.
-
     - **user_id**: User ID to retrieve memories for
     - **memory_type**: Type of memories (semantic or episodic)
     - **category**: Optional category filter
@@ -63,21 +62,29 @@ async def get_memories(
     - **offset**: Offset for pagination
     """
     try:
-        result = memory_service.get_memories(
+        all_memories = memory_service.get_memories(
             user_id=user_id,
             memory_type=memory_type,
-            category=category,
             search=search,
-            limit=limit,
-            offset=offset
+            category=category,
         )
 
-        items = [MemoryItem(**item) for item in result["items"]]
-        return MemorySearchResponse(ok=result["ok"], count=result["count"], items=items)
+        total_count = len(all_memories)
+        paginated_memories = all_memories[offset : offset + limit]
+
+        items = [MemoryItem(**item) for item in paginated_memories]
+        return MemorySearchResponse(
+            ok=True,
+            count=len(items),
+            total=total_count,
+            items=items,
+        )
 
     except ValueError as e:
+        logger.warning(f"Invalid request: {e}")
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
+        logger.error(f"Failed to retrieve memories: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to retrieve memories: {str(e)}") from e
 
 
@@ -168,19 +175,29 @@ async def delete_all_memories(
     try:
         result = memory_service.delete_all_memories(
             user_id=user_id,
-            memory_type=memory_type
+            memory_type=memory_type,
         )
 
-        if result["ok"] and fos_manager:
+        if result["deleted_count"] > 0 and fos_manager:
             try:
                 await fos_manager.delete_nudges_by_user_id(user_id)
-                logger.info(f"Deleted all nudges for user {user_id}")
+                logger.info(f"Successfully deleted nudges for user {user_id}")
             except Exception as e:
-                logger.error(f"Failed to delete nudges for user {user_id}: {e}")
+                logger.error(f"Failed to delete nudges for user {user_id}: {e}", exc_info=True)
 
-        return MemoryDeleteResponse(**result)
+        return MemoryDeleteResponse(
+            ok=result["ok"],
+            message=result["message"],
+            deleted_count=result["deleted_count"],
+            failed_count=result["failed_count"],
+            total_found=result["total_found"],
+        )
 
     except ValueError as e:
+        logger.warning(f"Invalid request: {e}")
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
+        logger.error(f"Failed to delete memories: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to delete memories: {str(e)}") from e
+
+

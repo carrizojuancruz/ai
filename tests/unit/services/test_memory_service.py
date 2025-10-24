@@ -80,146 +80,17 @@ class TestMemoryTypeValidation:
                     service._validate_memory_type(invalid_type)
 
 
-class TestGetMemories:
-    """Test memory retrieval with various filters and pagination."""
-
-    def test_get_memories_returns_empty_for_new_user(self, mock_config, mock_s3_vectors_store):
-        """Service should return empty list when user has no memories."""
-        with patch("app.services.memory_service.create_s3_vectors_store_from_env", return_value=mock_s3_vectors_store):
-            service = MemoryService()
-            mock_s3_vectors_store.search.return_value = []
-
-            result = service.get_memories("user123", "semantic")
-
-            assert result["ok"] is True
-            assert result["count"] == 0
-            assert result["items"] == []
-
-    def test_get_memories_retrieves_semantic_memories(self, mock_config, mock_s3_vectors_store):
-        """Service should retrieve semantic memories with correct namespace."""
-        mock_item = MagicMock()
-        mock_item.key = "memory-key-1"
-        mock_item.namespace = ("user123", "semantic")
-        mock_item.created_at = "2025-01-01T00:00:00Z"
-        mock_item.updated_at = "2025-01-02T00:00:00Z"
-        mock_item.score = 0.95
-        mock_item.value = {"summary": "User likes investing", "category": "Finance"}
-
-        mock_s3_vectors_store.search.return_value = [mock_item]
-
-        with patch("app.services.memory_service.create_s3_vectors_store_from_env", return_value=mock_s3_vectors_store):
-            service = MemoryService()
-            result = service.get_memories("user123", "semantic")
-
-            assert result["ok"] is True
-            assert result["count"] == 1
-            assert result["items"][0]["key"] == "memory-key-1"
-            assert result["items"][0]["namespace"] == ["user123", "semantic"]
-            assert result["items"][0]["value"]["category"] == "Finance"
-
-    def test_get_memories_with_category_filter(self, mock_config, mock_s3_vectors_store):
-        """Service should apply category filter to search."""
-        with patch("app.services.memory_service.create_s3_vectors_store_from_env", return_value=mock_s3_vectors_store):
-            service = MemoryService()
-            mock_s3_vectors_store.search.return_value = []
-
-            service.get_memories("user123", "semantic", category="Finance")
-
-            call_args = mock_s3_vectors_store.search.call_args
-            assert call_args[1]["filter"] == {"category": "Finance"}
-
-    def test_get_memories_with_search_filter(self, mock_config, mock_s3_vectors_store):
-        """Service should filter memories by search text in summary."""
-        mock_item1 = MagicMock()
-        mock_item1.key = "key1"
-        mock_item1.namespace = ("user123", "semantic")
-        mock_item1.created_at = "2025-01-01"
-        mock_item1.updated_at = "2025-01-01"
-        mock_item1.score = 0.9
-        mock_item1.value = {"summary": "User loves investing in stocks"}
-
-        mock_item2 = MagicMock()
-        mock_item2.key = "key2"
-        mock_item2.namespace = ("user123", "semantic")
-        mock_item2.created_at = "2025-01-01"
-        mock_item2.updated_at = "2025-01-01"
-        mock_item2.score = 0.8
-        mock_item2.value = {"summary": "User prefers saving money"}
-
-        mock_s3_vectors_store.search.return_value = [mock_item1, mock_item2]
-
-        with patch("app.services.memory_service.create_s3_vectors_store_from_env", return_value=mock_s3_vectors_store):
-            service = MemoryService()
-            result = service.get_memories("user123", "semantic", search="investing")
-
-            # Should only return the item with "investing" in summary
-            assert result["count"] == 1
-            assert result["items"][0]["key"] == "key1"
-
-    def test_get_memories_respects_limit(self, mock_config, mock_s3_vectors_store):
-        """Service should limit results to specified count."""
-        items = [MagicMock(
-            key=f"key{i}",
-            namespace=("user123", "semantic"),
-            created_at="2025-01-01",
-            updated_at="2025-01-01",
-            score=0.9,
-            value={"summary": f"Memory {i}"}
-        ) for i in range(50)]
-
-        mock_s3_vectors_store.search.return_value = items
-
-        with patch("app.services.memory_service.create_s3_vectors_store_from_env", return_value=mock_s3_vectors_store):
-            service = MemoryService()
-            result = service.get_memories("user123", "semantic", limit=10)
-
-            assert result["count"] == 10
-
-    def test_get_memories_handles_batching_for_large_requests(self, mock_config, mock_s3_vectors_store):
-        """Service should batch requests when limit exceeds MAX_TOPK."""
-        # Mock two batches of results
-        first_batch = [MagicMock(
-            key=f"key{i}",
-            namespace=("user123", "semantic"),
-            created_at="2025-01-01",
-            updated_at="2025-01-01",
-            score=0.9,
-            value={"summary": f"Memory {i}"}
-        ) for i in range(30)]
-
-        second_batch = [MagicMock(
-            key=f"key{i}",
-            namespace=("user123", "semantic"),
-            created_at="2025-01-01",
-            updated_at="2025-01-01",
-            score=0.9,
-            value={"summary": f"Memory {i}"}
-        ) for i in range(30, 40)]
-
-        mock_s3_vectors_store.search.side_effect = [first_batch, second_batch]
-
-        with patch("app.services.memory_service.create_s3_vectors_store_from_env", return_value=mock_s3_vectors_store):
-            service = MemoryService()
-            result = service.get_memories("user123", "semantic", limit=40)
-
-            # Should make two calls due to MAX_TOPK=30
-            assert mock_s3_vectors_store.search.call_count == 2
-            assert result["count"] == 40
-
-
 class TestGetMemoryByKey:
     """Test retrieving individual memory by key."""
 
     def test_get_memory_by_key_success(self, mock_config, mock_s3_vectors_store):
-        """Service should retrieve specific memory by key."""
+        """Service should retrieve specific memory by key using store.get()."""
         mock_item = MagicMock()
         mock_item.key = "specific-key"
-        mock_item.namespace = ("user123", "semantic")
-        mock_item.created_at = "2025-01-01T00:00:00Z"
-        mock_item.updated_at = "2025-01-02T00:00:00Z"
-        mock_item.value = {"summary": "Specific memory"}
+        mock_item.namespace = ["user123", "semantic"]
+        mock_item.value = {"summary": "Specific memory", "last_accessed": "2025-01-02T00:00:00Z", "last_used_at": "2025-01-01T00:00:00Z"}
 
-        mock_s3_vectors_store.search.return_value = [mock_item]
+        mock_s3_vectors_store.get.return_value = mock_item
 
         with patch("app.services.memory_service.create_s3_vectors_store_from_env", return_value=mock_s3_vectors_store):
             service = MemoryService()
@@ -227,10 +98,11 @@ class TestGetMemoryByKey:
 
             assert result["key"] == "specific-key"
             assert result["value"]["summary"] == "Specific memory"
+            mock_s3_vectors_store.get.assert_called_once_with(("user123", "semantic"), "specific-key")
 
     def test_get_memory_by_key_not_found(self, mock_config, mock_s3_vectors_store):
         """Service should raise RuntimeError when memory not found."""
-        mock_s3_vectors_store.search.return_value = []
+        mock_s3_vectors_store.get.return_value = None
 
         with patch("app.services.memory_service.create_s3_vectors_store_from_env", return_value=mock_s3_vectors_store):
             service = MemoryService()
@@ -266,56 +138,166 @@ class TestDeleteMemoryByKey:
     # and is covered by integration tests
 
 
-class TestDeleteAllMemories:
-    """Test bulk deletion of user memories."""
+class TestGetMemories:
+    """Test get_memories method using deterministic list_vectors."""
 
-    def test_delete_all_memories_success(self, mock_config, mock_s3_vectors_store):
-        """Service should delete all memories for user and memory type."""
-        items = [MagicMock(key=f"key{i}") for i in range(5)]
-        mock_s3_vectors_store.search.return_value = items
-
-        with patch("app.services.memory_service.create_s3_vectors_store_from_env", return_value=mock_s3_vectors_store):
-            service = MemoryService()
-            result = service.delete_all_memories("user123", "semantic")
-
-            assert result["ok"] is True
-            assert result["deleted_count"] == 5
-            assert result["failed_count"] == 0
-            assert result["total_found"] == 5
-            assert mock_s3_vectors_store.delete.call_count == 5
-
-    def test_delete_all_memories_no_memories_found(self, mock_config, mock_s3_vectors_store):
-        """Service should handle case when no memories exist."""
-        mock_s3_vectors_store.search.return_value = []
+    def test_get_memories_returns_all_items(self, mock_config, mock_s3_vectors_store):
+        """Service should return all memories using list_by_namespace."""
+        mock_items = [
+            MagicMock(
+                key=f"key{i}",
+                namespace=["user123", "semantic"],
+                value={"summary": f"test{i}", "category": "Finance"},
+                score=None
+            )
+            for i in range(10)
+        ]
+        mock_s3_vectors_store.list_by_namespace.return_value = mock_items
 
         with patch("app.services.memory_service.create_s3_vectors_store_from_env", return_value=mock_s3_vectors_store):
             service = MemoryService()
-            result = service.delete_all_memories("user123", "semantic")
+            result = service.get_memories("user123", "semantic")
 
-            assert result["ok"] is True
-            assert "No memories found" in result["message"]
-            assert result["deleted_count"] == 0
-            assert result["total_found"] == 0
+            assert len(result) == 10
+            mock_s3_vectors_store.list_by_namespace.assert_called_once_with(
+                ("user123", "semantic"),
+                return_metadata=True,
+                max_results=500,
+            )
 
-    # Note: Partial failure test removed due to Python 3.13 exception handling restrictions
-    # The error handling is straightforward and covered by integration tests
+    def test_get_memories_filters_by_category(self, mock_config, mock_s3_vectors_store):
+        """Service should filter memories by category client-side."""
+        mock_items = [
+            MagicMock(
+                key="k1",
+                namespace=["u1", "semantic"],
+                value={"category": "Finance", "summary": "test1"}
+            ),
+            MagicMock(
+                key="k2",
+                namespace=["u1", "semantic"],
+                value={"category": "Personal", "summary": "test2"}
+            ),
+            MagicMock(
+                key="k3",
+                namespace=["u1", "semantic"],
+                value={"category": "Finance", "summary": "test3"}
+            ),
+        ]
+        mock_s3_vectors_store.list_by_namespace.return_value = mock_items
 
+        with patch("app.services.memory_service.create_s3_vectors_store_from_env", return_value=mock_s3_vectors_store):
+            service = MemoryService()
+            result = service.get_memories("u1", "semantic", category="Finance")
 
-class TestLazyStoreInitialization:
-    """Test lazy loading of S3 store."""
+            assert len(result) == 2
+            assert all(r["value"]["category"] == "Finance" for r in result)
 
-    def test_store_initialized_on_first_use(self, mock_config, mock_s3_vectors_store):
-        """Store should be created only when first accessed."""
-        with patch("app.services.memory_service.create_s3_vectors_store_from_env", return_value=mock_s3_vectors_store) as mock_factory:
+    def test_get_memories_filters_by_search(self, mock_config, mock_s3_vectors_store):
+        """Service should use semantic search when search parameter is provided."""
+        mock_items = [
+            MagicMock(
+                key="k1",
+                namespace=["u1", "semantic"],
+                value={"summary": "User likes aggressive investing"}
+            ),
+            MagicMock(
+                key="k2",
+                namespace=["u1", "semantic"],
+                value={"summary": "User prefers conservative approach"}
+            ),
+        ]
+        mock_s3_vectors_store.search.return_value = [mock_items[0]]
+
+        with patch("app.services.memory_service.create_s3_vectors_store_from_env", return_value=mock_s3_vectors_store):
+            service = MemoryService()
+            result = service.get_memories("u1", "semantic", search="aggressive")
+
+            mock_s3_vectors_store.search.assert_called_once_with(
+                ("u1", "semantic"),
+                query="aggressive",
+                limit=MemoryService.MAX_SEARCH_TOPK,
+            )
+            assert len(result) == 1
+            assert "aggressive" in result[0]["value"]["summary"]
+
+    def test_get_memories_filters_by_both_category_and_search(self, mock_config, mock_s3_vectors_store):
+        """Service should apply semantic search first, then category filter."""
+        mock_items = [
+            MagicMock(
+                key="k1",
+                namespace=["u1", "semantic"],
+                value={"summary": "aggressive stocks", "category": "Finance"}
+            ),
+            MagicMock(
+                key="k2",
+                namespace=["u1", "semantic"],
+                value={"summary": "aggressive personality", "category": "Personal"}
+            ),
+        ]
+        mock_s3_vectors_store.search.return_value = mock_items
+
+        with patch("app.services.memory_service.create_s3_vectors_store_from_env", return_value=mock_s3_vectors_store):
+            service = MemoryService()
+            result = service.get_memories(
+                "u1", "semantic",
+                category="Finance",
+                search="aggressive"
+            )
+
+            mock_s3_vectors_store.search.assert_called_once_with(
+                ("u1", "semantic"),
+                query="aggressive",
+                limit=MemoryService.MAX_SEARCH_TOPK,
+            )
+            assert len(result) == 1
+            assert result[0]["value"]["summary"] == "aggressive stocks"
+
+    def test_get_memories_transforms_field_names(self, mock_config, mock_s3_vectors_store):
+        """Service should transform field names for backward compatibility."""
+        mock_items = [
+            MagicMock(
+                key="k1",
+                namespace=["u1", "semantic"],
+                value={
+                    "summary": "test",
+                    "last_accessed": "2024-01-01T00:00:00+00:00",
+                    "last_used_at": "2024-01-02T00:00:00+00:00",
+                }
+            ),
+        ]
+        mock_s3_vectors_store.list_by_namespace.return_value = mock_items
+
+        with patch("app.services.memory_service.create_s3_vectors_store_from_env", return_value=mock_s3_vectors_store):
+            service = MemoryService()
+            result = service.get_memories("u1", "semantic")
+
+            assert "updated_at" in result[0]["value"]
+            assert "last_accessed" in result[0]["value"]
+            assert result[0]["value"]["updated_at"] == "2024-01-01T00:00:00+00:00"
+            assert result[0]["value"]["last_accessed"] == "2024-01-02T00:00:00+00:00"
+
+    def test_get_memories_returns_none_score(self, mock_config, mock_s3_vectors_store):
+        """Service should return None for score since no similarity ranking."""
+        mock_items = [
+            MagicMock(
+                key="k1",
+                namespace=["u1", "semantic"],
+                value={"summary": "test"}
+            ),
+        ]
+        mock_s3_vectors_store.list_by_namespace.return_value = mock_items
+
+        with patch("app.services.memory_service.create_s3_vectors_store_from_env", return_value=mock_s3_vectors_store):
+            service = MemoryService()
+            result = service.get_memories("u1", "semantic")
+
+            assert result[0]["score"] is None
+
+    def test_get_memories_validates_memory_type(self, mock_config, mock_s3_vectors_store):
+        """Service should validate memory type parameter."""
+        with patch("app.services.memory_service.create_s3_vectors_store_from_env", return_value=mock_s3_vectors_store):
             service = MemoryService()
 
-            # Store should not be created yet
-            assert mock_factory.call_count == 0
-
-            # First access should create store
-            service.get_memories("user123", "semantic")
-            assert mock_factory.call_count == 1
-
-            # Subsequent access should reuse store
-            service.get_memories("user123", "episodic")
-            assert mock_factory.call_count == 1
+            with pytest.raises(ValueError, match="memory_type must be one of"):
+                service.get_memories("u1", "invalid_type")

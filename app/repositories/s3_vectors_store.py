@@ -133,6 +133,8 @@ def _extract_by_field_paths(value: dict[str, Any], field_paths: Sequence[str]) -
 
 class S3VectorsStore(BaseStore):
     supports_ttl: bool = False
+    MAX_PAGINATION_PAGES: int = 100
+    ABSOLUTE_MAX_VECTORS: int = 100_000
 
     def __init__(
         self,
@@ -370,21 +372,52 @@ class S3VectorsStore(BaseStore):
         )
 
     def delete(self, namespace: Namespace, key: str) -> None:
+        """Delete a single item by its key."""
         point_id = str(_compose_point_uuid(namespace, key))
-        if hasattr(self._s3v, "delete_vectors"):
-            self._s3v.delete_vectors(
-                vectorBucketName=self._bucket,
-                indexName=self._index,
-                keys=[point_id],
-            )
-            return
-        # Fallback: some previews may expose a generic delete API
-        if hasattr(self._s3v, "delete"):
-            self._s3v.delete(
-                vectorBucketName=self._bucket,
-                indexName=self._index,
-                keys=[point_id],
-            )
+        self._s3v.delete_vectors(
+            vectorBucketName=self._bucket,
+            indexName=self._index,
+            keys=[point_id],
+        )
+
+    def batch_delete_by_keys(
+        self,
+        namespace: Namespace,
+        keys: list[str],
+        batch_size: int = 100,
+    ) -> dict[str, Any]:
+        """Delete multiple items by their keys using efficient batch deletion."""
+        if not keys:
+            return {
+                "deleted_count": 0,
+                "failed_count": 0,
+                "total_found": 0,
+            }
+
+        deleted_count = 0
+        failed_count = 0
+
+        for i in range(0, len(keys), batch_size):
+            batch_keys = keys[i:i + batch_size]
+            point_ids = [str(_compose_point_uuid(namespace, key)) for key in batch_keys]
+
+            try:
+                self._s3v.delete_vectors(
+                    vectorBucketName=self._bucket,
+                    indexName=self._index,
+                    keys=point_ids,
+                )
+                deleted_count += len(batch_keys)
+                logger.debug(f"Batch {i // batch_size + 1}: Deleted {len(batch_keys)} items")
+            except Exception as e:
+                logger.error(f"Failed to delete batch {i // batch_size + 1}: {str(e)}")
+                failed_count += len(batch_keys)
+
+        return {
+            "deleted_count": deleted_count,
+            "failed_count": failed_count,
+            "total_found": len(keys),
+        }
 
     def list_namespaces(
         self,
@@ -584,8 +617,168 @@ class S3VectorsStore(BaseStore):
             limit=limit,
         )
 
+    def list_by_namespace(
+        self,
+        namespace: Namespace,
+        *,
+        return_metadata: bool = True,
+        max_results: int = 500,
+        limit: int | None = None,
+    ) -> list[SearchItem]:
+        """List vectors in a namespace with filtering during pagination."""
+        logger.info(f"Listing vectors for namespace {namespace}")
 
-    # endregion
+        filtered_items = self._fetch_and_filter_paginated(
+            namespace=namespace,
+            return_metadata=return_metadata,
+            max_results=max_results,
+            limit=limit,
+        )
+
+        logger.info(f"Retrieved {len(filtered_items)} vectors for namespace {namespace}")
+        return filtered_items
+
+    def _fetch_and_filter_paginated(
+        self,
+        namespace: Namespace,
+        return_metadata: bool,
+        max_results: int,
+        limit: int | None = None,
+    ) -> list[SearchItem]:
+        """Fetch vectors with pagination, filtering by namespace on each page."""
+        filtered_items: list[SearchItem] = []
+        next_token: str | None = None
+        page_count = 0
+
+        while page_count < self.MAX_PAGINATION_PAGES:
+            page_count += 1
+
+            response = self._fetch_single_page(return_metadata, max_results, next_token)
+            vectors = response.get("vectors", [])
+
+            logger.debug(f"Page {page_count}: Retrieved {len(vectors)} vectors from API")
+
+            for vector in vectors:
+                if not self._vector_matches_namespace(vector, namespace):
+                    continue
+
+                item = self._parse_vector_to_search_item(vector, namespace, return_metadata)
+                if item:
+                    filtered_items.append(item)
+                    if limit and len(filtered_items) >= limit:
+                        logger.debug(f"Reached limit of {limit} items, stopping pagination")
+                        return filtered_items
+
+            logger.debug(f"Page {page_count}: Filtered to {len(filtered_items)} matching items so far")
+
+            next_token = response.get("nextToken")
+            if not next_token:
+                break
+
+        if page_count >= self.MAX_PAGINATION_PAGES:
+            logger.warning(
+                f"Reached max page limit ({self.MAX_PAGINATION_PAGES}). "
+                f"Retrieved {len(filtered_items)} matching vectors. Results may be incomplete."
+            )
+
+        return filtered_items
+
+    def _fetch_single_page(
+        self,
+        return_metadata: bool,
+        max_results: int,
+        next_token: str | None,
+    ) -> dict[str, Any]:
+        """Fetch a single page of vectors from S3 Vectors API."""
+        params = {
+            "vectorBucketName": self._bucket,
+            "indexName": self._index,
+            "maxResults": max_results,
+            "returnData": False,
+            "returnMetadata": return_metadata,
+        }
+
+        if next_token:
+            params["nextToken"] = next_token
+
+        try:
+            return self._s3v.list_vectors(**params)
+        except ClientError as e:
+            logger.error(f"S3 Vectors list_vectors failed: {e}")
+            raise
+
+    def _vector_matches_namespace(
+        self,
+        vector: dict[str, Any],
+        namespace: Namespace,
+    ) -> bool:
+        """Check if vector metadata matches all namespace components."""
+        metadata = vector.get("metadata", {})
+
+        return all(
+            metadata.get(f"ns_{i}") == val
+            for i, val in enumerate(namespace)
+        )
+
+    def _parse_vector_to_search_item(
+        self,
+        vector: dict[str, Any],
+        namespace: Namespace,
+        return_metadata: bool,
+    ) -> SearchItem | None:
+        """Parse AWS vector response into SearchItem."""
+        try:
+            value = self._parse_vector_value(vector, return_metadata)
+            metadata = vector.get("metadata", {})
+
+            return SearchItem(
+                key=metadata.get("doc_key", vector.get("key", "")),
+                namespace=list(namespace),
+                value=value,
+                score=None,
+                created_at=metadata.get("created_at", ""),
+                updated_at=metadata.get("updated_at", ""),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to parse vector {vector.get('key')}: {e}")
+            return None
+
+    def _parse_vector_value(
+        self,
+        vector: dict[str, Any],
+        return_metadata: bool,
+    ) -> dict[str, Any]:
+        """Parse value_json from vector metadata."""
+        if not return_metadata:
+            return {}
+
+        metadata = vector.get("metadata", {})
+        value_json = metadata.get("value_json", "")
+
+        if not value_json:
+            return {}
+
+        try:
+            return json.loads(value_json)
+        except json.JSONDecodeError as e:
+            logger.warning(f"Invalid JSON in value_json: {e}")
+            return {}
+
+    async def alist_by_namespace(
+        self,
+        namespace: Namespace,
+        *,
+        return_metadata: bool = True,
+        max_results: int = 500,
+        limit: int | None = None,
+    ) -> list[SearchItem]:
+        """Async version of list_by_namespace."""
+        return self.list_by_namespace(
+            namespace,
+            return_metadata=return_metadata,
+            max_results=max_results,
+            limit=limit,
+        )
 
     def _zero_vector(self) -> list[float]:
         return [0.0] * self._dims
@@ -598,15 +791,11 @@ class S3VectorsStore(BaseStore):
         flt: Optional[dict[str, Any]],
         return_distance: bool,
     ) -> dict[str, Any]:
-        # Primary attempt with provided filter
         attempts: list[Optional[dict[str, Any]]] = []
         attempts.append(flt if flt else None)
         if flt:
-            # Alt 1: wrap as $and of equality shorthand
             attempts.append({"$and": [{k: v} for k, v in flt.items()]})
-            # Alt 2: wrap each as $eq
             attempts.append({"$and": [{k: {"$eq": v}} for k, v in flt.items()]})
-        # Final fallback: no filter
         attempts.append(None)
 
         last_error: Exception | None = None
@@ -623,15 +812,12 @@ class S3VectorsStore(BaseStore):
                 )
             except ClientError as e:
                 message = str(e)
-                # Retry only on filter validation issues; otherwise raise
                 if "Invalid query filter" in message or "ValidationException" in message:
                     last_error = e
                     continue
                 raise
-        # If all attempts failed, re-raise last validation error
         if last_error:
             raise last_error
-        # Should not reach here; return empty result
         return {"vectors": []}
 
     def _build_filter(
@@ -641,8 +827,6 @@ class S3VectorsStore(BaseStore):
         *,
         include_is_indexed: bool = True,
     ) -> dict[str, Any]:
-        # Build filter using equality shorthand supported by S3 Vectors metadata filtering
-        # e.g., {"ns_0": "<user_id>", "ns_1": "semantic", "is_indexed": true, "category": "finance"}
         flt: dict[str, Any] = {}
         if len(namespace_prefix) > 0 and namespace_prefix[0]:
             flt["ns_0"] = namespace_prefix[0]
@@ -666,7 +850,6 @@ class S3VectorsStore(BaseStore):
             data = json.loads(body.read()) if hasattr(body, "read") else json.loads(body)
             embedding = cast(list[float], data.get("embedding") or [])
             if len(embedding) != self._dims:
-                # Coerce or pad/truncate defensively
                 if len(embedding) > self._dims:
                     embedding = embedding[: self._dims]
                 else:
