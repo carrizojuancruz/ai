@@ -40,7 +40,7 @@ async def initialize_supervisor(payload: SupervisorInitializePayload) -> Supervi
 class SupervisorMessagePayload(BaseModel):
     thread_id: str
     text: str
-    voice: bool = True  # Por defecto True para mantener comportamiento actual
+    voice: bool = True
 
 
 @router.post("/message")

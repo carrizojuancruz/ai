@@ -381,7 +381,7 @@ class SupervisorService:
             logger.exception(f"Error getting prior conversation summary for user {user_id}: {e}")
             return None
 
-    async def initialize(self, *, user_id: UUID, voice: bool = False, voice_id: str = "Joanna") -> dict[str, Any]:
+    async def initialize(self, *, user_id: UUID, voice: bool = False) -> dict[str, Any]:
         """Initialize the supervisor service."""
         thread_id = str(uuid4())
         queue = get_sse_queue(thread_id)
@@ -450,8 +450,8 @@ class SupervisorService:
                 await audio_service._synthesize_and_stream_audio(
                     thread_id,
                     welcome,
-                    voice_id,
-                    "mp3",
+                    config.TTS_VOICE_ID,
+                    config.TTS_OUTPUT_FORMAT,
                     get_audio_queue(thread_id)
                 )
                 logger.info(f"[SUPERVISOR] Welcome audio generated for thread_id: {thread_id}")
@@ -734,7 +734,7 @@ class SupervisorService:
                             thread_id,
                             final_text_to_emit,
                             config.TTS_VOICE_ID,
-                            "mp3",
+                            config.TTS_OUTPUT_FORMAT,
                             get_audio_queue(thread_id)
                         )
                         logger.info(f"[SUPERVISOR] Triggered audio synthesis for thread_id: {thread_id}")
