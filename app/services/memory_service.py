@@ -1,25 +1,24 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+import logging
+from typing import Any
 
 from botocore.exceptions import ClientError
 
 from app.core.config import config
 from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
+logger = logging.getLogger(__name__)
+
 
 class MemoryService:
     """Service for handling memory operations with S3 Vectors."""
 
-    # Query constants for different memory types
-    SEMANTIC_QUERY = "profile"
-    EPISODIC_QUERY = "recent conversation"
-
-    # S3 Vectors limits and configuration
-    MAX_TOPK = 30  # S3 Vectors maximum topK limit
-
-    # Valid memory types
     VALID_MEMORY_TYPES = ["semantic", "episodic"]
+
+    MAX_SEARCH_TOPK = 100
+    MAX_LIST_RESULTS = 500
+    BATCH_DELETE_SIZE = 100
 
     def __init__(self) -> None:
         """Initialize the memory service."""
@@ -52,10 +51,6 @@ class MemoryService:
         """Create namespace tuple for user and memory type."""
         return (user_id, memory_type)
 
-    def _get_query_for_type(self, memory_type: str) -> str:
-        """Get the appropriate query string for memory type."""
-        return self.SEMANTIC_QUERY if memory_type == "semantic" else self.EPISODIC_QUERY
-
     def _map_value_fields(self, item: Any) -> dict[str, Any]:
         """Map Item fields to value DTO format."""
         value_dto = dict(item.value)
@@ -68,83 +63,73 @@ class MemoryService:
         self,
         user_id: str,
         memory_type: str = "semantic",
-        category: Optional[str] = None,
-        search: Optional[str] = None,
-        limit: int = 50,
-        offset: int = 0,
-    ) -> dict[str, Any]:
-        """Retrieve memories for a user with optional filtering.
+        *,
+        search: str | None = None,
+        category: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """List memories for a user with optional semantic search and category filter.
 
-        Args:
-            user_id: User ID to retrieve memories for
-            memory_type: Type of memories (semantic or episodic)
-            category: Optional category filter
-            search: Optional text search within memory summaries
-            limit: Maximum number of items to return
-            offset: Offset for pagination
-
-        Returns:
-            Dictionary with ok status, count, and items list
-
+        If search is provided, uses vector similarity (semantic search).
+        Otherwise, lists all memories and applies category filter if provided.
         """
         self._validate_memory_type(memory_type)
 
-        store = self._get_store()
         namespace = self._get_namespace(user_id, memory_type)
-        broad_query = self._get_query_for_type(memory_type)
 
-        user_filter = {"category": category} if category else None
-
-        # Collect all memories using batching approach
-        # S3 Vectors limits topK to maximum of MAX_TOPK, so we batch accordingly
-        all_items = []
-        batch_offset = offset
-        batch_limit = min(self.MAX_TOPK, limit)
-
-        while len(all_items) < limit:
-            remaining_needed = limit - len(all_items)
-            current_batch_limit = min(batch_limit, remaining_needed)
-
-            batch_items = store.search(
+        if search:
+            all_items = self._get_store().search(
                 namespace,
-                query=broad_query,
-                filter=user_filter,
-                limit=current_batch_limit,
-                offset=batch_offset
+                query=search,
+                limit=self.MAX_SEARCH_TOPK,
+            )
+        else:
+            all_items = self._get_store().list_by_namespace(
+                namespace,
+                return_metadata=True,
+                max_results=self.MAX_LIST_RESULTS,
             )
 
-            if not batch_items:
-                break
+        filtered_items = self._apply_category_filter(all_items, category)
 
-            all_items.extend(batch_items)
-            batch_offset += current_batch_limit
+        results = self._transform_items_to_response(filtered_items)
 
-            if len(batch_items) < current_batch_limit:
-                break
+        return results
 
-        filtered_items = []
-        for item in all_items:
-            if search:
-                summary = str((item.value or {}).get("summary", "")).lower()
-                if search.lower() not in summary:
-                    continue
-            filtered_items.append(item)
+    def _apply_category_filter(
+        self,
+        items: list[Any],
+        category: str | None,
+    ) -> list[Any]:
+        """Apply category filter to memory items."""
+        if not category:
+            return items
 
-        paginated_items = filtered_items[:limit]
+        return [
+            item for item in items
+            if item.value.get("category") == category
+        ]
 
-        results = []
-        for item in paginated_items:
-            results.append({
-                "key": item.key,
-                "namespace": list(item.namespace),
-                "score": float(item.score or 0.0),
-                "value": self._map_value_fields(item)
-            })
+    def _transform_items_to_response(
+        self,
+        items: list[Any],
+    ) -> list[dict[str, Any]]:
+        """Transform SearchItems to API response format."""
+        return [self._transform_single_item(item) for item in items]
+
+    def _transform_single_item(self, item: Any) -> dict[str, Any]:
+        """Transform single SearchItem to response dict with field mapping."""
+        value = item.value.copy()
+
+        if "last_accessed" in value:
+            value["updated_at"] = value.pop("last_accessed")
+        if "last_used_at" in value:
+            value["last_accessed"] = value.pop("last_used_at")
 
         return {
-            "ok": True,
-            "count": len(results),
-            "items": results
+            "key": item.key,
+            "namespace": item.namespace,
+            "value": value,
+            "score": None,
         }
 
     def get_memory_by_key(
@@ -172,20 +157,11 @@ class MemoryService:
 
         store = self._get_store()
         namespace = self._get_namespace(user_id, memory_type)
-        broad_query = self._get_query_for_type(memory_type)
-        user_filter = {"doc_key": memory_key}
 
-        items = store.search(
-            namespace,
-            query=broad_query,
-            filter=user_filter,
-            limit=1
-        )
+        item = store.get(namespace, memory_key)
 
-        if not items:
+        if not item:
             raise RuntimeError("Memory not found")
-
-        item = items[0]
 
         return {
             "key": item.key,
@@ -244,16 +220,16 @@ class MemoryService:
     def delete_all_memories(
         self,
         user_id: str,
-        memory_type: str = "semantic"
+        memory_type: str = "semantic",
     ) -> dict[str, Any]:
-        """Delete ALL memories for a user and type.
+        """Delete all memories for a user and type using efficient batch deletion.
 
         Args:
-            user_id: User ID
+            user_id: The user ID whose memories should be deleted
             memory_type: Type of memories to delete (semantic or episodic)
 
         Returns:
-            Dictionary with deletion statistics
+            Dictionary with deletion results (ok, message, deleted_count, failed_count, total_found)
 
         """
         self._validate_memory_type(memory_type)
@@ -261,35 +237,45 @@ class MemoryService:
         store = self._get_store()
         namespace = self._get_namespace(user_id, memory_type)
 
-        query = self._get_query_for_type(memory_type)
-        all_items = store.search(namespace, query=query, filter=None, limit=100, offset=0)
+        all_memories = store.list_by_namespace(
+            namespace,
+            return_metadata=True,
+            max_results=self.MAX_LIST_RESULTS,
+        )
+        total_found = len(all_memories)
 
-        if not all_items:
+        if total_found == 0:
             return {
                 "ok": True,
                 "message": "No memories found to delete",
                 "deleted_count": 0,
-                "total_found": 0
+                "failed_count": 0,
+                "total_found": 0,
             }
 
-        all_keys = [item.key for item in all_items]
+        memory_keys = [memory.key for memory in all_memories]
+        result = store.batch_delete_by_keys(
+            namespace=namespace,
+            keys=memory_keys,
+            batch_size=self.BATCH_DELETE_SIZE,
+        )
 
-        deleted_count = 0
-        failed_count = 0
+        deleted_count = result["deleted_count"]
+        failed_count = result["failed_count"]
 
-        for key in all_keys:
-            try:
-                store.delete(namespace, key)
-                deleted_count += 1
-            except (ClientError, AttributeError):
-                failed_count += 1
+        if failed_count == 0:
+            message = f"Successfully deleted all {deleted_count} memories"
+        elif deleted_count > 0:
+            message = f"Partially successful: deleted {deleted_count}/{total_found} memories"
+        else:
+            message = "Failed to delete any memories"
 
         return {
             "ok": True,
-            "message": f"Deleted {deleted_count} memories, {failed_count} failed",
+            "message": message,
             "deleted_count": deleted_count,
             "failed_count": failed_count,
-            "total_found": len(all_keys)
+            "total_found": total_found,
         }
 
 

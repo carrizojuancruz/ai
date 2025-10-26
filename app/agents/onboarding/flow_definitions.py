@@ -196,7 +196,11 @@ def validate_housing_cost(response: str, state: "OnboardingState") -> tuple[bool
     return True, None
 
 
-def get_presentation_message(state: "OnboardingState") -> str:
+def get_short_presentation_message(state: "OnboardingState") -> str:
+    return "By the way, what should I call you?"
+
+
+def get_complete_presentation_message(state: "OnboardingState") -> str:
     return """Hi there!
 I'm Vera
 
@@ -205,6 +209,13 @@ I'm here to make money talk easy and judgment free.
 But I'm also happy to chat about life, your dreams, or the mysteries of the universe. Your choice!
 
 By the way, what should I call you?"""
+
+
+def get_presentation_message(state: "OnboardingState") -> str:
+    if not state.show_complete_welcome_message:
+        return get_short_presentation_message(state)
+
+    return get_complete_presentation_message(state)
 
 
 def get_step_1_message(state: "OnboardingState") -> str:

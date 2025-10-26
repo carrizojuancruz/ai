@@ -54,6 +54,7 @@ async def get_onboarding_status(user_id: str) -> dict:
 
 class InitializePayload(BaseModel):
     user_id: str | None = None
+    show_complete_welcome_message: bool = True
 
 
 class InitializeResponse(BaseModel):
@@ -64,7 +65,10 @@ class InitializeResponse(BaseModel):
 
 @router.post("/initialize", response_model=InitializeResponse)
 async def initialize_onboarding(payload: InitializePayload) -> InitializeResponse:
-    result = await onboarding_service.initialize(user_id=payload.user_id)
+    result = await onboarding_service.initialize(
+        user_id=payload.user_id,
+        show_complete_welcome_message=payload.show_complete_welcome_message,
+    )
     return InitializeResponse(**result)
 
 

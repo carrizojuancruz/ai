@@ -9,7 +9,7 @@ from typing import Any, Callable, Iterable, Sequence
 from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import BaseMessage
 from langchain_core.messages.utils import count_tokens_approximately
-from langfuse.callback import CallbackHandler
+from langfuse.langchain import CallbackHandler
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -107,7 +107,7 @@ def _create_goal_langfuse_callback():
 
     if goal_pk and goal_sk and goal_host:
         try:
-            callback = CallbackHandler(public_key=goal_pk, secret_key=goal_sk, host=goal_host)
+            callback = CallbackHandler(public_key=goal_pk)
             logger.info("[Langfuse][supervisor] Goal agent callback handler created successfully")
             return callback
         except Exception as e:

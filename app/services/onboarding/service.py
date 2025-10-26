@@ -49,7 +49,7 @@ class OnboardingService:
         except Exception as e:
             logger.error("[USER CONTEXT EXPORT] Failed to export user context: %s", e)
 
-    async def initialize(self, *, user_id: str | None = None) -> dict[str, Any]:
+    async def initialize(self, *, user_id: str | None = None, show_complete_welcome_message: bool = True) -> dict[str, Any]:
         thread_id = str(uuid4())
 
         if user_id and user_id.strip():
@@ -61,7 +61,7 @@ class OnboardingService:
         else:
             user_uuid = uuid4()
 
-        state = OnboardingState(user_id=user_uuid)
+        state = OnboardingState(user_id=user_uuid, show_complete_welcome_message=show_complete_welcome_message)
 
         try:
             from app.services.external_context.user.mapping import map_ai_context_to_user_context

@@ -4,7 +4,8 @@ import logging
 from typing import Optional
 
 from langchain_aws import ChatBedrockConverse
-from langfuse.callback import CallbackHandler
+from langfuse import Langfuse
+from langfuse.langchain import CallbackHandler
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 
@@ -50,7 +51,12 @@ class GoalAgent:
             self.callbacks = []
             if goal_pk and goal_sk and goal_host:
                 try:
-                    self.callbacks = [CallbackHandler(public_key=goal_pk, secret_key=goal_sk, host=goal_host)]
+                    _goal_client = Langfuse(  # noqa: F841
+                        public_key=goal_pk,
+                        secret_key=goal_sk,
+                        host=goal_host
+                    )
+                    self.callbacks = [CallbackHandler(public_key=goal_pk)]
                     logger.info("[Langfuse][goal] Callback handler initialized from env vars")
                 except Exception as e:
                     logger.warning("[Langfuse][goal] Failed to init callback handler: %s: %s", type(e).__name__, e)

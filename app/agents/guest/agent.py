@@ -2,7 +2,8 @@ import logging
 from functools import lru_cache
 
 from langchain_aws import ChatBedrock  # type: ignore
-from langfuse.callback import CallbackHandler  # type: ignore
+from langfuse import Langfuse
+from langfuse.langchain import CallbackHandler  # type: ignore
 from langgraph.prebuilt import create_react_agent  # type: ignore
 
 from app.core.config import config
@@ -27,7 +28,12 @@ def get_guest_graph():
     callbacks = []
     if guest_pk and guest_sk and guest_host:
         try:
-            callbacks = [CallbackHandler(public_key=guest_pk, secret_key=guest_sk, host=guest_host)]
+            Langfuse(
+                public_key=guest_pk,
+                secret_key=guest_sk,
+                host=guest_host
+            )
+            callbacks = [CallbackHandler(public_key=guest_pk)]
         except Exception as e:
             logger.warning("[Langfuse][guest] Failed to init callback handler: %s: %s", type(e).__name__, e)
             callbacks = []

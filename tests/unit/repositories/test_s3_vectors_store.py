@@ -413,22 +413,13 @@ class TestDeleteOperations:
     """Test delete operations."""
 
     def test_delete_calls_delete_vectors(self, s3_store, sample_namespace):
-        """Test delete calls delete_vectors when available."""
+        """Test delete calls delete_vectors directly."""
         s3_store.delete(sample_namespace, "key-001")
 
         s3_store._s3v.delete_vectors.assert_called_once()
         call_args = s3_store._s3v.delete_vectors.call_args
         assert call_args[1]["vectorBucketName"] == "test-bucket"
         assert call_args[1]["indexName"] == "test-index"
-
-    def test_delete_falls_back_to_generic_delete(self, s3_store, sample_namespace):
-        """Test delete falls back to generic delete method."""
-        delattr(s3_store._s3v, "delete_vectors")
-        s3_store._s3v.delete = MagicMock()
-
-        s3_store.delete(sample_namespace, "key-002")
-
-        s3_store._s3v.delete.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_adelete_calls_delete(self, s3_store, sample_namespace):
@@ -651,3 +642,181 @@ class TestGetS3VectorsStore:
             assert result1 is mock_store
             assert result1 is result2
             mock_create.assert_called_once()
+
+
+class TestListByNamespace:
+    """Test list_by_namespace and related methods."""
+
+    def test_list_by_namespace_retrieves_all_vectors_with_pagination(self, s3_store):
+        """Test list_by_namespace retrieves all vectors with pagination."""
+        s3_store._s3v.list_vectors.side_effect = [
+            {
+                "vectors": [
+                    {
+                        "key": "key1",
+                        "metadata": {
+                            "ns_0": "user_123",
+                            "ns_1": "semantic",
+                            "doc_key": "mem-001",
+                            "value_json": '{"summary": "test1"}',
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                            "updated_at": "2024-01-01T00:00:00+00:00",
+                        }
+                    },
+                    {
+                        "key": "key2",
+                        "metadata": {
+                            "ns_0": "user_123",
+                            "ns_1": "semantic",
+                            "doc_key": "mem-002",
+                            "value_json": '{"summary": "test2"}',
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                            "updated_at": "2024-01-01T00:00:00+00:00",
+                        }
+                    },
+                ],
+                "nextToken": "token1",
+            },
+            {
+                "vectors": [
+                    {
+                        "key": "key3",
+                        "metadata": {
+                            "ns_0": "user_123",
+                            "ns_1": "semantic",
+                            "doc_key": "mem-003",
+                            "value_json": '{"summary": "test3"}',
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                            "updated_at": "2024-01-01T00:00:00+00:00",
+                        }
+                    },
+                ],
+                "nextToken": None,
+            },
+        ]
+
+        results = s3_store.list_by_namespace(("user_123", "semantic"))
+
+        assert len(results) == 3
+        assert results[0].key == "mem-001"
+        assert results[1].key == "mem-002"
+        assert results[2].key == "mem-003"
+        assert s3_store._s3v.list_vectors.call_count == 2
+
+    def test_list_by_namespace_filters_by_namespace(self, s3_store):
+        """Test that list_by_namespace filters out other namespaces."""
+        s3_store._s3v.list_vectors.return_value = {
+            "vectors": [
+                {
+                    "key": "key1",
+                    "metadata": {
+                        "ns_0": "user_123",
+                        "ns_1": "semantic",
+                        "doc_key": "mem-001",
+                        "value_json": '{}',
+                        "created_at": "2024-01-01T00:00:00+00:00",
+                        "updated_at": "2024-01-01T00:00:00+00:00",
+                    }
+                },
+                {
+                    "key": "key2",
+                    "metadata": {
+                        "ns_0": "user_456",
+                        "ns_1": "semantic",
+                        "doc_key": "mem-002",
+                        "value_json": '{}',
+                        "created_at": "2024-01-01T00:00:00+00:00",
+                        "updated_at": "2024-01-01T00:00:00+00:00",
+                    }
+                },
+                {
+                    "key": "key3",
+                    "metadata": {
+                        "ns_0": "user_123",
+                        "ns_1": "episodic",
+                        "doc_key": "mem-003",
+                        "value_json": '{}',
+                        "created_at": "2024-01-01T00:00:00+00:00",
+                        "updated_at": "2024-01-01T00:00:00+00:00",
+                    }
+                },
+            ],
+            "nextToken": None,
+        }
+
+        results = s3_store.list_by_namespace(("user_123", "semantic"))
+
+        assert len(results) == 1
+        assert results[0].key == "mem-001"
+
+    def test_list_by_namespace_handles_invalid_json(self, s3_store):
+        """Test list_by_namespace handles invalid JSON gracefully."""
+        s3_store._s3v.list_vectors.return_value = {
+            "vectors": [
+                {
+                    "key": "key1",
+                    "metadata": {
+                        "ns_0": "user_123",
+                        "ns_1": "semantic",
+                        "doc_key": "mem-001",
+                        "value_json": 'invalid json{',
+                        "created_at": "2024-01-01T00:00:00+00:00",
+                        "updated_at": "2024-01-01T00:00:00+00:00",
+                    }
+                },
+            ],
+            "nextToken": None,
+        }
+
+        results = s3_store.list_by_namespace(("user_123", "semantic"))
+
+        assert len(results) == 1
+        assert results[0].value == {}
+
+    def test_list_by_namespace_returns_no_similarity_score(self, s3_store):
+        """Test list_by_namespace returns None for similarity score."""
+        s3_store._s3v.list_vectors.return_value = {
+            "vectors": [
+                {
+                    "key": "key1",
+                    "metadata": {
+                        "ns_0": "user_123",
+                        "ns_1": "semantic",
+                        "doc_key": "mem-001",
+                        "value_json": '{"summary": "test"}',
+                        "created_at": "2024-01-01T00:00:00+00:00",
+                        "updated_at": "2024-01-01T00:00:00+00:00",
+                    }
+                },
+            ],
+            "nextToken": None,
+        }
+
+        results = s3_store.list_by_namespace(("user_123", "semantic"))
+
+        assert results[0].score is None
+
+    @pytest.mark.asyncio
+    async def test_alist_by_namespace(self, s3_store):
+        """Test async version of list_by_namespace."""
+        s3_store._s3v.list_vectors.return_value = {
+            "vectors": [
+                {
+                    "key": "key1",
+                    "metadata": {
+                        "ns_0": "user_123",
+                        "ns_1": "semantic",
+                        "doc_key": "mem-001",
+                        "value_json": '{"summary": "test"}',
+                        "created_at": "2024-01-01T00:00:00+00:00",
+                        "updated_at": "2024-01-01T00:00:00+00:00",
+                    }
+                },
+            ],
+            "nextToken": None,
+        }
+
+        results = await s3_store.alist_by_namespace(("user_123", "semantic"))
+
+        assert len(results) == 1
+        assert results[0].key == "mem-001"

@@ -8,7 +8,8 @@ from os import environ
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
-from langfuse.callback import CallbackHandler
+from langfuse import Langfuse
+from langfuse.langchain import CallbackHandler
 from langgraph.graph.state import CompiledStateGraph
 
 from app.agents.supervisor.i18n import (
@@ -40,23 +41,30 @@ from app.utils.welcome import call_llm, generate_personalized_welcome
 
 environ["LANGFUSE_TRACING_ENVIRONMENT"] = config.LANGFUSE_TRACING_ENVIRONMENT
 
-langfuse_handler = CallbackHandler(
-    public_key=config.LANGFUSE_PUBLIC_SUPERVISOR_KEY,
-    secret_key=config.LANGFUSE_SECRET_SUPERVISOR_KEY,
-    host=config.LANGFUSE_HOST_SUPERVISOR,
-)
-
 logger = logging.getLogger(__name__)
 
-# Create Langfuse callback handler for goal agent tracing
+langfuse_handler = None
+if config.LANGFUSE_PUBLIC_SUPERVISOR_KEY and config.LANGFUSE_SECRET_SUPERVISOR_KEY:
+    try:
+        Langfuse(
+            public_key=config.LANGFUSE_PUBLIC_SUPERVISOR_KEY,
+            secret_key=config.LANGFUSE_SECRET_SUPERVISOR_KEY,
+            host=config.LANGFUSE_HOST_SUPERVISOR,
+        )
+        langfuse_handler = CallbackHandler(public_key=config.LANGFUSE_PUBLIC_SUPERVISOR_KEY)
+    except Exception as e:
+        logger.warning("[Langfuse][supervisor] Failed to init callback handler: %s: %s", type(e).__name__, e)
+        langfuse_handler = None
+
 langfuse_goal_handler = None
 if config.LANGFUSE_PUBLIC_GOAL_KEY and config.LANGFUSE_SECRET_GOAL_KEY and config.LANGFUSE_HOST_GOAL:
     try:
-        langfuse_goal_handler = CallbackHandler(
+        Langfuse(
             public_key=config.LANGFUSE_PUBLIC_GOAL_KEY,
             secret_key=config.LANGFUSE_SECRET_GOAL_KEY,
             host=config.LANGFUSE_HOST_GOAL,
         )
+        langfuse_goal_handler = CallbackHandler(public_key=config.LANGFUSE_PUBLIC_GOAL_KEY, update_trace=True)
         logger.info("[Langfuse][supervisor] Goal agent callback handler initialized")
     except Exception as e:
         logger.warning("[Langfuse][supervisor] Failed to create goal callback handler: %s: %s", type(e).__name__, e)
@@ -518,8 +526,12 @@ class SupervisorService:
         if user_id:
             metadata["langfuse_user_id"] = str(user_id)
 
+        callbacks_list = []
+        if langfuse_handler:
+            callbacks_list.append(langfuse_handler)
+
         config_payload: dict[str, Any] = {
-            "callbacks": [langfuse_handler],
+            "callbacks": callbacks_list,
             "configurable": configurable,
             "thread_id": thread_id,
         }
