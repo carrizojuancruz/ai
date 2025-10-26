@@ -25,24 +25,29 @@ class SupervisorInitializeResponse(BaseModel):
 
 class SupervisorInitializePayload(BaseModel):
     user_id: UUID
+    voice: bool = False  # Optional parameter
 
 
 @router.post("/initialize", response_model=SupervisorInitializeResponse)
 async def initialize_supervisor(payload: SupervisorInitializePayload) -> SupervisorInitializeResponse:
-    result = await supervisor_service.initialize(user_id=payload.user_id)
+    result = await supervisor_service.initialize(
+        user_id=payload.user_id,
+        voice=payload.voice,
+    )
     return SupervisorInitializeResponse(**result)
 
 
 class SupervisorMessagePayload(BaseModel):
     thread_id: str
     text: str
+    voice: bool = True  # Por defecto True para mantener comportamiento actual
 
 
 @router.post("/message")
 async def supervisor_message(payload: SupervisorMessagePayload) -> dict:
     if not payload.text or not payload.text.strip():
         raise HTTPException(status_code=400, detail="Message text must not be empty")
-    await supervisor_service.process_message(thread_id=payload.thread_id, text=payload.text)
+    await supervisor_service.process_message(thread_id=payload.thread_id, text=payload.text, voice=payload.voice)
     return {"status": "accepted"}
 
 

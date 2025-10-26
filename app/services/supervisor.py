@@ -22,6 +22,7 @@ from app.agents.supervisor.i18n import (
     _get_random_wealth_current,
 )
 from app.core.app_state import (
+    get_audio_queue,
     get_sse_queue,
     get_supervisor_graph,
 )
@@ -29,6 +30,7 @@ from app.core.config import config
 from app.models.user import UserContext
 from app.repositories.database_service import get_database_service
 from app.repositories.session_store import InMemorySessionStore, get_session_store
+from app.services.audio_service import get_audio_service, start_audio_service_for_thread
 from app.services.external_context.user.mapping import map_ai_context_to_user_context
 from app.services.external_context.user.personal_information import PersonalInformationService
 from app.services.external_context.user.repository import ExternalUserRepository
@@ -371,7 +373,7 @@ class SupervisorService:
             logger.exception(f"Error getting prior conversation summary for user {user_id}: {e}")
             return None
 
-    async def initialize(self, *, user_id: UUID) -> dict[str, Any]:
+    async def initialize(self, *, user_id: UUID, voice: bool = False, voice_id: str = "Joanna") -> dict[str, Any]:
         """Initialize the supervisor service."""
         thread_id = str(uuid4())
         queue = get_sse_queue(thread_id)
@@ -431,6 +433,23 @@ class SupervisorService:
 
         await queue.put({"event": "message.completed", "data": {"text": welcome}})
 
+        if voice:
+            try:
+                # Start audio service for this thread if not already started
+                await start_audio_service_for_thread(thread_id)
+                logger.info(f"[SUPERVISOR] Started audio service for thread_id: {thread_id}")
+                audio_service = get_audio_service()
+                await audio_service._synthesize_and_stream_audio(
+                    thread_id,
+                    welcome,
+                    voice_id,
+                    "mp3",
+                    get_audio_queue(thread_id)
+                )
+                logger.info(f"[SUPERVISOR] Welcome audio generated for thread_id: {thread_id}")
+            except Exception as e:
+                logger.error(f"[SUPERVISOR] Failed to generate welcome audio for thread_id {thread_id}: {e}")
+
         if has_financial_accounts:
             try:
                 import asyncio
@@ -449,7 +468,7 @@ class SupervisorService:
             "prior_conversation_summary": prior_summary,
         }
 
-    async def process_message(self, *, thread_id: str, text: str) -> None:
+    async def process_message(self, *, thread_id: str, text: str, voice: bool = True) -> None:
         if not text or not text.strip():
             raise ValueError("Message text must not be empty")
 
@@ -694,6 +713,23 @@ class SupervisorService:
             if final_text:
                 final_text_to_emit = _strip_emojis(self._strip_guardrail_marker(final_text) if hit_guardrail else final_text)
                 await q.put({"event": "message.completed", "data": {"content": final_text_to_emit}})
+
+                # Generate audio only if voice=True
+                if voice:
+                    try:
+                        audio_service = get_audio_service()
+                        await audio_service._synthesize_and_stream_audio(
+                            thread_id,
+                            final_text_to_emit,
+                            config.TTS_VOICE_ID,
+                            "mp3",
+                            get_audio_queue(thread_id)
+                        )
+                        logger.info(f"[SUPERVISOR] Triggered audio synthesis for thread_id: {thread_id}")
+                    except Exception as e:
+                        logger.error(f"[SUPERVISOR] Failed to trigger audio synthesis for thread_id {thread_id}: {e}")
+                else:
+                    logger.info(f"[SUPERVISOR] Audio generation disabled for thread_id: {thread_id}")
         except Exception as e:
             logger.error(f"[DEBUG] Error sending message.completed: {e}")
 
