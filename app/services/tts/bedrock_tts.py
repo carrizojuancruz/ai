@@ -40,7 +40,7 @@ class BedrockTTSService(TTSService):
             self.logger.info(f"Polly TTS service initialized with voice_id={self.voice_id}")
         except Exception as e:
             self.logger.error(f"Failed to initialize Polly TTS client: {e}")
-            raise TTSServiceError(f"Failed to initialize Polly client: {e}", provider="bedrock")
+            raise TTSServiceError(f"Failed to initialize Polly client: {e}", provider="bedrock") from e
 
     async def synthesize_speech(self, text: str) -> bytes:
         """Convert text to speech using AWS Bedrock/Polly.
@@ -79,10 +79,10 @@ class BedrockTTSService(TTSService):
 
         except Exception as e:
             self.logger.error(f"TTS synthesis failed: {e}")
-            raise TTSServiceError(f"Synthesis failed: {str(e)}", provider="bedrock")
+            raise TTSServiceError(f"Synthesis failed: {str(e)}", provider="bedrock") from e
 
     def _synthesize_speech_sync(self, text: str) -> Dict[str, Any]:
-        """Synchronous wrapper for Polly synthesis.
+        """Wrap Polly synthesis synchronously.
 
         Args:
             text: The text to synthesize

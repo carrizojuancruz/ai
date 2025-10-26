@@ -53,7 +53,7 @@ def get_tts_service() -> Optional[TTSService]:
 
     except Exception as e:
         logger.error(f"Failed to initialize TTS service with provider '{provider}': {e}")
-        raise TTSServiceError(f"Failed to initialize TTS service: {e}")
+        raise TTSServiceError(f"Failed to initialize TTS service: {e}") from e
 
 
 def create_tts_service(provider: str) -> TTSService:

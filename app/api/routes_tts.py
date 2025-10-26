@@ -171,7 +171,7 @@ async def test_tts_synthesis(request: TTSTestRequest):
         raise HTTPException(
             status_code=500,
             detail=f"TTS synthesis failed: {str(e)}"
-        )
+        ) from e
 
 
 @router.get("/voices")
@@ -213,7 +213,7 @@ async def get_available_voices():
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get voices: {str(e)}"
-        )
+        ) from e
 
 
 @router.get("/events/sample")
@@ -266,7 +266,7 @@ async def get_sample_events():
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate sample events: {str(e)}"
-        )
+        ) from e
 
 
 @router.get("/config")
@@ -295,4 +295,4 @@ async def get_tts_config():
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get config: {str(e)}"
-        )
+        ) from e
