@@ -102,10 +102,14 @@ ALLOWED_ORIGINS = [
     # Frontend domains
     "https://fos-dev.tellvera.com",
     "https://fos-uat.tellvera.com",
+    "https://fos.dev.tellvera.com",
+    "https://fos.uat.tellvera.com",
     "https://fos.tellvera.com",
     # API domains (for Swagger UI, etc.)
     "https://api-dev.tellvera.com",
     "https://api-uat.tellvera.com",
+    "https://api.dev.tellvera.com",
+    "https://api.uat.tellvera.com",
     "https://api.tellvera.com",
     # Local development
     "http://localhost:3000",
