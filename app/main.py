@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api.admin.memories import router as memories_router
 from .api.routes import router as api_router
 from .api.routes_admin import router as admin_router
+from .api.routes_audio import router as audio_router
 from .api.routes_crawl import router as crawl_router
 from .api.routes_cron import router as cron_router
 from .api.routes_feedback import router as feedback_router
@@ -23,6 +24,7 @@ from .api.routes_nudge_eval import router as nudge_eval_router
 from .api.routes_prompts import router as prompts_router
 from .api.routes_supervisor import router as supervisor_router
 from .api.routes_title_gen import router as title_gen_router
+from .api.routes_tts import router as tts_router
 from .core.config import config
 from .observability.logging_config import configure_logging, get_logger
 
@@ -100,10 +102,14 @@ ALLOWED_ORIGINS = [
     # Frontend domains
     "https://fos-dev.tellvera.com",
     "https://fos-uat.tellvera.com",
+    "https://fos.dev.tellvera.com",
+    "https://fos.uat.tellvera.com",
     "https://fos.tellvera.com",
     # API domains (for Swagger UI, etc.)
     "https://api-dev.tellvera.com",
     "https://api-uat.tellvera.com",
+    "https://api.dev.tellvera.com",
+    "https://api.uat.tellvera.com",
     "https://api.tellvera.com",
     # Local development
     "http://localhost:3000",
@@ -187,3 +193,5 @@ app.include_router(crawl_router)
 app.include_router(title_gen_router)
 app.include_router(internal_webhooks_router)
 app.include_router(prompts_router)
+app.include_router(tts_router)
+app.include_router(audio_router)

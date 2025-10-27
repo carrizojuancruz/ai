@@ -78,7 +78,7 @@ class TestSupervisorRoutes:
             data = response.json()
             assert "status" in data and isinstance(data["status"], str)
             mock_supervisor_service.process_message.assert_called_once_with(
-                thread_id=thread_id, text=message_text
+                thread_id=thread_id, text=message_text, voice=True
             )
         elif scenario == "empty_text":
             payload = {"thread_id": thread_id, "text": ""}

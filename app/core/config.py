@@ -239,6 +239,14 @@ class Config:
     SQS_VISIBILITY_TIMEOUT: int = int(os.getenv("SQS_VISIBILITY_TIMEOUT", "300"))  # 5 minutes
     SQS_WAIT_TIME_SECONDS: int = int(os.getenv("SQS_WAIT_TIME_SECONDS", "20"))  # Long polling
 
+    # Audio Configuration
+    AUDIO_ENABLED: bool = os.getenv("AUDIO_ENABLED", "true").lower() == "true"
+    TTS_PROVIDER: str = os.getenv("TTS_PROVIDER", "bedrock")
+    TTS_VOICE_ID: str = os.getenv("TTS_VOICE_ID", "Joanna")
+    TTS_OUTPUT_FORMAT: str = os.getenv("TTS_OUTPUT_FORMAT", "mp3")
+    TTS_ENGINE: str = os.getenv("TTS_ENGINE", "neural")
+    TTS_CHUNK_SIZE: int = int(os.getenv("TTS_CHUNK_SIZE", "8192"))  # 8KB chunks
+
     # Fallback configuration
     MODEL_STATE: str = os.getenv("MODEL_STATE")
     MODEL_REGION_ACTIVE: str = os.getenv("MODEL_REGION_ACTIVE")

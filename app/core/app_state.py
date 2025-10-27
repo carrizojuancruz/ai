@@ -16,6 +16,7 @@ _user_sessions: "dict[UUID, OnboardingState]" = {}
 
 _onboarding_threads: "dict[str, OnboardingState]" = {}
 _sse_queues: dict[str, asyncio.Queue] = {}
+_audio_queues: dict[str, asyncio.Queue] = {}
 _thread_locks: dict[str, asyncio.Lock] = {}
 
 _last_emitted_text: dict[str, str] = {}
@@ -570,3 +571,66 @@ def reset_agents() -> dict[str, int]:
     logger.info(f"Agent reset completed. Cleared {total_cleared} items: {cleared_counts}")
 
     return cleared_counts
+
+
+# Audio queue management functions
+def get_audio_queue(thread_id: str) -> asyncio.Queue:
+    """Get or create audio queue for a thread.
+
+    Args:
+        thread_id: Unique thread identifier
+
+    Returns:
+        asyncio.Queue: Audio queue for the thread
+
+    """
+    if thread_id not in _audio_queues:
+        _audio_queues[thread_id] = asyncio.Queue()
+    return _audio_queues[thread_id]
+
+
+def drop_audio_queue(thread_id: str) -> None:
+    """Drop audio queue for a thread.
+
+    Args:
+        thread_id: Unique thread identifier
+
+    """
+    if thread_id in _audio_queues:
+        del _audio_queues[thread_id]
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[AUDIO QUEUE] Dropped audio queue for thread_id: {thread_id}")
+
+
+def get_audio_queue_count() -> int:
+    """Get the number of active audio queues.
+
+    Returns:
+        int: Number of active audio queues
+
+    """
+    return len(_audio_queues)
+
+
+def cleanup_audio_queues() -> int:
+    """Clean up empty audio queues.
+
+    Returns:
+        int: Number of queues cleaned up
+
+    """
+    empty_queues = []
+    for thread_id, queue in _audio_queues.items():
+        if queue.empty():
+            empty_queues.append(thread_id)
+
+    for thread_id in empty_queues:
+        del _audio_queues[thread_id]
+
+    if empty_queues:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[AUDIO QUEUE] Cleaned up {len(empty_queues)} empty audio queues")
+
+    return len(empty_queues)
