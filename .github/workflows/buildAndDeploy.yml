@@ -35,4 +35,4 @@ jobs:
       deploy_result: ${{ needs.deploy.result }}
       title: "FOS: ${{ github.repository }} -  ${{ github.ref_name }} Deployment"
     secrets:
-      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      SLACK_WEBHOOK_URL: ${{ vars.DEPLOY_SLACK_WEBHOOK_URL }}
