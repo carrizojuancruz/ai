@@ -8,6 +8,7 @@ import boto3
 from langchain_core.documents import Document
 
 from app.core.config import config
+from app.knowledge.vector_store.service import S3VectorStoreService
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +175,49 @@ class S3SyncService:
                 "error": str(e),
                 "s3_key": s3_key
             }
+
+    def delete_all_files(self) -> Dict[str, Any]:
+        """Delete all files from S3 bucket and their vectors using batch API."""
+        try:
+            files = self.list_files()
+            if not files:
+                return {"success": True, "total": 0, "succeeded": 0, "failed": 0, "total_vectors_deleted": 0}
+
+            succeeded = failed = total_vectors_deleted = 0
+            objects_to_delete = [{'Key': f['s3_key']} for f in files]
+            vector_service = S3VectorStoreService()
+
+            for i in range(0, len(objects_to_delete), 1000):
+                batch = objects_to_delete[i:i + 1000]
+                try:
+                    response = self.s3_client.delete_objects(
+                        Bucket=self.bucket_name,
+                        Delete={'Objects': batch, 'Quiet': True}
+                    )
+                    for deleted in response.get('Deleted', []):
+                        succeeded += 1
+                        source_id = self._generate_source_id(deleted['Key'])
+                        result = vector_service.delete_documents_by_source_id(source_id)
+                        total_vectors_deleted += result.get("vectors_deleted", 0)
+
+                    failed += len(response.get('Errors', []))
+
+                except Exception as e:
+                    logger.error(f"Batch delete error: {e}")
+                    failed += len(batch)
+
+            logger.info(f"Deleted {succeeded}/{len(files)} files, {total_vectors_deleted} vectors")
+            return {
+                "success": True,
+                "total": len(files),
+                "succeeded": succeeded,
+                "failed": failed,
+                "total_vectors_deleted": total_vectors_deleted
+            }
+
+        except Exception as e:
+            logger.error(f"Delete all error: {e}")
+            return {"success": False, "error": str(e)}
 
     async def sync_file(self, s3_key: str) -> Dict[str, Any]:
         """Sync a single S3 file to the vector store.

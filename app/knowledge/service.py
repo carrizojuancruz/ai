@@ -65,7 +65,7 @@ class KnowledgeService:
             logger.error(f"Failed to delete vectors for source {source.id}: {deletion_result['message']}")
             return {"success": False, "error": error_info}
 
-    async def upsert_source(self, source: Source) -> Dict[str, Any]:
+    async def upsert_source(self, source: Source, content_source: str = "external") -> Dict[str, Any]:
         import time
         start_time = time.time()
 
@@ -92,7 +92,7 @@ class KnowledgeService:
         logger.info(f"Split into {len(chunks)} chunks for {source.url}")
 
         for chunk in chunks:
-            chunk.metadata["content_source"] = "external"
+            chunk.metadata["content_source"] = content_source
 
         original_chunk_count = len(chunks)
         if len(chunks) > config.MAX_CHUNKS_PER_SOURCE:
@@ -252,7 +252,7 @@ class KnowledgeService:
                 metadata = vector.get('metadata', {})
 
                 chunks.append({
-                    'section_url': metadata.get('section_url', ''),
+                    'section_url': metadata.get('url', ''),
                     'content': metadata.get('content', '')
                 })
 

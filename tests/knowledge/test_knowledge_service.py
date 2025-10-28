@@ -366,8 +366,8 @@ class TestKnowledgeService:
                 mock_vector_store._iterate_vectors_by_source_id.side_effect = Exception("Vector store error")
             elif has_vectors:
                 vectors = [
-                    {"metadata": {"section_url": "https://example.com/section1", "content": "Test content 1"}},
-                    {"metadata": {"section_url": "https://example.com/section2", "content": "Test content 2"}}
+                    {"metadata": {"url": "https://example.com/section1", "content": "Test content 1"}},
+                    {"metadata": {"url": "https://example.com/section2", "content": "Test content 2"}}
                 ]
                 mock_vector_store._iterate_vectors_by_source_id.return_value = iter(vectors)
 

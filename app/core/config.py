@@ -178,6 +178,10 @@ class Config:
     CRAWL_TIMEOUT: int = int(os.getenv("CRAWL_TIMEOUT", "30"))
     MAX_DOCUMENTS_PER_SOURCE: int = int(os.getenv("MAX_DOCUMENTS_PER_SOURCE", "20"))
 
+    VERA_GUIDANCE_URL: Optional[str] = os.getenv("VERA_GUIDANCE_URL")
+    depth_env = os.getenv("VERA_GUIDANCE_RECURSION_DEPTH")
+    VERA_GUIDANCE_RECURSION_DEPTH: Optional[int] = int(depth_env) if depth_env else None
+
     # Search Configuration
     TOP_K_SEARCH: int = int(os.getenv("TOP_K_SEARCH", "5"))
     CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "1500"))

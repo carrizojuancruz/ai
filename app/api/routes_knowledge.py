@@ -1,5 +1,9 @@
+import hashlib
+
 from fastapi import APIRouter, HTTPException, UploadFile
 
+from app.core.config import config
+from app.knowledge.models import Source
 from app.knowledge.s3_sync_service import S3SyncService
 from app.knowledge.service import KnowledgeService
 
@@ -204,6 +208,22 @@ async def list_s3_files(prefix: str = ""):
         raise HTTPException(status_code=500, detail=f"Failed to list files: {str(e)}") from e
 
 
+@router.delete("/s3/files")
+async def delete_all_s3_files():
+    """Delete ALL files from S3 bucket and their vectors."""
+    try:
+        s3_sync_service = S3SyncService()
+        result = s3_sync_service.delete_all_files()
+
+        if result["success"]:
+            return result
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Bulk deletion failed"))
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Bulk deletion failed: {str(e)}") from e
+
+
 @router.delete("/s3/{s3_key:path}")
 async def delete_s3_file(s3_key: str, delete_vectors: bool = True):
     """Delete a file from S3 and optionally its vectors.
@@ -285,3 +305,49 @@ async def sync_s3_to_vectors(s3_key: str | None = None, sync_all: bool = False, 
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}") from e
+
+
+@router.post("/sync/internal")
+async def sync_internal_guidance():
+    """Sync internal guidance web pages to knowledge base."""
+    try:
+        if not config.VERA_GUIDANCE_URL:
+            raise HTTPException(status_code=400, detail="VERA_GUIDANCE_URL not configured")
+
+        url = config.VERA_GUIDANCE_URL
+        source_id = hashlib.sha256(url.encode()).hexdigest()[:16]
+
+        source = Source(
+            id=source_id,
+            name="Vera In-App Guidance",
+            url=url,
+            enabled=True,
+            type="Internal Documentation",
+            category="In-App Guidance",
+            description="Vera help center documentation",
+            recursion_depth=config.VERA_GUIDANCE_RECURSION_DEPTH
+        )
+
+        knowledge_service = KnowledgeService()
+        result = await knowledge_service.upsert_source(
+            source=source,
+            content_source="internal"
+        )
+
+        if result["success"]:
+            return {
+                "success": True,
+                "pages_crawled": result.get("documents_processed", 0),
+                "chunks_created": result.get("documents_added", 0),
+                "source_id": source.id
+            }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=result.get("message", "Sync failed")
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal sync failed: {str(e)}") from e

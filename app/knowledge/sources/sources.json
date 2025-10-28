@@ -357,5 +357,38 @@
     "section_urls": [
       "https://www.consumerfinance.gov/ask-cfpb/how-do-i-dispute-an-error-on-my-credit-report-en-314/"
     ]
+  },
+  {
+    "id": "10148ded198ebc65",
+    "name": "Vera In-App Guidance",
+    "url": "https://help.tellvera.com/en/",
+    "enabled": true,
+    "type": "Internal Documentation",
+    "category": "In-App Guidance",
+    "description": "Vera help center documentation",
+    "include_path_patterns": null,
+    "exclude_path_patterns": null,
+    "total_max_pages": null,
+    "recursion_depth": 3,
+    "last_sync": "2025-10-27T15:16:32Z",
+    "total_chunks": 25,
+    "section_urls": [
+      "https://help.tellvera.com/en/articles/12461218-how-can-i-connect-my-accounts",
+      "https://help.tellvera.com/en/articles/12579342-how-to-add-or-delete-your-goals",
+      "https://help.tellvera.com/en/",
+      "https://help.tellvera.com/en/articles/12588021-how-to-add-or-delete-payment-reminders",
+      "https://help.tellvera.com/en/articles/12623307-pin-or-unpin-messages-to-revisit-later",
+      "https://help.tellvera.com/en/articles/12634022-see-how-you-re-doing-reports-made-simple",
+      "https://help.tellvera.com/en/articles/12385680-vera-faqs",
+      "https://help.tellvera.com/en/collections/16182312-reports",
+      "https://help.tellvera.com/en/collections/12973462-your-financial-information",
+      "https://help.tellvera.com/en/articles/12634140-how-to-add-modify-or-delete-your-assets-and-liabilities",
+      "https://help.tellvera.com/en/collections/12973464-faq",
+      "https://help.tellvera.com/en/collections/16182460-general",
+      "https://help.tellvera.com/en/articles/12634527-net-worth-report",
+      "https://help.tellvera.com/en/articles/12611127-how-to-add-modify-or-delete-your-income-and-expenses",
+      "https://help.tellvera.com/en/articles/12634538-cash-flow-report",
+      "https://help.tellvera.com/en/articles/12417597-how-can-i-update-or-delete-my-financial-information"
+    ]
   }
 ]

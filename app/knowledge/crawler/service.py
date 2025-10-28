@@ -95,5 +95,6 @@ class CrawlerService:
         elif crawl_type == "sitemap":
             return SitemapLoader(source=source, max_pages=source.total_max_pages)
         else:
+            logger.info(f"Using recursive loader for {source.url} with max_pages={source.total_max_pages} and recursion_depth={source.recursion_depth}")
             return RecursiveLoader(source=source, max_pages=source.total_max_pages,
                                  max_depth=source.recursion_depth)

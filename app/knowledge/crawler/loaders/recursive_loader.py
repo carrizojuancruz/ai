@@ -17,10 +17,7 @@ class RecursiveLoader(BaseLoader):
     async def load_documents(self) -> List[Document]:
         try:
             exclude_dirs = UrlFilter.build_exclude_dirs(self.source)
-            max_docs_to_crawl = min(
-                self.kwargs.get('max_pages', self.source.total_max_pages),
-                config.MAX_DOCUMENTS_PER_SOURCE
-            )
+
             max_depth = self.kwargs.get('max_depth', self.source.recursion_depth)
 
             loader = RecursiveUrlLoader(
@@ -36,7 +33,11 @@ class RecursiveLoader(BaseLoader):
                 ssl=False
             )
 
-            raw_documents = loader.load()[:max_docs_to_crawl]
+            raw_documents = loader.load()
+
+            max_pages = self.kwargs.get('max_pages', self.source.total_max_pages)
+            if max_pages and len(raw_documents) > max_pages:
+                raw_documents = raw_documents[:max_pages]
 
             return [
                 self.create_document(

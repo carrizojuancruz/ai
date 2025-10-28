@@ -54,8 +54,7 @@ async def crawl_url(request: CrawlRequest) -> CrawlResponse:
             type="Temporary",
             category="Crawl Test",
             description=f"Temporary crawl for {request.url}",
-            total_max_pages=20,  # Default limit
-            recursion_depth=2,   # Default depth
+            recursion_depth=3,   # Default depth
             last_sync=datetime.now()
         )
 

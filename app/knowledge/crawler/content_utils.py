@@ -34,11 +34,68 @@ class ContentProcessor:
 
     @classmethod
     def extract_clean_text(cls, html: str) -> str:
+        """Extract content with semantic HTML tags preserved.
+
+        Keeps only meaningful content tags (h1-h6, p, ul, ol, li, a, etc.)
+        while removing UI framework noise (nav, header, footer, divs, etc.).
+        """
         if isinstance(html, bytes):
             html = html.decode('utf-8', errors='ignore')
+
         soup = BeautifulSoup(html, "lxml")
-        text = soup.get_text()
-        return cls.WHITESPACE_PATTERN.sub('\n\n', text).strip()
+
+        for element in soup(['script', 'style', 'meta', 'link', 'noscript', 'iframe',
+                            'header', 'footer', 'nav', 'form', 'button', 'svg', 'img']):
+            element.decompose()
+
+        main_content = (
+            soup.find('main') or
+            soup.find('article') or
+            soup.find(id='main-content') or
+            soup.find(class_=re.compile(r'(content|article|post|entry)', re.I)) or
+            soup.body or
+            soup
+        )
+
+        for link in main_content.find_all('a'):
+            if not link.get_text(strip=True):
+                link.decompose()
+
+        for br in main_content.find_all('br'):
+            br.replace_with(' ')
+
+        for tag in main_content.find_all(True):
+            if tag.name == 'a' and tag.get('href'):
+                href = tag['href']
+                if href and not href.startswith('#'):
+                    tag.attrs = {'href': href}
+                else:
+                    tag.unwrap()
+            else:
+                tag.attrs = {}
+
+        for tag_name in ['div', 'span', 'section', 'aside']:
+            for tag in main_content.find_all(tag_name):
+                tag.unwrap()
+
+        html_content = str(main_content)
+
+        html_content = re.sub(r'^<(main|body|html)[^>]*>', '', html_content, flags=re.IGNORECASE)
+        html_content = re.sub(r'</(main|body|html)>$', '', html_content, flags=re.IGNORECASE)
+
+        html_content = re.sub(r'<!--.*?-->', '', html_content, flags=re.DOTALL)
+
+        for _ in range(3):
+            html_content = re.sub(r'<(\w+)>\s*</\1>', '', html_content)
+
+        html_content = re.sub(r'\s+', ' ', html_content)
+
+        html_content = re.sub(r'(<[^/>]+>)\s+', r'\1', html_content)
+        html_content = re.sub(r'\s+(</[^>]+>)', r'\1', html_content)
+
+        html_content = html_content.strip()
+
+        return html_content
 class UrlFilter:
     EXCLUDED_EXTENSIONS: Set[str] = {
         '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico',
