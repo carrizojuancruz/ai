@@ -64,6 +64,25 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to start finance agent cleanup task: {e}")
 
     try:
+        from app.core.app_state import get_supervisor_graph
+
+        _ = get_supervisor_graph()
+        logger.info("Supervisor graph initialized successfully (Redis checkpointer ready)")
+    except Exception as e:
+        logger.error(f"Failed to initialize Supervisor graph (Redis checkpointer): {e}")
+
+    try:
+        from app.services.memory.checkpointer import redis_healthcheck
+
+        ok = await redis_healthcheck()
+        if ok:
+            logger.info("Redis checkpointer healthcheck passed on startup")
+        else:
+            logger.warning("Redis checkpointer not configured or unhealthy at startup; continuing")
+    except Exception as e:
+        logger.error(f"Redis healthcheck encountered an error: {e}")
+
+    try:
         yield
     finally:
         logger.info("Application shutdown - cleaning up resources")
@@ -170,6 +189,22 @@ async def database_health_check() -> dict:
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
         return {"status": "error", "database": {"connection_healthy": False, "error": str(e)}}
+
+
+@app.get("/health/redis")
+async def redis_health_check() -> dict:
+    """Check Redis checkpointer health by pinging Redis."""
+    try:
+        from app.services.memory.checkpointer import redis_healthcheck
+
+        ok = await redis_healthcheck()
+        if ok:
+            return {"status": "healthy"}
+        else:
+            return {"status": "unhealthy"}
+    except Exception as e:
+        logger.error(f"Redis health check failed: {e}")
+        return {"status": "error", "error": str(e)}
 
 
 @app.get("/actual_config")

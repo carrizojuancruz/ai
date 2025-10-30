@@ -10,7 +10,6 @@ from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import BaseMessage
 from langchain_core.messages.utils import count_tokens_approximately
 from langfuse.langchain import CallbackHandler
-from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import RunnableConfig
@@ -19,6 +18,7 @@ from langmem.short_term import RunningSummary
 from app.agents.supervisor.memory import episodic_capture, memory_context, memory_hotpath
 from app.agents.supervisor.summarizer import ConversationSummarizer
 from app.core.config import config as app_config
+from app.services.memory.checkpointer import get_supervisor_checkpointer
 from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
 from .handoff import create_task_description_handoff_tool
@@ -26,6 +26,13 @@ from .subgraph import create_supervisor_subgraph
 from .workers import finance_router, goal_agent
 
 logger = logging.getLogger(__name__)
+
+try:  # pragma: no cover - used only by external tests
+    from langgraph.checkpoint.memory import MemorySaver as _MemorySaver  # type: ignore
+
+    MemorySaver = _MemorySaver  # re-export for test compatibility
+except Exception:  # pragma: no cover
+    MemorySaver = None  # type: ignore
 
 TRACE_STAGE_RESTORED = "restored"
 TRACE_STAGE_AFTER_SUMMARIZE = "after_summarize"
@@ -118,7 +125,7 @@ def _create_goal_langfuse_callback():
         return None
 
 
-def compile_supervisor_graph() -> CompiledStateGraph:
+def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
     assign_to_finance_agent_with_description = create_task_description_handoff_tool(
         agent_name="finance_agent",
         description="Assign task to a finance agent for account and transaction queries.",
@@ -168,7 +175,8 @@ def compile_supervisor_graph() -> CompiledStateGraph:
         guardrail_config=guardrails,
         additional_model_request_fields={"reasoning_effort": app_config.SUPERVISOR_AGENT_REASONING_EFFORT},
     )
-    checkpointer = MemorySaver()
+    if checkpointer is None:
+        checkpointer = get_supervisor_checkpointer()
 
     if app_config.SUMMARY_MODEL_ID:
         summarize_model = ChatBedrockConverse(
@@ -324,5 +332,4 @@ def compile_supervisor_graph() -> CompiledStateGraph:
     builder.add_edge("wealth_router", "supervisor")
     builder.add_edge("goal_agent", "supervisor")
     store = create_s3_vectors_store_from_env()
-    checkpointer = MemorySaver()
     return builder.compile(store=store, checkpointer=checkpointer)

@@ -134,6 +134,18 @@ class Config:
     S3V_DIMS: int = int(os.getenv("S3V_DIMS", "1024"))
     S3V_MAX_TOP_K: int = int(os.getenv("S3V_MAX_TOP_K", "30"))
 
+    # Redis Configuration (populated exclusively via AWS Secrets -> aws_config)
+    REDIS_HOST: Optional[str] = None
+    REDIS_ENDPOINT: Optional[str] = None
+    REDIS_PORT: Optional[str] = None
+    REDIS_PASSWORD: Optional[str] = None
+    REDIS_USERNAME: Optional[str] = None
+    REDIS_ACCESS_STRING: Optional[str] = None
+    REDIS_TLS: Optional[str] = None
+    REDIS_TTL_DEFAULT: Optional[str] = None
+    REDIS_TTL_SESSION: Optional[str] = None
+    REDIS_TTL_SSE: Optional[str] = None
+
     # Langfuse Configuration (Guest)
     LANGFUSE_PUBLIC_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY")
     LANGFUSE_SECRET_KEY: Optional[str] = os.getenv("LANGFUSE_SECRET_KEY")
