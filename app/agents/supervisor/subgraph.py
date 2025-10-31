@@ -89,12 +89,32 @@ def create_supervisor_subgraph(
             return "tools"
         return "supervisor"
 
+    def route_start(state: MessagesState) -> str:
+        """Skip agent_node if handoff back detected on most recent message."""
+        messages = state.get("messages") or []
+        if not messages:
+            return "agent"
+
+        last_message = messages[-1]
+        last_role = getattr(last_message, "role", None)
+        if last_role is None and isinstance(last_message, dict):
+            last_role = last_message.get("role")
+
+        if last_role in ("user", "human"):
+            return "agent"
+
+        meta = getattr(last_message, "response_metadata", None) or (last_message.get("response_metadata") if isinstance(last_message, dict) else None)
+        if meta and meta.get("is_handoff_back"):
+            return "supervisor"
+
+        return "agent"
+
     workflow = StateGraph(MessagesState)
     workflow.add_node("agent", agent_node)
     workflow.add_node("tools", tool_node)
     workflow.add_node("supervisor", supervisor_node)
 
-    workflow.add_edge(START, "agent")
+    workflow.add_conditional_edges(START, route_start, {"agent": "agent", "supervisor": "supervisor"})
     workflow.add_conditional_edges("agent", should_continue)
     workflow.add_edge("tools", "agent")
 

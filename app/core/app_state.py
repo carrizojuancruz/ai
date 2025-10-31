@@ -25,6 +25,11 @@ _last_emitted_text: dict[str, str] = {}
 FINANCE_SAMPLES_CACHE_TTL_SECONDS: int = 600
 _finance_samples_cache: dict[str, dict[str, Any]] = {}
 
+# Taxonomy cache (global, by scope) - stores taxonomy data with TTL
+# Taxonomies change infrequently, so longer TTL than finance samples
+TAXONOMY_CACHE_TTL_SECONDS: int = 3600  # 1 hour
+_taxonomy_cache: dict[str, dict[str, Any]] = {}
+
 # Finance agent cache (per-user) - stores LangGraph agents with TTL
 FINANCE_AGENT_CACHE_TTL_SECONDS: int = 3600  # 1 hour
 _finance_agent_cache: dict[str, dict[str, Any]] = {}
@@ -187,6 +192,37 @@ def set_finance_samples(user_id: UUID, tx_samples_json: str, asset_samples_json:
 def invalidate_finance_samples(user_id: UUID) -> None:
     """Invalidate cached finance samples for a user."""
     _finance_samples_cache.pop(str(user_id), None)
+
+
+def get_cached_taxonomy(scope: str) -> dict[str, Any] | None:
+    """Return cached taxonomy data for a scope if fresh, else None."""
+    try:
+        entry = _taxonomy_cache.get(scope)
+        if not entry:
+            return None
+        cached_at = entry.get("cached_at", 0)
+        if (time.time() - float(cached_at)) > TAXONOMY_CACHE_TTL_SECONDS:
+            _taxonomy_cache.pop(scope, None)
+            return None
+        return entry.get("taxonomy_data")
+    except Exception:
+        return None
+
+
+def set_cached_taxonomy(scope: str, taxonomy_data: dict[str, Any]) -> None:
+    """Cache taxonomy data for a scope."""
+    _taxonomy_cache[scope] = {
+        "taxonomy_data": taxonomy_data,
+        "cached_at": time.time(),
+    }
+
+
+def invalidate_taxonomy_cache(scope: str | None = None) -> None:
+    """Invalidate cached taxonomy data. If scope is None, invalidates all."""
+    if scope is None:
+        _taxonomy_cache.clear()
+    else:
+        _taxonomy_cache.pop(scope, None)
 
 
 def get_cached_finance_agent(user_id: UUID) -> "CompiledStateGraph | None":

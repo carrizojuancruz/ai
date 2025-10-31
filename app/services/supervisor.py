@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 from langfuse import Langfuse
 from langfuse.langchain import CallbackHandler
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.types import Command
 
 from app.agents.supervisor.i18n import (
     _get_random_budget_completed,
@@ -777,5 +778,52 @@ class SupervisorService:
 
         except Exception as e:
             logger.exception(f"Failed to store conversation for thread {thread_id}: {e}")
+
+    async def resume_interrupt(self, *, thread_id: str, decision: dict[str, Any] | str | bool, confirm_id: Optional[str] = None) -> None:
+        """Resume a paused graph run for this thread with a decision payload.
+
+        The decision value becomes the return value of interrupt() inside the node.
+        """
+        q = get_sse_queue(thread_id)
+        await q.put({"event": "step.update", "data": {"status": "processing", "description": "Resuming approval"}})
+        await q.put({"event": "confirm.response", "data": {"decision": decision}})
+
+        graph: CompiledStateGraph = get_supervisor_graph()
+        session_store: InMemorySessionStore = get_session_store()
+        session_ctx = await session_store.get_session(thread_id) or {}
+
+        user_id = session_ctx.get("user_id")
+        configurable = {
+            "thread_id": thread_id,
+            "session_id": thread_id,
+            **session_ctx,
+            "user_id": user_id,
+            "confirm_decision": decision,
+            "confirm_id": confirm_id,
+        }
+
+        config_payload: dict[str, Any] = {
+            "configurable": configurable,
+            "thread_id": thread_id,
+        }
+
+        # Resume execution; the result is the updated supervisor state
+        result = await graph.ainvoke(Command(resume=decision), config=config_payload)
+
+        # Emit a final message if present
+        try:
+            response_text = ""
+            if isinstance(result, dict) and isinstance(result.get("messages"), list):
+                for msg in reversed(result["messages"]):
+                    content = getattr(msg, "content", None)
+                    if isinstance(content, str) and content.strip():
+                        response_text = content.strip()
+                        break
+            if response_text:
+                await q.put({"event": "message.completed", "data": {"content": response_text}})
+        except Exception:
+            pass
+
+        await q.put({"event": "step.update", "data": {"status": "presented", "description": _get_random_step_planning_completed()}})
 
 supervisor_service = SupervisorService()

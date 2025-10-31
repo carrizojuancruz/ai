@@ -139,6 +139,17 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
             State the timeframe used; keep the response concise.
         """,
     )
+    assign_to_finance_capture_agent_with_description = create_task_description_handoff_tool(
+        agent_name="finance_capture_agent",
+        description="Assign task to the finance capture agent for collecting user financial data.",
+        guidelines="""
+            Determine whether the user is adding an asset, liability, or manual transaction.
+            Collect structured fields and resolve missing information with focused follow-ups.
+            Map Vera categories while selecting Plaid category and subcategory from allowed options.
+            Present a concise human confirmation summary before any persistence.
+            Persist via the appropriate internal endpoint and report completion details back to the supervisor.
+        """,
+    )
     assign_to_goal_agent_with_description = create_task_description_handoff_tool(
         agent_name="goal_agent",
         description="Assign task to the goal agent for financial objectives.",
@@ -168,6 +179,9 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
         "trace": "enabled",
     }
 
+    if checkpointer is None:
+        checkpointer = get_supervisor_checkpointer()
+
     chat_bedrock = ChatBedrockConverse(
         model_id=app_config.SUPERVISOR_AGENT_MODEL_ID,
         region_name=app_config.SUPERVISOR_AGENT_MODEL_REGION,
@@ -175,8 +189,6 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
         guardrail_config=guardrails,
         additional_model_request_fields={"reasoning_effort": app_config.SUPERVISOR_AGENT_REASONING_EFFORT},
     )
-    if checkpointer is None:
-        checkpointer = get_supervisor_checkpointer()
 
     if app_config.SUMMARY_MODEL_ID:
         summarize_model = ChatBedrockConverse(
@@ -200,6 +212,7 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
         chat_bedrock,
         [
             assign_to_finance_agent_with_description,
+            assign_to_finance_capture_agent_with_description,
             assign_to_wealth_agent_with_description,
             assign_to_goal_agent_with_description,
         ],
@@ -301,16 +314,20 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
     builder.add_node(
         "supervisor",
         supervisor_agent_with_description,
-        destinations=("finance_agent", "goal_agent", "episodic_capture"),
+        destinations=("finance_agent", "finance_capture_agent", "goal_agent", "episodic_capture"),
     )
 
     # --- Specialist agent nodes ---
     builder.add_node("episodic_capture", episodic_capture)
     builder.add_node("finance_router", finance_router)
     from .finance_agent.agent import finance_agent as finance_worker
+    from .finance_capture_agent.subgraph import create_finance_capture_graph
     from .workers import wealth_router
 
+    finance_capture_graph = create_finance_capture_graph(checkpointer)
+
     builder.add_node("finance_agent", finance_worker)
+    builder.add_node("finance_capture_agent", finance_capture_graph)
     builder.add_node("wealth_router", wealth_router)
     builder.add_node("goal_agent", goal_agent)
 
@@ -329,6 +346,7 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
     builder.add_edge("memory_context", "supervisor")
     builder.add_edge("finance_router", "supervisor")
     builder.add_edge("finance_agent", "supervisor")
+    builder.add_edge("finance_capture_agent", "supervisor")
     builder.add_edge("wealth_router", "supervisor")
     builder.add_edge("goal_agent", "supervisor")
     store = create_s3_vectors_store_from_env()

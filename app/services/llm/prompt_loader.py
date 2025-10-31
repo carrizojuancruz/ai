@@ -11,6 +11,85 @@ import sys
 logger = logging.getLogger(__name__)
 
 
+def _clean_malformed_message_lines(text: str) -> str:
+    r"""Clean malformed message lines from conversation state.
+
+    When human-in-the-loop interrupts occur (e.g., LangGraph confirm_human),
+    they can leave malformed messages in the conversation state with empty
+    bullet points like "-" or "- ". These malformed lines break prompt loading
+    when recent messages are included in prompts.
+
+    This function removes lines that are:
+    - Just "-" (empty bullet point)
+    - End with " -" (incomplete bullet point)
+
+    Args:
+        text: Raw text from conversation messages that may contain malformed lines
+
+    Returns:
+        Cleaned text with malformed lines removed
+
+    Example:
+        >>> _clean_malformed_message_lines("Hello\n-\nWorld")
+        "Hello\nWorld"
+
+    """
+    if not text:
+        return text
+
+    lines = text.split('\n')
+    cleaned_lines = []
+    for line in lines:
+        stripped = line.rstrip()
+        if stripped and stripped != '-' and not stripped.endswith(' -'):
+            cleaned_lines.append(stripped)
+    return '\n'.join(cleaned_lines)
+
+
+def _normalize_markdown_bullets(text: str) -> str:
+    r"""Normalize markdown bullet formatting in prompts.
+
+    Ensures consistent markdown formatting by:
+    - Converting standalone "-" to "---" (horizontal rule)
+    - Normalizing bullet points to use "- " format (ensures space after dash)
+    - Preserving indentation when fixing bullet points
+
+    This is used to ensure prompts meet the formatting requirements enforced
+    by _validate_prompt_format() which requires bullets to use "- " format.
+
+    Args:
+        text: Prompt text that may contain improperly formatted bullets
+
+    Returns:
+        Normalized text with properly formatted markdown bullets
+
+    Example:
+        >>> _normalize_markdown_bullets("-item\n-text")
+        "- item\n- text"
+        >>> _normalize_markdown_bullets("  -item")
+        "  - item"
+
+    """
+    if not text:
+        return text
+
+    lines = []
+    for line in text.splitlines():
+        s = line.rstrip()
+        t = s.strip()
+        if t == "-":
+            s = "---"
+        else:
+            leading = len(s) - len(s.lstrip())
+            prefix, body = s[:leading], s[leading:]
+            bt = body.strip()
+            if bt.startswith("-") and not (bt.startswith("- ") or bt.startswith("---")):
+                body = "- " + body[1:].lstrip()
+                s = prefix + body
+        lines.append(s)
+    return "\n".join(lines)
+
+
 class PromptLoader:
     """Centralized prompt loader that enforces meta-invariants."""
 
@@ -41,6 +120,7 @@ class PromptLoader:
             "supervisor_delegation_template": self._get_supervisor_delegation_template_local,
             "memory_icebreaker_generation_prompt": self._get_memory_icebreaker_generation_prompt_local,
             "conversation_summarizer_instruction": self._get_conversation_summarizer_instruction_local,
+            "finance_capture_nova_intent_prompt": self._get_finance_capture_nova_intent_prompt,
         })
 
 
@@ -95,6 +175,11 @@ class PromptLoader:
         memory_prompts = sys.modules.get('app.services.llm.memory_prompts')
         if memory_prompts is None:
             from . import memory_prompts
+
+        text_param = kwargs.get('text', '')
+        if text_param:
+            kwargs['text'] = _clean_malformed_message_lines(text_param)
+
         return memory_prompts.MEMORY_HOTPATH_TRIGGER_CLASSIFIER_LOCAL.format(**kwargs).strip()
 
     def _get_memory_same_fact_classifier_local(self, **kwargs) -> str:
@@ -177,6 +262,21 @@ class PromptLoader:
             from . import utility_prompts
         summary_max_tokens = kwargs.get('summary_max_tokens', 100)
         return utility_prompts.CONVERSATION_SUMMARIZER_INSTRUCTION_LOCAL.format(summary_max_tokens=summary_max_tokens)
+
+    def _get_finance_capture_nova_intent_prompt(self, **kwargs) -> str:
+        agent_prompts = sys.modules.get('app.services.llm.agent_prompts')
+        if agent_prompts is None:
+            from . import agent_prompts
+
+        text = kwargs.get("text", "")
+        allowed_kinds: tuple[str, ...] = kwargs.get("allowed_kinds", ("asset", "liability", "manual_tx"))
+        plaid_expense_categories: tuple[str, ...] = kwargs.get("plaid_expense_categories", tuple())
+
+        return agent_prompts.build_finance_capture_nova_intent_prompt(
+            text=text,
+            allowed_kinds=allowed_kinds,
+            plaid_expense_categories=plaid_expense_categories,
+        )
 
 
     def _validate_prompt_format(self, text: str, name: str) -> None:

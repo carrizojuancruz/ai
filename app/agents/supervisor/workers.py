@@ -15,26 +15,6 @@ from .finance_agent.agent import finance_agent as finance_worker
 logger = logging.getLogger(__name__)
 
 
-def _extract_text_from_content(content: str | list[dict[str, Any]] | dict[str, Any] | None) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts: list[str] = []
-        for item in content:
-            if isinstance(item, dict):
-                value = item.get("text") or item.get("content") or ""
-                if isinstance(value, str):
-                    parts.append(value)
-        return "\n".join(parts).strip()
-    return ""
-
-
-
-
-
-
-
-
 async def wealth_agent(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
     """Wealth agent worker that handles wealth management and investment advice."""
     try:

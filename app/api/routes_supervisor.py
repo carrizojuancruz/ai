@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncGenerator
+from typing import Any, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.agents.supervisor.memory.icebreaker_consumer import debug_icebreaker_flow
 from app.core.app_state import get_sse_queue
@@ -78,6 +79,125 @@ async def supervisor_sse(thread_id: str, request: Request) -> StreamingResponse:
             drop_sse_queue(thread_id)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+class SupervisorConfirmPayload(BaseModel):
+    thread_id: str = Field(..., description="Thread ID of the conversation")
+    decision: dict[str, Any] | str | bool = Field(
+        ...,
+        description="Decision payload. Can be a boolean, string, or dict with 'action' and/or 'draft' fields.",
+        examples=[
+            # Approve (simple boolean)
+            True,
+            # Approve (string)
+            "approve",
+            # Cancel (boolean)
+            False,
+            # Cancel (dict with action)
+            {"action": "cancel"},
+            # Approve (dict with approved field)
+            {"approved": True},
+            # Edit with draft updates (dict with draft field)
+            {
+                "action": "edit",
+                "draft": {
+                    "name": "Updated Car Name",
+                    "estimated_value": "40000.0",
+                    "category": "Vehicles"
+                }
+            },
+            # Edit with only draft (action inferred)
+            {
+                "draft": {
+                    "name": "Updated Car Name",
+                    "estimated_value": "40000.0"
+                }
+            }
+        ]
+    )
+    confirm_id: Optional[str] = Field(None, description="Optional confirmation ID from the confirm.request event")
+
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "thread_id": "abc-123-def-456",
+                    "decision": True
+                },
+                {
+                    "thread_id": "abc-123-def-456",
+                    "decision": "approve"
+                },
+                {
+                    "thread_id": "abc-123-def-456",
+                    "decision": False
+                },
+                {
+                    "thread_id": "abc-123-def-456",
+                    "decision": {"approved": False}
+                },
+                {
+                    "thread_id": "abc-123-def-456",
+                    "decision": {
+                        "action": "edit",
+                        "draft": {
+                            "name": "Updated Car Name",
+                            "estimated_value": "45000.0"
+                        }
+                    }
+                },
+                {
+                    "thread_id": "abc-123-def-456",
+                    "decision": {
+                        "draft": {
+                            "name": "Updated Name",
+                            "estimated_value": "50000.0"
+                        }
+                    }
+                }
+            ]
+        }
+
+
+@router.post("/confirm")
+async def supervisor_confirm(payload: SupervisorConfirmPayload) -> dict:
+    """Resume an interrupted confirmation flow with a user decision.
+
+    This endpoint resumes a paused graph execution after a confirm.request event.
+
+    Decision Formats:
+        - Boolean: True to approve, False to cancel
+        - String: "approve", "cancel", "edit", etc.
+        - Dict with optional fields:
+            * "action": "approve" | "cancel" | "edit"
+            * "approved": boolean (alternative to action)
+            * "draft": dict with updated fields (for edits)
+
+    When editing, include a "draft" object with the fields you want to update.
+    The system will merge these changes with the existing draft and re-validate.
+
+    Examples:
+        Approve:
+            {"thread_id": "...", "decision": True}
+
+        Cancel:
+            {"thread_id": "...", "decision": {"approved": False}}
+
+        Edit with updates:
+            {
+                "thread_id": "...",
+                "decision": {
+                    "action": "edit",
+                    "draft": {
+                        "name": "Updated Name",
+                        "estimated_value": "45000.0"
+                    }
+                }
+            }
+
+    """
+    await supervisor_service.resume_interrupt(thread_id=payload.thread_id, decision=payload.decision, confirm_id=payload.confirm_id)
+    return {"status": "resumed"}
 
 
 @router.get("/debug/icebreaker/{user_id}")

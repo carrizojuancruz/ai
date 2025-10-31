@@ -12,7 +12,6 @@ from langgraph.types import Command, RunnableConfig
 
 from app.agents.supervisor.finance_agent.helpers import (
     create_error_command,
-    extract_text_from_content,
     get_last_user_message_text,
     get_user_id_from_messages,
     rows_to_json,
@@ -40,10 +39,6 @@ from app.repositories.postgres.finance_repository import FinanceTables
 from app.utils.tools import get_config_value
 
 logger = logging.getLogger(__name__)
-
-
-def _extract_text_from_content(content) -> str:
-    return extract_text_from_content(content)
 
 
 def _get_last_user_message_text(messages: list[HumanMessage | dict[str, Any]]) -> str:
