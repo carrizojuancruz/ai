@@ -43,7 +43,8 @@ Guidelines:
 - Reference user's name if available
 - Acknowledge any provided context naturally
 - End with an engaging question
-- Maintain Vera's personality: curious, sarcastic but not mean, quirky"""
+- Maintain Vera's personality: curious, sarcastic but not mean, quirky
+- No emojis or decorative unicode (e.g., ✅, 🎉, ✨, 😊, 🚀), but personality comes through word choice and tone"""
 
 # Title Generator User Prompt Template
 TITLE_GENERATOR_USER_PROMPT_TEMPLATE_LOCAL = """Analyze the following content and generate a title and summary:

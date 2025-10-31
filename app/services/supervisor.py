@@ -440,7 +440,8 @@ class SupervisorService:
             f"Initialize complete for user {uid}: thread={thread_id}, has_prior_summary={bool(prior_summary)}, icebreaker_used={icebreaker_used}"
         )
 
-        await queue.put({"event": "message.completed", "data": {"text": welcome}})
+        welcome_cleaned = _strip_emojis(welcome)
+        await queue.put({"event": "message.completed", "data": {"text": welcome_cleaned}})
 
         if voice:
             try:
@@ -450,7 +451,7 @@ class SupervisorService:
                 audio_service = get_audio_service()
                 await audio_service._synthesize_and_stream_audio(
                     thread_id,
-                    welcome,
+                    welcome_cleaned,
                     config.TTS_VOICE_ID,
                     config.TTS_OUTPUT_FORMAT,
                     get_audio_queue(thread_id)
