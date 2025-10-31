@@ -7,8 +7,10 @@ This document defines a communication scheme that masks internal calls to our ag
 ## Dictionary Structure
 
 The dictionary maps each type of agent or internal process with:
-- **Active state phrase** that is shown to the user while working
-- **Completed state phrase** that is shown when finished
+- **Active state phrase** that is shown to the user while the process is working
+- **Completed state phrase** that is shown when the process finishes
+
+**Important:** Each row in the table represents **one process** that transitions from "active" to "completed" state. This maps directly to the JSON structure where each process becomes a step object with an array of states.
 
 ## State Mapping Table
 
@@ -21,8 +23,38 @@ The dictionary maps each type of agent or internal process with:
 | Finance Agent | FinanceAgent query to Knowledge Base | **Option 1:** "Checking my financial references..."<br>**Option 2:** "Flipping through my financial notes..."<br>**Option 3:** "Looking up financial guidance..." | **Option 1:** "Financial references checked"<br>**Option 2:** "Notes found and ready"<br>**Option 3:** "Found the insights you need!" |
 | Education & Wealth CoachAgent | Education & Wealth CoachAgent call | **Option 1:** "Switching to guide mode for a sec..."<br>**Option 2:** "Switching to brainy mode..."<br>**Option 3:** "Activating coaching expertise..." | **Option 1:** "Knowledge mode activated"<br>**Option 2:** "Wisdom mode activated"<br>**Option 3:** "Learning mode ready to roll" |
 | Education & Wealth CoachAgent | E&WCA query to KB or notes | **Option 1:** "Pulling together some articles..."<br>**Option 2:** "Gathering helpful info for you..."<br>**Option 3:** "Collecting relevant resources..." | **Option 1:** "Helpful resources pulled together"<br>**Option 2:** "Found some info you can use"<br>**Option 3:** "Your learning notes are ready to go" |
+| KeeperAgent | KeeperAgent call | **Option 1:** "Formatting what you shared..."<br>**Option 2:** "Getting this ready to save..."<br>**Option 3:** "Organizing your info..." | **Option 1:** "Ready to register"<br>**Option 2:** "Info organized"<br>**Option 3:** "All set!" |
+| KeeperAgent | KeeperAgent presenting to user | **Option 1:** "Preparing the info to show you..."<br>**Option 2:** "Getting everything ready for you to review..."<br>**Option 3:** "Organizing the details to show you..." | **Option 1:** "Ready for your review"<br>**Option 2:** "Info prepared to show"<br>**Option 3:** "Details ready to review" |
+| KeeperAgent | KeeperAgent finalizing registration | **Option 1:** "Got it, registering..."<br>**Option 2:** "Ok, adding it to your records..."<br>**Option 3:** "All set, saving this..." | **Option 1:** "Registered!"<br>**Option 2:** "Done!"<br>**Option 3:** "All set!" |
 
 ## Dictionary Usage
+
+### Mapping Table Phrases to JSON Structure
+
+Each row in the State Mapping Table represents **one process** with its active and completed states:
+
+**Table entry:**
+```
+| KeeperAgent | KeeperAgent call | Option 1: "Formatting what you shared..." | Option 1: "Ready to register" |
+```
+
+**Maps to JSON structure:**
+```json
+{
+  "step": 2,
+  "process": "keeper_agent_format",
+  "states": [
+    { "message": "Formatting what you shared...", "status": "active" },
+    { "message": "Ready to register", "status": "completed" }
+  ]
+}
+```
+
+**Key points:**
+- **One process** = One row in the table = One step object in JSON
+- **States array** contains the active → completed transition
+- **Message field** comes from the dictionary options
+- The **timestamp** is captured when each state occurs
 
 ### Multiple Options Strategy
 Each agent state now includes **3 different phrase options** to:
@@ -83,16 +115,18 @@ Every intermediate text step that occurs during agent processing is **permanentl
 - **Debug Information**: Technical details for troubleshooting (when enabled)
 
 ### Timeline Structure
-The thinking timeline maintains a chronological record of:
+The thinking timeline maintains a chronological record of process steps:
 
-1. **During the process**: Users see steps in real-time
-2. **Upon completion**: Steps are saved in the timeline
-3. **Later access**: Users can view the complete process whenever they want
+1. **Each step** contains a process identifier and an array of states (active → completed)
+2. **During the process**: Users see state transitions in real-time as they occur
+3. **Upon completion**: Each step's state progression is saved in the timeline
+4. **Later access**: Users can view the complete process with all state transitions whenever they want
 
 ### What Gets Recorded
-- ✅ **State messages** (e.g., "Just a sec, I'm thinking...", "Goals checked!")
-- ✅ **Processing steps** (e.g., "Reviewing your goals...")
-- ✅ **Agent switches** (e.g., "Switching to guide mode for a sec...")
+- ✅ **Process steps** with their states (active → completed)
+- ✅ **State messages** for each process (e.g., "Just a sec, I'm thinking..." → "All set with the next move")
+- ✅ **Processing details** (e.g., "Reviewing your goals..." → "Goals checked!")
+- ✅ **Agent switches** and their lifecycle (e.g., "Switching to guide mode..." → "Knowledge mode activated")
 
 
 ### User Experience
@@ -100,23 +134,49 @@ The thinking timeline maintains a chronological record of:
 - **Trust**: Complete visibility into the reasoning process
 - **Learning**: Users understand Vera's decision-making patterns
 
-### Practical Example
+### Practical Example: Financial Agent 
 
 **User asks**: "How much should I save for retirement?"
 
-**Timeline the user sees**:
+**Timeline the user sees** (showing state transitions for each process):
 ```
-⏳ "Just a sec, I'm thinking..."
-✅ "All set with the next move"
-⏳ "Reviewing your goals..."
-✅ "Goals checked!"
-⏳ "Checking my financial references..."
-✅ "Found the insights you need!"
-⏳ "Switching to guide mode for a sec..."
-✅ "Knowledge mode activated"
+Step 1: step_planning
+⏳ "Just a sec, I'm thinking..." → ✅ "All set with the next move"
+
+Step 2: budget_agent_review
+⏳ "Reviewing your goals..." → ✅ "Goals checked!"
+
+Step 3: finance_agent_kb_query
+⏳ "Checking my financial references..." → ✅ "Found the insights you need!"
+
+Step 4: coach_agent_activation
+⏳ "Switching to guide mode for a sec..." → ✅ "Knowledge mode activated"
 ```
 
-**Result**: The user sees each step of the process and can expand the timeline to view all detailed steps.
+**Result**: The user sees each process step and its state transitions. Each process goes from "active" to "completed" state.
+
+### Practical Example 2: Keeper Agent
+
+**User says**: "I spent $50 at the supermarket yesterday"
+
+**Timeline the user sees** (showing state transitions for each process):
+```
+Step 1: step_planning
+⏳ "Just a sec, I'm thinking..." → ✅ "All set with the next move"
+
+Step 2: keeper_agent_format
+⏳ "Formatting what you shared..." → ✅ "Ready to register"
+
+Step 3: keeper_agent_presenting
+⏳ "Preparing the info to show you..."
+[Modal appears for user to review and confirm]
+✅ "Ready for your review"
+
+Step 4: keeper_agent_registration
+⏳ "Got it, registering..." → ✅ "Registered!"
+```
+
+**Result**: The user sees the complete flow from processing to confirmation to registration. Each process shows its active and completed states.
 
 ## Extensibility
 
@@ -128,60 +188,152 @@ This scheme is designed to grow with new agents and processes:
 ## Frontend Implementation
 
 ### Suggested Data Structure
+
+#### Example 1: BudgetAgent
 ```json
 {
   "user_message": "How much should I save for retirement?",
   "thinking_timeline": [
     {
       "step": 1,
-      "message": "Just a sec, I'm thinking...",
-      "status": "active",
-      "timestamp": "2024-01-15T10:30:15Z"
+      "process": "step_planning",
+      "states": [
+        {
+          "message": "Just a sec, I'm thinking...",
+          "status": "active",
+          "timestamp": "2024-01-15T10:30:15Z"
+        },
+        {
+          "message": "All set with the next move",
+          "status": "completed",
+          "timestamp": "2024-01-15T10:30:16Z"
+        }
+      ]
     },
     {
       "step": 2,
-      "message": "All set with the next move",
-      "status": "completed",
-      "timestamp": "2024-01-15T10:30:16Z"
+      "process": "budget_agent_review",
+      "states": [
+        {
+          "message": "Reviewing your goals...",
+          "status": "active",
+          "timestamp": "2024-01-15T10:30:17Z"
+        },
+        {
+          "message": "Goals checked!",
+          "status": "completed",
+          "timestamp": "2024-01-15T10:30:18Z"
+        }
+      ]
     },
     {
       "step": 3,
-      "message": "Reviewing your goals...",
-      "status": "active",
-      "timestamp": "2024-01-15T10:30:17Z"
+      "process": "finance_agent_kb_query",
+      "states": [
+        {
+          "message": "Checking my financial references...",
+          "status": "active",
+          "timestamp": "2024-01-15T10:30:19Z"
+        },
+        {
+          "message": "Found the insights you need!",
+          "status": "completed",
+          "timestamp": "2024-01-15T10:30:20Z"
+        }
+      ]
     },
     {
       "step": 4,
-      "message": "Goals checked!",
-      "status": "completed",
-      "timestamp": "2024-01-15T10:30:18Z"
-    },
-    {
-      "step": 5,
-      "message": "Checking my financial references...",
-      "status": "active",
-      "timestamp": "2024-01-15T10:30:19Z"
-    },
-    {
-      "step": 6,
-      "message": "Found the insights you need!",
-      "status": "completed",
-      "timestamp": "2024-01-15T10:30:20Z"
-    },
-    {
-      "step": 7,
-      "message": "Switching to guide mode for a sec...",
-      "status": "active",
-      "timestamp": "2024-01-15T10:30:21Z"
-    },
-    {
-      "step": 8,
-      "message": "Knowledge mode activated",
-      "status": "completed",
-      "timestamp": "2024-01-15T10:30:22Z"
+      "process": "coach_agent_activation",
+      "states": [
+        {
+          "message": "Switching to guide mode for a sec...",
+          "status": "active",
+          "timestamp": "2024-01-15T10:30:21Z"
+        },
+        {
+          "message": "Knowledge mode activated",
+          "status": "completed",
+          "timestamp": "2024-01-15T10:30:22Z"
+        }
+      ]
     }
   ],
   "final_response": "Based on your current budget and financial goals, I recommend saving 15-20% of your income for retirement. This would put you on track to maintain your current lifestyle..."
+}
+```
+
+#### Example 2: KeeperAgent
+```json
+{
+  "user_message": "I spent $50 at the supermarket yesterday",
+  "thinking_timeline": [
+    {
+      "step": 1,
+      "process": "step_planning",
+      "states": [
+        {
+          "message": "Just a sec, I'm thinking...",
+          "status": "active",
+          "timestamp": "2024-01-15T10:30:15Z"
+        },
+        {
+          "message": "All set with the next move",
+          "status": "completed",
+          "timestamp": "2024-01-15T10:30:16Z"
+        }
+      ]
+    },
+    {
+      "step": 2,
+      "process": "keeper_agent_format",
+      "states": [
+        {
+          "message": "Formatting what you shared...",
+          "status": "active",
+          "timestamp": "2024-01-15T10:30:17Z"
+        },
+        {
+          "message": "Ready to register",
+          "status": "completed",
+          "timestamp": "2024-01-15T10:30:18Z"
+        }
+      ]
+    },
+    {
+      "step": 3,
+      "process": "keeper_agent_presenting",
+      "states": [
+        {
+          "message": "Preparing the info to show you...",
+          "status": "active",
+          "timestamp": "2024-01-15T10:30:19Z"
+        },
+        {
+          "message": "Ready for your review",
+          "status": "completed",
+          "timestamp": "2024-01-15T10:30:45Z"
+        }
+      ]
+    },
+    {
+      "step": 4,
+      "process": "keeper_agent_registration",
+      "states": [
+        {
+          "message": "Got it, registering...",
+          "status": "active",
+          "timestamp": "2024-01-15T10:30:46Z"
+        },
+        {
+          "message": "Registered!",
+          "status": "completed",
+          "timestamp": "2024-01-15T10:30:47Z"
+        }
+      ]
+    }
+  ],
+  "final_response": "Registered: $50 in Food & Drinks - January 15, 2024"
 }
 ```
 
