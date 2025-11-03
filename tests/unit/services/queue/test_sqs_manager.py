@@ -427,7 +427,6 @@ class TestGetSQSManager:
     def test_singleton_pattern(self, mock_config, mock_boto3):
         mock_config.is_sqs_enabled.return_value = True
         mock_config.SQS_QUEUE_REGION = "us-east-1"
-        mock_config.SQS_NUDGES_AI_ICEBREAKER = "https://sqs.us-east-1.amazonaws.com/123456789/test-queue"
         mock_client = MagicMock()
         mock_boto3.client.return_value = mock_client
 
@@ -442,7 +441,6 @@ class TestGetSQSManager:
     def test_creates_new_instance_when_none(self, mock_config, mock_boto3):
         mock_config.is_sqs_enabled.return_value = True
         mock_config.SQS_QUEUE_REGION = "us-east-1"
-        mock_config.SQS_NUDGES_AI_ICEBREAKER = "https://sqs.us-east-1.amazonaws.com/123456789/test-queue"
         mock_client = MagicMock()
         mock_boto3.client.return_value = mock_client
 

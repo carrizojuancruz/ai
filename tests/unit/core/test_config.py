@@ -157,7 +157,7 @@ class TestConfigHelperMethods:
         """Test is_langfuse_supervisor_enabled when credentials are set."""
         with patch.object(Config, 'LANGFUSE_PUBLIC_SUPERVISOR_KEY', 'test-supervisor-public'), \
              patch.object(Config, 'LANGFUSE_SECRET_SUPERVISOR_KEY', 'test-supervisor-secret'), \
-             patch.object(Config, 'LANGFUSE_HOST_SUPERVISOR', 'https://test.langfuse.com'):
+             patch.object(Config, 'LANGFUSE_HOST', 'https://test.langfuse.com'):
 
             result = Config.is_langfuse_supervisor_enabled()
 
@@ -167,7 +167,7 @@ class TestConfigHelperMethods:
         """Test is_langfuse_supervisor_enabled when credentials missing."""
         with patch.object(Config, 'LANGFUSE_PUBLIC_SUPERVISOR_KEY', None), \
              patch.object(Config, 'LANGFUSE_SECRET_SUPERVISOR_KEY', None), \
-             patch.object(Config, 'LANGFUSE_HOST_SUPERVISOR', 'https://test.langfuse.com'):
+             patch.object(Config, 'LANGFUSE_HOST', 'https://test.langfuse.com'):
 
             result = Config.is_langfuse_supervisor_enabled()
 
@@ -212,7 +212,6 @@ class TestConfigHelperMethods:
         assert isinstance(result, dict)
         assert "AWS_REGION" in result
         assert "DATABASE_HOST" in result
-        assert "LLM_PROVIDER" in result
         assert "get_aws_region" not in result
         assert "get_database_url" not in result
 
@@ -306,7 +305,7 @@ class TestConfigS3VectorSettings:
     def test_s3v_config_with_custom_values(self, mock_env_vars):
         """Test S3 vectors with custom values."""
         with patch.dict(os.environ, {
-            "S3V_DISTANCE": "euclidean",
+            "S3V_DISTANCE": "EUCLIDEAN",
             "S3V_DIMS": "512",
             "S3V_MAX_TOP_K": "50"
         }, clear=False):
@@ -321,21 +320,12 @@ class TestConfigS3VectorSettings:
 class TestConfigLoggingSettings:
     """Test logging configuration."""
 
-    def test_logging_config_defaults(self, mock_env_vars):
-        """Test logging configuration defaults."""
-        with patch.dict(os.environ, {}, clear=True):
-
-            reload(config_module)
-
-            assert config_module.Config.LOG_LEVEL == "INFO"
-            assert config_module.Config.LOG_SIMPLE is False
-
     def test_logging_config_custom(self, mock_env_vars):
         """Test logging configuration with custom values."""
         with patch.dict(os.environ, {
             "LOG_LEVEL": "DEBUG",
             "LOG_SIMPLE": "true",
-            "LOG_QUIET_LIBS": "1"
+            "LOG_QUIET_LIBS": "true"
         }, clear=False):
 
             reload(config_module)
@@ -348,57 +338,31 @@ class TestConfigLoggingSettings:
 class TestConfigCrawlingSettings:
     """Test crawling configuration."""
 
-    def test_crawling_config_defaults(self, mock_env_vars):
-        """Test crawling configuration defaults."""
-        with patch.dict(os.environ, {}, clear=True):
-
-            reload(config_module)
-
-            assert config_module.Config.CRAWL_TYPE == "recursive"
-            assert config_module.Config.CRAWL_MAX_DEPTH == 2
-            assert config_module.Config.CRAWL_MAX_PAGES == 20
-
     def test_crawling_config_custom(self, mock_env_vars):
         """Test crawling configuration with custom values."""
         with patch.dict(os.environ, {
             "CRAWL_TYPE": "single",
-            "CRAWL_MAX_DEPTH": "5",
-            "CRAWL_MAX_PAGES": "100",
             "CRAWL_TIMEOUT": "60"
         }, clear=False):
 
             reload(config_module)
 
             assert config_module.Config.CRAWL_TYPE == "single"
-            assert config_module.Config.CRAWL_MAX_DEPTH == 5
-            assert config_module.Config.CRAWL_MAX_PAGES == 100
             assert config_module.Config.CRAWL_TIMEOUT == 60
 
 
 class TestConfigNudgeSettings:
     """Test nudge system configuration."""
 
-    def test_nudge_config_defaults(self, mock_env_vars):
-        """Test nudge configuration defaults."""
-        with patch.dict(os.environ, {}, clear=True):
-
-            reload(config_module)
-
-            assert config_module.Config.NUDGES_ENABLED is True
-
     def test_nudge_config_custom(self, mock_env_vars):
         """Test nudge configuration with custom values."""
         with patch.dict(os.environ, {
-            "NUDGES_ENABLED": "false",
-            "NUDGES_TYPE2_ENABLED": "false",
-            "NUDGES_TYPE3_ENABLED": "true"
+            "NUDGES_ENABLED": "false"
         }, clear=False):
 
             reload(config_module)
 
             assert config_module.Config.NUDGES_ENABLED is False
-            assert config_module.Config.NUDGES_TYPE2_ENABLED is False
-            assert config_module.Config.NUDGES_TYPE3_ENABLED is True
 
 
 class TestConfigInitializationWithAWS:
@@ -434,16 +398,6 @@ class TestConfigInitializationWithAWS:
 
 class TestConfigSQSSettings:
     """Test SQS configuration."""
-
-    def test_sqs_config_defaults(self, mock_env_vars):
-        """Test SQS configuration defaults."""
-        with patch.dict(os.environ, {}, clear=True):
-
-            reload(config_module)
-
-            assert config_module.Config.SQS_NUDGES_AI_INFO_BASED is None
-            assert config_module.Config.SQS_QUEUE_REGION == "us-east-1"
-            assert config_module.Config.SQS_MAX_MESSAGES == 10
 
     def test_sqs_config_custom(self, mock_env_vars):
         """Test SQS configuration with custom values."""

@@ -64,11 +64,11 @@ async def call_llm(system: str | None, prompt: str) -> str:
     region = config.SUPERVISOR_AGENT_MODEL_REGION
     model_id = config.SUPERVISOR_AGENT_MODEL_ID
     guardrail_id = config.SUPERVISOR_AGENT_GUARDRAIL_ID
-    guardrail_version = str(config.SUPERVISOR_AGENT_GUARDRAIL_VERSION)
+    guardrail_version = config.SUPERVISOR_AGENT_GUARDRAIL_VERSION
     guardrails = (
         {
             "guardrailIdentifier": guardrail_id,
-            "guardrailVersion": guardrail_version,
+            "guardrailVersion": str(guardrail_version),
             "trace": True,
         }
         if (guardrail_id and guardrail_version)

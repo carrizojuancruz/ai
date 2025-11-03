@@ -3,7 +3,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable
 
-from app.services.llm.client import get_llm_client
+from app.services.llm.bedrock import BedrockLLM
 
 from .types import Choice, FlowStep, InteractionType
 
@@ -82,7 +82,7 @@ def validate_name(response: str, state: "OnboardingState") -> tuple[bool, str | 
     raw = response.strip()
     name: str | None = None
     try:
-        llm = get_llm_client()
+        llm = BedrockLLM()
         schema = {"type": "object", "properties": {"preferred_name": {"type": ["string", "null"]}}}
         from app.services.llm.prompt_loader import prompt_loader
         instructions = prompt_loader.load("onboarding_name_extraction")
@@ -155,7 +155,7 @@ def validate_location(response: str, state: "OnboardingState") -> tuple[bool, st
         city = response.strip()
         region = None
         try:
-            llm = get_llm_client()
+            llm = BedrockLLM()
             schema = {
                 "type": "object",
                 "properties": {

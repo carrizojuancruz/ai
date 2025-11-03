@@ -191,7 +191,6 @@ def mock_config(mocker):
     mock.TOP_K_SEARCH = 5
     mock.CRAWL_TYPE = "recursive"
     mock.CRAWL_TIMEOUT = 30
-    mock.MAX_DOCUMENTS_PER_SOURCE = 1000
     mock.SOURCES_FILE_PATH = "/tmp/sources.json"
     return mock
 

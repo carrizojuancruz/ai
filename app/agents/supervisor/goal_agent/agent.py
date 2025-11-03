@@ -47,7 +47,7 @@ class GoalAgent:
         else:
             goal_pk = config.LANGFUSE_PUBLIC_GOAL_KEY
             goal_sk = config.LANGFUSE_SECRET_GOAL_KEY
-            goal_host = config.LANGFUSE_HOST_GOAL
+            goal_host = config.LANGFUSE_HOST
             self.callbacks = []
             if goal_pk and goal_sk and goal_host:
                 try:

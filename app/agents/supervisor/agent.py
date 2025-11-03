@@ -39,8 +39,8 @@ TRACE_STAGE_AFTER_SUMMARIZE = "after_summarize"
 TRACE_STAGE_AFTER_HOTPATH = "after_memory_hotpath"
 TRACE_STAGE_AFTER_CONTEXT = "after_memory_context"
 
-SUMMARY_MAX_SUMMARY_TOKENS_DEFAULT: int = int(app_config.SUMMARY_MAX_SUMMARY_TOKENS)
-SUMMARY_TAIL_TOKEN_BUDGET_DEFAULT: int = int(app_config.SUMMARY_TAIL_TOKEN_BUDGET)
+SUMMARY_MAX_SUMMARY_TOKENS_DEFAULT: int | None = app_config.SUMMARY_MAX_SUMMARY_TOKENS
+SUMMARY_TAIL_TOKEN_BUDGET_DEFAULT: int | None = app_config.SUMMARY_TAIL_TOKEN_BUDGET
 
 
 def log_state_snapshot(
@@ -110,7 +110,7 @@ def _create_goal_langfuse_callback():
     """Create Langfuse callback handler for goal agent tracing."""
     goal_pk = app_config.LANGFUSE_PUBLIC_GOAL_KEY
     goal_sk = app_config.LANGFUSE_SECRET_GOAL_KEY
-    goal_host = app_config.LANGFUSE_HOST_GOAL
+    goal_host = app_config.LANGFUSE_HOST
 
     if goal_pk and goal_sk and goal_host:
         try:
@@ -303,7 +303,10 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
     def should_summarize(state: SupervisorState, run_config: RunnableConfig | None = None) -> dict[str, Any]:
         ctx = state.get("context", {}) or {}
         total = int(ctx.get("state_visible_tokens", 0))
-        threshold = int(app_config.SUMMARY_MAX_TOKENS_BEFORE)
+        threshold = app_config.SUMMARY_MAX_TOKENS_BEFORE
+        if threshold is None:
+            logger.warning("SUMMARY_MAX_TOKENS_BEFORE not set, skipping summarization")
+            return {"should_summarize": False}
         decision = total >= threshold
         logger.info("summ.gate visible_tokens=%d threshold=%d decision=%s", total, threshold, decision)
         return {"should_summarize": decision}

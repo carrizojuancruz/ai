@@ -40,7 +40,7 @@ def get_tts_service() -> Optional[TTSService]:
         return _tts_service
 
     # Create new instance based on configuration
-    provider = config.TTS_PROVIDER.lower()
+    provider = config.TTS_PROVIDER.lower() if config.TTS_PROVIDER else None
 
     try:
         if provider == "bedrock":

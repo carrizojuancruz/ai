@@ -332,11 +332,11 @@ class TestOnboardingAgent:
         assert len(message_events) >= 1
 
     @pytest.mark.asyncio
-    @patch('app.agents.onboarding.flow_definitions.get_llm_client')
-    async def test_process_message_with_events_completion(self, mock_get_llm_client, onboarding_agent, sample_user_id):
+    @patch('app.agents.onboarding.flow_definitions.BedrockLLM')
+    async def test_process_message_with_events_completion(self, mock_bedrock_class, onboarding_agent, sample_user_id):
         """Test process_message_with_events when onboarding reaches completion."""
         # Mock LLM client to avoid real calls
-        mock_llm = mock_get_llm_client.return_value
+        mock_llm = mock_bedrock_class.return_value
         mock_llm.extract.return_value = None
 
         # Create a state that's about to complete (STEP_DOB_QUICK with valid age)
@@ -367,11 +367,11 @@ class TestOnboardingAgent:
         assert final_state.user_context.ready_for_orchestrator is True
 
     @pytest.mark.asyncio
-    @patch('app.agents.onboarding.flow_definitions.get_llm_client')
-    async def test_process_message_with_events_step_transition_streaming(self, mock_get_llm_client, onboarding_agent, sample_user_id):
+    @patch('app.agents.onboarding.flow_definitions.BedrockLLM')
+    async def test_process_message_with_events_step_transition_streaming(self, mock_bedrock_class, onboarding_agent, sample_user_id):
         """Test process_message_with_events with step transition and token streaming."""
         # Mock LLM client to avoid real calls
-        mock_llm = mock_get_llm_client.return_value
+        mock_llm = mock_bedrock_class.return_value
         mock_llm.extract.return_value = None
 
         # Start from STEP_1_CHOICE and provide an answer that moves to STEP_2_DOB

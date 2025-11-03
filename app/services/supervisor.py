@@ -50,7 +50,7 @@ if config.LANGFUSE_PUBLIC_SUPERVISOR_KEY and config.LANGFUSE_SECRET_SUPERVISOR_K
         Langfuse(
             public_key=config.LANGFUSE_PUBLIC_SUPERVISOR_KEY,
             secret_key=config.LANGFUSE_SECRET_SUPERVISOR_KEY,
-            host=config.LANGFUSE_HOST_SUPERVISOR,
+            host=config.LANGFUSE_HOST,
         )
         langfuse_handler = CallbackHandler(public_key=config.LANGFUSE_PUBLIC_SUPERVISOR_KEY)
     except Exception as e:
@@ -58,12 +58,12 @@ if config.LANGFUSE_PUBLIC_SUPERVISOR_KEY and config.LANGFUSE_SECRET_SUPERVISOR_K
         langfuse_handler = None
 
 langfuse_goal_handler = None
-if config.LANGFUSE_PUBLIC_GOAL_KEY and config.LANGFUSE_SECRET_GOAL_KEY and config.LANGFUSE_HOST_GOAL:
+if config.LANGFUSE_PUBLIC_GOAL_KEY and config.LANGFUSE_SECRET_GOAL_KEY:
     try:
         Langfuse(
             public_key=config.LANGFUSE_PUBLIC_GOAL_KEY,
             secret_key=config.LANGFUSE_SECRET_GOAL_KEY,
-            host=config.LANGFUSE_HOST_GOAL,
+            host=config.LANGFUSE_HOST,
         )
         langfuse_goal_handler = CallbackHandler(public_key=config.LANGFUSE_PUBLIC_GOAL_KEY, update_trace=True)
         logger.info("[Langfuse][supervisor] Goal agent callback handler initialized")

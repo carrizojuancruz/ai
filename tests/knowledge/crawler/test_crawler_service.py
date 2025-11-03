@@ -14,7 +14,6 @@ class TestCrawlerService:
         mock = mocker.patch('app.knowledge.crawler.service.config')
         mock.CRAWL_TYPE = "recursive"
         mock.CRAWL_TIMEOUT = 30
-        mock.MAX_DOCUMENTS_PER_SOURCE = 1000
         return mock
 
     @pytest.fixture

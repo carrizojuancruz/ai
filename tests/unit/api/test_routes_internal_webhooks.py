@@ -11,10 +11,9 @@ class TestAuditConfigConfiguration:
     def test_returns_audit_structure(self, mock_config):
         mock_config.AWS_REGION = "us-east-1"
         mock_config.DATABASE_HOST = "localhost"
-        mock_config.LLM_PROVIDER = "bedrock"
         mock_config.MEMORY_MERGE_TOPK = 5
 
-        mock_attrs = ["AWS_REGION", "DATABASE_HOST", "LLM_PROVIDER", "MEMORY_MERGE_TOPK"]
+        mock_attrs = ["AWS_REGION", "DATABASE_HOST", "MEMORY_MERGE_TOPK"]
         with patch("builtins.dir", return_value=mock_attrs):
             result = _audit_config_configuration()
 

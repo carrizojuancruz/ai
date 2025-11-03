@@ -13,7 +13,12 @@ def configure_logging(level: str | None = None) -> None:
 
     Respects LOG_LEVEL env var; defaults to INFO.
     """
-    log_level = (level or config.LOG_LEVEL).upper()
+    if level:
+        log_level = level.upper()
+    elif config.LOG_LEVEL:
+        log_level = config.LOG_LEVEL.upper()
+    else:
+        log_level = DEFAULT_LOG_LEVEL
     simple = config.LOG_SIMPLE
     fmt = "%(message)s" if simple else "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
     datefmt = config.LOG_DATEFMT
@@ -26,9 +31,10 @@ def configure_logging(level: str | None = None) -> None:
     logging.basicConfig(level=log_level, format=fmt, datefmt=datefmt)
 
     if config.LOG_QUIET_LIBS:
+        lib_level = config.LOG_LIB_LEVEL or "WARNING"
         for noisy in ("uvicorn", "uvicorn.error", "uvicorn.access", "botocore", "boto3"):
             with contextlib.suppress(Exception):
-                logging.getLogger(noisy).setLevel(config.LOG_LIB_LEVEL)
+                logging.getLogger(noisy).setLevel(lib_level)
 
 
 def get_logger(name: str) -> logging.Logger:

@@ -5,11 +5,31 @@ Centralizes all environment variables and provides type-safe access to configura
 
 import logging
 import os
-from typing import Optional
+from typing import Optional, TypeVar
 
 from app.core.aws_config import AWSConfig
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar('T', int, float, bool)
+
+
+def get_optional_value(env_var: str, cast_type: type[T]) -> Optional[T]:
+    value = os.getenv(env_var)
+    if value is None:
+        return None
+    if cast_type is bool:
+        v = value.strip().lower()
+        if v == "true":
+            return True
+        if v == "false":
+            return False
+        raise ValueError(f"Invalid boolean value for {env_var}: {value!r}. Must be 'true' or 'false'.")
+    try:
+        return cast_type(value)
+    except (ValueError, TypeError) as e:
+        logger.warning(f"Invalid value for environment variable '{env_var}': '{value}' cannot be cast to {cast_type.__name__}")
+        raise ValueError(f"Configuration error: environment variable '{env_var}' has invalid value '{value}' for type {cast_type.__name__}") from e
 
 
 class Config:
@@ -19,43 +39,48 @@ class Config:
     """
 
     # Semantic Memory Merge Configuration
-    MEMORY_MERGE_TOPK: int = int(os.getenv("MEMORY_MERGE_TOPK", "5"))
-    MEMORY_MERGE_AUTO_UPDATE: float = float(os.getenv("MEMORY_MERGE_AUTO_UPDATE", "0.85"))
-    MEMORY_MERGE_CHECK_LOW: float = float(os.getenv("MEMORY_MERGE_CHECK_LOW", "0.60"))
-    MEMORY_MERGE_MODE: str = os.getenv("MEMORY_MERGE_MODE", "recreate")
-    MEMORY_SEMANTIC_MIN_IMPORTANCE: int = int(os.getenv("MEMORY_SEMANTIC_MIN_IMPORTANCE", "1"))
-    MEMORY_MERGE_FALLBACK_ENABLED: bool = os.getenv("MEMORY_MERGE_FALLBACK_ENABLED", "true").lower() == "true"
-    MEMORY_MERGE_FALLBACK_LOW: float = float(os.getenv("MEMORY_MERGE_FALLBACK_LOW", "0.30"))
-    MEMORY_MERGE_FALLBACK_TOPK: int = int(os.getenv("MEMORY_MERGE_FALLBACK_TOPK", "3"))
-    MEMORY_MERGE_FALLBACK_RECENCY_DAYS: int = int(os.getenv("MEMORY_MERGE_FALLBACK_RECENCY_DAYS", "90"))
-    MEMORY_MERGE_FALLBACK_CATEGORIES: str = os.getenv("MEMORY_MERGE_FALLBACK_CATEGORIES", "Personal,Goals")
+    MEMORY_MERGE_TOPK: Optional[int] = get_optional_value("MEMORY_MERGE_TOPK", int)
+    MEMORY_MERGE_AUTO_UPDATE: Optional[float] = get_optional_value("MEMORY_MERGE_AUTO_UPDATE", float)
+    MEMORY_MERGE_CHECK_LOW: Optional[float] = get_optional_value("MEMORY_MERGE_CHECK_LOW", float)
+    MEMORY_MERGE_MODE: Optional[str] = os.getenv("MEMORY_MERGE_MODE")
+    MEMORY_SEMANTIC_MIN_IMPORTANCE: Optional[int] = get_optional_value("MEMORY_SEMANTIC_MIN_IMPORTANCE", int)
+    MEMORY_MERGE_FALLBACK_ENABLED: Optional[bool] = get_optional_value("MEMORY_MERGE_FALLBACK_ENABLED", bool)
+    MEMORY_MERGE_FALLBACK_LOW: Optional[float] = get_optional_value("MEMORY_MERGE_FALLBACK_LOW", float)
+    MEMORY_MERGE_FALLBACK_TOPK: Optional[int] = get_optional_value("MEMORY_MERGE_FALLBACK_TOPK", int)
+    MEMORY_MERGE_FALLBACK_RECENCY_DAYS: Optional[int] = get_optional_value("MEMORY_MERGE_FALLBACK_RECENCY_DAYS", int)
+    MEMORY_MERGE_FALLBACK_CATEGORIES: Optional[str] = os.getenv("MEMORY_MERGE_FALLBACK_CATEGORIES")
 
     # Episodic Memory Configuration
-    EPISODIC_COOLDOWN_TURNS: int = int(os.getenv("EPISODIC_COOLDOWN_TURNS", "3"))
-    EPISODIC_COOLDOWN_MINUTES: int = int(os.getenv("EPISODIC_COOLDOWN_MINUTES", "10"))
-    EPISODIC_MAX_PER_DAY: int = int(os.getenv("EPISODIC_MAX_PER_DAY", "5"))
-    EPISODIC_WINDOW_N: int = int(os.getenv("EPISODIC_WINDOW_N", "10"))
-    EPISODIC_MERGE_WINDOW_HOURS: int = int(os.getenv("EPISODIC_MERGE_WINDOW_HOURS", "48"))
-    EPISODIC_NOVELTY_MIN: float = float(os.getenv("EPISODIC_NOVELTY_MIN", "0.90"))
+    EPISODIC_COOLDOWN_TURNS: Optional[int] = get_optional_value("EPISODIC_COOLDOWN_TURNS", int)
+    EPISODIC_COOLDOWN_MINUTES: Optional[int] = get_optional_value("EPISODIC_COOLDOWN_MINUTES", int)
+    EPISODIC_MAX_PER_DAY: Optional[int] = get_optional_value("EPISODIC_MAX_PER_DAY", int)
+    EPISODIC_WINDOW_N: Optional[int] = get_optional_value("EPISODIC_WINDOW_N", int)
+    EPISODIC_MERGE_WINDOW_HOURS: Optional[int] = get_optional_value("EPISODIC_MERGE_WINDOW_HOURS", int)
+    EPISODIC_NOVELTY_MIN: Optional[float] = get_optional_value("EPISODIC_NOVELTY_MIN", float)
     MEMORY_TINY_LLM_MODEL_ID: str = os.getenv("MEMORY_TINY_LLM_MODEL_ID")
+
     # Memory Context Configuration
-    MEMORY_CONTEXT_TOPK: int = int(os.getenv("MEMORY_CONTEXT_TOPK", "24"))
-    MEMORY_CONTEXT_TOPN: int = int(os.getenv("MEMORY_CONTEXT_TOPN", "5"))
-    MEMORY_RERANK_WEIGHTS: str = os.getenv("MEMORY_RERANK_WEIGHTS", "sim=0.55,imp=0.20,recency=0.15,pinned=0.10")
+    MEMORY_CONTEXT_TOPK: Optional[int] = get_optional_value("MEMORY_CONTEXT_TOPK", int)
+    MEMORY_CONTEXT_TOPN: Optional[int] = get_optional_value("MEMORY_CONTEXT_TOPN", int)
+    MEMORY_RERANK_WEIGHTS: str = os.getenv("MEMORY_RERANK_WEIGHTS")
 
     # Procedural Memory (Supervisor) Configuration
-    MEMORY_PROCEDURAL_TOPK: int = int(os.getenv("MEMORY_PROCEDURAL_TOPK", "3"))
-    MEMORY_PROCEDURAL_MIN_SCORE: float = float(os.getenv("MEMORY_PROCEDURAL_MIN_SCORE", "0.45"))
+    MEMORY_PROCEDURAL_TOPK: Optional[int] = get_optional_value("MEMORY_PROCEDURAL_TOPK", int)
+    MEMORY_PROCEDURAL_MIN_SCORE: Optional[float] = get_optional_value("MEMORY_PROCEDURAL_MIN_SCORE", float)
 
     # Conversation Summarization system
-    SUMMARY_MAX_TOKENS_BEFORE: int = int(os.getenv("SUMMARY_MAX_TOKENS_BEFORE", "100000"))
-    SUMMARY_MAX_SUMMARY_TOKENS: int = int(os.getenv("SUMMARY_MAX_SUMMARY_TOKENS", "256"))
-    SUMMARY_TAIL_TOKEN_BUDGET: int = int(os.getenv("SUMMARY_TAIL_TOKEN_BUDGET", "30000"))
+    SUMMARY_MAX_TOKENS_BEFORE: Optional[int] = get_optional_value("SUMMARY_MAX_TOKENS_BEFORE", int)
+    SUMMARY_MAX_SUMMARY_TOKENS: Optional[int] = get_optional_value("SUMMARY_MAX_SUMMARY_TOKENS", int)
+    SUMMARY_MAX_TOKENS: Optional[int] = get_optional_value("SUMMARY_MAX_TOKENS", int)
+    SUMMARY_TAIL_TOKEN_BUDGET: Optional[int] = get_optional_value("SUMMARY_TAIL_TOKEN_BUDGET", int)
     SUMMARY_MODEL_ID: Optional[str] = os.getenv("SUMMARY_MODEL_ID")
+    SUMMARY_MODEL_REGION: Optional[str] = os.getenv("SUMMARY_MODEL_REGION")
+    SUMMARY_GUARDRAIL_ID: Optional[str] = os.getenv("SUMMARY_GUARDRAIL_ID")
+    SUMMARY_GUARDRAIL_VERSION: Optional[str] = os.getenv("SUMMARY_GUARDRAIL_VERSION")
 
     # Finance Procedural (templates/hints for chartable SQL)
-    FINANCE_PROCEDURAL_TOPK: int = int(os.getenv("FINANCE_PROCEDURAL_TOPK", "3"))
-    FINANCE_PROCEDURAL_MIN_SCORE: float = float(os.getenv("FINANCE_PROCEDURAL_MIN_SCORE", "0.45"))
+    FINANCE_PROCEDURAL_TOPK: Optional[int] = get_optional_value("FINANCE_PROCEDURAL_TOPK", int)
+    FINANCE_PROCEDURAL_MIN_SCORE: Optional[float] = get_optional_value("FINANCE_PROCEDURAL_MIN_SCORE", float)
 
     # AWS Configuration
     AWS_REGION: str = os.getenv("AWS_REGION")
@@ -64,75 +89,71 @@ class Config:
 
     # Application Environment
     ENVIRONMENT: str = os.getenv("ENVIRONMENT")
-    DEBUG: bool = os.getenv("DEBUG", "false").lower() in {"true", "1", "yes", "on"}
+    DEBUG: Optional[bool] = get_optional_value("DEBUG", bool)
 
     # AI Models Configuration
-    BEDROCK_EMBED_MODEL_ID: str = os.getenv("BEDROCK_EMBED_MODEL_ID", "amazon.titan-embed-text-v1")
-
-    # LLM Configuration
-    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "bedrock")
+    BEDROCK_EMBED_MODEL_ID: str = os.getenv("BEDROCK_EMBED_MODEL_ID")
 
     # Wealth Agent Configuration
     WEALTH_AGENT_MODEL_ID: str = os.getenv("WEALTH_AGENT_MODEL_ID")
-    WEALTH_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("WEALTH_AGENT_GUARDRAIL_ID")
-    WEALTH_AGENT_GUARDRAIL_VERSION: str = os.getenv("WEALTH_AGENT_GUARDRAIL_VERSION")
     WEALTH_AGENT_MODEL_REGION: str = os.getenv("WEALTH_AGENT_MODEL_REGION")
-    WEALTH_AGENT_TEMPERATURE: float = float(os.getenv("WEALTH_AGENT_TEMPERATURE", "0.2"))
-    WEALTH_AGENT_MAX_TOOL_CALLS: int = int(os.getenv("WEALTH_AGENT_MAX_TOOL_CALLS", "7"))
-    WEALTH_AGENT_REASONING_EFFORT: str = os.getenv("WEALTH_AGENT_REASONING_EFFORT", "low")
+    WEALTH_AGENT_TEMPERATURE: Optional[float] = get_optional_value("WEALTH_AGENT_TEMPERATURE", float)
+    WEALTH_AGENT_MAX_TOOL_CALLS: Optional[int] = get_optional_value("WEALTH_AGENT_MAX_TOOL_CALLS", int)
+    WEALTH_AGENT_REASONING_EFFORT: str = os.getenv("WEALTH_AGENT_REASONING_EFFORT")
+    WEALTH_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("WEALTH_AGENT_GUARDRAIL_ID")
+    WEALTH_AGENT_GUARDRAIL_VERSION: Optional[str] = os.getenv("WEALTH_AGENT_GUARDRAIL_VERSION")
 
     # Goal Agent Configuration
     GOAL_AGENT_MODEL_ID: str = os.getenv("GOAL_AGENT_MODEL_ID")
-    GOAL_AGENT_PROVIDER: str = os.getenv("GOAL_AGENT_PROVIDER", "anthropic")
+    GOAL_AGENT_PROVIDER: str = os.getenv("GOAL_AGENT_PROVIDER")
+    GOAL_AGENT_MODEL_REGION: str = os.getenv("GOAL_AGENT_MODEL_REGION")
+    GOAL_AGENT_TEMPERATURE: Optional[float] = get_optional_value("GOAL_AGENT_TEMPERATURE", float)
     GOAL_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("GOAL_AGENT_GUARDRAIL_ID")
-    GOAL_AGENT_GUARDRAIL_VERSION: str = os.getenv("GOAL_AGENT_GUARDRAIL_VERSION")
-    GOAL_AGENT_MODEL_REGION: str = os.getenv("GOAL_AGENT_MODEL_REGION", "us-east-1")
-    GOAL_AGENT_TEMPERATURE: float = float(os.getenv("GOAL_AGENT_TEMPERATURE", "0.2"))
+    GOAL_AGENT_GUARDRAIL_VERSION: Optional[str] = os.getenv("GOAL_AGENT_GUARDRAIL_VERSION")
 
     # Financial Agent Configuration
     FINANCIAL_AGENT_MODEL_ID: str = os.getenv("FINANCIAL_AGENT_MODEL_ID")
-    FINANCIAL_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("FINANCIAL_AGENT_GUARDRAIL_ID")
-    FINANCIAL_AGENT_GUARDRAIL_VERSION: str = os.getenv("FINANCIAL_AGENT_GUARDRAIL_VERSION")
     FINANCIAL_AGENT_MODEL_REGION: str = os.getenv("FINANCIAL_AGENT_MODEL_REGION")
-    FINANCIAL_AGENT_TEMPERATURE: float = float(os.getenv("FINANCIAL_AGENT_TEMPERATURE", "0.2"))
-    FINANCIAL_AGENT_REASONING_EFFORT: str = os.getenv("FINANCIAL_AGENT_REASONING_EFFORT", "low")
+    FINANCIAL_AGENT_TEMPERATURE: Optional[float] = get_optional_value("FINANCIAL_AGENT_TEMPERATURE", float)
+    FINANCIAL_AGENT_REASONING_EFFORT: str = os.getenv("FINANCIAL_AGENT_REASONING_EFFORT")
+    FINANCIAL_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("FINANCIAL_AGENT_GUARDRAIL_ID")
+    FINANCIAL_AGENT_GUARDRAIL_VERSION: Optional[str] = os.getenv("FINANCIAL_AGENT_GUARDRAIL_VERSION")
 
     # Guest Agent Configuration
     GUEST_AGENT_MODEL_ID: str = os.getenv("GUEST_AGENT_MODEL_ID")
-    GUEST_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("GUEST_AGENT_GUARDRAIL_ID")
-    GUEST_AGENT_GUARDRAIL_VERSION: str = os.getenv("GUEST_AGENT_GUARDRAIL_VERSION")
     GUEST_AGENT_MODEL_REGION: str = os.getenv("GUEST_AGENT_MODEL_REGION")
-    GUEST_AGENT_TEMPERATURE: float = float(os.getenv("GUEST_AGENT_TEMPERATURE", "0.2"))
+    GUEST_AGENT_TEMPERATURE: Optional[float] = get_optional_value("GUEST_AGENT_TEMPERATURE", float)
+    GUEST_AGENT_REASONING_EFFORT: Optional[str] = os.getenv("GUEST_AGENT_REASONING_EFFORT")
+    GUEST_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("GUEST_AGENT_GUARDRAIL_ID")
+    GUEST_AGENT_GUARDRAIL_VERSION: Optional[str] = os.getenv("GUEST_AGENT_GUARDRAIL_VERSION")
 
     # Onboarding Agent Configuration
     ONBOARDING_AGENT_MODEL_ID: str = os.getenv("ONBOARDING_AGENT_MODEL_ID")
-    ONBOARDING_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("ONBOARDING_AGENT_GUARDRAIL_ID")
-    ONBOARDING_AGENT_GUARDRAIL_VERSION: str = os.getenv("ONBOARDING_AGENT_GUARDRAIL_VERSION")
     ONBOARDING_AGENT_MODEL_REGION: str = os.getenv("ONBOARDING_AGENT_MODEL_REGION")
-    ONBOARDING_AGENT_TEMPERATURE: float = float(os.getenv("ONBOARDING_AGENT_TEMPERATURE", "0.2"))
+    ONBOARDING_AGENT_TEMPERATURE: Optional[float] = get_optional_value("ONBOARDING_AGENT_TEMPERATURE", float)
+    ONBOARDING_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("ONBOARDING_AGENT_GUARDRAIL_ID")
+    ONBOARDING_AGENT_GUARDRAIL_VERSION: Optional[str] = os.getenv("ONBOARDING_AGENT_GUARDRAIL_VERSION")
 
     # Supervisor Agent Configuration
     SUPERVISOR_AGENT_MODEL_ID: str = os.getenv("SUPERVISOR_AGENT_MODEL_ID")
-    SUPERVISOR_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("SUPERVISOR_AGENT_GUARDRAIL_ID")
-    SUPERVISOR_AGENT_GUARDRAIL_VERSION: str = os.getenv("SUPERVISOR_AGENT_GUARDRAIL_VERSION")
     SUPERVISOR_AGENT_MODEL_REGION: str = os.getenv("SUPERVISOR_AGENT_MODEL_REGION")
-    SUPERVISOR_AGENT_TEMPERATURE: float = float(os.getenv("SUPERVISOR_AGENT_TEMPERATURE", "0.2"))
-    SUPERVISOR_AGENT_REASONING_EFFORT: str = os.getenv("SUPERVISOR_AGENT_REASONING_EFFORT", "medium")
+    SUPERVISOR_AGENT_TEMPERATURE: Optional[float] = get_optional_value("SUPERVISOR_AGENT_TEMPERATURE", float)
+    SUPERVISOR_AGENT_REASONING_EFFORT: str = os.getenv("SUPERVISOR_AGENT_REASONING_EFFORT")
+    SUPERVISOR_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("SUPERVISOR_AGENT_GUARDRAIL_ID")
+    SUPERVISOR_AGENT_GUARDRAIL_VERSION: Optional[str] = os.getenv("SUPERVISOR_AGENT_GUARDRAIL_VERSION")
 
     # Title Generation Configuration
     TITLE_GENERATOR_MODEL_ID: str = os.getenv("TITLE_GENERATOR_MODEL_ID")
-    TITLE_GENERATOR_TEMPERATURE: float = float(os.getenv("TITLE_GENERATOR_TEMPERATURE", "0.1"))
+    TITLE_GENERATOR_TEMPERATURE: Optional[float] = get_optional_value("TITLE_GENERATOR_TEMPERATURE", float)
 
     # S3 Vectors Configuration
-    MEMORIES_INDEX_ID: Optional[str] = os.getenv("MEMORIES_INDEX_ID")
-    EMBEDDING_INDEX_ID: Optional[str] = os.getenv("EMBEDDING_INDEX_ID")
-    S3V_INDEX_MEMORY: str = os.getenv("S3V_INDEX_MEMORY", "memory-search")
+    S3V_INDEX_MEMORY: str = os.getenv("S3V_INDEX_MEMORY")
     S3V_BUCKET: Optional[str] = os.getenv("S3V_BUCKET")
     S3V_INDEX_KB: Optional[str] = os.getenv("S3V_INDEX_KB")
     S3V_KB_S3_FILES: Optional[str] = os.getenv("S3V_KB_S3_FILES")
-    S3V_DISTANCE: str = os.getenv("S3V_DISTANCE", "cosine").upper()
-    S3V_DIMS: int = int(os.getenv("S3V_DIMS", "1024"))
-    S3V_MAX_TOP_K: int = int(os.getenv("S3V_MAX_TOP_K", "30"))
+    S3V_DISTANCE: Optional[str] = os.getenv("S3V_DISTANCE")
+    S3V_DIMS: Optional[int] = get_optional_value("S3V_DIMS", int)
+    S3V_MAX_TOP_K: Optional[int] = get_optional_value("S3V_MAX_TOP_K", int)
 
     # Redis Configuration (populated exclusively via AWS Secrets -> aws_config)
     REDIS_HOST: Optional[str] = None
@@ -149,7 +170,7 @@ class Config:
     # Langfuse Configuration (Guest)
     LANGFUSE_PUBLIC_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY")
     LANGFUSE_SECRET_KEY: Optional[str] = os.getenv("LANGFUSE_SECRET_KEY")
-    LANGFUSE_HOST: str = os.getenv("LANGFUSE_HOST", "https://langfuse.promtior.ai")
+    LANGFUSE_HOST: str = os.getenv("LANGFUSE_HOST")
     LANGFUSE_GUEST_PUBLIC_KEY: Optional[str] = os.getenv("LANGFUSE_GUEST_PUBLIC_KEY") or os.getenv(
         "LANGFUSE_PUBLIC_GUEST_KEY"
     )
@@ -160,48 +181,36 @@ class Config:
     # Langfuse Configuration (Supervisor)
     LANGFUSE_PUBLIC_SUPERVISOR_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_SUPERVISOR_KEY")
     LANGFUSE_SECRET_SUPERVISOR_KEY: Optional[str] = os.getenv("LANGFUSE_SECRET_SUPERVISOR_KEY")
-    LANGFUSE_HOST_SUPERVISOR: str = os.getenv("LANGFUSE_HOST_SUPERVISOR", "https://langfuse.promtior.ai")
-    LANGFUSE_TRACING_ENVIRONMENT: str = os.getenv("LANGFUSE_TRACING_ENVIRONMENT", "development")
+    LANGFUSE_TRACING_ENVIRONMENT: str = os.getenv("LANGFUSE_TRACING_ENVIRONMENT")
 
     # Langfuse Configuration (Goal)
     LANGFUSE_PUBLIC_GOAL_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_GOAL_KEY")
     LANGFUSE_SECRET_GOAL_KEY: Optional[str] = os.getenv("LANGFUSE_SECRET_GOAL_KEY")
-    LANGFUSE_HOST_GOAL: str = os.getenv("LANGFUSE_HOST_GOAL", "https://langfuse.promtior.ai")
 
     # Logging Configuration
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
-    LOG_SIMPLE: bool = os.getenv("LOG_SIMPLE", "").lower() in {"1", "true", "yes", "on"}
-    LOG_FORMAT: str = os.getenv("LOG_FORMAT", "%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-    LOG_DATEFMT: str = os.getenv("LOG_DATEFMT", "%Y-%m-%dT%H:%M:%S%z")
-    LOG_QUIET_LIBS: bool = os.getenv("LOG_QUIET_LIBS", "").lower() in {"1", "true", "yes", "on"}
-    LOG_LIB_LEVEL: str = os.getenv("LOG_LIB_LEVEL", "WARNING").upper()
-    SUPERVISOR_TRACE_ENABLED: bool = os.getenv("SUPERVISOR_TRACE_ENABLED", "false").lower() in {
-        "true",
-        "1",
-        "yes",
-        "on",
-    }
-    SUPERVISOR_TRACE_PATH: str = os.getenv("SUPERVISOR_TRACE_PATH", "logs/supervisor_trace.jsonl")
+    LOG_LEVEL: Optional[str] = os.getenv("LOG_LEVEL")
+    LOG_SIMPLE: Optional[bool] = get_optional_value("LOG_SIMPLE", bool)
+    LOG_DATEFMT: str = os.getenv("LOG_DATEFMT")
+    LOG_QUIET_LIBS: Optional[bool] = get_optional_value("LOG_QUIET_LIBS", bool)
+    LOG_LIB_LEVEL: Optional[str] = os.getenv("LOG_LIB_LEVEL")
+    SUPERVISOR_TRACE_ENABLED: Optional[bool] = get_optional_value("SUPERVISOR_TRACE_ENABLED", bool)
+    SUPERVISOR_TRACE_PATH: str = os.getenv("SUPERVISOR_TRACE_PATH")
 
     # Crawling Configuration
-    CRAWL_TYPE: str = os.getenv("CRAWL_TYPE", "recursive")
-    CRAWL_MAX_DEPTH: int = int(os.getenv("CRAWL_MAX_DEPTH", "2"))
-    CRAWL_MAX_PAGES: int = int(os.getenv("CRAWL_MAX_PAGES", "20"))
-    CRAWL_TIMEOUT: int = int(os.getenv("CRAWL_TIMEOUT", "30"))
-    MAX_DOCUMENTS_PER_SOURCE: int = int(os.getenv("MAX_DOCUMENTS_PER_SOURCE", "20"))
+    CRAWL_TYPE: str = os.getenv("CRAWL_TYPE")
+    CRAWL_TIMEOUT: Optional[int] = get_optional_value("CRAWL_TIMEOUT", int)
 
     VERA_GUIDANCE_URL: Optional[str] = os.getenv("VERA_GUIDANCE_URL")
-    depth_env = os.getenv("VERA_GUIDANCE_RECURSION_DEPTH")
-    VERA_GUIDANCE_RECURSION_DEPTH: Optional[int] = int(depth_env) if depth_env else None
+    VERA_GUIDANCE_RECURSION_DEPTH: Optional[int] = get_optional_value("VERA_GUIDANCE_RECURSION_DEPTH", int)
 
     # Search Configuration
-    TOP_K_SEARCH: int = int(os.getenv("TOP_K_SEARCH", "5"))
-    CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "1500"))
-    CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "200"))
-    MAX_CHUNKS_PER_SOURCE: int = int(os.getenv("MAX_CHUNKS_PER_SOURCE", "150"))
+    TOP_K_SEARCH: Optional[int] = get_optional_value("TOP_K_SEARCH", int)
+    CHUNK_SIZE: Optional[int] = get_optional_value("CHUNK_SIZE", int)
+    CHUNK_OVERLAP: Optional[int] = get_optional_value("CHUNK_OVERLAP", int)
+    MAX_CHUNKS_PER_SOURCE: Optional[int] = get_optional_value("MAX_CHUNKS_PER_SOURCE", int)
 
     # Guest Agent Configuration
-    GUEST_MAX_MESSAGES: int = int(os.getenv("GUEST_MAX_MESSAGES", "5"))
+    GUEST_MAX_MESSAGES: Optional[int] = get_optional_value("GUEST_MAX_MESSAGES", int)
 
     # Database Configuration
     DATABASE_HOST: str = os.getenv("DATABASE_HOST")
@@ -210,65 +219,61 @@ class Config:
     DATABASE_USER: str = os.getenv("DATABASE_USER")
     DATABASE_PASSWORD: str = os.getenv("DATABASE_PASSWORD")
     DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL")
-    DATABASE_TYPE: str = os.getenv("DATABASE_TYPE", "postgresql")
 
     # External Services Configuration
     FOS_SERVICE_URL: Optional[str] = os.getenv("FOS_SERVICE_URL")
     FOS_API_KEY: Optional[str] = os.getenv("FOS_API_KEY")
     FOS_SECRETS_ID: Optional[str] = os.getenv("FOS_SECRETS_ID")
-    FOS_SECRETS_REGION: str = os.getenv("FOS_SECRETS_REGION", "us-east-1")
+    FOS_SECRETS_REGION: str = os.getenv("FOS_SECRETS_REGION")
 
     # Knowledge Base Configuration
-    SOURCES_FILE_PATH: str = os.getenv("SOURCES_FILE_PATH", "./app/knowledge/sources/sources.json")
+    SOURCES_FILE_PATH: str = os.getenv("SOURCES_FILE_PATH")
 
     # Prompt Service Configuration
-    SUPERVISOR_PROMPT_TEST_MODE: bool = os.getenv("SUPERVISOR_PROMPT_TEST_MODE", "false").lower() == "true"
-    WEALTH_PROMPT_TEST_MODE: bool = os.getenv("WEALTH_PROMPT_TEST_MODE", "false").lower() == "true"
-    FINANCE_PROMPT_TEST_MODE: bool = os.getenv("FINANCE_PROMPT_TEST_MODE", "false").lower() == "true"
-    GUEST_PROMPT_TEST_MODE: bool = os.getenv("GUEST_PROMPT_TEST_MODE", "false").lower() == "true"
-    GOAL_PROMPT_TEST_MODE: bool = os.getenv("GOAL_PROMPT_TEST_MODE", "false").lower() == "true"
+    SUPERVISOR_PROMPT_TEST_MODE: Optional[bool] = get_optional_value("SUPERVISOR_PROMPT_TEST_MODE", bool)
+    WEALTH_PROMPT_TEST_MODE: Optional[bool] = get_optional_value("WEALTH_PROMPT_TEST_MODE", bool)
+    FINANCE_PROMPT_TEST_MODE: Optional[bool] = get_optional_value("FINANCE_PROMPT_TEST_MODE", bool)
+    GUEST_PROMPT_TEST_MODE: Optional[bool] = get_optional_value("GUEST_PROMPT_TEST_MODE", bool)
+    GOAL_PROMPT_TEST_MODE: Optional[bool] = get_optional_value("GOAL_PROMPT_TEST_MODE", bool)
 
     # Nudge System Configuration
-    NUDGES_ENABLED: bool = os.getenv("NUDGES_ENABLED", "true").lower() == "true"
-    NUDGES_TYPE2_ENABLED: bool = os.getenv("NUDGES_TYPE2_ENABLED", "true").lower() == "true"
-    NUDGES_TYPE3_ENABLED: bool = os.getenv("NUDGES_TYPE3_ENABLED", "true").lower() == "true"
+    NUDGES_ENABLED: Optional[bool] = get_optional_value("NUDGES_ENABLED", bool)
 
     # FOS API Configuration
-    FOS_USERS_PAGE_SIZE: int = int(os.getenv("FOS_USERS_PAGE_SIZE", "500"))
-    FOS_USERS_MAX_PAGES: int = int(os.getenv("FOS_USERS_MAX_PAGES", "100"))
-    FOS_USERS_API_TIMEOUT_MS: int = int(os.getenv("FOS_USERS_API_TIMEOUT_MS", "5000"))
+    FOS_USERS_PAGE_SIZE: Optional[int] = get_optional_value("FOS_USERS_PAGE_SIZE", int)
+    FOS_USERS_MAX_PAGES: Optional[int] = get_optional_value("FOS_USERS_MAX_PAGES", int)
 
     # Evaluation Configuration
-    EVAL_CONCURRENCY_LIMIT: int = int(os.getenv("EVAL_CONCURRENCY_LIMIT", "4"))
-    NUDGE_EVAL_BATCH_SIZE: int = int(os.getenv("NUDGE_EVAL_BATCH_SIZE", "100"))
-    NUDGE_EVAL_TIMEOUT: int = int(os.getenv("NUDGE_EVAL_TIMEOUT", "30"))
+    EVAL_CONCURRENCY_LIMIT: Optional[int] = get_optional_value("EVAL_CONCURRENCY_LIMIT", int)
 
     # Bill Detection Configuration
-    BILL_DETECTION_LOOKBACK_DAYS: int = int(os.getenv("BILL_DETECTION_LOOKBACK_DAYS", "120"))
-    BILL_MIN_OCCURRENCES: int = int(os.getenv("BILL_MIN_OCCURRENCES", "3"))
-    BILL_PREDICTION_WINDOW_DAYS: int = int(os.getenv("BILL_PREDICTION_WINDOW_DAYS", "35"))
+    BILL_DETECTION_LOOKBACK_DAYS: Optional[int] = get_optional_value("BILL_DETECTION_LOOKBACK_DAYS", int)
+    BILL_MIN_OCCURRENCES: Optional[int] = get_optional_value("BILL_MIN_OCCURRENCES", int)
+    BILL_PREDICTION_WINDOW_DAYS: Optional[int] = get_optional_value("BILL_PREDICTION_WINDOW_DAYS", int)
 
     # SQS Configuration
     SQS_NUDGES_AI_INFO_BASED: Optional[str] = os.getenv("SQS_NUDGES_AI_INFO_BASED")
-    SQS_QUEUE_REGION: str = os.getenv("SQS_QUEUE_REGION", "us-east-1")
-    SQS_MAX_MESSAGES: int = int(os.getenv("SQS_MAX_MESSAGES", "10"))
-    SQS_VISIBILITY_TIMEOUT: int = int(os.getenv("SQS_VISIBILITY_TIMEOUT", "300"))  # 5 minutes
-    SQS_WAIT_TIME_SECONDS: int = int(os.getenv("SQS_WAIT_TIME_SECONDS", "20"))  # Long polling
+    SQS_QUEUE_REGION: str = os.getenv("SQS_QUEUE_REGION")
+    SQS_MAX_MESSAGES: Optional[int] = get_optional_value("SQS_MAX_MESSAGES", int)
+    SQS_VISIBILITY_TIMEOUT: Optional[int] = get_optional_value("SQS_VISIBILITY_TIMEOUT", int)
+    SQS_WAIT_TIME_SECONDS: Optional[int] = get_optional_value("SQS_WAIT_TIME_SECONDS", int)
 
     # Audio Configuration
-    AUDIO_ENABLED: bool = os.getenv("AUDIO_ENABLED", "true").lower() == "true"
-    TTS_PROVIDER: str = os.getenv("TTS_PROVIDER", "bedrock")
-    TTS_VOICE_ID: str = os.getenv("TTS_VOICE_ID", "Joanna")
-    TTS_OUTPUT_FORMAT: str = os.getenv("TTS_OUTPUT_FORMAT", "mp3")
-    TTS_ENGINE: str = os.getenv("TTS_ENGINE", "neural")
-    TTS_CHUNK_SIZE: int = int(os.getenv("TTS_CHUNK_SIZE", "8192"))  # 8KB chunks
+    AUDIO_ENABLED: Optional[bool] = get_optional_value("AUDIO_ENABLED", bool)
+    TTS_PROVIDER: Optional[str] = os.getenv("TTS_PROVIDER")
+    TTS_VOICE_ID: str = os.getenv("TTS_VOICE_ID")
+    TTS_OUTPUT_FORMAT: str = os.getenv("TTS_OUTPUT_FORMAT")
+    TTS_ENGINE: str = os.getenv("TTS_ENGINE")
+    TTS_CHUNK_SIZE: Optional[int] = get_optional_value("TTS_CHUNK_SIZE", int)
 
     # Fallback configuration
     MODEL_STATE: str = os.getenv("MODEL_STATE")
     MODEL_REGION_ACTIVE: str = os.getenv("MODEL_REGION_ACTIVE")
     MODEL_GUARDRAIL_ACTIVE: str = os.getenv("MODEL_GUARDRAIL_ACTIVE")
+    MODEL_GUARDRAIL_VERSION_ACTIVE: str = os.getenv("MODEL_GUARDRAIL_VERSION_ACTIVE")
     MODEL_REGION_STANDBY: str = os.getenv("MODEL_REGION_STANDBY")
     MODEL_GUARDRAIL_STANDBY: str = os.getenv("MODEL_GUARDRAIL_STANDBY")
+    MODEL_GUARDRAIL_VERSION_STANDBY: str = os.getenv("MODEL_GUARDRAIL_VERSION_STANDBY")
 
     def __init__(self):
         self.__class__._initialize()
@@ -281,33 +286,30 @@ class Config:
             for key, value in secrets.items():
                 cls.set_env_var(key, value)
 
-        # Apply fallback configuration after loading secrets
-        agents = ["WEALTH", "FINANCIAL", "GUEST", "ONBOARDING", "SUPERVISOR"]
         cls.MODEL_STATE = secrets.get("MODEL_STATE", cls.MODEL_STATE)
 
         if cls.MODEL_STATE == "ACTIVE":
-            fallback_region = cls.MODEL_REGION_ACTIVE
-            fallback_guardrail = cls.MODEL_GUARDRAIL_ACTIVE
-        elif cls.MODEL_STATE == "STANDBY":
-            fallback_region = cls.MODEL_REGION_STANDBY
-            fallback_guardrail = cls.MODEL_GUARDRAIL_STANDBY
+            region = cls.MODEL_REGION_ACTIVE
+            guardrail = cls.MODEL_GUARDRAIL_ACTIVE
+            version = cls.MODEL_GUARDRAIL_VERSION_ACTIVE
         else:
-            fallback_region = None
-            fallback_guardrail = None
+            region = cls.MODEL_REGION_STANDBY
+            guardrail = cls.MODEL_GUARDRAIL_STANDBY
+            version = cls.MODEL_GUARDRAIL_VERSION_STANDBY
 
-        if fallback_region or fallback_guardrail:
-            for agent in agents:
-                region_attr = f"{agent}_AGENT_MODEL_REGION"
-                guardrail_attr = f"{agent}_AGENT_GUARDRAIL_ID"
+        gpt_agents = ["WEALTH_AGENT", "FINANCIAL_AGENT", "SUPERVISOR_AGENT", "SUMMARY"]
 
-                current_region = getattr(cls, region_attr, None)
-                current_guardrail = getattr(cls, guardrail_attr, None)
+        for prefix in gpt_agents:
+            region_attr = f"{prefix}_MODEL_REGION"
+            guardrail_attr = f"{prefix}_GUARDRAIL_ID"
+            version_attr = f"{prefix}_GUARDRAIL_VERSION"
 
-                if fallback_region and (current_region is None or current_region == ""):
-                    setattr(cls, region_attr, fallback_region)
-
-                if fallback_guardrail and (current_guardrail is None or current_guardrail == ""):
-                    setattr(cls, guardrail_attr, fallback_guardrail)
+            if not getattr(cls, region_attr, None):
+                setattr(cls, region_attr, region)
+            if not getattr(cls, guardrail_attr, None):
+                setattr(cls, guardrail_attr, guardrail)
+            if not getattr(cls, version_attr, None):
+                setattr(cls, version_attr, version)
 
     @classmethod
     def set_env_var(cls, key: str, value: str):
@@ -342,7 +344,7 @@ class Config:
     def is_langfuse_supervisor_enabled(cls) -> bool:
         """Check if Langfuse is properly configured for supervisor."""
         return bool(
-            cls.LANGFUSE_PUBLIC_SUPERVISOR_KEY and cls.LANGFUSE_SECRET_SUPERVISOR_KEY and cls.LANGFUSE_HOST_SUPERVISOR
+            cls.LANGFUSE_PUBLIC_SUPERVISOR_KEY and cls.LANGFUSE_SECRET_SUPERVISOR_KEY and cls.LANGFUSE_HOST
         )
 
     @classmethod

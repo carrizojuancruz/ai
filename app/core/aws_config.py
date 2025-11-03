@@ -146,11 +146,6 @@ def configure_aws_environment() -> dict[str, Any]:
     aws_config = {
         "region": os.getenv("AWS_REGION"),
         "secrets_loaded": bool(os.getenv("FOS_SECRETS_ID")),
-        "llm_provider": os.getenv("LLM_PROVIDER"),
     }
-    logger.info(
-        "AWS Configuration: Region=%s, Provider=%s",
-        aws_config["region"],
-        aws_config["llm_provider"],
-    )
+    logger.info(f"AWS Configuration: Region={aws_config['region']}")
     return aws_config

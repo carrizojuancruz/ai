@@ -242,27 +242,23 @@ class TestConfigureAWSEnvironment:
         """Test configure_aws_environment returns correct configuration."""
         with patch.dict(os.environ, {
             "AWS_REGION": "us-west-2",
-            "FOS_SECRETS_ID": "test-secret",
-            "LLM_PROVIDER": "bedrock"
+            "FOS_SECRETS_ID": "test-secret"
         }, clear=False):
             result = configure_aws_environment()
 
             assert result["region"] == "us-west-2"
             assert result["secrets_loaded"] is True
-            assert result["llm_provider"] == "bedrock"
 
     def test_configure_aws_environment_no_secrets(self, mock_env_vars):
         """Test configure_aws_environment when no secrets are loaded."""
         with patch.dict(os.environ, {
             "AWS_REGION": "us-east-1",
-            "FOS_SECRETS_ID": "",
-            "LLM_PROVIDER": "openai"
+            "FOS_SECRETS_ID": ""
         }, clear=False):
             result = configure_aws_environment()
 
             assert result["region"] == "us-east-1"
             assert result["secrets_loaded"] is False
-            assert result["llm_provider"] == "openai"
 
 
 class TestHelperFunctions:

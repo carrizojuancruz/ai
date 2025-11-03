@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # Critical configuration fields that must be present
 CRITICAL_DATABASE_FIELDS = ["DATABASE_HOST", "DATABASE_NAME", "DATABASE_USER", "DATABASE_PASSWORD"]
-CRITICAL_LLM_FIELDS = ["LLM_PROVIDER", "BEDROCK_EMBED_MODEL_ID"]
+CRITICAL_LLM_FIELDS = ["BEDROCK_EMBED_MODEL_ID"]
 CRITICAL_AWS_FIELD = "AWS_REGION"
 
 # Internal router for webhook service-to-service communication (no auth required)

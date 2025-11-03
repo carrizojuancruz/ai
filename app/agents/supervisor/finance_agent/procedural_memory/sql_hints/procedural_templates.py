@@ -51,8 +51,8 @@ class ProceduralTemplatesManager:
 
             from app.agents.supervisor.memory.context import _safe_extract_score, _timed_search
 
-            topk = int(topk or config.FINANCE_PROCEDURAL_TOPK)
-            min_score = float(min_score or config.FINANCE_PROCEDURAL_MIN_SCORE)
+            topk = topk if topk is not None else config.FINANCE_PROCEDURAL_TOPK
+            min_score = min_score if min_score is not None else config.FINANCE_PROCEDURAL_MIN_SCORE
 
             store = get_store()
             results = await _timed_search(

@@ -18,7 +18,6 @@ def mock_env_vars():
         "DATABASE_PASSWORD": "test_password",
         "ENVIRONMENT": "test",
         "DEBUG": "false",
-        "LLM_PROVIDER": "bedrock",
         "BEDROCK_EMBED_MODEL_ID": "amazon.titan-embed-text-v1",
         "S3V_BUCKET": "test-bucket",
         "S3V_INDEX_MEMORY": "memory-search",

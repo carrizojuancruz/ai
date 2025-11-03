@@ -171,64 +171,64 @@ class TestProcessUserResponse:
 class TestValidateName:
     """Tests for validate_name function."""
 
-    @patch('app.agents.onboarding.flow_definitions.get_llm_client')
-    def test_validate_name_empty_response(self, mock_get_llm_client, onboarding_state):
+    @patch('app.agents.onboarding.flow_definitions.BedrockLLM')
+    def test_validate_name_empty_response(self, mock_bedrock_class, onboarding_state):
         """Test validate_name with empty response."""
         is_valid, error_msg = validate_name("", onboarding_state)
         assert is_valid is False
         assert "Please tell me what you'd like to be called." in error_msg
-        mock_get_llm_client.assert_not_called()
+        mock_bedrock_class.assert_not_called()
 
-    @patch('app.agents.onboarding.flow_definitions.get_llm_client')
-    def test_validate_name_single_word(self, mock_get_llm_client, onboarding_state):
+    @patch('app.agents.onboarding.flow_definitions.BedrockLLM')
+    def test_validate_name_single_word(self, mock_bedrock_class, onboarding_state):
         """Test validate_name with single word (LLM is called but returns None, falls back to tokenization)."""
         mock_llm = MagicMock()
         mock_llm.extract.return_value = {"preferred_name": None}
-        mock_get_llm_client.return_value = mock_llm
+        mock_bedrock_class.return_value = mock_llm
 
         is_valid, error_msg = validate_name("John", onboarding_state)
         assert is_valid is True
         assert error_msg is None
         assert onboarding_state.user_context.preferred_name == "John"
-        mock_get_llm_client.assert_called_once()
+        mock_bedrock_class.assert_called_once()
 
-    @patch('app.agents.onboarding.flow_definitions.get_llm_client')
-    def test_validate_name_llm_success(self, mock_get_llm_client, onboarding_state):
+    @patch('app.agents.onboarding.flow_definitions.BedrockLLM')
+    def test_validate_name_llm_success(self, mock_bedrock_class, onboarding_state):
         """Test validate_name with LLM extraction success."""
         mock_llm = MagicMock()
         mock_llm.extract.return_value = {"preferred_name": "Jane Doe"}
-        mock_get_llm_client.return_value = mock_llm
+        mock_bedrock_class.return_value = mock_llm
 
         is_valid, error_msg = validate_name("My name is Jane", onboarding_state)
         assert is_valid is True
         assert error_msg is None
         assert onboarding_state.user_context.preferred_name == "Jane Doe"
-        mock_get_llm_client.assert_called_once()
+        mock_bedrock_class.assert_called_once()
         mock_llm.extract.assert_called_once()
 
-    @patch('app.agents.onboarding.flow_definitions.get_llm_client')
-    def test_validate_name_llm_failure_fallback(self, mock_get_llm_client, onboarding_state):
+    @patch('app.agents.onboarding.flow_definitions.BedrockLLM')
+    def test_validate_name_llm_failure_fallback(self, mock_bedrock_class, onboarding_state):
         """Test validate_name with LLM failure, falls back to tokenization."""
         mock_llm = MagicMock()
         mock_llm.extract.side_effect = Exception("LLM error")
-        mock_get_llm_client.return_value = mock_llm
+        mock_bedrock_class.return_value = mock_llm
 
         is_valid, error_msg = validate_name("Hello I am Bob", onboarding_state)
         assert is_valid is False  # Multiple words, no single alpha word
         assert "Please tell me what you'd like to be called." in error_msg
-        mock_get_llm_client.assert_called_once()
+        mock_bedrock_class.assert_called_once()
 
-    @patch('app.agents.onboarding.flow_definitions.get_llm_client')
-    def test_validate_name_llm_returns_none(self, mock_get_llm_client, onboarding_state):
+    @patch('app.agents.onboarding.flow_definitions.BedrockLLM')
+    def test_validate_name_llm_returns_none(self, mock_bedrock_class, onboarding_state):
         """Test validate_name when LLM returns None."""
         mock_llm = MagicMock()
         mock_llm.extract.return_value = {"preferred_name": None}
-        mock_get_llm_client.return_value = mock_llm
+        mock_bedrock_class.return_value = mock_llm
 
         is_valid, error_msg = validate_name("Some complex name", onboarding_state)
         assert is_valid is False
         assert "Please tell me what you'd like to be called." in error_msg
-        mock_get_llm_client.assert_called_once()
+        mock_bedrock_class.assert_called_once()
 
 
 class TestValidateDOB:
@@ -271,51 +271,51 @@ class TestValidateDOB:
 class TestValidateLocation:
     """Tests for validate_location function."""
 
-    @patch('app.agents.onboarding.flow_definitions.get_llm_client')
-    def test_validate_location_too_short(self, mock_get_llm_client, onboarding_state):
+    @patch('app.agents.onboarding.flow_definitions.BedrockLLM')
+    def test_validate_location_too_short(self, mock_bedrock_llm, onboarding_state):
         """Test validate_location with response too short."""
         is_valid, error_msg = validate_location("NY", onboarding_state)
         assert is_valid is False
         assert "city and state" in error_msg
-        mock_get_llm_client.assert_not_called()
+        mock_bedrock_llm.assert_not_called()
 
-    @patch('app.agents.onboarding.flow_definitions.get_llm_client')
-    def test_validate_location_comma_separated(self, mock_get_llm_client, onboarding_state):
+    @patch('app.agents.onboarding.flow_definitions.BedrockLLM')
+    def test_validate_location_comma_separated(self, mock_bedrock_llm, onboarding_state):
         """Test validate_location with comma-separated city and state."""
         is_valid, error_msg = validate_location("New York, NY", onboarding_state)
         assert is_valid is True
         assert error_msg is None
         assert onboarding_state.user_context.location.city == "New York"
         assert onboarding_state.user_context.location.region == "NY"
-        mock_get_llm_client.assert_not_called()
+        mock_bedrock_llm.assert_not_called()
 
-    @patch('app.agents.onboarding.flow_definitions.get_llm_client')
-    def test_validate_location_llm_success(self, mock_get_llm_client, onboarding_state):
+    @patch('app.agents.onboarding.flow_definitions.BedrockLLM')
+    def test_validate_location_llm_success(self, mock_bedrock_llm, onboarding_state):
         """Test validate_location using LLM extraction."""
-        mock_llm = MagicMock()
-        mock_llm.extract.return_value = {"city": "Los Angeles", "region": "CA"}
-        mock_get_llm_client.return_value = mock_llm
+        mock_llm_instance = MagicMock()
+        mock_llm_instance.extract.return_value = {"city": "Los Angeles", "region": "CA"}
+        mock_bedrock_llm.return_value = mock_llm_instance
 
         is_valid, error_msg = validate_location("I live in LA", onboarding_state)
         assert is_valid is True
         assert error_msg is None
         assert onboarding_state.user_context.location.city == "Los Angeles"
         assert onboarding_state.user_context.location.region == "CA"
-        mock_get_llm_client.assert_called_once()
+        mock_bedrock_llm.assert_called_once()
 
-    @patch('app.agents.onboarding.flow_definitions.get_llm_client')
-    def test_validate_location_llm_failure_fallback(self, mock_get_llm_client, onboarding_state):
+    @patch('app.agents.onboarding.flow_definitions.BedrockLLM')
+    def test_validate_location_llm_failure_fallback(self, mock_bedrock_llm, onboarding_state):
         """Test validate_location with LLM failure, uses fallback."""
-        mock_llm = MagicMock()
-        mock_llm.extract.side_effect = Exception("LLM error")
-        mock_get_llm_client.return_value = mock_llm
+        mock_llm_instance = MagicMock()
+        mock_llm_instance.extract.side_effect = Exception("LLM error")
+        mock_bedrock_llm.return_value = mock_llm_instance
 
         is_valid, error_msg = validate_location("Chicago", onboarding_state)
         assert is_valid is True
         assert error_msg is None
         assert onboarding_state.user_context.location.city == "Chicago"
         assert onboarding_state.user_context.location.region is None
-        mock_get_llm_client.assert_called_once()
+        mock_bedrock_llm.assert_called_once()
 
 
 class TestValidateHousingCost:

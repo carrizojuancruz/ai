@@ -193,7 +193,6 @@ Key environment variables for testing:
 NUDGES_ENABLED=true
 
 # SQS Configuration
-SQS_NUDGES_AI_ICEBREAKER=
 SQS_QUEUE_REGION=us-east-1
 
 # Rate Limits

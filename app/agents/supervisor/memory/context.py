@@ -25,7 +25,7 @@ CONTEXT_TOPK = config.MEMORY_CONTEXT_TOPK
 CONTEXT_TOPN = config.MEMORY_CONTEXT_TOPN
 RERANK_WEIGHTS_RAW = config.MEMORY_RERANK_WEIGHTS
 PROCEDURAL_TOPK = config.MEMORY_PROCEDURAL_TOPK
-PROCEDURAL_MIN_SCORE = float(config.MEMORY_PROCEDURAL_MIN_SCORE)
+PROCEDURAL_MIN_SCORE = config.MEMORY_PROCEDURAL_MIN_SCORE
 
 
 def _extract_user_text(messages: list[Any]) -> str | None:
@@ -239,7 +239,7 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
     if not user_id:
         return {}
 
-    w = _parse_weights(RERANK_WEIGHTS_RAW)
+    w = _parse_weights(RERANK_WEIGHTS_RAW or "")
     try:
         store = get_store()
         query_text = (user_text or "").strip() or "personal profile"

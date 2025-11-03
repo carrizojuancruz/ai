@@ -24,6 +24,6 @@ class LangfuseConfig:
         return cls(
             public_key=config.LANGFUSE_PUBLIC_SUPERVISOR_KEY or "",
             secret_key=config.LANGFUSE_SECRET_SUPERVISOR_KEY or "",
-            host=config.LANGFUSE_HOST_SUPERVISOR,
+            host=config.LANGFUSE_HOST,
             project_name="supervisor"
         )
