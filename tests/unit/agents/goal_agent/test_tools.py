@@ -46,6 +46,7 @@ def sample_goal_data(mock_user_id):
         "goal": {"title": "Save for vacation"},
         "category": {"value": "saving"},
         "nature": {"value": "increase"},
+        "kind": "financial_habit",
         "frequency": {
             "type": "recurrent",
             "recurrent": {
@@ -62,6 +63,10 @@ def sample_goal_data(mock_user_id):
                 "target": 5000
             }
         },
+        "evaluation": {
+            "affected_categories": ["INCOME", "TRANSFER_IN"]
+        },
+        "notifications": {"enabled": True},
         "user_id": mock_user_id
     }
 
@@ -76,6 +81,7 @@ def sample_goal_dict(mock_user_id):
         "goal": {"title": "Save for vacation"},
         "category": {"value": "saving"},
         "nature": {"value": "increase"},
+        "kind": "financial_habit",
         "status": {"value": "pending"},
         "frequency": {
             "type": "recurrent",
@@ -93,6 +99,10 @@ def sample_goal_dict(mock_user_id):
                 "target": 5000
             }
         },
+        "evaluation": {
+            "affected_categories": ["INCOME", "TRANSFER_IN"]
+        },
+        "notifications": {"enabled": True},
         "progress": {
             "current_value": 0,
             "percent_complete": 0,
@@ -133,7 +143,7 @@ class TestCreateGoal:
 
             assert result["message"] == "Goal created"
             assert "goal" in result
-            assert result["goal"]["goal"]["title"] == "Save for vacation"
+            assert result["goal"]["goal"]["goal"]["title"] == "Save for vacation"
             mock_save.assert_called_once()
 
 

@@ -17,11 +17,11 @@ from app.agents.supervisor.goal_agent.models import (
     EvaluationDirection,
     Frequency,
     Goal,
+    GoalKind,
     GoalStatus,
     GoalStatusInfo,
     Progress,
     RecurrentFrequency,
-    RoundingMethod,
 )
 
 
@@ -177,7 +177,7 @@ class TestEvaluationConfig:
         # Assert
         assert config.aggregation == AggregationMethod.SUM
         assert config.direction == EvaluationDirection.LESS_EQUAL
-        assert config.rounding == RoundingMethod.NONE
+        assert config.rounding == Decimal("0.01")
         assert config.source == DataSource.MIXED
         assert config.affected_categories is None
 
@@ -210,6 +210,8 @@ class TestGoal:
             "goal": {"title": "Save for vacation"},
             "category": {"value": "saving"},
             "nature": {"value": "increase"},
+            "kind": GoalKind.FINANCIAL_HABIT,
+            "evaluation": {"affected_categories": ["INCOME"]},
             "frequency": {
                 "type": "recurrent",
                 "recurrent": {
@@ -248,6 +250,8 @@ class TestGoal:
             "goal": {"title": "Test goal"},
             "category": {"value": "saving"},
             "nature": {"value": "increase"},
+            "kind": GoalKind.FINANCIAL_HABIT,
+            "evaluation": {"affected_categories": ["INCOME"]},
             "frequency": {
                 "type": "recurrent"
                 # Missing recurrent configuration
@@ -262,20 +266,22 @@ class TestGoal:
         }
 
         # Act & Assert
-        with pytest.raises(TypeError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             Goal(**invalid_goal_data)
 
-        assert "argument 'line_errors'" in str(exc_info.value)
+        assert "Recurrent frequency details are required for habit goals" in str(exc_info.value)
 
     def test_goal_validation_amount_mismatch(self):
         """Test Goal validation for amount type mismatch."""
         # Arrange
         user_id = uuid4()
-        invalid_goal_data = {
+        goal_data = {
             "user_id": user_id,
             "goal": {"title": "Test goal"},
             "category": {"value": "saving"},
             "nature": {"value": "increase"},
+            "kind": GoalKind.FINANCIAL_HABIT,
+            "evaluation": {"affected_categories": ["INCOME"]},
             "frequency": {
                 "type": "recurrent",
                 "recurrent": {
@@ -287,15 +293,14 @@ class TestGoal:
             },
             "amount": {
                 "type": "absolute"
-                # Missing absolute configuration
+                # Missing absolute configuration - should be valid now
             }
         }
 
-        # Act & Assert
-        with pytest.raises(TypeError) as exc_info:
-            Goal(**invalid_goal_data)
-
-        assert "argument 'line_errors'" in str(exc_info.value)
+        # Act & Assert - Should not raise an exception
+        goal = Goal(**goal_data)
+        assert goal.amount.type == "absolute"
+        assert goal.amount.absolute is None
 
     def test_goal_serialization(self):
         """Test Goal model serialization."""
@@ -306,6 +311,8 @@ class TestGoal:
             goal={"title": "Test goal"},
             category={"value": "saving"},
             nature={"value": "increase"},
+            kind=GoalKind.FINANCIAL_HABIT,
+            evaluation={"affected_categories": ["INCOME"]},
             frequency={
                 "type": "recurrent",
                 "recurrent": {

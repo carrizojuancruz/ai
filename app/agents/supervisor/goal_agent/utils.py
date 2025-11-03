@@ -14,7 +14,16 @@ def preprocess_goal_data(data, user_id: str, is_update: bool = False) -> dict:
     """
     from datetime import datetime, timedelta
 
-    from .models import FrequencyUnit, GoalCategory, GoalNature
+    from .models import (
+        EvaluationConfig,
+        FrequencyUnit,
+        GoalCategory,
+        GoalKind,
+        GoalNature,
+        GoalStatus,
+        Progress,
+        WindowState,
+    )
 
     # Create a copy to avoid mutating the original
     if hasattr(data, 'model_dump'):
@@ -47,6 +56,10 @@ def preprocess_goal_data(data, user_id: str, is_update: bool = False) -> dict:
         # Ensure 'nature' field exists with default
         if 'nature' not in data_dict or not data_dict['nature']:
             data_dict['nature'] = {'value': GoalNature.INCREASE.value}
+
+        # Ensure 'kind' field exists with default (financial habit)
+        if 'kind' not in data_dict or not data_dict['kind']:
+            data_dict['kind'] = GoalKind.FINANCIAL_HABIT.value
 
         # Ensure 'frequency' field exists with default recurrent monthly
         if 'frequency' not in data_dict or not data_dict['frequency']:
@@ -81,6 +94,31 @@ def preprocess_goal_data(data, user_id: str, is_update: bool = False) -> dict:
                 }
             }
 
+        # Ensure 'evaluation' field exists with defaults
+        if 'evaluation' not in data_dict or not data_dict['evaluation']:
+            data_dict['evaluation'] = EvaluationConfig().model_dump(mode='json')
+
+        # Ensure 'state' field exists with default
+        if 'state' not in data_dict or not data_dict['state']:
+            data_dict['state'] = WindowState().model_dump(mode='json')
+
+        # Ensure 'status' field exists with default
+        if 'status' not in data_dict or not data_dict['status']:
+            data_dict['status'] = {'value': GoalStatus.PENDING.value}
+
+        # Ensure 'progress' field exists with default
+        if 'progress' not in data_dict or not data_dict['progress']:
+            data_dict['progress'] = Progress().model_dump(mode='json')
+
+        # Ensure 'cadence' field exists with default (if recurrent frequency)
+        if 'cadence' not in data_dict or not data_dict['cadence']:
+            # Default to 30 days if not specified
+            data_dict['cadence'] = {'days': 30}
+
+        # Ensure 'no_end_date' is set to False by default
+        if 'no_end_date' not in data_dict:
+            data_dict['no_end_date'] = False
+
     # Always normalize structure if fields are present (for both create and update)
     if 'category' in data_dict and isinstance(data_dict['category'], str):
         # Convert string category to proper structure
@@ -89,6 +127,10 @@ def preprocess_goal_data(data, user_id: str, is_update: bool = False) -> dict:
     if 'nature' in data_dict and isinstance(data_dict['nature'], str):
         # Convert string nature to proper structure
         data_dict['nature'] = {'value': data_dict['nature']}
+
+    if 'status' in data_dict and isinstance(data_dict['status'], str):
+        # Convert string status to proper structure
+        data_dict['status'] = {'value': data_dict['status']}
 
     if 'amount' in data_dict and isinstance(data_dict['amount'], dict):
         amount = data_dict['amount']

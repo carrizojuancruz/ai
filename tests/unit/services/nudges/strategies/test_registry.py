@@ -56,7 +56,7 @@ class TestStrategyRegistry:
 
         assert registry._strategies == {}
         assert hasattr(registry, '_lock')
-        assert len(registry._strategy_classes) == 3
+        assert len(registry._strategy_classes) == 4
         assert registry._strategy_classes["static_bill"] == BillNudgeStrategy
         assert registry._strategy_classes["memory_icebreaker"] == MemoryNudgeStrategy
         assert registry._strategy_classes["info_based"] == InfoNudgeStrategy

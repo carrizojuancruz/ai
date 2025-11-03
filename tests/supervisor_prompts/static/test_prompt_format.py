@@ -22,6 +22,7 @@ class PromptLiteralDetector(ast.NodeVisitor):
             "app/services/llm/memory_prompts.py",
             "app/services/llm/utility_prompts.py",
             "app/services/llm/onboarding_prompts.py",
+            "app/agents/supervisor/goal_agent/tools_descriptions.py"
         }
         self.allowed_symbols = {
             "SUPERVISOR_PROMPT",

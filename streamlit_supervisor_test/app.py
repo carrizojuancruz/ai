@@ -33,9 +33,9 @@ if "thread_id" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "user_id" not in st.session_state:
-    st.session_state.user_id = "ba5c5db4-d3fb-4ca8-9445-1c221ea502a8"
+    st.session_state.user_id = "44f5552b-1042-4f8b-8339-d918677394e1"
 if "base_url" not in st.session_state:
-    st.session_state.base_url = "http://localhost:8000"
+    st.session_state.base_url = "http://localhost:8001"
 
 st.title("Supervisor Test UI")
 

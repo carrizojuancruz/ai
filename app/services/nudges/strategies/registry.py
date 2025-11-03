@@ -4,6 +4,7 @@ from typing import Dict, Optional, Type
 from app.observability.logging_config import get_logger
 from app.services.nudges.strategies.base import NudgeStrategy
 from app.services.nudges.strategies.bill_strategy import BillNudgeStrategy
+from app.services.nudges.strategies.goal_strategy import GoalNudgeStrategy
 from app.services.nudges.strategies.info_strategy import InfoNudgeStrategy
 from app.services.nudges.strategies.memory_strategy import MemoryNudgeStrategy
 
@@ -21,6 +22,7 @@ class StrategyRegistry:
         self.register_strategy_class("static_bill", BillNudgeStrategy)
         self.register_strategy_class("memory_icebreaker", MemoryNudgeStrategy)
         self.register_strategy_class("info_based", InfoNudgeStrategy)
+        self.register_strategy_class("goal_based", GoalNudgeStrategy)
         logger.info(f"strategy_registry.defaults_registered: strategies={list(self._strategy_classes.keys())}")
 
     def register_strategy_class(self, nudge_type: str, strategy_class: Type[NudgeStrategy]):

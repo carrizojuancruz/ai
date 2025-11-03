@@ -89,6 +89,7 @@ async def trigger_nudge_manual(request: ManualTriggerRequest) -> Dict[str, Any]:
         if request.force:
             logger.warning(f"nudge_eval.manual_force: user_id={str(request.user_id)}, nudge_type={request.nudge_type}")
 
+        # Consistent behavior for ALL nudge types
         batch_result = await evaluator.evaluate_nudges_batch(
             user_ids=[str(request.user_id)], nudge_type=request.nudge_type
         )

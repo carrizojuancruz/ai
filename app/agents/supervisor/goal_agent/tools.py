@@ -15,6 +15,7 @@ from .helpers import extract_goal_from_response, extract_goal_id
 from .models import Goal, GoalStatus
 from .response_builder import ResponseBuilder
 from .state_machine import GoalStatusTransitionValidator
+from .tools_descriptions import ToolDescriptions
 from .utils import (
     delete_goal_api,
     edit_goal,
@@ -35,11 +36,13 @@ def _now() -> datetime:
 
 @tool(
     name_or_callable="create_goal",
-    description="Create a new financial goal for a user",
+    description=ToolDescriptions.GOAL_CREATION_TOOL,
 )
 async def create_goal(data, config: RunnableConfig) -> str:
     """Create a new financial goal for a user. Make sure if the user has no active goals."""
     try:
+        data = dict(data) if not isinstance(data, dict) else data
+
         user_key = str(get_config_value(config, "user_id"))
 
         # Validate and convert user_id to proper UUID
@@ -55,11 +58,9 @@ async def create_goal(data, config: RunnableConfig) -> str:
         # Preprocess data to fix common validation issues and add defaults
         processed_data = preprocess_goal_data(data, str(user_uuid))
 
-        # Add default values to processed data
+        # Add default values to processed data (only what's not handled by preprocess)
         processed_data['user_id'] = str(user_uuid)
         processed_data['version'] = processed_data.get('version') or 1
-        processed_data['status'] = {'value': 'pending'}
-        processed_data['progress'] = {'current_value': 0, 'percent_complete': 0, 'updated_at': _now().isoformat()}
         processed_data['audit'] = {'created_at': _now().isoformat(), 'updated_at': _now().isoformat()}
 
         # Validate that all required fields are present before creating Goal
@@ -87,11 +88,8 @@ async def create_goal(data, config: RunnableConfig) -> str:
 
         # Save goal using async function
         response_goal = await save_goal(goal)
-
         # Serialize goal properly
-        goal_dict = response_goal.get('goal')
-        if hasattr(goal_dict, 'model_dump'):
-            goal_dict = goal_dict.model_dump(mode='json')
+        goal_dict = response_goal
 
         return json.dumps({
             "message": "Goal created",

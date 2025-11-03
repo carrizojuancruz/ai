@@ -10,6 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from app.api.schemas.cron import BackgroundSyncStartedResponse
 from app.knowledge.sync_service import KnowledgeBaseSyncService
+from app.services.goals import get_goals_service
 
 logger = logging.getLogger(__name__)
 
@@ -84,3 +85,44 @@ async def run_background_sync(job_id: str, limit: Optional[int] = None):
         duration = (datetime.utcnow() - start_time).total_seconds()
         logger.error(f"Job {job_id} failed after {duration:.2f}s: {str(e)}")
         raise e
+
+
+@router.post("/goals-nudges")
+async def check_goals_nudges(days_ahead: int = 7) -> dict:
+    """Check all goals and trigger nudges for those that need it.
+
+    This endpoint should be called periodically (e.g., daily) to check
+    all goals and trigger notifications for:
+    - Completed goals with end dates
+    - Goals with high progress (>=75%)
+    - Pending goals
+    - Goals with deadline approaching
+
+    Args:
+        days_ahead: How many days ahead to check for deadlines (default: 7)
+
+    """
+    try:
+        logger.info(f"Starting goals nudge check (days_ahead={days_ahead})")
+
+        goals_service = get_goals_service()
+        result = await goals_service.check_all_goals_for_nudges(days_ahead)
+
+        logger.info(
+            f"Goals nudge check complete: total={result['total']}, "
+            f"triggered={result['triggered']}, skipped={result['skipped']}"
+        )
+
+        return {
+            "status": "success",
+            "message": f"Checked {result['total']} goals",
+            "triggered": result['triggered'],
+            "skipped": result['skipped'],
+        }
+
+    except Exception as e:
+        logger.error(f"Goals nudge check failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to check goals: {str(e)}"
+        ) from e
