@@ -1,35 +1,43 @@
-import random
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from app.observability.logging_config import get_logger
 from app.services.nudges.models import NudgeCandidate
 from app.services.nudges.strategies.base import NudgeStrategy
+from app.services.nudges.strategies.info_evaluators import (
+    DataAccessLayer,
+    EvaluatorConfig,
+    EvaluatorFactory,
+    InfoNudgeEvaluator,
+)
 
 logger = get_logger(__name__)
 
 
 class InfoNudgeStrategy(NudgeStrategy):
-    def __init__(self):
-        self.evaluators: Dict[str, Callable] = {
-            "spending_alert": self._check_spending_increase,
-            "goal_milestone": self._check_goal_progress,
-            "budget_warning": self._check_budget_usage,
-            "subscription_reminder": self._check_upcoming_subscription,
-            "savings_opportunity": self._check_savings_potential,
-            "payment_failed": self._check_failed_payment,
-            "category_insight": self._check_category_trend,
-        }
+    """Strategy for info-based nudges."""
 
-        self.priority_map = {
-            "payment_failed": 5,
-            "spending_alert": 4,
-            "goal_milestone": 3,
-            "budget_warning": 3,
-            "category_insight": 2,
-            "subscription_reminder": 2,
-            "savings_opportunity": 1,
+    def __init__(self, data_access: Optional[DataAccessLayer] = None):
+        self.data_access = data_access
+        self.evaluators: Dict[str, InfoNudgeEvaluator] = {}
+        self._initialize_default_evaluators()
+
+    def _initialize_default_evaluators(self):
+        default_configs = {
+            "payment_failed": EvaluatorConfig(nudge_id="payment_failed", priority=5, threshold=0.95),
+            "spending_alert": EvaluatorConfig(nudge_id="spending_alert", priority=4, threshold=0.7),
+            "goal_milestone": EvaluatorConfig(nudge_id="goal_milestone", priority=3, threshold=0.8),
+            "budget_warning": EvaluatorConfig(nudge_id="budget_warning", priority=3, threshold=0.75),
+            "category_insight": EvaluatorConfig(nudge_id="category_insight", priority=2, threshold=0.8),
+            "subscription_reminder": EvaluatorConfig(nudge_id="subscription_reminder", priority=2, threshold=0.85),
+            "savings_opportunity": EvaluatorConfig(nudge_id="savings_opportunity", priority=1, threshold=0.9),
         }
+        for nudge_id, config in default_configs.items():
+            evaluator = EvaluatorFactory.create_evaluator(nudge_id, config, self.data_access)
+            if evaluator:
+                self.evaluators[nudge_id] = evaluator
+                logger.debug(f"info_strategy.evaluator_initialized: nudge_id={nudge_id}, priority={config.priority}")
+        logger.info(f"info_strategy.initialized: evaluator_count={len(self.evaluators)}")
 
     @property
     def nudge_type(self) -> str:
@@ -58,15 +66,15 @@ class InfoNudgeStrategy(NudgeStrategy):
                 )
                 return None
 
-            should_send = await evaluator(user_id, context)
-
+            should_send = await evaluator.should_send(user_id, context)
             if not should_send:
                 logger.debug(f"info_strategy.condition_not_met: user_id={str(user_id)}, nudge_id={nudge_id}")
                 return None
 
-            priority = self.get_priority({"nudge_id": nudge_id})
+            evaluator_metadata = await evaluator.get_metadata(user_id, context)
+            priority = evaluator.priority
 
-            return NudgeCandidate(
+            candidate = NudgeCandidate(
                 user_id=user_id,
                 nudge_type=self.nudge_type,
                 priority=priority,
@@ -76,43 +84,53 @@ class InfoNudgeStrategy(NudgeStrategy):
                     "nudge_id": nudge_id,
                     "fos_controlled": True,
                     "evaluation_context": context.get("metadata", {}),
+                    "evaluator_metadata": evaluator_metadata,
                 },
             )
 
+            logger.info(
+                f"info_strategy.candidate_created: user_id={str(user_id)}, nudge_id={nudge_id}, priority={priority}"
+            )
+            return candidate
+
         except Exception as e:
             logger.error(
-                f"info_strategy.evaluation_failed: user_id={str(user_id)}, nudge_id={context.get('nudge_id')}, error={str(e)}"
+                f"info_strategy.evaluation_failed: user_id={str(user_id)}, nudge_id={context.get('nudge_id')}, error={str(e)}, error_type={type(e).__name__}"
             )
             return None
 
     def get_priority(self, context: Dict[str, Any]) -> int:
         nudge_id = context.get("nudge_id")
-        return self.priority_map.get(nudge_id, 2)
+        evaluator = self.evaluators.get(nudge_id)
+        if evaluator:
+            return evaluator.priority
+        return 2
 
-    async def _check_spending_increase(self, user_id: UUID, context: Dict[str, Any]) -> bool:
-        threshold = context.get("threshold", 0.7)
-        return random.random() > threshold
-
-    async def _check_goal_progress(self, user_id: UUID, context: Dict[str, Any]) -> bool:
-        return random.random() > 0.8
-
-    async def _check_budget_usage(self, user_id: UUID, context: Dict[str, Any]) -> bool:
-        return random.random() > 0.75
-
-    async def _check_upcoming_subscription(self, user_id: UUID, context: Dict[str, Any]) -> bool:
-        return random.random() > 0.85
-
-    async def _check_savings_potential(self, user_id: UUID, context: Dict[str, Any]) -> bool:
-        return random.random() > 0.9
-
-    async def _check_failed_payment(self, user_id: UUID, context: Dict[str, Any]) -> bool:
-        return random.random() > 0.95
-
-    async def _check_category_trend(self, user_id: UUID, context: Dict[str, Any]) -> bool:
-        return random.random() > 0.8
-
-    def register_evaluator(self, nudge_id: str, evaluator: Callable, priority: int = 2):
+    def register_custom_evaluator(self, evaluator: InfoNudgeEvaluator):
+        nudge_id = evaluator.nudge_id
         self.evaluators[nudge_id] = evaluator
-        self.priority_map[nudge_id] = priority
+        logger.info(
+            f"info_strategy.custom_evaluator_registered: nudge_id={nudge_id}, priority={evaluator.priority}, class={evaluator.__class__.__name__}"
+        )
 
-        logger.info(f"info_strategy.evaluator_registered: nudge_id={nudge_id}, priority={priority}")
+    def get_evaluator_config(self, nudge_id: str) -> Optional[EvaluatorConfig]:
+        evaluator = self.evaluators.get(nudge_id)
+        if evaluator:
+            return evaluator.config
+        return None
+
+    def update_evaluator_config(self, nudge_id: str, **config_updates):
+        evaluator = self.evaluators.get(nudge_id)
+        if not evaluator:
+            logger.warning(f"info_strategy.update_config_failed: nudge_id={nudge_id} not found")
+            return
+
+        for key, value in config_updates.items():
+            if hasattr(evaluator.config, key):
+                setattr(evaluator.config, key, value)
+                logger.info(f"info_strategy.config_updated: nudge_id={nudge_id}, {key}={value}")
+            else:
+                logger.warning(f"info_strategy.invalid_config_key: nudge_id={nudge_id}, key={key}")
+
+    def list_available_nudges(self) -> list[str]:
+        return list(self.evaluators.keys())
