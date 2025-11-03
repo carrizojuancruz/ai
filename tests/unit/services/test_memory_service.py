@@ -20,9 +20,11 @@ class TestMemoryServiceInitialization:
 
     def test_initialization_with_valid_config(self, mock_config):
         """Service should initialize successfully with valid configuration."""
-        with patch("app.services.memory_service.create_s3_vectors_store_from_env"):
+        with patch("app.services.memory_service.create_s3_vectors_store_from_env") as mock_store_factory:
+            mock_store = MagicMock()
+            mock_store_factory.return_value = mock_store
             service = MemoryService()
-            assert service._store is None
+            assert service._store is mock_store
             assert service.VALID_MEMORY_TYPES == ["semantic", "episodic"]
 
     def test_validates_required_config(self, mock_config):
@@ -162,7 +164,6 @@ class TestGetMemories:
             mock_s3_vectors_store.list_by_namespace.assert_called_once_with(
                 ("user123", "semantic"),
                 return_metadata=True,
-                max_results=500,
             )
 
     def test_get_memories_filters_by_category(self, mock_config, mock_s3_vectors_store):

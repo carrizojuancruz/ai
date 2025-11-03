@@ -42,6 +42,34 @@ class MemoryDeleteResponse(BaseModel):
     failed_count: Optional[int] = None
     total_found: Optional[int] = None
 
+
+@router.get("/")
+async def get_all_memories(
+    memory_type: Optional[str] = Query(None, description="Memory type: semantic, episodic, or None for all types"),
+    category: Optional[str] = Query(None, description="Optional category filter"),
+    limit: int = Query(1000, description="Max memories to return", ge=1, le=10000),
+) -> MemorySearchResponse:
+    """Get all memories across all users."""
+    try:
+        all_memories = memory_service.get_all_memories(
+            memory_type=memory_type,
+            category=category,
+            limit=limit,
+        )
+
+        items = [MemoryItem(**item) for item in all_memories]
+        return MemorySearchResponse(
+            ok=True,
+            count=len(items),
+            total=len(items),
+            items=items,
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to retrieve all memories: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve all memories: {str(e)}") from e
+
+
 @router.get("/{user_id}")
 async def get_memories(
     user_id: str,

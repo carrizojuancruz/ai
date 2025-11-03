@@ -17,13 +17,12 @@ class MemoryService:
     VALID_MEMORY_TYPES = ["semantic", "episodic"]
 
     MAX_SEARCH_TOPK = 100
-    MAX_LIST_RESULTS = 500
     BATCH_DELETE_SIZE = 100
 
     def __init__(self) -> None:
         """Initialize the memory service."""
         self._validate_config()
-        self._store = None
+        self._store = create_s3_vectors_store_from_env()
 
     def _validate_config(self) -> None:
         """Validate S3 configuration for memory service."""
@@ -41,15 +40,28 @@ class MemoryService:
         if memory_type not in self.VALID_MEMORY_TYPES:
             raise ValueError(f"memory_type must be one of: {', '.join(self.VALID_MEMORY_TYPES)}")
 
-    def _get_store(self):
-        """Get or create S3 store instance (lazy loading)."""
-        if self._store is None:
-            self._store = create_s3_vectors_store_from_env()
-        return self._store
-
     def _get_namespace(self, user_id: str, memory_type: str) -> tuple[str, str]:
         """Create namespace tuple for user and memory type."""
         return (user_id, memory_type)
+
+    def _get_wildcard_namespace(self, memory_type: str | None = None) -> tuple[None, str | None]:
+        """Create wildcard namespace for querying across all users."""
+        return (None, memory_type)
+
+    def _get_limit(self, memory_type: str) -> int:
+        """Get memory limit for given type."""
+        if memory_type == "semantic":
+            return config.MEMORY_SEMANTIC_MAX_LIMIT
+        elif memory_type == "episodic":
+            return config.MEMORY_EPISODIC_MAX_LIMIT
+        else:
+            raise ValueError(f"Unknown memory_type: {memory_type}")
+
+    def _is_at_limit(self, user_id: str, memory_type: str) -> bool:
+        """Check if user is at or over memory limit."""
+        count = self.count_memories(user_id, memory_type)
+        limit = self._get_limit(memory_type)
+        return count >= limit
 
     def _map_value_fields(self, item: Any) -> dict[str, Any]:
         """Map Item fields to value DTO format."""
@@ -77,16 +89,15 @@ class MemoryService:
         namespace = self._get_namespace(user_id, memory_type)
 
         if search:
-            all_items = self._get_store().search(
+            all_items = self._store.search(
                 namespace,
                 query=search,
                 limit=self.MAX_SEARCH_TOPK,
             )
         else:
-            all_items = self._get_store().list_by_namespace(
+            all_items = self._store.list_by_namespace(
                 namespace,
                 return_metadata=True,
-                max_results=self.MAX_LIST_RESULTS,
             )
 
         filtered_items = self._apply_category_filter(all_items, category)
@@ -155,10 +166,9 @@ class MemoryService:
         """
         self._validate_memory_type(memory_type)
 
-        store = self._get_store()
         namespace = self._get_namespace(user_id, memory_type)
 
-        item = store.get(namespace, memory_key)
+        item = self._store.get(namespace, memory_key)
 
         if not item:
             raise RuntimeError("Memory not found")
@@ -188,11 +198,10 @@ class MemoryService:
         """
         self._validate_memory_type(memory_type)
 
-        store = self._get_store()
         namespace = self._get_namespace(user_id, memory_type)
 
         try:
-            store.delete(namespace, memory_key)
+            self._store.delete(namespace, memory_key)
             return {
                 "ok": True,
                 "message": f"Memory {memory_key} deleted successfully",
@@ -234,13 +243,11 @@ class MemoryService:
         """
         self._validate_memory_type(memory_type)
 
-        store = self._get_store()
         namespace = self._get_namespace(user_id, memory_type)
 
-        all_memories = store.list_by_namespace(
+        all_memories = self._store.list_by_namespace(
             namespace,
             return_metadata=True,
-            max_results=self.MAX_LIST_RESULTS,
         )
         total_found = len(all_memories)
 
@@ -254,7 +261,7 @@ class MemoryService:
             }
 
         memory_keys = [memory.key for memory in all_memories]
-        result = store.batch_delete_by_keys(
+        result = self._store.batch_delete_by_keys(
             namespace=namespace,
             keys=memory_keys,
             batch_size=self.BATCH_DELETE_SIZE,
@@ -277,6 +284,175 @@ class MemoryService:
             "failed_count": failed_count,
             "total_found": total_found,
         }
+
+    def count_memories(self, user_id: str, memory_type: str = "semantic") -> int:
+        """Count total memories for user and type."""
+        self._validate_memory_type(memory_type)
+        namespace = self._get_namespace(user_id, memory_type)
+
+        try:
+            items = self._store.list_by_namespace(
+                namespace,
+                return_metadata=True,
+            )
+            return len(items)
+        except Exception as e:
+            logger.exception(
+                "memory_service.count.error: user_id=%s type=%s error=%s",
+                user_id, memory_type, str(e)
+            )
+            return 0
+
+    def find_oldest_memory(
+        self,
+        user_id: str,
+        memory_type: str
+    ) -> tuple[str, dict[str, Any]] | None:
+        """Find the oldest memory by last_accessed."""
+        self._validate_memory_type(memory_type)
+        namespace = self._get_namespace(user_id, memory_type)
+
+        try:
+            items = self._store.list_by_namespace(
+                namespace,
+                return_metadata=True,
+            )
+
+            if not items:
+                logger.warning(
+                    "memory_service.no_memories: user_id=%s type=%s",
+                    user_id, memory_type
+                )
+                return None
+
+            items.sort(key=lambda item: item.value.get("last_accessed") or item.value.get("created_at", ""))
+            oldest = items[0]
+
+            logger.info(
+                "memory_service.found_oldest: user_id=%s type=%s key=%s last_accessed=%s",
+                user_id, memory_type, oldest.key, oldest.value.get("last_accessed")
+            )
+
+            return (oldest.key, dict(oldest.value))
+
+        except Exception:
+            logger.exception(
+                "memory_service.find_oldest.error: user_id=%s type=%s",
+                user_id, memory_type
+            )
+            return None
+
+    def _check_limit_and_get_oldest(
+        self,
+        user_id: str,
+        memory_type: str
+    ) -> tuple[bool, tuple[str, dict[str, Any]] | None]:
+        """Check if at limit and return oldest memory."""
+        self._validate_memory_type(memory_type)
+        namespace = self._get_namespace(user_id, memory_type)
+        limit = self._get_limit(memory_type)
+
+        try:
+            items = self._store.list_by_namespace(
+                namespace,
+                return_metadata=True,
+            )
+
+            count = len(items)
+            is_at_limit = count >= limit
+
+            if not is_at_limit or not items:
+                return (is_at_limit, None)
+
+            items.sort(key=lambda item: item.value.get("last_accessed") or item.value.get("created_at", ""))
+            oldest = items[0]
+
+            logger.info(
+                "memory_service.check_limit: user_id=%s type=%s count=%d limit=%d oldest_key=%s",
+                user_id, memory_type, count, limit, oldest.key
+            )
+
+            return (True, (oldest.key, dict(oldest.value)))
+
+        except Exception:
+            logger.exception(
+                "memory_service.check_limit.error: user_id=%s type=%s",
+                user_id, memory_type
+            )
+            return (False, None)
+
+    def delete_memory(self, user_id: str, memory_type: str, key: str) -> bool:
+        """Delete a specific memory."""
+        self._validate_memory_type(memory_type)
+        namespace = self._get_namespace(user_id, memory_type)
+
+        try:
+            self._store.delete(namespace, key)
+            logger.info(
+                "memory_service.deleted: user_id=%s type=%s key=%s",
+                user_id, memory_type, key
+            )
+            return True
+        except Exception:
+            logger.exception(
+                "memory_service.delete.error: user_id=%s type=%s key=%s",
+                user_id, memory_type, key
+            )
+            return False
+
+    def create_memory(
+        self,
+        user_id: str,
+        memory_type: str,
+        key: str,
+        value: dict[str, Any],
+        *,
+        index: list[str] | None = None
+    ) -> dict[str, Any]:
+        """Create a new memory with automatic limit enforcement."""
+        self._validate_memory_type(memory_type)
+        namespace = self._get_namespace(user_id, memory_type)
+        index_fields = index or ["summary"]
+
+        is_at_limit, oldest = self._check_limit_and_get_oldest(user_id, memory_type)
+        if is_at_limit and oldest:
+            old_key, _ = oldest
+            self._store.delete(namespace, old_key)
+
+        self._store.put(namespace, key, value, index=index_fields)
+        return {"ok": True, "key": key, "value": value}
+
+    def get_all_memories(
+        self,
+        memory_type: str | None = None,
+        *,
+        category: str | None = None,
+        limit: int = 1000,
+    ) -> list[dict[str, Any]]:
+        """Get all memories across all users, optionally filtered by memory type."""
+        if memory_type:
+            self._validate_memory_type(memory_type)
+
+        all_items = []
+
+        try:
+            namespace = self._get_wildcard_namespace(memory_type)
+            items = self._store.list_by_namespace(
+                namespace,
+                return_metadata=True,
+                limit=limit,
+            )
+
+            filtered_items = self._apply_category_filter(items, category)
+
+            for item in filtered_items:
+                all_items.append(self._transform_single_item(item))
+
+            return all_items
+
+        except Exception as e:
+            logger.error(f"Failed to get all memories: {e}", exc_info=True)
+            return []
 
 
 memory_service = MemoryService()

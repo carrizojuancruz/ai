@@ -59,6 +59,9 @@ class Config:
     EPISODIC_NOVELTY_MIN: Optional[float] = get_optional_value("EPISODIC_NOVELTY_MIN", float)
     MEMORY_TINY_LLM_MODEL_ID: str = os.getenv("MEMORY_TINY_LLM_MODEL_ID")
 
+    MEMORY_SEMANTIC_MAX_LIMIT: Optional[int] = get_optional_value("MEMORY_SEMANTIC_MAX_LIMIT", int)
+    MEMORY_EPISODIC_MAX_LIMIT: Optional[int] = get_optional_value("MEMORY_EPISODIC_MAX_LIMIT", int)
+
     # Memory Context Configuration
     MEMORY_CONTEXT_TOPK: Optional[int] = get_optional_value("MEMORY_CONTEXT_TOPK", int)
     MEMORY_CONTEXT_TOPN: Optional[int] = get_optional_value("MEMORY_CONTEXT_TOPN", int)

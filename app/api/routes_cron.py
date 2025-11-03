@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime
 from typing import Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
-from app.api.schemas.cron import BackgroundSyncStartedResponse
+from app.api.schemas.cron import BackgroundSyncStartedResponse, MemoryMergeResponse
 from app.knowledge.sync_service import KnowledgeBaseSyncService
 from app.services.goals import get_goals_service
+from app.services.memory_consolidation_service import memory_consolidation_service
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +88,45 @@ async def run_background_sync(job_id: str, limit: Optional[int] = None):
         logger.error(f"Job {job_id} failed after {duration:.2f}s: {str(e)}")
         raise e
 
+
+@router.post("/memories/merge", response_model=MemoryMergeResponse)
+async def merge_similar_memories(
+    user_id: Optional[str] = Query(
+        None,
+        description="Optional user ID to process. If not provided, all users will be processed."
+    ),
+    memory_type: Optional[str] = Query(
+        None,
+        description="Memory type: 'semantic' or 'episodic'. If not provided, both types will be processed."
+    )
+) -> MemoryMergeResponse:
+    """Consolidate and merge similar memories across users."""
+    try:
+        start_time = time.time()
+
+        result = await memory_consolidation_service.consolidate_memories(
+            user_id=user_id,
+            memory_type=memory_type
+        )
+
+        duration = time.time() - start_time
+
+        return MemoryMergeResponse(
+            ok=True,
+            total_users_processed=result["total_users_processed"],
+            total_memories_scanned=result["total_memories_scanned"],
+            total_memories_merged=result["total_memories_merged"],
+            total_merge_groups=result["total_merge_groups"],
+            duration_seconds=duration,
+            errors=result["errors"]
+        )
+
+    except Exception as e:
+        logger.error(f"Memory consolidation failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to consolidate memories: {str(e)}"
+        ) from e
 
 @router.post("/goals-nudges")
 async def check_goals_nudges(days_ahead: int = 7) -> dict:

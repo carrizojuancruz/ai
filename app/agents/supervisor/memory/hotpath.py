@@ -19,6 +19,7 @@ from langgraph.graph import MessagesState
 from app.core.app_state import get_bedrock_runtime_client, get_sse_queue
 from app.core.config import config
 from app.models.memory import MemoryCategory
+from app.services.memory_service import memory_service
 from app.utils.tools import get_config_value
 
 from .profile_sync import _profile_sync_from_memory
@@ -327,7 +328,14 @@ async def _write_semantic_memory(
             if int(candidate_value.get("importance") or 1) < SEMANTIC_MIN_IMPORTANCE:
                 logger.info("memory.skip: below_min_importance=%s", SEMANTIC_MIN_IMPORTANCE)
             else:
-                store.put(namespace, candidate_value["id"], candidate_value, index=["summary"])
+                memory_service.create_memory(
+                    user_id=user_id,
+                    memory_type="semantic",
+                    key=candidate_value["id"],
+                    value=candidate_value,
+                    index=["summary"]
+                )
+
                 logger.info("memory.create: id=%s type=%s category=%s", candidate_value["id"], "semantic", category)
 
                 asyncio.create_task(_profile_sync_from_memory(user_id, thread_id, candidate_value))

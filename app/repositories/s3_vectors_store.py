@@ -157,7 +157,6 @@ class S3VectorsStore(BaseStore):
         self._distance = distance
         self._default_index_fields = default_index_fields or ["summary"]
 
-    # region BaseStore API
     def batch(self, ops: Iterable[Op]) -> list[Any]:
         results: list[Any] = []
         for op in ops:
@@ -625,9 +624,19 @@ class S3VectorsStore(BaseStore):
         max_results: int = 500,
         limit: int | None = None,
     ) -> list[SearchItem]:
-        """List vectors in a namespace with filtering during pagination."""
-        logger.info(f"Listing vectors for namespace {namespace}")
+        """List vectors in a namespace with filtering during pagination.
 
+        Args:
+            namespace: Tuple of namespace values to filter by. None values act as
+                wildcards matching any value at that position.
+            return_metadata: Whether to include metadata in results
+            max_results: Maximum results to fetch per page
+            limit: Maximum total results to return (None for all)
+
+        Returns:
+            List of SearchItems matching the namespace filter
+
+        """
         filtered_items = self._fetch_and_filter_paginated(
             namespace=namespace,
             return_metadata=return_metadata,
@@ -635,7 +644,6 @@ class S3VectorsStore(BaseStore):
             limit=limit,
         )
 
-        logger.info(f"Retrieved {len(filtered_items)} vectors for namespace {namespace}")
         return filtered_items
 
     def _fetch_and_filter_paginated(
@@ -656,8 +664,6 @@ class S3VectorsStore(BaseStore):
             response = self._fetch_single_page(return_metadata, max_results, next_token)
             vectors = response.get("vectors", [])
 
-            logger.debug(f"Page {page_count}: Retrieved {len(vectors)} vectors from API")
-
             for vector in vectors:
                 if not self._vector_matches_namespace(vector, namespace):
                     continue
@@ -666,10 +672,7 @@ class S3VectorsStore(BaseStore):
                 if item:
                     filtered_items.append(item)
                     if limit and len(filtered_items) >= limit:
-                        logger.debug(f"Reached limit of {limit} items, stopping pagination")
                         return filtered_items
-
-            logger.debug(f"Page {page_count}: Filtered to {len(filtered_items)} matching items so far")
 
             next_token = response.get("nextToken")
             if not next_token:
@@ -712,11 +715,24 @@ class S3VectorsStore(BaseStore):
         vector: dict[str, Any],
         namespace: Namespace,
     ) -> bool:
-        """Check if vector metadata matches all namespace components."""
+        """Check if vector metadata matches all namespace components.
+
+        Args:
+            vector: Vector dictionary with metadata
+            namespace: Tuple of namespace values to match
+
+        Returns:
+            True if vector matches all namespace components
+
+        Note:
+            None values in the namespace tuple act as wildcards that match any value
+            at that position.
+
+        """
         metadata = vector.get("metadata", {})
 
         return all(
-            metadata.get(f"ns_{i}") == val
+            val is None or metadata.get(f"ns_{i}") == val
             for i, val in enumerate(namespace)
         )
 
@@ -731,9 +747,16 @@ class S3VectorsStore(BaseStore):
             value = self._parse_vector_value(vector, return_metadata)
             metadata = vector.get("metadata", {})
 
+            actual_namespace = []
+            for i, val in enumerate(namespace):
+                if val is None:
+                    actual_namespace.append(metadata.get(f"ns_{i}", ""))
+                else:
+                    actual_namespace.append(val)
+
             return SearchItem(
                 key=metadata.get("doc_key", vector.get("key", "")),
-                namespace=list(namespace),
+                namespace=actual_namespace,
                 value=value,
                 score=None,
                 created_at=metadata.get("created_at", ""),

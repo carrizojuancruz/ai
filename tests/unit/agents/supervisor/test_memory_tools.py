@@ -246,7 +246,7 @@ class TestSemanticMemoryPut:
     """Test suite for semantic_memory_put function."""
 
     @pytest.mark.asyncio
-    async def test_put_basic_memory(self, mock_langgraph_store, mock_config):
+    async def test_put_basic_memory(self, mock_memory_service, mock_config):
         """Test putting a basic semantic memory."""
         result = await semantic_memory_put(
             summary="User prefers email communication",
@@ -256,10 +256,10 @@ class TestSemanticMemoryPut:
         assert result["ok"] is True
         assert "key" in result
         assert "value" in result
-        mock_langgraph_store.put.assert_called_once()
+        mock_memory_service.create_memory.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_put_with_all_fields(self, mock_langgraph_store, mock_config):
+    async def test_put_with_all_fields(self, mock_memory_service, mock_config):
         """Test putting memory with all fields."""
         result = await semantic_memory_put(
             summary="User has a cat named Fluffy",
@@ -281,7 +281,7 @@ class TestSemanticMemoryPut:
         assert value["pinned"] is True
 
     @pytest.mark.asyncio
-    async def test_put_generates_key_if_missing(self, mock_langgraph_store, mock_config):
+    async def test_put_generates_key_if_missing(self, mock_memory_service, mock_config):
         """Test that put generates key if not provided."""
         result = await semantic_memory_put(
             summary="Test memory",
@@ -292,7 +292,7 @@ class TestSemanticMemoryPut:
         assert len(result["key"]) > 0
 
     @pytest.mark.asyncio
-    async def test_put_normalizes_category(self, mock_langgraph_store, mock_config):
+    async def test_put_normalizes_category(self, mock_memory_service, mock_config):
         """Test that put normalizes category."""
         result = await semantic_memory_put(
             summary="Test",
@@ -303,7 +303,7 @@ class TestSemanticMemoryPut:
         assert result["value"]["category"] == "Finance"
 
     @pytest.mark.asyncio
-    async def test_put_sets_timestamps(self, mock_langgraph_store, mock_config):
+    async def test_put_sets_timestamps(self, mock_memory_service, mock_config):
         """Test that put sets created_at and last_accessed timestamps."""
         result = await semantic_memory_put(
             summary="Test",
@@ -316,7 +316,7 @@ class TestSemanticMemoryPut:
         datetime.fromisoformat(value["created_at"].replace("Z", "+00:00"))
 
     @pytest.mark.asyncio
-    async def test_put_sets_default_values(self, mock_langgraph_store, mock_config):
+    async def test_put_sets_default_values(self, mock_memory_service, mock_config):
         """Test that put sets appropriate default values."""
         result = await semantic_memory_put(
             summary="Test",
@@ -331,7 +331,7 @@ class TestSemanticMemoryPut:
         assert value["pinned"] is False
 
     @pytest.mark.asyncio
-    async def test_put_missing_user_id_returns_error(self, mock_langgraph_store, mock_config_no_user):
+    async def test_put_missing_user_id_returns_error(self, mock_memory_service, mock_config_no_user):
         """Test that put without user_id returns error."""
         result = await semantic_memory_put(
             summary="Test",
@@ -343,14 +343,14 @@ class TestSemanticMemoryPut:
         assert result["error"] == "missing_user_id"
 
     @pytest.mark.asyncio
-    async def test_put_indexes_summary_field(self, mock_langgraph_store, mock_config):
+    async def test_put_indexes_summary_field(self, mock_memory_service, mock_config):
         """Test that put indexes the summary field."""
         await semantic_memory_put(
             summary="Test memory",
             config=mock_config,
         )
 
-        call_args = mock_langgraph_store.put.call_args
+        call_args = mock_memory_service.create_memory.call_args
         assert call_args[1]["index"] == ["summary"]
 
 
@@ -359,7 +359,7 @@ class TestEpisodicMemoryPut:
     """Test suite for episodic_memory_put function."""
 
     @pytest.mark.asyncio
-    async def test_put_basic_episodic_memory(self, mock_langgraph_store, mock_config):
+    async def test_put_basic_episodic_memory(self, mock_memory_service, mock_config):
         """Test putting a basic episodic memory."""
         result = await episodic_memory_put(
             summary="User discussed budgeting strategies",
@@ -371,19 +371,22 @@ class TestEpisodicMemoryPut:
         assert result["value"]["type"] == "episodic"
 
     @pytest.mark.asyncio
-    async def test_put_stores_in_episodic_namespace(self, mock_langgraph_store, mock_config):
+    async def test_put_stores_in_episodic_namespace(self, mock_memory_service, mock_config):
         """Test that episodic memories are stored in correct namespace."""
         await episodic_memory_put(
             summary="Test",
             config=mock_config,
         )
 
-        call_args = mock_langgraph_store.put.call_args
-        namespace = call_args[0][0]
-        assert namespace[1] == "episodic"
+        mock_memory_service.create_memory.assert_called_once()
+        call_args = mock_memory_service.create_memory.call_args
+        if len(call_args.args) > 1:
+            assert call_args.args[1] == "episodic"
+        else:
+            assert call_args.kwargs.get("memory_type") == "episodic"
 
     @pytest.mark.asyncio
-    async def test_put_with_all_episodic_fields(self, mock_langgraph_store, mock_config):
+    async def test_put_with_all_episodic_fields(self, mock_memory_service, mock_config):
         """Test putting episodic memory with all fields."""
         result = await episodic_memory_put(
             summary="Conversation about goals",

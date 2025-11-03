@@ -7,6 +7,7 @@ from uuid import uuid4
 from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_store
 
+from app.services.memory_service import memory_service
 from app.utils.tools import get_config_value
 
 
@@ -161,11 +162,9 @@ async def semantic_memory_put(
         - Indexes the summary field for semantic search capabilities.
 
     """
-    store = get_store()
     user_id = get_config_value(config, "user_id")
     if not user_id:
         return {"ok": False, "error": "missing_user_id"}
-    namespace = (user_id, "semantic")
     eff_key = key or uuid4().hex
     now = _utc_now_iso()
     value: dict[str, Any] = {
@@ -182,8 +181,16 @@ async def semantic_memory_put(
         "last_accessed": None,
         "last_used_at": None,
     }
-    store.put(namespace, eff_key, value, index=["summary"])
-    return {"ok": True, "key": eff_key, "value": value}
+
+    result = memory_service.create_memory(
+        user_id=user_id,
+        memory_type="semantic",
+        key=eff_key,
+        value=value,
+        index=["summary"]
+    )
+
+    return result
 
 
 async def episodic_memory_put(
@@ -220,11 +227,9 @@ async def episodic_memory_put(
         - Indexes the summary field for semantic search capabilities.
 
     """
-    store = get_store()
     user_id = get_config_value(config, "user_id")
     if not user_id:
         return {"ok": False, "error": "missing_user_id"}
-    namespace = (user_id, "episodic")
     eff_key = key or uuid4().hex
     now = _utc_now_iso()
     value: dict[str, Any] = {
@@ -240,8 +245,16 @@ async def episodic_memory_put(
         "created_at": now,
         "last_accessed": None,
     }
-    store.put(namespace, eff_key, value, index=["summary"])
-    return {"ok": True, "key": eff_key, "value": value}
+
+    result = memory_service.create_memory(
+        user_id=user_id,
+        memory_type="episodic",
+        key=eff_key,
+        value=value,
+        index=["summary"]
+    )
+
+    return result
 
 
 async def semantic_memory_update(

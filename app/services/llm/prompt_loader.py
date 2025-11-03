@@ -121,6 +121,7 @@ class PromptLoader:
             "memory_icebreaker_generation_prompt": self._get_memory_icebreaker_generation_prompt_local,
             "conversation_summarizer_instruction": self._get_conversation_summarizer_instruction_local,
             "finance_capture_nova_intent_prompt": self._get_finance_capture_nova_intent_prompt,
+            "memory_merge_summaries": self._get_memory_merge_summaries_local,
         })
 
 
@@ -276,6 +277,21 @@ class PromptLoader:
             text=text,
             allowed_kinds=allowed_kinds,
             plaid_expense_categories=plaid_expense_categories,
+        )
+
+    def _get_memory_merge_summaries_local(self, **kwargs) -> str:
+        memory_prompts = sys.modules.get('app.services.llm.memory_prompts')
+        if memory_prompts is None:
+            from . import memory_prompts
+        memory_type = kwargs.get('memory_type', 'semantic')
+        category = kwargs.get('category', 'Mixed')
+        summaries_text = kwargs.get('summaries_text', '')
+        importances_text = kwargs.get('importances_text', '')
+        return memory_prompts.MEMORY_MERGE_SUMMARIES_LOCAL.format(
+            memory_type=memory_type,
+            category=category,
+            summaries_text=summaries_text,
+            importances_text=importances_text
         )
 
 

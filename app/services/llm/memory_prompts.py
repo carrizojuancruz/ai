@@ -9,6 +9,9 @@ semantic memory extraction, and contextual icebreaker generation.
 MEMORY_HOTPATH_TRIGGER_CLASSIFIER_LOCAL = """You classify whether to CREATE a user memory from recent user messages.
 This node ONLY creates semantic memories (durable, re-usable facts).
 
+CRITICAL: When multiple messages are provided, extract ONLY from the MOST RECENT (last) user message.
+DO NOT mix information from different messages. Focus ONLY on the NEWEST MESSAGE'S CONTENT.
+
 Semantic scope includes (non-exhaustive):
 - Identity & relationships: preferred name/pronouns; partner/family/pets; roles (student/parent/manager).
 - Stable attributes: age/birthday, home city/region, employer/school, time zone, languages.
@@ -192,3 +195,41 @@ Examples:
 
 Memory:{icebreaker_text}
 Natural icebreaker:"""
+
+MEMORY_MERGE_SUMMARIES_LOCAL = """You are an expert at consolidating and merging memory summaries for a financial advisory AI assistant named Vera.
+
+You will receive multiple memory summaries that are similar in content. Your task is to:
+1. Deduplicate the information across all summaries
+2. Create a single, unified summary that captures all unique information
+3. Preserve the style and format of the original summaries
+4. **CRITICAL:** When summaries contain CONTRADICTORY information (different values for the same fact), use ONLY the information from the NEWEST summary (listed last). Do not combine or mention both values.
+5. Determine an appropriate importance score (1-10) for the merged memory
+
+**Memory Type:** {memory_type}
+**Category:** {category}
+
+**Original Summaries (oldest to newest):**
+{summaries_text}
+
+**Original Importance Scores:**
+{importances_text}
+
+Please provide your response as a JSON object with this exact format:
+{{
+  "merged_summary": "your unified, deduplicated summary here",
+  "importance": 5,
+  "reasoning": "brief explanation of why you chose this importance"
+}}
+
+Guidelines:
+- Keep the merged summary concise but comprehensive (max 300 characters)
+- **For contradictory facts:** Use ONLY the newest value, ignore older values completely
+- Preserve key facts, preferences, and details that are NOT contradictory
+- Avoid redundancy - don't repeat the same information
+- Maintain the conversational, natural style
+- The importance score should reflect the significance of this information to the user's profile
+- For episodic memories, preserve temporal context if present
+- Examples of contradictions: different ages, different amounts, different locations for the same thing
+
+JSON:"""
+

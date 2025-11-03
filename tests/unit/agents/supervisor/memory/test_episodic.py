@@ -257,6 +257,7 @@ class TestEpisodicCapture:
     def mock_dependencies(self):
         with patch("app.agents.supervisor.memory.episodic.get_session_store") as mock_store, \
              patch("app.agents.supervisor.memory.episodic.get_store") as mock_mem_store, \
+             patch("app.agents.supervisor.memory.episodic.memory_service") as mock_memory_service, \
              patch("app.agents.supervisor.memory.episodic.get_bedrock_runtime_client") as mock_bedrock, \
              patch("app.agents.supervisor.memory.episodic.get_sse_queue") as mock_queue:
 
@@ -269,6 +270,12 @@ class TestEpisodicCapture:
             mock_memory.search.return_value = []
             mock_memory.put.return_value = None
             mock_mem_store.return_value = mock_memory
+
+            mock_memory_service.create_memory.return_value = {
+                "ok": True,
+                "key": "test_key",
+                "value": {"summary": "test"}
+            }
 
             mock_client = MagicMock()
             response_data = {
@@ -285,6 +292,7 @@ class TestEpisodicCapture:
             yield {
                 "session_store": mock_session,
                 "memory_store": mock_memory,
+                "memory_service": mock_memory_service,
                 "bedrock": mock_client,
                 "sse_queue": mock_sse
             }
@@ -333,7 +341,7 @@ class TestEpisodicCapture:
         result = await episodic_capture(state, config)
 
         assert result == {}
-        assert mock_dependencies["memory_store"].put.called
+        assert mock_dependencies["memory_service"].create_memory.called
 
     @pytest.mark.asyncio
     async def test_handles_exception_gracefully(self, mock_dependencies):

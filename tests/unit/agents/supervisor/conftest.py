@@ -292,6 +292,32 @@ def mock_s3_vector_store(mocker):
     )
     return mock_store
 
+
+@pytest.fixture
+def mock_memory_service(mocker):
+    """Mock memory_service for testing memory operations."""
+    mock_service = MagicMock()
+
+    def create_memory_side_effect(user_id, memory_type, key, value, **kwargs):
+        return {
+            "ok": True,
+            "key": key,
+            "value": value
+        }
+
+    mock_service.create_memory.side_effect = create_memory_side_effect
+
+    mock_service.count_memories.return_value = 50
+
+    mock_service.find_oldest_memory.return_value = None
+
+    mocker.patch("app.agents.supervisor.memory_tools.memory_service", mock_service)
+    mocker.patch("app.agents.supervisor.memory.hotpath.memory_service", mock_service)
+    mocker.patch("app.agents.supervisor.memory.episodic.memory_service", mock_service)
+
+    return mock_service
+
+
 @pytest.fixture
 def mock_memory_saver(mocker):
     mock = mocker.patch("app.agents.supervisor.agent.MemorySaver")

@@ -14,6 +14,7 @@ from langgraph.graph import MessagesState
 from app.core.app_state import get_bedrock_runtime_client, get_sse_queue
 from app.core.config import config as app_config
 from app.repositories.session_store import get_session_store
+from app.services.memory_service import memory_service
 from app.utils.tools import get_config_value
 
 from .utils import _parse_iso, _utc_now_iso
@@ -333,7 +334,15 @@ async def episodic_capture(state: MessagesState, config: RunnableConfig) -> dict
             importance=epi_importance,
             now_iso=now_iso,
         )
-        store.put(namespace, candidate_id, value, index=["summary"])  # async context
+
+        memory_service.create_memory(
+            user_id=user_id,
+            memory_type="episodic",
+            key=candidate_id,
+            value=value,
+            index=["summary"]
+        )
+
         logger.info("episodic.create: id=%s", candidate_id)
         await _emit_memory_event(thread_id, candidate_id, value, is_created=True)
         ctrl = _reset_ctrl_after_capture(ctrl, now_utc)
