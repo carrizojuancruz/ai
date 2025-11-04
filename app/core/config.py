@@ -307,11 +307,16 @@ class Config:
             guardrail_attr = f"{prefix}_GUARDRAIL_ID"
             version_attr = f"{prefix}_GUARDRAIL_VERSION"
 
-            if not getattr(cls, region_attr, None):
+            current_region = getattr(cls, region_attr, None)
+            if not current_region or (isinstance(current_region, str) and not current_region.strip()):
                 setattr(cls, region_attr, region)
-            if not getattr(cls, guardrail_attr, None):
+
+            current_guardrail = getattr(cls, guardrail_attr, None)
+            if not current_guardrail or (isinstance(current_guardrail, str) and not current_guardrail.strip()):
                 setattr(cls, guardrail_attr, guardrail)
-            if not getattr(cls, version_attr, None):
+
+            current_version = getattr(cls, version_attr, None)
+            if not current_version or (isinstance(current_version, str) and not current_version.strip()):
                 setattr(cls, version_attr, version)
 
     @classmethod
