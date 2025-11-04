@@ -22,11 +22,12 @@ HARDCODED_GUEST_WELCOME = "So tell me, what's on your mind today?"
 
 GUARDRAIL_INTERVENED_MARKER = "[GUARDRAIL_INTERVENED]"
 GUARDRAIL_USER_PLACEHOLDER = "THIS MESSAGE HIT THE BEDROCK GUARDRAIL"
-
 LAST_MESSAGE_NUDGE_TEXT = (
     "Hey, by the way, our chat here is a bit limited...\n\n"
     "If you sign up or log in, I can remember everything we talk about and help you reach your goals. Sounds good?"
 )
+SAFE_FALLBACK_ASSISTANT_REPLY = "Could you rephrase that a bit so I can help better?"
+
 
 def _wrap(content: str, count: int, max_messages: int) -> dict[str, Any]:
     content = (content or "").strip()
@@ -48,6 +49,7 @@ def _wrap(content: str, count: int, max_messages: int) -> dict[str, Any]:
         "can_continue": True,
     }
 
+
 class GuestService:
     def __init__(self) -> None:
         try:
@@ -57,42 +59,32 @@ class GuestService:
         self.graph = get_guest_graph()
 
     def _has_guardrail_intervention(self, text: str) -> bool:
-        if not isinstance(text, str):
-            return False
-        return GUARDRAIL_INTERVENED_MARKER in text
+        return isinstance(text, str) and GUARDRAIL_INTERVENED_MARKER in text
 
     def _strip_guardrail_marker(self, text: str) -> str:
         if not isinstance(text, str):
             return ""
-        start = text.find(GUARDRAIL_INTERVENED_MARKER)
-        if start != -1:
-            return text[:start].rstrip()
-        return text
+        idx = text.find(GUARDRAIL_INTERVENED_MARKER)
+        return text[:idx].rstrip() if idx != -1 else text
 
     async def initialize(self) -> dict[str, Any]:
         thread_id = str(uuid4())
-
-        state: dict[str, Any] = {
+        state = {
             "conversation_id": thread_id,
             "message_count": 0,
             "messages": [],
             "ended": False,
         }
-
         register_thread(thread_id, state)
         queue = get_sse_queue(thread_id)
-
         session_store = get_session_store()
         await session_store.set_session(thread_id, {"guest": True})
 
         await queue.put({"event": "conversation.started", "data": {"thread_id": thread_id}})
-
-        accumulated = HARDCODED_GUEST_WELCOME
         await queue.put({"event": "token.delta", "data": {"text": HARDCODED_GUEST_WELCOME}})
 
-        content = (
-            accumulated.strip()
-            or "Hi! Quick heads up: this guest chat won't be remembered. What money question can I help with now?"
+        content = HARDCODED_GUEST_WELCOME.strip() or (
+            "Hi! Quick heads up: this guest chat won't be remembered. What money question can I help with now?"
         )
         state["message_count"] = 1
         state["messages"].append({"role": "assistant", "content": content})
@@ -114,7 +106,6 @@ class GuestService:
         state = get_thread_state(thread_id)
         if state is None:
             raise HTTPException(status_code=404, detail="Thread not found")
-
         queue = get_sse_queue(thread_id)
 
         if state.get("ended"):
@@ -137,6 +128,7 @@ class GuestService:
         inputs = {"messages": prior + [{"role": "user", "content": text}]}
 
         accumulated = ""
+        latest_response_text = ""
         try:
             async for ev in self.graph.astream_events(
                 inputs,
@@ -148,12 +140,12 @@ class GuestService:
                 },
             ):
                 if ev.get("event") == "on_chat_model_stream":
-                    data = ev.get("data", {})
+                    data = ev.get("data", {}) or {}
                     chunk = data.get("chunk")
                     try:
                         content = getattr(chunk, "content", "")
                         if isinstance(content, list):
-                            token_text = "".join([str(p.get("text", "")) for p in content if isinstance(p, dict)])
+                            token_text = "".join(str(p.get("text", "")) for p in content if isinstance(p, dict))
                         else:
                             token_text = str(content or "")
                     except Exception:
@@ -161,22 +153,85 @@ class GuestService:
                     if token_text:
                         accumulated += token_text
                         await queue.put({"event": "token.delta", "data": {"text": token_text}})
-        except Exception:
-            pass
+                else:
+                    try:
+                        data = ev.get("data", {}) or {}
+                        output = data.get("output", {}) if isinstance(data, dict) else {}
+                        messages_out = output.get("messages") if isinstance(output, dict) else None
+                        if isinstance(messages_out, list) and messages_out:
+                            for msg in reversed(messages_out):
+                                content_list = getattr(msg, "content", None)
+                                if isinstance(content_list, list):
+                                    for item in reversed(content_list):
+                                        if isinstance(item, dict) and item.get("type") == "text":
+                                            candidate = item.get("text", "")
+                                            if candidate and candidate.strip():
+                                                latest_response_text = candidate
+                                                break
+                                    if latest_response_text:
+                                        break
+                                elif isinstance(content_list, str) and content_list.strip():
+                                    latest_response_text = content_list
+                                    break
+                    except Exception as e:
+                        logger.debug("[GUEST] Failed to parse fallback text from event: %s", e)
+        except Exception as e:
+            logger.exception("[GUEST] Error while streaming guest message: %s", e)
 
-        content = accumulated.strip()
+        content = accumulated.strip() or (latest_response_text.strip() if latest_response_text else "")
+
+        if not accumulated.strip() and not (latest_response_text and latest_response_text.strip()):
+            try:
+                result = await self.graph.ainvoke(
+                    inputs,
+                    config={
+                        "run_name": "guest.message.fallback",
+                        "tags": ["guest", "fallback"],
+                        "metadata": {"thread_id": thread_id, "phase": "message_fallback"},
+                    },
+                )
+                fallback_text = ""
+                try:
+                    messages_out = None
+                    if isinstance(result, dict):
+                        messages_out = result.get("messages")
+                    if messages_out is None:
+                        messages_out = getattr(result, "messages", None)
+                    if isinstance(messages_out, list):
+                        for msg in reversed(messages_out):
+                            content_list = getattr(msg, "content", None)
+                            if isinstance(content_list, list):
+                                for item in reversed(content_list):
+                                    if isinstance(item, dict) and item.get("type") == "text":
+                                        candidate = item.get("text", "")
+                                        if candidate and candidate.strip():
+                                            fallback_text = candidate
+                                            break
+                                if fallback_text:
+                                    break
+                            elif isinstance(content_list, str) and content_list.strip():
+                                fallback_text = content_list
+                                break
+                except Exception as e:
+                    logger.debug("[GUEST] Failed to parse text from non-stream fallback result: %s", e)
+                if fallback_text and fallback_text.strip():
+                    content = fallback_text.strip()
+                    await queue.put({"event": "token.delta", "data": {"text": content}})
+            except Exception as e:
+                logger.exception("[GUEST] Non-stream fallback failed: %s", e)
+
+        if not content:
+            content = SAFE_FALLBACK_ASSISTANT_REPLY
+            await queue.put({"event": "token.delta", "data": {"text": content}})
 
         if self._has_guardrail_intervention(content):
             logger.info("[GUEST] Guardrail intervention detected, removing offending message from state")
-
             prior_messages = state.get("messages", [])
             if prior_messages and prior_messages[-1].get("role") == "user":
                 prior_messages[-1] = {"role": "user", "content": GUARDRAIL_USER_PLACEHOLDER}
                 state["messages"] = prior_messages
                 logger.info("[GUEST] Replaced offending user message with guardrail placeholder")
-
             state.setdefault("messages", []).append({"role": "assistant", "content": content})
-
         else:
             state.setdefault("messages", []).append({"role": "user", "content": text})
             state.setdefault("messages", []).append({"role": "assistant", "content": content})
@@ -196,9 +251,7 @@ class GuestService:
                     break
             state["messages"] = messages
 
-        content = final_content
-        payload = _wrap(content, next_count, self.max_messages)
-
+        payload = _wrap(final_content, next_count, self.max_messages)
         await queue.put({"event": "message.completed", "data": payload})
 
         state["message_count"] = next_count
@@ -211,5 +264,6 @@ class GuestService:
 
         set_thread_state(thread_id, state)
         return {"status": "accepted"}
+
 
 guest_service = GuestService()
