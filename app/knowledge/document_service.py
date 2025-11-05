@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import time
+from datetime import datetime, timezone
 from typing import List
 
 from langchain_aws import BedrockEmbeddings
@@ -30,6 +31,7 @@ class DocumentService:
     def split_documents(self, documents: List[Document], source: Source) -> List[Document]:
         """Split documents into chunks with source metadata."""
         all_chunks = []
+        sync_timestamp = datetime.now(timezone.utc).isoformat()
 
         for doc in documents:
             doc.metadata["source_id"] = source.id
@@ -47,6 +49,7 @@ class DocumentService:
             doc.metadata["type"] = source.type
             doc.metadata["category"] = source.category
             doc.metadata["description"] = source.description
+            doc.metadata["last_sync"] = sync_timestamp
 
             if "content_source" not in doc.metadata:
                 doc.metadata["content_source"] = "external"
@@ -56,6 +59,7 @@ class DocumentService:
                 chunk.metadata["content"] = doc.page_content
                 chunk.metadata["content_hash"] = hashlib.sha256(chunk.page_content.encode()).hexdigest()
                 chunk.metadata["chunk_index"] = i
+                chunk.metadata["last_sync"] = sync_timestamp
             all_chunks.extend(chunks)
 
         return all_chunks

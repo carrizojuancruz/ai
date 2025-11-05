@@ -229,9 +229,6 @@ class Config:
     FOS_SECRETS_ID: Optional[str] = os.getenv("FOS_SECRETS_ID")
     FOS_SECRETS_REGION: str = os.getenv("FOS_SECRETS_REGION")
 
-    # Knowledge Base Configuration
-    SOURCES_FILE_PATH: str = os.getenv("SOURCES_FILE_PATH")
-
     # Prompt Service Configuration
     SUPERVISOR_PROMPT_TEST_MODE: Optional[bool] = get_optional_value("SUPERVISOR_PROMPT_TEST_MODE", bool)
     WEALTH_PROMPT_TEST_MODE: Optional[bool] = get_optional_value("WEALTH_PROMPT_TEST_MODE", bool)

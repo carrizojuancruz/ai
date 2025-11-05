@@ -17,7 +17,7 @@ class ExternalSource(BaseModel):
     exclude_path_patterns: str
     total_max_pages: Optional[int]
     recursion_depth: Optional[int]
-    enable: bool
+    enabled: bool
 
 
 class APISourceResponse(BaseModel):

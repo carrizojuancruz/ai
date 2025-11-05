@@ -26,18 +26,6 @@ class TestKnowledgeService:
         return mock_instance
 
     @pytest.fixture
-    def mock_source_repository(self, mocker):
-        mock = mocker.patch('app.knowledge.service.SourceRepository')
-        mock_instance = MagicMock()
-        mock_instance.delete_all.return_value = None
-        mock_instance.delete_by_url.return_value = True
-        mock_instance.find_by_url.return_value = None
-        mock_instance.load_all.return_value = []
-        mock_instance.save_all.return_value = None
-        mock.return_value = mock_instance
-        return mock_instance
-
-    @pytest.fixture
     def mock_document_service(self, mocker):
         mock = mocker.patch('app.knowledge.service.DocumentService')
         mock_instance = MagicMock()
@@ -64,7 +52,6 @@ class TestKnowledgeService:
     def knowledge_service(
         self,
         mock_vector_store,
-        mock_source_repository,
         mock_document_service,
         mock_crawler_service
     ):
@@ -78,7 +65,6 @@ class TestKnowledgeService:
         self,
         knowledge_service,
         mock_vector_store,
-        mock_source_repository,
         success,
         vectors_deleted,
         expected_success
@@ -93,8 +79,6 @@ class TestKnowledgeService:
         result = knowledge_service.delete_all_vectors()
 
         mock_vector_store.delete_all_vectors.assert_called_once()
-        if success:
-            mock_source_repository.delete_all.assert_called_once()
         assert result["success"] is expected_success
 
     @pytest.mark.parametrize("source_found,vector_delete_success,expect_repo_delete,expected_success", [
@@ -106,15 +90,30 @@ class TestKnowledgeService:
         self,
         knowledge_service,
         mock_vector_store,
-        mock_source_repository,
         sample_source,
+        mocker,
         source_found,
         vector_delete_success,
         expect_repo_delete,
         expected_success
     ):
         url = sample_source.url if source_found else "https://notfound.example.com"
-        mock_source_repository.find_by_url.return_value = sample_source if source_found else None
+
+        if source_found:
+            mocker.patch.object(
+                knowledge_service,
+                'get_vector_sources',
+                return_value={
+                    'sources': [{'source_id': sample_source.id, 'url': sample_source.url}],
+                    'total_sources': 1
+                }
+            )
+        else:
+            mocker.patch.object(
+                knowledge_service,
+                'get_vector_sources',
+                return_value={'sources': [], 'total_sources': 0}
+            )
 
         if source_found and vector_delete_success is not None:
             mock_vector_store.delete_documents_by_source_id.return_value = {
@@ -126,10 +125,6 @@ class TestKnowledgeService:
 
         if source_found:
             mock_vector_store.delete_documents_by_source_id.assert_called_once_with(sample_source.id)
-        if expect_repo_delete:
-            mock_source_repository.delete_by_url.assert_called_once_with(url)
-        else:
-            mock_source_repository.delete_by_url.assert_not_called()
 
         assert result["success"] is expected_success
 
@@ -140,9 +135,9 @@ class TestKnowledgeService:
         mock_crawler_service,
         mock_document_service,
         mock_vector_store,
-        mock_source_repository,
         sample_source,
-        sample_documents
+        sample_documents,
+        mocker
     ):
         from langchain_core.documents import Document
 
@@ -160,6 +155,12 @@ class TestKnowledgeService:
         }
         mock_document_service.split_documents.return_value = chunks
         mock_document_service.generate_embeddings.return_value = [[0.1] * 1536] * 20
+
+        mocker.patch.object(
+            knowledge_service,
+            'get_vector_sources',
+            return_value={'sources': [], 'total_sources': 0}
+        )
 
         result = await knowledge_service.upsert_source(sample_source)
 
@@ -184,13 +185,18 @@ class TestKnowledgeService:
         assert result["success"] is True
         assert result["documents_added"] == 0
 
-    def test_get_sources(self, knowledge_service, mock_source_repository):
-
-        sources = [
-            Source(id="s1", name="Source 1", url="https://example1.com"),
-            Source(id="s2", name="Source 2", url="https://example2.com")
-        ]
-        mock_source_repository.load_all.return_value = sources
+    def test_get_sources(self, knowledge_service, mocker):
+        mocker.patch.object(
+            knowledge_service,
+            'get_vector_sources',
+            return_value={
+                'sources': [
+                    {'source_id': 's1', 'name': 'Source 1', 'url': 'https://example1.com', 'type': '', 'category': '', 'description': '', 'total_chunks': 10},
+                    {'source_id': 's2', 'name': 'Source 2', 'url': 'https://example2.com', 'type': '', 'category': '', 'description': '', 'total_chunks': 5}
+                ],
+                'total_sources': 2
+            }
+        )
 
         result = knowledge_service.get_sources()
 
@@ -265,7 +271,6 @@ class TestKnowledgeService:
     async def test_upsert_source_no_changes_skips_reindex(
         self,
         knowledge_service,
-        mock_source_repository,
         mock_document_service,
         mock_vector_store,
         sample_source,
@@ -273,8 +278,14 @@ class TestKnowledgeService:
     ):
         from langchain_core.documents import Document
 
-        # Existing source present
-        mock_source_repository.find_by_url.return_value = sample_source
+        mocker.patch.object(
+            knowledge_service,
+            'get_vector_sources',
+            return_value={
+                'sources': [{'source_id': sample_source.id, 'url': sample_source.url}],
+                'total_sources': 1
+            }
+        )
 
         # Prepare chunks with known hashes
         chunks = [
@@ -332,34 +343,42 @@ class TestKnowledgeService:
         assert len(limited_chunks) == 5
 
     @pytest.mark.parametrize("source_exists,has_vectors,vector_error,expected_chunks", [
-        (False, False, False, 0),   # Source not found
-        (True, True, False, 2),     # Success with vectors
-        (True, False, True, 0),     # Vector iteration error
+        (False, False, False, 0),
+        (True, True, False, 2),
+        (True, False, True, 0),
     ])
     def test_get_source_details_scenarios(
         self,
         knowledge_service,
-        mock_source_repository,
         mock_vector_store,
+        mocker,
         source_exists,
         has_vectors,
         vector_error,
         expected_chunks
     ):
-        source = Source(
-            id="test123",
-            name="Test Source",
-            url="https://example.com",
-            type="web",
-            category="test",
-            description="Test description",
-            total_max_pages=10,
-            recursion_depth=2,
-            last_sync="2024-01-01",
-            section_urls=["https://example.com/section1"] if has_vectors else []
-        )
+        source_data = {
+            'source_id': "test123",
+            'name': "Test Source",
+            'url': "https://example.com",
+            'type': "web",
+            'category': "test",
+            'description': "Test description",
+            'total_chunks': expected_chunks
+        }
 
-        mock_source_repository.load_all.return_value = [source] if source_exists else []
+        if source_exists:
+            mocker.patch.object(
+                knowledge_service,
+                'get_vector_sources',
+                return_value={'sources': [source_data], 'total_sources': 1}
+            )
+        else:
+            mocker.patch.object(
+                knowledge_service,
+                'get_vector_sources',
+                return_value={'sources': [], 'total_sources': 0}
+            )
 
         if source_exists:
             if vector_error:

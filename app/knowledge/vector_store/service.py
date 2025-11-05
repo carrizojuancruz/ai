@@ -35,6 +35,7 @@ class S3VectorStoreService:
                 'type': doc.metadata.get('type') or doc.metadata.get('file_type', ''),
                 'category': doc.metadata.get('category', ''),
                 'description': doc.metadata.get('description', ''),
+                'last_sync': doc.metadata.get('last_sync'),
             }
 
             vectors.append({
@@ -311,3 +312,37 @@ class S3VectorStoreService:
                 'vector_key': v.get('key', '')
             })
         return results
+
+    def get_all_vectors_metadata(self) -> list[dict[str, Any]]:
+        """Get metadata from all vectors in the store.
+
+        Returns:
+            List of vector metadata dictionaries
+
+        """
+        try:
+            logger.info("Fetching all vector metadata from vector store")
+            vectors_metadata = []
+
+            paginator = self.client.get_paginator('list_vectors')
+            page_iterator = paginator.paginate(
+                vectorBucketName=self.bucket_name,
+                indexName=self.index_name,
+                returnMetadata=True,
+                returnData=False,
+                PaginationConfig={'PageSize': 1000}
+            )
+
+            for page in page_iterator:
+                for vector in page.get('vectors', []):
+                    metadata = vector.get('metadata', {})
+                    if metadata:
+                        vectors_metadata.append(metadata)
+
+            logger.info(f"Retrieved metadata from {len(vectors_metadata)} vectors")
+            return vectors_metadata
+
+        except Exception as e:
+            logger.error(f"Failed to get vectors metadata: {str(e)}")
+            raise
+

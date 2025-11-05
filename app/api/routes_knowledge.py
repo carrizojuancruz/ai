@@ -1,4 +1,7 @@
-import hashlib
+import logging
+import tempfile
+from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, UploadFile
 
@@ -6,6 +9,7 @@ from app.core.config import config
 from app.knowledge.models import Source
 from app.knowledge.s3_sync_service import S3SyncService
 from app.knowledge.service import KnowledgeService
+from app.knowledge.utils import generate_source_id
 
 from .schemas.knowledge import (
     DeleteAllVectorsResponse,
@@ -14,7 +18,11 @@ from .schemas.knowledge import (
     SourceDetailsResponse,
     SourceResponse,
     SourcesResponse,
+    SyncSourceRequest,
+    SyncSourceResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/knowledge", tags=["Knowledge Base"])
 
@@ -54,6 +62,7 @@ async def search_knowledge_base(request: SearchRequest) -> SearchResponse:
             total_results=len(results)
         )
     except Exception as e:
+        logger.error(f"Search failed for query '{request.query}': {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Search failed: {str(e)}"
@@ -90,6 +99,7 @@ async def get_sources() -> SourcesResponse:
             total_sources=len(source_responses)
         )
     except Exception as e:
+        logger.error(f"Failed to retrieve sources: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to retrieve sources: {str(e)}"
@@ -132,6 +142,7 @@ async def delete_all_vectors() -> DeleteAllVectorsResponse:
             error=result.get("error")
         )
     except Exception as e:
+        logger.error(f"Failed to delete all vectors: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to delete all vectors: {str(e)}"
@@ -154,9 +165,6 @@ async def upload_file_to_s3(file: UploadFile, s3_key: str | None = None):
         curl -X POST "/knowledge/s3/upload" -F "file=@guide.md"
 
     """
-    import tempfile
-    from pathlib import Path
-
     try:
         s3_sync_service = S3SyncService()
 
@@ -171,10 +179,12 @@ async def upload_file_to_s3(file: UploadFile, s3_key: str | None = None):
 
         if result["success"]:
             return result
-        else:
-            raise HTTPException(status_code=500, detail=result.get("error", "Upload failed"))
+        raise HTTPException(status_code=500, detail=result.get("error", "Upload failed"))
 
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"Failed to upload file to S3: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}") from e
 
 
@@ -205,6 +215,7 @@ async def list_s3_files(prefix: str = ""):
         }
 
     except Exception as e:
+        logger.error(f"Failed to list S3 files with prefix '{prefix}': {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to list files: {str(e)}") from e
 
 
@@ -217,10 +228,12 @@ async def delete_all_s3_files():
 
         if result["success"]:
             return result
-        else:
-            raise HTTPException(status_code=500, detail=result.get("error", "Bulk deletion failed"))
+        raise HTTPException(status_code=500, detail=f"Bulk deletion failed: {result.get('error', 'Unknown error')}")
 
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"Bulk deletion of S3 files failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Bulk deletion failed: {str(e)}") from e
 
 
@@ -246,10 +259,12 @@ async def delete_s3_file(s3_key: str, delete_vectors: bool = True):
 
         if result["success"]:
             return result
-        else:
-            raise HTTPException(status_code=500, detail=result.get("error", "Deletion failed"))
+        raise HTTPException(status_code=500, detail=result.get("error", "Deletion failed"))
 
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"Failed to delete S3 file '{s3_key}': {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Deletion failed: {str(e)}") from e
 
 
@@ -315,7 +330,7 @@ async def sync_internal_guidance():
             raise HTTPException(status_code=400, detail="VERA_GUIDANCE_URL not configured")
 
         url = config.VERA_GUIDANCE_URL
-        source_id = hashlib.sha256(url.encode()).hexdigest()[:16]
+        source_id = generate_source_id(url)
 
         source = Source(
             id=source_id,
@@ -341,13 +356,94 @@ async def sync_internal_guidance():
                 "chunks_created": result.get("documents_added", 0),
                 "source_id": source.id
             }
-        else:
-            raise HTTPException(
-                status_code=500,
-                detail=result.get("message", "Sync failed")
-            )
+        raise HTTPException(
+            status_code=500,
+            detail=result.get("message", "Sync failed")
+        )
 
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Internal sync failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal sync failed: {str(e)}") from e
+
+
+@router.post("/sync-source", response_model=SyncSourceResponse)
+async def sync_single_source(request: SyncSourceRequest) -> SyncSourceResponse:
+    """Synchronize a single knowledge base source by URL."""
+    try:
+        logger.info(f"Starting single-source sync for URL: {request.url}")
+
+        knowledge_service = KnowledgeService()
+
+        source_id = generate_source_id(request.url)
+        logger.debug(f"Generated source_id: {source_id}")
+
+        if not request.name:
+            parsed = urlparse(request.url)
+            request.name = f"Source from {parsed.netloc}"
+
+        source = Source(
+            id=source_id,
+            name=request.name,
+            url=request.url,
+            enabled=True,
+            type=request.type,
+            category=request.category,
+            description=request.description,
+            include_path_patterns=request.include_path_patterns,
+            exclude_path_patterns=request.exclude_path_patterns,
+            total_max_pages=request.total_max_pages or 20,
+            recursion_depth=request.recursion_depth or 2
+        )
+
+        logger.info(f"Attempting to sync source: {source.name} ({source.url})")
+
+        result = await knowledge_service.upsert_source(
+            source,
+            content_source="external"
+        )
+
+        content_changed = result.get("documents_added", 0) > 0 or result.get("is_new_source", False)
+
+        response = SyncSourceResponse(
+            success=result["success"],
+            source_url=source.url,
+            source_id=source_id,
+            is_new_source=result.get("is_new_source", False),
+            documents_processed=result.get("documents_processed", 0),
+            documents_added=result.get("documents_added", 0),
+            processing_time_seconds=result.get("processing_time_seconds", 0.0),
+            message=result.get("message", "Successfully synchronized source"),
+            crawl_type=config.CRAWL_TYPE,
+            content_changed=content_changed,
+            error=result.get("error"),
+            crawl_error=result.get("crawl_error")
+        )
+
+        if response.success:
+            logger.info(
+                f"Successfully synced {source.url}: "
+                f"{response.documents_added} chunks added, "
+                f"took {response.processing_time_seconds}s"
+            )
+        else:
+            logger.error(f"Sync failed for {source.url}: {response.error}")
+
+        return response
+
+    except ValueError as e:
+        logger.warning(f"Invalid request for sync: {str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid request: {str(e)}"
+        ) from e
+
+    except Exception as e:
+        logger.error(f"Failed to sync source {request.url}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to sync source: {str(e)}"
+        ) from e
+
+

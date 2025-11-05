@@ -193,9 +193,6 @@ coverage.xml
 .github/prompts/
 .github/instructions/
 
-# Knowledge base sources configuration
-knowledge/sources.json
-
 # Knowledge base crawling logs
 app/knowledge/log.txt
 

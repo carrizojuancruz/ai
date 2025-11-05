@@ -1,6 +1,5 @@
 """Shared fixtures for knowledge module tests."""
 
-import json
 from datetime import UTC, datetime
 from typing import List
 from unittest.mock import AsyncMock, MagicMock
@@ -94,20 +93,6 @@ def sample_embeddings():
     return [[0.1 * i + j * 0.01 for i in range(1536)] for j in range(5)]
 
 
-@pytest.fixture
-def temp_sources_file(tmp_path):
-    sources_file = tmp_path / "sources.json"
-    sources_file.write_text("[]")
-    return str(sources_file)
-
-
-@pytest.fixture
-def temp_sources_file_with_data(tmp_path, multiple_sources):
-    sources_file = tmp_path / "sources.json"
-    data = [source.model_dump(mode='json') for source in multiple_sources]
-    sources_file.write_text(json.dumps(data, indent=2, default=str))
-    return str(sources_file)
-
 
 @pytest.fixture
 def temp_log_file(tmp_path):
@@ -191,7 +176,6 @@ def mock_config(mocker):
     mock.TOP_K_SEARCH = 5
     mock.CRAWL_TYPE = "recursive"
     mock.CRAWL_TIMEOUT = 30
-    mock.SOURCES_FILE_PATH = "/tmp/sources.json"
     return mock
 
 

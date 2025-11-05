@@ -1,0 +1,68 @@
+"""Utility functions for knowledge base operations."""
+
+import hashlib
+import logging
+from typing import Tuple
+from urllib.parse import urlparse, urlunparse
+
+logger = logging.getLogger(__name__)
+
+
+def normalize_url(url: str) -> str:
+    """Normalize URL by removing trailing slashes, fragments, and query params."""
+    parsed = urlparse(url.strip())
+
+    normalized = urlunparse((
+        parsed.scheme,
+        parsed.netloc,
+        parsed.path.rstrip('/'),
+        '',
+        '',
+        ''
+    ))
+
+    return normalized
+
+
+def validate_url(url: str) -> Tuple[bool, str]:
+    """Validate if URL is properly formatted and crawlable."""
+    try:
+        parsed = urlparse(url)
+
+        if not parsed.scheme:
+            return False, "URL must include protocol (http or https)"
+
+        if parsed.scheme not in ['http', 'https']:
+            return False, "URL must use http or https protocol"
+
+        if not parsed.netloc:
+            return False, "URL must include domain"
+
+        if 'localhost' in parsed.netloc or '127.0.0.1' in parsed.netloc:
+            return False, "Cannot crawl localhost URLs"
+
+        return True, ""
+
+    except Exception as e:
+        return False, f"Invalid URL format: {str(e)}"
+
+
+def is_crawlable_url(url: str) -> bool:
+    """Check if URL is crawlable (not an asset file)."""
+    asset_extensions = {
+        '.jpg', '.jpeg', '.png', '.gif', '.svg', '.ico',
+        '.mp4', '.mp3', '.avi', '.mov', '.wav',
+        '.zip', '.tar', '.gz', '.rar',
+        '.exe', '.dmg', '.pkg',
+        '.css', '.js', '.woff', '.woff2', '.ttf', '.eot'
+    }
+
+    parsed = urlparse(url.lower())
+    path = parsed.path
+    return not any(path.endswith(ext) for ext in asset_extensions)
+
+
+def generate_source_id(url: str) -> str:
+    """Generate deterministic source ID from URL."""
+    normalized = normalize_url(url)
+    return hashlib.sha256(normalized.encode()).hexdigest()[:16]

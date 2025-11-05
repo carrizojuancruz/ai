@@ -55,7 +55,7 @@ class TestMapApiToExternalSource:
         assert result.exclude_path_patterns == "/private/**"
         assert result.total_max_pages == 50
         assert result.recursion_depth == 3
-        assert result.enable is True
+        assert result.enabled is True
 
     def test_handles_none_optional_fields(self, repository, mock_api_source):
         """Should handle None values for optional fields."""

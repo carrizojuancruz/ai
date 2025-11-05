@@ -29,7 +29,7 @@ class ExternalSourcesRepository(ExternalSourcesRepositoryInterface):
             exclude_path_patterns=api_source.exclude_path_patterns or "",
             total_max_pages=api_source.total_max_pages,
             recursion_depth=api_source.recursion_depth,
-            enable=api_source.enabled
+            enabled=api_source.enabled
         )
 
     async def get_all(self) -> List[ExternalSource]:
