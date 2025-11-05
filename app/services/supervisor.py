@@ -462,8 +462,6 @@ class SupervisorService:
 
         if has_financial_accounts:
             try:
-                import asyncio
-
                 from app.core.app_state import get_finance_agent
 
                 fa = get_finance_agent()
@@ -571,11 +569,9 @@ class SupervisorService:
                         if response_text:
                             break
 
-                # Quick fix: Update latest response from any event
                 if response_text:
                     prev_latest = (latest_response_text[:80] + "...") if latest_response_text else None
                     latest_response_text = response_text
-                    # If this update is from supervisor, also update the supervisor buffer
                     if name == "supervisor":
                         prev_super = (supervisor_latest_response_text[:80] + "...") if supervisor_latest_response_text else None
                         supervisor_latest_response_text = response_text
@@ -588,11 +584,8 @@ class SupervisorService:
                         f"from={prev_latest} to={(latest_response_text[:80] + '...') if latest_response_text else None}"
                     )
 
-            except: # noqa: E722
-                pass
-
-
-
+            except Exception as e:
+                logger.exception("Error processing supervisor event: %s", e)
 
             if etype == "on_tool_start":
                 tool_name = name
