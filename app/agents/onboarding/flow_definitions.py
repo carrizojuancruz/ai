@@ -472,31 +472,46 @@ Not ready? Totally fine. You can connect later or add expenses manually. Connect
         id=FlowStep.FINAL_WRAP_UP,
         message=(
             "Great!  When you’re done with this setup, you’ll be able to add your spending info too.\n\n"
-            "By the way, you’ve got 30 days of free access left. After that, it’s just $5 per month to keep chatting. "
-            "You won’t be charged when your free access ends, only when you choose to subscribe.\n\n"
-            "Ready to wrap up and go after some money wins together?"
+            "Now, one last thing: you’ll get 30 days of full access for free. After that, it’s just $5 a month to keep chatting with me.\n\n"
+            "Want to learn more about the subscription?"
         ),
         interaction_type=InteractionType.SINGLE_CHOICE,
         choices=[
-            Choice(id="lets_do_this", label="Let's do this", value="lets_do_this", synonyms=["lets do this", "let's do this", "do this", "ready"])  # noqa: E501
+            Choice(
+                id="see_subscription_info",
+                label="See subscription info",
+                value="see_subscription_info",
+                synonyms=["see", "learn more", "more info", "details"],
+            ),
+            Choice(
+                id="finish_setup",
+                label="Finish setup",
+                value="finish_setup",
+                synonyms=["finish", "done", "complete", "wrap up"],
+            ),
         ],
         next_step=lambda _r, _s: FlowStep.COMPLETE,
     ),
     FlowStep.SUBSCRIPTION_NOTICE: StepDefinition(
         id=FlowStep.SUBSCRIPTION_NOTICE,
         message=(
-            "Now, just one last thing. Money talk can feel a little awkward, I know, so I’ll keep it simple.\n\n"
-            "You’ve got 30 days of free access left. After that, it’s just $5 per month to keep chatting. You won’t be charged when your free access ends, only when you choose to subscribe.\n\n"
-            "Tap the reminder at the top of the screen to subscribe now, during your free access period, or after it ends. Your call!"
+            "Now, one last thing: you’ll get 30 days of full access for free. After that, it’s just $5 a month to keep chatting with me.\n\n"
+            "Want to learn more about the subscription?"
         ),
         interaction_type=InteractionType.SINGLE_CHOICE,
         choices=[
             Choice(
-                id="acknowledge",
-                label="Got it!",
-                value="got_it",
-                synonyms=["ok", "okay", "got it", "thanks"],
-            )
+                id="see_subscription_info",
+                label="See subscription info",
+                value="see_subscription_info",
+                synonyms=["see", "learn more", "more info", "details"],
+            ),
+            Choice(
+                id="not_right_now",
+                label="Not right now",
+                value="not_right_now",
+                synonyms=["not now", "later", "skip"],
+            ),
         ],
         next_step=lambda _r, _s: FlowStep.COMPLETE,
     ),
