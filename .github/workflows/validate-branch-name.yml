@@ -1,0 +1,91 @@
+name: 🕵️ Validate Branch Name
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  validate-branch:
+    name: Check branch naming convention
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write  # Needed to post a comment
+      contents: read
+
+    steps:
+      - name: Validate branch name format
+        id: validate
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          echo "🔍 Checking branch name: $BRANCH_NAME"
+
+          VALID_REGEX='^(feature|bugfix|hotfix|chore|release)\/[A-Z]+-[0-9]+(-[a-z0-9\-]+)*$'
+
+          echo "## 🧩 Branch Name Validation" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch being validated:** \`$BRANCH_NAME\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Best Practices" >> $GITHUB_STEP_SUMMARY
+          echo "- Prefix with one of: \`feature/\`, \`bugfix/\`, \`hotfix/\`, \`chore/\`, or \`release/\`." >> $GITHUB_STEP_SUMMARY
+          echo "- Include a Jira issue ID (e.g., \`PROJ-1234\`)." >> $GITHUB_STEP_SUMMARY
+          echo "- Use lowercase, short, hyphen-separated words for the description." >> $GITHUB_STEP_SUMMARY
+          echo "- Avoid spaces or special characters." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🧮 Expected Pattern" >> $GITHUB_STEP_SUMMARY
+          echo "\`$VALID_REGEX\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🧪 Examples" >> $GITHUB_STEP_SUMMARY
+          echo "| ✅ Valid | ❌ Invalid | Reason |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| feature/PROJ-1234-add-login | feature/add-login | Missing Jira key |" >> $GITHUB_STEP_SUMMARY
+          echo "| bugfix/API-7-fix-timezone | PROJ-1234-fix-timezone | Missing prefix |" >> $GITHUB_STEP_SUMMARY
+          echo "| hotfix/SEC-42-patch-cve | feature/Proj-1234-add-login | Jira key must be uppercase |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ ! "$BRANCH_NAME" =~ $VALID_REGEX ]]; then
+            echo "is_valid=false" >> $GITHUB_OUTPUT
+          else
+            echo "is_valid=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Handle invalid branch name
+        if: steps.validate.outputs.is_valid == 'false'
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          echo "❌ Invalid branch name: $BRANCH_NAME"
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ❌ Validation Result" >> $GITHUB_STEP_SUMMARY
+          echo "Branch name **does not follow best practices.** Please rename your branch following the guidelines above." >> $GITHUB_STEP_SUMMARY
+          exit 1
+
+      - name: Post PR comment if invalid
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const branchName = process.env.GITHUB_HEAD_REF;
+            const prNumber = context.payload.pull_request.number;
+            const message = `
+            ❌ **Branch name validation failed**
+
+            Your branch name \`${branchName}\` does not follow the required convention.
+
+            **Expected format:**
+            \`type/JIRA-1234-short-description\`
+
+            **Examples:**
+            - ✅ feature/PROJ-1234-add-login-endpoint
+            - ✅ bugfix/API-5678-fix-timezone
+            - ❌ feature/add-login _(missing Jira ID)_
+
+            **Allowed prefixes:** feature, bugfix, hotfix, chore, release
+
+            Please rename your branch following these best practices before merging.
+            `;
+
+            await github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            });
