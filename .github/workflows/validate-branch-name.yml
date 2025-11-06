@@ -20,6 +20,7 @@ jobs:
           echo "🔍 Checking branch name: $BRANCH_NAME"
 
           VALID_REGEX='^(feature|bugfix|hotfix|chore|release)\/[A-Z]+-[0-9]+(-[a-z0-9\-]+)*$'
+          VALID_REGEX='^(feature|bugfix|hotfix|chore|release)\/[A-Z]+-[0-9]+(-[A-Za-z0-9\-]+)*$'
 
           echo "## 🧩 Branch Name Validation" >> $GITHUB_STEP_SUMMARY
           echo "**Branch being validated:** \`$BRANCH_NAME\`" >> $GITHUB_STEP_SUMMARY
