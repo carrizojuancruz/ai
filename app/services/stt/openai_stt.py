@@ -121,6 +121,7 @@ class OpenAISTTService(STTService):
                 "Authorization": f"Bearer {config.OPENAI_API_KEY}",
             },
         )
+
         response.raise_for_status()
 
         result = response.json()
@@ -152,6 +153,7 @@ class OpenAISTTService(STTService):
             'audio/webm': 'webm',
             'audio/mp4': 'mp4',
             'audio/m4a': 'm4a',
+            'audio/x-m4a': 'm4a',
         }
 
         if mime_type:

@@ -16,12 +16,12 @@ class TestSTTFactory:
         reset_stt_service()
 
     def test_stt_disabled_returns_none(self, monkeypatch):
-        monkeypatch.setattr(config, "STT_ENABLED", False, raising=False)
+        monkeypatch.setattr(config, "AUDIO_ENABLED", False, raising=False)
         svc = get_stt_service()
         assert svc is None
 
     def test_openai_provider_initializes(self, monkeypatch):
-        monkeypatch.setattr(config, "STT_ENABLED", True, raising=False)
+        monkeypatch.setattr(config, "AUDIO_ENABLED", True, raising=False)
         monkeypatch.setattr(config, "STT_PROVIDER", "openai", raising=False)
         monkeypatch.setattr(config, "STT_MODEL", "whisper-1", raising=False)
         monkeypatch.setattr(config, "OPENAI_API_KEY", "sk-test", raising=False)
@@ -30,7 +30,7 @@ class TestSTTFactory:
         assert svc.get_provider_name() == "openai"
 
     def test_unsupported_provider_raises(self, monkeypatch):
-        monkeypatch.setattr(config, "STT_ENABLED", True, raising=False)
+        monkeypatch.setattr(config, "AUDIO_ENABLED", True, raising=False)
         monkeypatch.setattr(config, "STT_PROVIDER", "unknown", raising=False)
         with pytest.raises(STTServiceError):
             _ = get_stt_service()

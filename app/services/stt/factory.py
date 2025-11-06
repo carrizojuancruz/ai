@@ -32,7 +32,7 @@ def get_stt_service() -> Optional[STTService]:
     global _stt_service
 
     # Return None if STT is disabled
-    if not getattr(config, "STT_ENABLED", False):
+    if not getattr(config, "AUDIO_ENABLED", False):
         logger.debug("STT is disabled, returning None STT service")
         return None
 
@@ -100,7 +100,7 @@ def reset_stt_service() -> None:
 
 def is_stt_available() -> bool:
     """Check if STT service is available and properly configured."""
-    if not getattr(config, "STT_ENABLED", False):
+    if not getattr(config, "AUDIO_ENABLED", False):
         return False
 
     try:
