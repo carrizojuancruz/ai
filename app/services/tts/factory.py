@@ -11,6 +11,7 @@ from app.core.config import config
 
 from .base import TTSService, TTSServiceError
 from .bedrock_tts import BedrockTTSService
+from .openai_tts import OpenAITTSService
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,12 @@ def get_tts_service() -> Optional[TTSService]:
 
     try:
         if provider == "bedrock":
-            _tts_service = BedrockTTSService()
+            # Hardcoded service use for now
+            _tts_service = OpenAITTSService()
+            #_tts_service = BedrockTTSService()
+            logger.info(f"Initialized {provider} TTS service")
+        elif provider == "openai":
+            _tts_service = OpenAITTSService()
             logger.info(f"Initialized {provider} TTS service")
         else:
             raise TTSServiceError(f"Unsupported TTS provider: {provider}")
@@ -73,6 +79,8 @@ def create_tts_service(provider: str) -> TTSService:
 
     if provider == "bedrock":
         return BedrockTTSService()
+    elif provider == "openai":
+        return OpenAITTSService()
     else:
         raise TTSServiceError(f"Unsupported TTS provider: {provider}")
 
@@ -84,7 +92,7 @@ def get_supported_providers() -> list[str]:
         List of supported provider names
 
     """
-    return ["bedrock"]
+    return ["bedrock", "openai"]
 
 
 def reset_tts_service() -> None:

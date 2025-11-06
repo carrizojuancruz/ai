@@ -266,6 +266,16 @@ class Config:
     TTS_ENGINE: str = os.getenv("TTS_ENGINE")
     TTS_CHUNK_SIZE: Optional[int] = get_optional_value("TTS_CHUNK_SIZE", int)
 
+    # STT Configuration
+    STT_PROVIDER: Optional[str] = os.getenv("STT_PROVIDER")
+    STT_MODEL_ID: Optional[str] = os.getenv("STT_MODEL_ID") # Bedrock
+
+    # OpenAI Configuration (TTS, STT)
+    OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
+    OPENAI_TTS_VOICE: Optional[str] = os.getenv("OPENAI_TTS_VOICE")
+    OPENAI_TTS_MODEL: Optional[str] = os.getenv("OPENAI_TTS_MODEL")
+    OPENAI_STT_MODEL: Optional[str] = os.getenv("OPENAI_STT_MODEL")
+
     # Fallback configuration
     MODEL_STATE: str = os.getenv("MODEL_STATE")
     MODEL_REGION_ACTIVE: str = os.getenv("MODEL_REGION_ACTIVE")

@@ -133,12 +133,6 @@ async def test_tts_synthesis(request: TTSTestRequest):
                 detail="Text cannot be empty"
             )
 
-        if len(request.text) > 3000:  # Polly limit
-            raise HTTPException(
-                status_code=400,
-                detail="Text too long (max 3000 characters)"
-            )
-
         logger.info(f"Testing TTS synthesis for text: '{request.text[:50]}...'")
 
         # Synthesize speech
@@ -278,17 +272,22 @@ async def get_tts_config():
 
     """
     try:
-        from app.core.config import config
 
-        return {
-            "audio_enabled": config.AUDIO_ENABLED,
-            "tts_provider": config.TTS_PROVIDER,
-            "tts_voice_id": config.TTS_VOICE_ID,
-            "tts_output_format": config.TTS_OUTPUT_FORMAT,
-            "tts_engine": config.TTS_ENGINE,
-            "tts_chunk_size": config.TTS_CHUNK_SIZE,
-            "service_available": is_tts_available()
-        }
+        if not is_tts_available():
+            raise HTTPException(
+                status_code=503,
+                detail="TTS service not available"
+            )
+
+        service = get_tts_service()
+
+        if not service:
+            raise HTTPException(
+                status_code=503,
+                detail="TTS service instance not available"
+            )
+
+        return service.get_config()
 
     except Exception as e:
         logger.error(f"Failed to get TTS config: {e}")
