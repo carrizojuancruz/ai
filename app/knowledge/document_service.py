@@ -10,6 +10,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.core.config import config
 from app.knowledge.models import Source
+from app.knowledge.utils import get_subcategory_for_url
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ class DocumentService:
             region_name=config.AWS_REGION
         )
 
-    def split_documents(self, documents: List[Document], source: Source) -> List[Document]:
+    def split_documents(self, documents: List[Document], source: Source, content_source: str = "external") -> List[Document]:
         """Split documents into chunks with source metadata."""
         all_chunks = []
         sync_timestamp = datetime.now(timezone.utc).isoformat()
@@ -51,8 +52,14 @@ class DocumentService:
             doc.metadata["description"] = source.description
             doc.metadata["last_sync"] = sync_timestamp
 
-            if "content_source" not in doc.metadata:
-                doc.metadata["content_source"] = "external"
+            doc.metadata["content_source"] = content_source
+
+            if doc.metadata.get("content_source") == "internal":
+                section_url = doc.metadata.get("section_url", "")
+                subcategory = get_subcategory_for_url(section_url)
+                if subcategory:
+                    doc.metadata["subcategory"] = subcategory
+                    logger.info(f"Assigned subcategory '{subcategory}' to internal document: {section_url}")
 
             chunks = self.text_splitter.split_documents([doc])
             for i, chunk in enumerate(chunks):

@@ -320,16 +320,11 @@ class TestKnowledgeService:
     ):
         from langchain_core.documents import Document
 
-        # Set a small max chunks limit
-        cfg = mocker.patch('app.knowledge.service.config')
-        cfg.MAX_CHUNKS_PER_SOURCE = 5
-
         # Create 10 chunks from split
         chunks = [Document(page_content=f"c{i}", metadata={"content_hash": f"h{i}"}) for i in range(10)]
         mock_document_service.split_documents.return_value = chunks
-        mock_document_service.generate_embeddings.return_value = [[0.1] * 1536] * 5
+        mock_document_service.generate_embeddings.return_value = [[0.1] * 1536] * 10
 
-        # Ensure crawler returns documents so we exercise chunk limiting
         knowledge_service.crawler_service.crawl_source = AsyncMock(
             return_value={"documents": [Document(page_content="doc", metadata={})], "documents_loaded": 1}
         )
@@ -337,10 +332,9 @@ class TestKnowledgeService:
         result = await knowledge_service.upsert_source(sample_source)
 
         assert result["success"] is True
-        # Ensure add_documents called with limited number of chunks
         args, kwargs = knowledge_service.vector_store_service.add_documents.call_args
         limited_chunks = args[0]
-        assert len(limited_chunks) == 5
+        assert len(limited_chunks) == 10
 
     @pytest.mark.parametrize("source_exists,has_vectors,vector_error,expected_chunks", [
         (False, False, False, 0),
@@ -400,4 +394,4 @@ class TestKnowledgeService:
             assert result["total_chunks"] == expected_chunks
             assert len(result["chunks"]) == expected_chunks
             if has_vectors and not vector_error:
-                assert result["chunks"][0]["section_url"] == "https://example.com/section1"
+                assert result["chunks"][0]["url"] == "https://example.com/section1"

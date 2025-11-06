@@ -39,6 +39,26 @@ class KnowledgeService:
                 "vectors_failed": deletion_result["vectors_failed"]
             }
 
+    def delete_source_vectors_by_id(self, source_id: str) -> Dict[str, Any]:
+        """Delete all vectors for a source by source_id."""
+        deletion_result = self.vector_store_service.delete_documents_by_source_id(source_id)
+
+        if deletion_result["success"]:
+            logger.info(f"Successfully deleted {deletion_result['vectors_deleted']} vectors for source {source_id}")
+            return {
+                "success": True,
+                "vectors_deleted": deletion_result["vectors_deleted"],
+                "message": deletion_result["message"]
+            }
+        else:
+            logger.error(f"Failed to delete vectors for source {source_id}: {deletion_result.get('message')}")
+            return {
+                "success": False,
+                "error": deletion_result.get("message", "Unknown error"),
+                "vectors_deleted": deletion_result.get("vectors_deleted", 0),
+                "vectors_failed": deletion_result.get("vectors_failed", 0)
+            }
+
     def delete_source(self, source_url: str) -> Dict[str, Any]:
         """Delete a source from the knowledge base."""
         vector_sources = self.get_vector_sources()
@@ -85,16 +105,8 @@ class KnowledgeService:
 
         logger.info(f"Processing {len(documents)} documents from {source.url}")
 
-        chunks = self.document_service.split_documents(documents, source)
+        chunks = self.document_service.split_documents(documents, source, content_source)
         logger.info(f"Split into {len(chunks)} chunks for {source.url}")
-
-        for chunk in chunks:
-            chunk.metadata["content_source"] = content_source
-
-        original_chunk_count = len(chunks)
-        if len(chunks) > config.MAX_CHUNKS_PER_SOURCE:
-            chunks = chunks[:config.MAX_CHUNKS_PER_SOURCE]
-            logger.info(f"Limited chunks from {original_chunk_count} to {config.MAX_CHUNKS_PER_SOURCE} for {source.url}")
 
         new_hashes = {doc.metadata.get("content_hash") for doc in chunks}
 
@@ -164,29 +176,7 @@ class KnowledgeService:
         return result
 
     async def search(self, query: str, filter: Dict[str, str] | None = None) -> List[Dict[str, Any]]:
-        """Search the knowledge base with optional metadata filtering.
-
-        Args:
-            query: Search query string
-            filter: Optional metadata filter, e.g. {"content_source": "internal"}
-                   - Filter by content_source: "internal" for S3 files, "external" for crawled content
-                   - Filter by file_type: "markdown", "text", "json", etc.
-                   - Multiple filters can be combined
-
-        Returns:
-            List of search results with content and metadata
-
-        Examples:
-            # Search all content
-            results = await search("bank connection")
-
-            # Search only internal S3 files
-            results = await search("bank connection", {"content_source": "internal"})
-
-            # Search only external crawled content
-            results = await search("bank connection", {"content_source": "external"})
-
-        """
+        """Search the knowledge base with optional metadata filtering."""
         try:
             query_embedding = self.document_service.generate_query_embedding(query)
             results = self.vector_store_service.similarity_search(
@@ -197,7 +187,7 @@ class KnowledgeService:
             out = []
             for r in results:
                 meta = r.get('metadata', {})
-                out.append({
+                result = {
                     'content': r.get('content', ''),
                     'section_url': meta.get('section_url', ''),
                     'source_url': meta.get('source_url', ''),
@@ -207,11 +197,12 @@ class KnowledgeService:
                     'category': meta.get('category', ''),
                     'description': meta.get('description', ''),
                     'content_source': meta.get('content_source', ''),
-                    'filename': meta.get('filename', ''),
-                    'file_type': meta.get('file_type', ''),
-                    's3_key': meta.get('s3_key', ''),
-                    'source': meta.get('source', '')
-                })
+                }
+
+                if 'subcategory' in meta:
+                    result['subcategory'] = meta['subcategory']
+
+                out.append(result)
             return out
         except Exception as e:
             logger.error(f"Search failed: {str(e)}", exc_info=True)
@@ -292,10 +283,7 @@ class KnowledgeService:
                 if chunk_last_sync and (not last_sync or chunk_last_sync > last_sync):
                     last_sync = chunk_last_sync
 
-                chunks.append({
-                    'section_url': section_url,
-                    'content': metadata.get('content', '')
-                })
+                chunks.append(metadata)
 
         except Exception as e:
             logger.error(f"Error retrieving chunk metadata: {str(e)}")

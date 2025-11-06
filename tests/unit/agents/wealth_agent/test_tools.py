@@ -146,7 +146,6 @@ class TestSearchKB:
         result = await search_kb.ainvoke({"query": "test"})
         parsed = json.loads(result)
 
-        # The tool filters out results without content, but includes results with content even if source_url is empty
         assert len(parsed) == 2
         assert parsed[0]["content"] == "Valid content"
         assert parsed[1]["content"] == "Another valid"
@@ -190,3 +189,40 @@ class TestSearchKB:
 
         assert isinstance(parsed, list)
         mock_knowledge_service.search.assert_called_once_with(query, filter={'content_source': 'external'})
+
+    @pytest.mark.asyncio
+    async def test_search_kb_includes_subcategory_when_present(self, mock_knowledge_service):
+        """Test search_kb includes subcategory field when it exists in results."""
+        mock_knowledge_service.search = AsyncMock(
+            return_value=[
+                {
+                    "content": "Report information",
+                    "source_url": "https://help.tellvera.com/en/articles/12634022",
+                    "section_url": "https://help.tellvera.com/en/articles/12634022",
+                    "name": "Vera In-App Guidance",
+                    "type": "Internal Documentation",
+                    "category": "In-App Guidance",
+                    "description": "Vera help center documentation",
+                    "content_source": "internal",
+                    "subcategory": "reports",
+                },
+                {
+                    "content": "FAQ information",
+                    "source_url": "https://help.tellvera.com/en/articles/12385680",
+                    "section_url": "https://help.tellvera.com/en/articles/12385680",
+                    "name": "Vera In-App Guidance",
+                    "type": "Internal Documentation",
+                    "category": "In-App Guidance",
+                    "description": "Vera help center documentation",
+                    "content_source": "internal",
+                },
+            ]
+        )
+
+        result = await search_kb.ainvoke({"query": "reports", "content_source": "internal"})
+        parsed = json.loads(result)
+
+        assert len(parsed) == 2
+        assert "subcategory" in parsed[0]["metadata"]
+        assert parsed[0]["metadata"]["subcategory"] == "reports"
+        assert "subcategory" not in parsed[1]["metadata"]

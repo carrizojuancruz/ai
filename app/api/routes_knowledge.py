@@ -127,6 +127,28 @@ async def get_source_details(source_id: str) -> SourceDetailsResponse:
         raise HTTPException(status_code=500, detail=f"Failed to get details: {str(e)}") from e
 
 
+@router.delete("/sources/{source_id}", response_model=DeleteAllVectorsResponse)
+async def delete_source_vectors(source_id: str) -> DeleteAllVectorsResponse:
+    """Delete all vectors for a specific source. This clears all chunks but does not delete the source metadata."""
+    try:
+        knowledge_service = KnowledgeService()
+        result = knowledge_service.delete_source_vectors_by_id(source_id)
+
+        return DeleteAllVectorsResponse(
+            success=result["success"],
+            vectors_deleted=result["vectors_deleted"],
+            message=result.get("message", ""),
+            vectors_failed=result.get("vectors_failed"),
+            error=result.get("error")
+        )
+    except Exception as e:
+        logger.error(f"Failed to delete vectors for source {source_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete vectors: {str(e)}"
+        ) from e
+
+
 @router.delete("/vectors", response_model=DeleteAllVectorsResponse)
 async def delete_all_vectors() -> DeleteAllVectorsResponse:
     """Delete ALL vectors from the knowledge base index. WARNING: This operation cannot be undone."""

@@ -210,7 +210,6 @@ class Config:
     TOP_K_SEARCH: Optional[int] = get_optional_value("TOP_K_SEARCH", int)
     CHUNK_SIZE: Optional[int] = get_optional_value("CHUNK_SIZE", int)
     CHUNK_OVERLAP: Optional[int] = get_optional_value("CHUNK_OVERLAP", int)
-    MAX_CHUNKS_PER_SOURCE: Optional[int] = get_optional_value("MAX_CHUNKS_PER_SOURCE", int)
 
     # Guest Agent Configuration
     GUEST_MAX_MESSAGES: Optional[int] = get_optional_value("GUEST_MAX_MESSAGES", int)

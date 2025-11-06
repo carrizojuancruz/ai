@@ -5,8 +5,9 @@ import logging
 from typing import Tuple
 from urllib.parse import urlparse, urlunparse
 
-logger = logging.getLogger(__name__)
+from .internal_sections import INTERNAL_SECTIONS
 
+logger = logging.getLogger(__name__)
 
 def normalize_url(url: str) -> str:
     """Normalize URL by removing trailing slashes, fragments, and query params."""
@@ -66,3 +67,16 @@ def generate_source_id(url: str) -> str:
     """Generate deterministic source ID from URL."""
     normalized = normalize_url(url)
     return hashlib.sha256(normalized.encode()).hexdigest()[:16]
+
+
+def get_subcategory_for_url(url: str) -> str:
+    """Get subcategory if URL contains any configured article ID."""
+    if not url:
+        return ""
+
+    for subcategory, article_ids in INTERNAL_SECTIONS.items():
+        for article_id in article_ids:
+            if article_id in url:
+                return subcategory
+
+    return ""

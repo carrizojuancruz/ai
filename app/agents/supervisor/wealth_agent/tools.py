@@ -55,18 +55,23 @@ async def search_kb(query: str, content_source: str = "external") -> str:
             source_reference = section_url if section_url else source_url
 
             if content:
+                metadata = {
+                    "source_url": source_url,
+                    "section_url": section_url,
+                    "name": result.get("name", ""),
+                    "type": result.get("type", ""),
+                    "category": result.get("category", ""),
+                    "description": result.get("description", ""),
+                    "content_source": result.get("content_source", "")
+                }
+
+                if "subcategory" in result:
+                    metadata["subcategory"] = result["subcategory"]
+
                 formatted_results.append({
                     "content": content,
                     "source": source_reference or result.get("name", "Unknown source"),
-                    "metadata": {
-                        "source_url": source_url,
-                        "section_url": section_url,
-                        "name": result.get("name", ""),
-                        "type": result.get("type", ""),
-                        "category": result.get("category", ""),
-                        "description": result.get("description", ""),
-                        "content_source": result.get("content_source", "")
-                    }
+                    "metadata": metadata
                 })
         return json.dumps(formatted_results, ensure_ascii=False)
     except Exception as e:

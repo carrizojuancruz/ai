@@ -60,20 +60,12 @@ class SourcesResponse(BaseModel):
     sources: list[SourceResponse]
     total_sources: int
 
-
-class ChunkData(BaseModel):
-    """Simple chunk data with just section_url and content."""
-
-    section_url: str
-    content: str
-
-
 class SourceDetailsResponse(BaseModel):
     """Detailed response model for a single source with chunk information."""
 
     source: SourceResponse
     total_chunks: int
-    chunks: list[ChunkData]
+    chunks: list[dict]
 
 
 class DeleteAllVectorsResponse(BaseModel):

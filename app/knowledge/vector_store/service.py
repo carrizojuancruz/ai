@@ -38,6 +38,9 @@ class S3VectorStoreService:
                 'last_sync': doc.metadata.get('last_sync'),
             }
 
+            if 'subcategory' in doc.metadata and doc.metadata['subcategory']:
+                metadata['subcategory'] = doc.metadata['subcategory']
+
             vectors.append({
                 'key': key,
                 'data': {'float32': [float(x) for x in embedding]},
@@ -293,21 +296,26 @@ class S3VectorStoreService:
             metadata = v.get('metadata', {})
             url = metadata.get('url', '')
 
+            result_metadata = {
+                'source_id': metadata.get('source_id', ''),
+                'content_hash': metadata.get('content_hash', ''),
+                'chunk_index': metadata.get('chunk_index', 0),
+                'content_source': metadata.get('content_source', ''),
+                'name': metadata.get('name', ''),
+                'url': url,
+                'type': metadata.get('type', ''),
+                'category': metadata.get('category', ''),
+                'description': metadata.get('description', ''),
+                'section_url': url,
+                'source_url': url,
+            }
+
+            if 'subcategory' in metadata:
+                result_metadata['subcategory'] = metadata['subcategory']
+
             results.append({
                 'content': metadata.get('content', ''),
-                'metadata': {
-                    'source_id': metadata.get('source_id', ''),
-                    'content_hash': metadata.get('content_hash', ''),
-                    'chunk_index': metadata.get('chunk_index', 0),
-                    'content_source': metadata.get('content_source', ''),
-                    'name': metadata.get('name', ''),
-                    'url': url,
-                    'type': metadata.get('type', ''),
-                    'category': metadata.get('category', ''),
-                    'description': metadata.get('description', ''),
-                    'section_url': url,
-                    'source_url': url,
-                },
+                'metadata': result_metadata,
                 'score': 1 - v.get('distance', 0),
                 'vector_key': v.get('key', '')
             })

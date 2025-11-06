@@ -132,11 +132,11 @@ class TestKnowledgeRoutes:
             },
             "total_chunks": 5,
             "chunks": [
-                {"section_url": "https://example.com#section1", "content": "chunk content 1"},
-                {"section_url": "https://example.com#section2", "content": "chunk content 2"},
-                {"section_url": "https://example.com#section3", "content": "chunk content 3"},
-                {"section_url": "https://example.com#section4", "content": "chunk content 4"},
-                {"section_url": "https://example.com#section5", "content": "chunk content 5"}
+                {"url": "https://example.com#section1", "content": "chunk content 1"},
+                {"url": "https://example.com#section2", "content": "chunk content 2"},
+                {"url": "https://example.com#section3", "content": "chunk content 3"},
+                {"url": "https://example.com#section4", "content": "chunk content 4"},
+                {"url": "https://example.com#section5", "content": "chunk content 5"}
             ]
         }
         mock_knowledge_service.get_source_details.return_value = mock_details
@@ -161,7 +161,7 @@ class TestKnowledgeRoutes:
             # Contract: chunk shape
             if data["chunks"]:
                 chunk0 = data["chunks"][0]
-                assert "section_url" in chunk0 and isinstance(chunk0["section_url"], str)
+                assert "url" in chunk0 and isinstance(chunk0["url"], str)
                 assert "content" in chunk0 and isinstance(chunk0["content"], str)
 
             mock_knowledge_service.get_source_details.assert_called_once_with(source_id)
