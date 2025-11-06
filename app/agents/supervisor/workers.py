@@ -162,7 +162,16 @@ async def finance_router(state: MessagesState, config: RunnableConfig) -> dict[s
 
         if not has_accounts:
             content = "FINANCE_STATUS: NO_ACCOUNTS_CONNECTED — You don't have any financial accounts connected yet. To get started, go to Financial Info and then the Connected Accounts button and connect your accounts."
-            return {"messages": [{"role": "assistant", "content": content, "name": "finance_agent"}]}
+            return {
+                "messages": [{"role": "assistant", "content": content, "name": "finance_agent"}],
+                "navigation_events": [{
+                    "event": "navigation.connected-accounts",
+                    "data": {
+                        "message": "You don't have any financial accounts connected yet. To get started, go to Financial Info and then the Connected Accounts button and connect your accounts.",
+                        "action": "connect_accounts",
+                    },
+                }],
+            }
 
         return await finance_worker(state, config)
 

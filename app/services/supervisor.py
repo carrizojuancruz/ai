@@ -522,6 +522,9 @@ class SupervisorService:
         streamed_responses: set[str] = set()
         hit_guardrail: bool = False
 
+        navigation_events_to_emit: list[dict[str, Any]] = []
+        seen_navigation_events: set[str] = set()
+
         metadata: dict[str, str] = {"langfuse_session_id": thread_id}
         if user_id:
             metadata["langfuse_user_id"] = str(user_id)
@@ -633,6 +636,17 @@ class SupervisorService:
                                 sources.extend(handoff_sources)
                                 logger.info(f"[TRACE] supervisor.handoff.sources_added count={len(handoff_sources)}")
 
+                        nav_events = output.get("navigation_events")
+                        if isinstance(nav_events, list):
+                            for nav_event in nav_events:
+                                event_name = nav_event.get("event")
+                                event_data = nav_event.get("data", {})
+                                event_key = f"{event_name}:{json.dumps(event_data, sort_keys=True)}"
+                                if event_key not in seen_navigation_events:
+                                    seen_navigation_events.add(event_key)
+                                    navigation_events_to_emit.append(nav_event)
+                                    logger.info(f"[SUPERVISOR] Collected navigation event: {event_name}")
+
                         messages = output.get("messages")
                         if isinstance(messages, list) and messages:
                             def _meta(msg):
@@ -719,6 +733,14 @@ class SupervisorService:
             final_text = supervisor_latest_response_text
             if final_text:
                 final_text_to_emit = _strip_emojis(self._strip_guardrail_marker(final_text) if hit_guardrail else final_text)
+
+                for nav_event in navigation_events_to_emit:
+                    await q.put({
+                        "event": nav_event.get("event"),
+                        "data": nav_event.get("data", {}),
+                    })
+                    logger.info(f"[SUPERVISOR] Emitted navigation event: {nav_event.get('event')}")
+
                 await q.put({"event": "message.completed", "data": {"content": final_text_to_emit}})
 
                 # Generate audio only if voice=True

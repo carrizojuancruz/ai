@@ -222,6 +222,7 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
     class SupervisorState(MessagesState):
         context: dict[str, RunningSummary]
         total_tokens: int
+        navigation_events: list[dict[str, Any]] | None
 
     builder = StateGraph(SupervisorState)
 

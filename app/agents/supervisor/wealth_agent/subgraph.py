@@ -17,6 +17,7 @@ class WealthState(MessagesState):
     retrieved_sources: List[Dict[str, Any]] = []
     used_sources: List[str] = []
     filtered_sources: List[Dict[str, Any]] = []
+    navigation_events: List[Dict[str, Any]] | None = None
 
 
 def _clean_response(response, tool_call_count: int, state: dict, logger):
@@ -116,6 +117,7 @@ def create_wealth_subgraph(
         used_sources = getattr(state, 'used_sources', state.get('used_sources', []))
 
         retrieved_sources = getattr(state, 'retrieved_sources', state.get('retrieved_sources', []))
+        navigation_events = getattr(state, 'navigation_events', state.get('navigation_events')) or []
 
         for msg in state["messages"]:
             if getattr(msg, '__class__', None).__name__ == 'ToolMessage' and getattr(msg, 'name', None) == 'search_kb':
@@ -142,6 +144,16 @@ def create_wealth_subgraph(
                                     if metadata.get('content_source'):
                                         source['content_source'] = metadata['content_source']
 
+                                    if metadata.get('subcategory') == 'reports':
+                                        navigation_events.append({
+                                            "event": "navigation.reports",
+                                            "data": {
+                                                "message": "View your financial reports",
+                                                "action": "view_reports",
+                                            },
+                                        })
+                                        logger.info("[WEALTH_AGENT] Detected reports subcategory, adding navigation event")
+
                                 new_sources.append(source)
                         retrieved_sources.extend(new_sources)
                 except Exception:
@@ -151,7 +163,8 @@ def create_wealth_subgraph(
             "messages": [cleaned_response],
             "tool_call_count": new_tool_call_count,
             "retrieved_sources": retrieved_sources,
-            "used_sources": used_sources
+            "used_sources": used_sources,
+            "navigation_events": navigation_events if navigation_events else None
         }
 
     def supervisor_node(state: WealthState):
@@ -230,11 +243,14 @@ Analysis Results:
 STATUS: WEALTH AGENT ANALYSIS COMPLETE
 This wealth agent analysis is provided to the supervisor for final user response formatting."""
 
+        navigation_events = getattr(state, 'navigation_events', state.get('navigation_events')) or []
+
         return {
             "messages": [
                 {"role": "assistant", "content": formatted_response, "name": "wealth_agent"}
             ],
-            "sources": final_sources
+            "sources": final_sources,
+            "navigation_events": navigation_events if navigation_events else None
         }
 
     def should_continue(state: WealthState):
