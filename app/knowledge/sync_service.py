@@ -149,12 +149,14 @@ class KnowledgeBaseSyncService:
         if external_sources_available:
             if limit is not None:
                 enabled_sources_by_url = {s.url: s for s in enabled_sources}
-                sources_to_delete = [source for url, source in kb_sources_by_url.items() if url not in enabled_sources_by_url]
+                sources_to_delete = [source for url, source in kb_sources_by_url.items()
+                                   if url not in enabled_sources_by_url and source.content_source == "external"]
             else:
-                sources_to_delete = [source for url, source in kb_sources_by_url.items() if url not in external_sources_by_url]
+                sources_to_delete = [source for url, source in kb_sources_by_url.items()
+                                   if url not in external_sources_by_url and source.content_source == "external"]
 
             if sources_to_delete:
-                logger.info(f"Deleting {len(sources_to_delete)} obsolete sources")
+                logger.info(f"Deleting {len(sources_to_delete)} obsolete external sources")
 
             for source in sources_to_delete:
                 deletion_result = self.kb_service.delete_source(source.url)

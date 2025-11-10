@@ -21,3 +21,4 @@ class Source(BaseModel):
     last_sync: datetime | None = None
     total_chunks: int = 0
     section_urls: Optional[List[str]] = None
+    content_source: str = "external"

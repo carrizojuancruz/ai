@@ -231,7 +231,8 @@ class KnowledgeService:
                     description=s.get('description', ''),
                     total_chunks=s.get('total_chunks', 0),
                     section_urls=s.get('section_urls', []),
-                    last_sync=last_sync
+                    last_sync=last_sync,
+                    content_source=s.get('content_source', 'external')
                 )
                 sources.append(source)
             except Exception as e:
