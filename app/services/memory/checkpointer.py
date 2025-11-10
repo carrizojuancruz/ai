@@ -4,6 +4,8 @@ import logging
 import pickle
 from typing import Any, Optional
 
+from langgraph.checkpoint.memory import MemorySaver  # type: ignore
+
 from app.core.config import config as app_config
 
 logger = logging.getLogger(__name__)
@@ -235,26 +237,27 @@ class KVRedisCheckpointer:
 
 
 def get_supervisor_checkpointer():
-    ttl_default_raw = app_config.REDIS_TTL_DEFAULT or app_config.REDIS_TTL_SESSION
-    ttl_value: Optional[int] = None
-    if ttl_default_raw not in (None, ""):
-        try:
-            ttl_value = int(str(ttl_default_raw))
-        except Exception:
-            ttl_value = None
+    # ttl_default_raw = app_config.REDIS_TTL_DEFAULT or app_config.REDIS_TTL_SESSION
+    # ttl_value: Optional[int] = None
+    # if ttl_default_raw not in (None, ""):
+    #     try:
+    #         ttl_value = int(str(ttl_default_raw))
+    #     except Exception:
+    #         ttl_value = None
 
-    namespace = "langgraph:supervisor"
+    # namespace = "langgraph:supervisor"
 
-    try:
-        client = _build_async_redis_client()
-        saver = KVRedisCheckpointer(client=client, namespace=namespace, default_ttl=ttl_value)
-        logger.info("Supervisor checkpointer: using KVRedisCheckpointer (SET/GET, TTL=%s)", ttl_value)
-        return saver
-    except Exception as exc:
-        logger.warning(
-            "Redis checkpointer unavailable (%s)",
-            exc
-        )
+    # try:
+    #     client = _build_async_redis_client()
+    #     saver = KVRedisCheckpointer(client=client, namespace=namespace, default_ttl=ttl_value)
+    #     logger.info("Supervisor checkpointer: using KVRedisCheckpointer (SET/GET, TTL=%s)", ttl_value)
+    #     return saver
+    # except Exception as exc:
+    #     logger.warning(
+    #         "Redis checkpointer unavailable (%s)",
+    #         exc
+    #     )
+    return MemorySaver()
 
 async def redis_healthcheck() -> bool:
     try:
