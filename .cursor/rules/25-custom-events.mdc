@@ -1,0 +1,128 @@
+---
+description: Custom SSE events system for orchestrator and navigation
+alwaysApply: false
+---
+# Custom Events System
+
+## Overview
+
+The system supports custom SSE events that can be emitted to the frontend. Events are added to state by agents and collected/emitted by the supervisor service before `message.completed`.
+
+## Event Categories
+
+### Navigation Events
+- **Naming Pattern**: `navigation.{event-name}` (e.g., `navigation.connected-accounts`, `navigation.reports`)
+- **Purpose**: Trigger frontend button generation and navigation actions
+- **Format**: Must follow `navigation.*` pattern
+
+### Orchestrator Events
+- **Naming Pattern**: Custom (e.g., `confirm.request`, `step.update`)
+- **Purpose**: General orchestrator events for workflow control
+
+## Implementation Pattern
+
+### 1. Add Navigation Events Field to State
+
+If working with a subgraph that has its own state class, add `navigation_events`:
+
+```python
+class YourState(MessagesState):
+    # ... other fields ...
+    navigation_events: List[Dict[str, Any]] | None = None
+```
+
+For supervisor state, `navigation_events` is already defined in [SupervisorState](mdc:app/agents/supervisor/agent.py).
+
+### 2. Add Event to State in Node
+
+When a condition is met (e.g., no accounts connected, KB search returns specific subcategory), add the event to state:
+
+```python
+navigation_events = getattr(state, 'navigation_events', state.get('navigation_events')) or []
+
+if condition_met:
+    navigation_events.append({
+        "event": "navigation.event-name",  # Use navigation.* pattern for navigation events
+        "data": {
+            "message": "User-facing message",
+            "action": "action_identifier",  # Optional: for frontend routing
+            # ... other data fields ...
+        },
+    })
+
+return {
+    "messages": [...],
+    "navigation_events": navigation_events,
+    # ... other state updates ...
+}
+```
+
+### 3. Preserve Events in Final Node
+
+Ensure navigation events flow through to supervisor state by including them in the final node's return:
+
+```python
+def supervisor_node(state: YourState) -> Dict[str, Any]:
+    navigation_events = getattr(state, 'navigation_events', state.get('navigation_events')) or []
+    
+    return {
+        "messages": [...],
+        "sources": [...],
+        "navigation_events": navigation_events if navigation_events else None,
+    }
+```
+
+### 4. Supervisor Service Collection
+
+The supervisor service automatically:
+- Collects `navigation_events` from `on_chain_end` events
+- Deduplicates events based on event name + data hash
+- Emits events before `message.completed`
+
+See [SupervisorService.process_events](mdc:app/services/supervisor.py) for implementation details.
+
+## Examples
+
+### Finance Router - No Accounts Connected
+```python
+# app/agents/supervisor/workers.py
+if not has_accounts:
+    return {
+        "messages": [...],
+        "navigation_events": [{
+            "event": "navigation.connected-accounts",
+            "data": {
+                "message": "You don't have any financial accounts connected...",
+                "action": "connect_accounts",
+            },
+        }],
+    }
+```
+
+### Wealth Agent - Reports Subcategory
+```python
+# app/agents/supervisor/wealth_agent/subgraph.py
+if metadata.get('subcategory') == 'reports':
+    navigation_events.append({
+        "event": "navigation.reports",
+        "data": {
+            "message": "View your financial reports",
+            "action": "view_reports",
+        },
+    })
+```
+
+## Important Notes
+
+1. **Navigation Events Must Use `navigation.*` Pattern**: All navigation events must start with `navigation.` prefix
+2. **State-Based Flow**: Events are added to state, not emitted directly - supervisor handles emission
+3. **Deduplication**: Supervisor automatically deduplicates events, but avoid adding duplicates in the same node execution
+4. **Timing**: Events are emitted before `message.completed`, ensuring frontend receives them before the final message
+5. **Event Format**: Always use `{"event": "...", "data": {...}}` structure
+
+## Related Files
+
+- Supervisor state: [app/agents/supervisor/agent.py](mdc:app/agents/supervisor/agent.py)
+- Supervisor service: [app/services/supervisor.py](mdc:app/services/supervisor.py)
+- Finance router example: [app/agents/supervisor/workers.py](mdc:app/agents/supervisor/workers.py)
+- Wealth agent example: [app/agents/supervisor/wealth_agent/subgraph.py](mdc:app/agents/supervisor/wealth_agent/subgraph.py)

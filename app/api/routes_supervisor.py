@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncGenerator
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
@@ -115,29 +115,41 @@ class SupervisorConfirmPayload(BaseModel):
             }
         ]
     )
-    confirm_id: Optional[str] = Field(None, description="Optional confirmation ID from the confirm.request event")
+    confirm_id: str = Field(..., description="Confirmation ID from the confirm.request event. Required to match the response to the correct confirmation request.")
 
     class Config:
         json_schema_extra = {
             "examples": [
                 {
-                    "thread_id": "abc-123-def-456",
+                    "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
+                    "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
                     "decision": True
                 },
                 {
-                    "thread_id": "abc-123-def-456",
+                    "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
+                    "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
                     "decision": "approve"
                 },
                 {
-                    "thread_id": "abc-123-def-456",
+                    "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
+                    "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
                     "decision": False
                 },
                 {
-                    "thread_id": "abc-123-def-456",
+                    "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
+                    "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
                     "decision": {"approved": False}
                 },
                 {
-                    "thread_id": "abc-123-def-456",
+                    "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
+                    "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
+                    "decision": {
+                        "action": "cancel"
+                    }
+                },
+                {
+                    "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
+                    "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
                     "decision": {
                         "action": "edit",
                         "draft": {
@@ -147,7 +159,8 @@ class SupervisorConfirmPayload(BaseModel):
                     }
                 },
                 {
-                    "thread_id": "abc-123-def-456",
+                    "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
+                    "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
                     "decision": {
                         "draft": {
                             "name": "Updated Name",
@@ -165,35 +178,88 @@ async def supervisor_confirm(payload: SupervisorConfirmPayload) -> dict:
 
     This endpoint resumes a paused graph execution after a confirm.request event.
 
-    Decision Formats:
-        - Boolean: True to approve, False to cancel
-        - String: "approve", "cancel", "edit", etc.
-        - Dict with optional fields:
-            * "action": "approve" | "cancel" | "edit"
-            * "approved": boolean (alternative to action)
-            * "draft": dict with updated fields (for edits)
+    **Required Fields:**
+        - `thread_id`: The conversation thread ID
+        - `confirm_id`: The confirmation ID from the confirm.request event (required to match the response to the correct confirmation)
+        - `decision`: The user's decision (see formats below)
 
-    When editing, include a "draft" object with the fields you want to update.
+    **Decision Formats:**
+        - Boolean: `True` to approve, `False` to cancel
+        - String: `"approve"`, `"cancel"`, `"edit"`, etc.
+        - Dict with optional fields:
+            * `"action"`: `"approve"` | `"cancel"` | `"edit"`
+            * `"approved"`: boolean (alternative to action)
+            * `"draft"`: dict with updated fields (for edits)
+
+    When editing, include a `"draft"` object with the fields you want to update.
     The system will merge these changes with the existing draft and re-validate.
 
-    Examples:
-        Approve:
-            {"thread_id": "...", "decision": True}
+    **Examples:**
 
-        Cancel:
-            {"thread_id": "...", "decision": {"approved": False}}
+        Approve (boolean):
+        ```json
+        {
+            "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
+            "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
+            "decision": true
+        }
+        ```
+
+        Approve (string):
+        ```json
+        {
+            "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
+            "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
+            "decision": "approve"
+        }
+        ```
+
+        Cancel (boolean):
+        ```json
+        {
+            "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
+            "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
+            "decision": false
+        }
+        ```
+
+        Cancel (dict):
+        ```json
+        {
+            "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
+            "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
+            "decision": {"action": "cancel"}
+        }
+        ```
 
         Edit with updates:
-            {
-                "thread_id": "...",
-                "decision": {
-                    "action": "edit",
-                    "draft": {
-                        "name": "Updated Name",
-                        "estimated_value": "45000.0"
-                    }
+        ```json
+        {
+            "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
+            "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
+            "decision": {
+                "action": "edit",
+                "draft": {
+                    "name": "Updated Name",
+                    "estimated_value": "45000.0"
                 }
             }
+        }
+        ```
+
+        Edit (draft only, action inferred):
+        ```json
+        {
+            "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
+            "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
+            "decision": {
+                "draft": {
+                    "name": "Updated Name",
+                    "estimated_value": "50000.0"
+                }
+            }
+        }
+        ```
 
     """
     await supervisor_service.resume_interrupt(thread_id=payload.thread_id, decision=payload.decision, confirm_id=payload.confirm_id)
