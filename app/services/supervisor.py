@@ -197,7 +197,7 @@ class SupervisorService:
         if name == "search_kb":
             return sources
 
-        if "output" not in data:
+        if not isinstance(data, dict) or "output" not in data:
             return sources
 
         output = data["output"]
@@ -558,7 +558,7 @@ class SupervisorService:
 
             response_text = ""
             try:
-                if data and 'output' in data and 'messages' in data['output']:
+                if isinstance(data, dict) and data and 'output' in data and 'messages' in data['output']:
                     messages_supervisor = data['output']['messages']
                     for msg in reversed(messages_supervisor):
                         content_list = getattr(msg, 'content', None)
@@ -628,7 +628,7 @@ class SupervisorService:
                     await q.put({"event": "tool.end", "data": {"tool": name}})
             elif etype == "on_chain_end":
                 try:
-                    output = data.get("output", {})
+                    output = data.get("output", {}) if isinstance(data, dict) else {}
                     if isinstance(output, dict):
                         if "sources" in output and output["sources"]:
                             handoff_sources = output["sources"]
