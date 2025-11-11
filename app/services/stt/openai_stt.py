@@ -110,7 +110,8 @@ class OpenAISTTService(STTService):
 
         # Prepare form data
         data = {
-            'model': self.model
+            'model': self.model,
+            'language': 'en'
         }
 
         response = await self.openai_client.post(
