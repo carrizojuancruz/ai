@@ -45,9 +45,7 @@ def get_tts_service() -> Optional[TTSService]:
 
     try:
         if provider == "bedrock":
-            # Hardcoded service use for now
-            _tts_service = OpenAITTSService()
-            #_tts_service = BedrockTTSService()
+            _tts_service = BedrockTTSService()
             logger.info(f"Initialized {provider} TTS service")
         elif provider == "openai":
             _tts_service = OpenAITTSService()

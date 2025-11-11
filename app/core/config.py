@@ -273,6 +273,7 @@ class Config:
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
     OPENAI_TTS_VOICE: Optional[str] = os.getenv("OPENAI_TTS_VOICE")
     OPENAI_TTS_MODEL: Optional[str] = os.getenv("OPENAI_TTS_MODEL")
+    OPENAI_TTS_INSTRUCTIONS: Optional[str] = os.getenv("OPENAI_TTS_INSTRUCTIONS")
     OPENAI_STT_MODEL: Optional[str] = os.getenv("OPENAI_STT_MODEL")
 
     # Fallback configuration
