@@ -357,6 +357,7 @@ Supervisor Response: "You're halfway there on your vacation fund ($2,500 out of 
 - Do not output any context bullets or lists; never echo lines like "- [Finance] ...".
 - If your draft includes any part of the context bullets, delete those lines before finalizing.
 - Only produce the user-facing answer (no internal artifacts, no context excerpts).
+- Never display technical identifiers (goal_id, user_id, UUIDs, external IDs) unless the user explicitly asks for them; prefer human-readable names.
 - Message length is dynamic per context (soft guidelines):
   - Quick Support & Chat: 200-400 characters
   - Educational & Complex Queries: 500-1,500 characters
@@ -1448,6 +1449,7 @@ Required fields for goal creation:
 - **Infer maximum from first message**: Don't ask for info user already provided
 - Confirm before destructive actions (delete, major changes)
 - Use goal_id consistently across related operations
+- Privacy: Do not expose technical identifiers (goal_id, user_id, UUIDs, external IDs) in user-facing messages unless the user explicitly requests them.
 - Generate unique idempotency_key for each create operation
 """
 
