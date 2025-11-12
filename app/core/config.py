@@ -97,6 +97,9 @@ class Config:
     # AI Models Configuration
     BEDROCK_EMBED_MODEL_ID: str = os.getenv("BEDROCK_EMBED_MODEL_ID")
 
+    # Bedrock Retry Configuration
+    BEDROCK_RETRY_MAX_ATTEMPTS: int = int(os.getenv("BEDROCK_RETRY_MAX_ATTEMPTS", "3"))
+
     # Wealth Agent Configuration
     WEALTH_AGENT_MODEL_ID: str = os.getenv("WEALTH_AGENT_MODEL_ID")
     WEALTH_AGENT_MODEL_REGION: str = os.getenv("WEALTH_AGENT_MODEL_REGION")

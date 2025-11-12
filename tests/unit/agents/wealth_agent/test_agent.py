@@ -20,17 +20,16 @@ class TestWealthAgent:
 
     def test_wealth_agent_initialization(self, mock_llm, mocker):
         """Test WealthAgent initializes correctly."""
-        mocker.patch("app.agents.supervisor.wealth_agent.agent.ChatBedrockConverse", return_value=mock_llm)
+        mocker.patch("app.agents.supervisor.wealth_agent.agent.ChatBedrock", return_value=mock_llm)
 
         agent = WealthAgent()
 
         assert agent is not None
         assert hasattr(agent, "llm")
-        assert hasattr(agent, "_cache")
 
     def test_wealth_agent_has_correct_llm_config(self, mock_llm, mocker):
         """Test WealthAgent configures LLM with correct parameters."""
-        mock_llm_class = mocker.patch("app.agents.supervisor.wealth_agent.agent.ChatBedrockConverse")
+        mock_llm_class = mocker.patch("app.agents.supervisor.wealth_agent.agent.ChatBedrock")
         mock_llm_class.return_value = mock_llm
 
         WealthAgent()
@@ -107,7 +106,7 @@ class TestCompileWealthAgentGraph:
     def test_compile_creates_wealth_agent(self, mock_llm, mocker):
         """Test compile_wealth_agent_graph creates WealthAgent instance."""
         mock_wealth_class = mocker.patch("app.agents.supervisor.wealth_agent.agent.WealthAgent")
-        mocker.patch("app.agents.supervisor.wealth_agent.agent.ChatBedrockConverse", return_value=mock_llm)
+        mocker.patch("app.agents.supervisor.wealth_agent.agent.ChatBedrock", return_value=mock_llm)
 
         compile_wealth_agent_graph()
 

@@ -95,7 +95,7 @@ def sample_messages():
 @pytest.fixture
 def mock_wealth_agent_instance(mocker, mock_llm):
     """Mock WealthAgent instance."""
-    mocker.patch("app.agents.supervisor.wealth_agent.agent.ChatBedrockConverse", return_value=mock_llm)
+    mocker.patch("app.agents.supervisor.wealth_agent.agent.ChatBedrock", return_value=mock_llm)
 
     from app.agents.supervisor.wealth_agent.agent import WealthAgent
 

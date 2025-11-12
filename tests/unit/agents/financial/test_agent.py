@@ -50,7 +50,7 @@ class TestFinanceAgent:
         """Set up test fixtures."""
         self.user_id = UUID("12345678-1234-5678-9012-123456789012")
 
-    @patch('app.agents.supervisor.finance_agent.agent.ChatBedrockConverse')
+    @patch('app.agents.supervisor.finance_agent.agent.ChatBedrock')
     @patch('app.agents.supervisor.finance_agent.agent.get_database_service')
     @patch('app.agents.supervisor.finance_agent.agent.get_finance_samples')
     @patch('app.agents.supervisor.finance_agent.agent.set_finance_samples')
@@ -67,7 +67,7 @@ class TestFinanceAgent:
         mock_get_samples.assert_called_once_with(self.user_id)
         mock_get_db.assert_not_called()
 
-    @patch('app.agents.supervisor.finance_agent.agent.ChatBedrockConverse')
+    @patch('app.agents.supervisor.finance_agent.agent.ChatBedrock')
     @patch('app.agents.supervisor.finance_agent.agent.get_database_service')
     @patch('app.agents.supervisor.finance_agent.agent.get_finance_samples')
     @patch('app.agents.supervisor.finance_agent.agent.set_finance_samples')
@@ -99,7 +99,7 @@ class TestFinanceAgent:
         assert all(isinstance(r, str) for r in result)
         mock_repo.execute_query.assert_called()
 
-    @patch('app.agents.supervisor.finance_agent.agent.ChatBedrockConverse')
+    @patch('app.agents.supervisor.finance_agent.agent.ChatBedrock')
     @patch('app.agents.supervisor.finance_agent.agent.get_finance_procedural_templates')
     @patch('app.services.llm.agent_prompts.build_finance_system_prompt_local')
     @pytest.mark.asyncio
@@ -116,7 +116,7 @@ class TestFinanceAgent:
         mock_build_prompt.assert_called_once()
         mock_get_templates.assert_called_once()
 
-    @patch('app.agents.supervisor.finance_agent.agent.ChatBedrockConverse')
+    @patch('app.agents.supervisor.finance_agent.agent.ChatBedrock')
     @patch('app.agents.supervisor.finance_agent.agent.create_finance_subgraph')
     @patch('app.agents.supervisor.finance_agent.agent.FinanceAgent._create_system_prompt')
     @pytest.mark.asyncio
@@ -133,7 +133,7 @@ class TestFinanceAgent:
         assert result == mock_subgraph
         mock_create_subgraph.assert_called_once()
 
-    @patch('app.agents.supervisor.finance_agent.agent.ChatBedrockConverse')
+    @patch('app.agents.supervisor.finance_agent.agent.ChatBedrock')
     @patch('app.agents.supervisor.finance_agent.agent.get_cached_finance_agent')
     @patch('app.agents.supervisor.finance_agent.agent.set_cached_finance_agent')
     @patch('app.agents.supervisor.finance_agent.agent.FinanceAgent._create_agent_with_tools')

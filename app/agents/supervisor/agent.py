@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
 
-from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import BaseMessage
 from langchain_core.messages.utils import count_tokens_approximately
 from langfuse.langchain import CallbackHandler
@@ -18,6 +17,7 @@ from langmem.short_term import RunningSummary
 from app.agents.supervisor.memory import episodic_capture, memory_context, memory_hotpath
 from app.agents.supervisor.summarizer import ConversationSummarizer
 from app.core.config import config as app_config
+from app.services.llm.chat_bedrock import ChatBedrock
 from app.services.memory.checkpointer import get_supervisor_checkpointer
 from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
@@ -182,7 +182,7 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
     if checkpointer is None:
         checkpointer = get_supervisor_checkpointer()
 
-    chat_bedrock = ChatBedrockConverse(
+    chat_bedrock = ChatBedrock(
         model_id=app_config.SUPERVISOR_AGENT_MODEL_ID,
         region_name=app_config.SUPERVISOR_AGENT_MODEL_REGION,
         temperature=app_config.SUPERVISOR_AGENT_TEMPERATURE,
@@ -191,7 +191,7 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
     )
 
     if app_config.SUMMARY_MODEL_ID:
-        summarize_model = ChatBedrockConverse(
+        summarize_model = ChatBedrock(
             model_id=app_config.SUMMARY_MODEL_ID,
             region_name=app_config.SUPERVISOR_AGENT_MODEL_REGION,
             temperature=0.0,

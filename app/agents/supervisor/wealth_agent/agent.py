@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 from uuid import UUID
 
-from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import HumanMessage
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
@@ -12,6 +10,7 @@ from langgraph.types import Command
 from app.core.app_state import get_wealth_agent
 from app.core.config import config
 from app.observability.logging_config import configure_logging
+from app.services.llm.chat_bedrock import ChatBedrock
 
 from .helpers import create_error_command
 from .tools import search_kb
@@ -24,14 +23,13 @@ class WealthAgent:
 
     def __init__(self):
         logger.info("Initializing WealthAgent with Bedrock models")
-
         guardrails = {
             "guardrailIdentifier": config.WEALTH_AGENT_GUARDRAIL_ID,
             "guardrailVersion": config.WEALTH_AGENT_GUARDRAIL_VERSION,
             "trace": "enabled",
         }
 
-        self.llm = ChatBedrockConverse(
+        self.llm = ChatBedrock(
             model_id=config.WEALTH_AGENT_MODEL_ID,
             region_name=config.WEALTH_AGENT_MODEL_REGION,
             temperature=config.WEALTH_AGENT_TEMPERATURE,
@@ -40,9 +38,6 @@ class WealthAgent:
                 "reasoning_effort": config.WEALTH_AGENT_REASONING_EFFORT
             }
         )
-
-        logger.info("WealthAgent initialization completed")
-        self._cache: dict[str, Any] = {}
 
     async def process_query_with_agent(self, query: str, user_id: UUID) -> Command:
         """Process wealth queries and return Command from agent execution."""
