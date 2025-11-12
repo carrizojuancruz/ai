@@ -5,7 +5,7 @@ import logging
 from typing import Tuple
 from urllib.parse import urlparse, urlunparse
 
-from .internal_sections import INTERNAL_SECTIONS
+from .internal_sections import INTERNAL_S3_SECTIONS, INTERNAL_URL_SECTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -70,13 +70,37 @@ def generate_source_id(url: str) -> str:
 
 
 def get_subcategory_for_url(url: str) -> str:
-    """Get subcategory if URL contains any configured article ID."""
+    """Get subcategory if URL contains any configured article ID.
+
+    Used for web-crawled help center articles.
+
+    Args:
+        url: URL to check for article ID patterns
+
+    Returns:
+        Subcategory name if matched, empty string otherwise
+
+    """
     if not url:
         return ""
 
-    for subcategory, article_ids in INTERNAL_SECTIONS.items():
+    for subcategory, article_ids in INTERNAL_URL_SECTIONS.items():
         for article_id in article_ids:
             if article_id in url:
                 return subcategory
+
+    return ""
+
+
+def get_subcategory_for_s3_key(s3_key: str) -> str:
+    """Get subcategory if S3 key starts with any configured folder prefix."""
+    if not s3_key:
+        return ""
+
+    s3_key_lower = s3_key.lower()
+
+    for subcategory, folder_prefixes in INTERNAL_S3_SECTIONS.items():
+        if any(s3_key_lower.startswith(prefix.lower()) for prefix in folder_prefixes):
+            return subcategory
 
     return ""

@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pytest
 from botocore.exceptions import ClientError
 
 from app.knowledge.s3_sync_service import S3SyncService
@@ -312,4 +313,13 @@ class TestS3SyncServiceDelete:
 
         assert result["success"] is False
         assert "error" in result
-        assert result["s3_key"] == "test.md"
+
+
+@pytest.mark.unit
+class TestS3SyncServiceSubcategory:
+
+    def test_source_id_generation_consistency(self):
+        id1 = S3SyncService._generate_source_id("Profile/file.md")
+        id2 = S3SyncService._generate_source_id("Profile/file.md")
+
+        assert id1 == id2

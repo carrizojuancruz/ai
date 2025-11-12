@@ -10,7 +10,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.core.config import config
 from app.knowledge.models import Source
-from app.knowledge.utils import get_subcategory_for_url
+from app.knowledge.utils import get_subcategory_for_s3_key, get_subcategory_for_url
 
 logger = logging.getLogger(__name__)
 
@@ -54,12 +54,15 @@ class DocumentService:
 
             doc.metadata["content_source"] = content_source
 
-            if doc.metadata.get("content_source") == "internal":
+            if content_source == "internal":
+                s3_key = doc.metadata.get("s3_key", "")
                 section_url = doc.metadata.get("section_url", "")
-                subcategory = get_subcategory_for_url(section_url)
+
+                subcategory = get_subcategory_for_s3_key(s3_key) or get_subcategory_for_url(section_url)
+
                 if subcategory:
                     doc.metadata["subcategory"] = subcategory
-                    logger.info(f"Assigned subcategory '{subcategory}' to internal document: {section_url}")
+                    logger.info(f"Assigned subcategory '{subcategory}' to internal document: {s3_key or section_url}")
 
             chunks = self.text_splitter.split_documents([doc])
             for i, chunk in enumerate(chunks):
@@ -67,6 +70,8 @@ class DocumentService:
                 chunk.metadata["content_hash"] = hashlib.sha256(chunk.page_content.encode()).hexdigest()
                 chunk.metadata["chunk_index"] = i
                 chunk.metadata["last_sync"] = sync_timestamp
+                if "subcategory" in doc.metadata:
+                    chunk.metadata["subcategory"] = doc.metadata["subcategory"]
             all_chunks.extend(chunks)
 
         return all_chunks

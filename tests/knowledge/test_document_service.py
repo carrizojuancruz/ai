@@ -126,3 +126,121 @@ class TestDocumentService:
 
         with pytest.raises(Exception, match="Bedrock error"):
             document_service.generate_embeddings(["test"])
+
+
+@pytest.mark.unit
+class TestDocumentServiceSubcategory:
+
+    @pytest.fixture
+    def mock_bedrock_embeddings(self, mocker):
+        mock = mocker.patch('app.knowledge.document_service.BedrockEmbeddings')
+        mock_instance = MagicMock()
+        mock_instance.embed_documents.return_value = [[0.1] * 1536 for _ in range(10)]
+        mock.return_value = mock_instance
+        return mock_instance
+
+    @pytest.fixture
+    def mock_text_splitter(self, mocker):
+        mock = mocker.patch('app.knowledge.document_service.RecursiveCharacterTextSplitter')
+        mock_instance = MagicMock()
+
+        def split_documents(docs):
+            return [
+                Document(
+                    page_content=doc.page_content[:len(doc.page_content)//2] if i == 0 else doc.page_content[len(doc.page_content)//2:],
+                    metadata=doc.metadata.copy()
+                )
+                for doc in docs for i in range(2)
+            ]
+
+        mock_instance.split_documents.side_effect = split_documents
+        mock.return_value = mock_instance
+        return mock_instance
+
+    @pytest.fixture
+    def document_service(self, mock_bedrock_embeddings):
+        return DocumentService()
+
+    @pytest.fixture
+    def internal_source(self):
+        from app.knowledge.models import Source
+        return Source(
+            id="int123",
+            name="Internal",
+            url="Profile/file.md",
+            enabled=True,
+            type="markdown"
+        )
+
+    def test_s3_subcategory_assignment(self, document_service, mock_text_splitter, internal_source):
+        docs = [
+            Document(
+                page_content="Test " * 50,
+                metadata={"s3_key": "Profile/file.md"}
+            )
+        ]
+
+        chunks = document_service.split_documents(docs, internal_source, content_source="internal")
+
+        assert all(chunk.metadata.get('subcategory') == 'profile' for chunk in chunks)
+
+    def test_url_fallback(self, document_service, mock_text_splitter):
+        from app.knowledge.models import Source
+
+        source = Source(id="url123", name="URL", url="https://example.com", enabled=True, type="article")
+
+        docs = [
+            Document(
+                page_content="Test " * 50,
+                metadata={"source": "https://example.com/12634022-see-how-you-re-doing-reports-made-simple", "s3_key": ""}
+            )
+        ]
+
+        chunks = document_service.split_documents(docs, source, content_source="internal")
+
+        assert all(chunk.metadata.get('subcategory') == 'reports' for chunk in chunks)
+
+    def test_no_subcategory(self, document_service, mock_text_splitter):
+        from app.knowledge.models import Source
+
+        source = Source(id="other", name="Other", url="https://example.com", enabled=True)
+
+        docs = [Document(page_content="Test " * 50, metadata={"s3_key": "Other/file.md"})]
+
+        chunks = document_service.split_documents(docs, source, content_source="internal")
+
+        assert all(chunk.metadata.get('subcategory', '') == '' for chunk in chunks)
+
+    def test_external_no_subcategory(self, document_service, mock_text_splitter, sample_source):
+        docs = [Document(page_content="External " * 50, metadata={})]
+
+        chunks = document_service.split_documents(docs, sample_source, content_source="external")
+
+        assert all('subcategory' not in chunk.metadata or chunk.metadata.get('subcategory') == ''
+                   for chunk in chunks)
+
+    def test_case_insensitive(self, document_service, mock_text_splitter, internal_source):
+        docs = [Document(page_content="Test " * 50, metadata={"s3_key": "profile/file.md"})]
+
+        chunks = document_service.split_documents(docs, internal_source, content_source="internal")
+
+        assert all(chunk.metadata.get('subcategory') == 'profile' for chunk in chunks)
+
+    def test_s3_priority(self, document_service, mock_text_splitter):
+        from app.knowledge.models import Source
+
+        source = Source(id="mix", name="Mixed", url="https://example.com", enabled=True)
+
+        docs = [
+            Document(
+                page_content="Test " * 50,
+                metadata={
+                    "s3_key": "Profile/file.md",
+                    "section_url": "https://example.com/12634022-see-how-you-re-doing-reports-made-simple"
+                }
+            )
+        ]
+
+        chunks = document_service.split_documents(docs, source, content_source="internal")
+
+        assert all(chunk.metadata.get('subcategory') == 'profile' for chunk in chunks)

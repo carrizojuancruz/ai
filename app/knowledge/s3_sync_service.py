@@ -8,6 +8,7 @@ import boto3
 from langchain_core.documents import Document
 
 from app.core.config import config
+from app.knowledge.models import Source
 from app.knowledge.vector_store.service import S3VectorStoreService
 
 logger = logging.getLogger(__name__)
@@ -239,25 +240,29 @@ class S3SyncService:
             filename = Path(s3_key).name
             file_type = self._get_file_type(s3_key)
 
+            temp_source = Source(
+                id=source_id,
+                name=filename,
+                url=s3_key,
+                type=file_type,
+                category="",
+                description="",
+                content_source="internal"
+            )
+
             document = Document(
                 page_content=content,
                 metadata={
                     "source_id": source_id,
                     "filename": filename,
                     "file_type": file_type,
-                    "content_source": "internal",
                     "s3_key": s3_key,
+                    "section_url": s3_key,
                 }
             )
 
-            chunks = self.document_service.text_splitter.split_documents([document])
+            chunks = self.document_service.split_documents([document], temp_source, content_source="internal")
             logger.info(f"Split {s3_key} into {len(chunks)} chunks")
-
-            for chunk in chunks:
-                chunk.metadata.update(document.metadata)
-                chunk.metadata["content_hash"] = hashlib.sha256(
-                    chunk.page_content.encode()
-                ).hexdigest()[:16]
 
             logger.info(f"Deleting old vectors for source_id {source_id}")
             self.vector_service.delete_documents_by_source_id(source_id)

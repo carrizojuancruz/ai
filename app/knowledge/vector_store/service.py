@@ -30,12 +30,12 @@ class S3VectorStoreService:
                 'chunk_index': i,
                 'content': doc.page_content,
                 'content_source': doc.metadata.get('content_source', 'unknown'),
-                'name': doc.metadata.get('name') or doc.metadata.get('filename', ''),
-                'url': doc.metadata.get('section_url') or doc.metadata.get('source_url', ''),
-                'type': doc.metadata.get('type') or doc.metadata.get('file_type', ''),
-                'category': doc.metadata.get('category', ''),
-                'description': doc.metadata.get('description', ''),
-                'last_sync': doc.metadata.get('last_sync'),
+                'name': doc.metadata.get('name') or doc.metadata.get('filename') or '',
+                'url': doc.metadata.get('section_url') or doc.metadata.get('source_url') or '',
+                'type': doc.metadata.get('type') or doc.metadata.get('file_type') or '',
+                'category': doc.metadata.get('category') or '',
+                'description': doc.metadata.get('description') or '',
+                'last_sync': doc.metadata.get('last_sync') or '',
             }
 
             if 'subcategory' in doc.metadata and doc.metadata['subcategory']:
