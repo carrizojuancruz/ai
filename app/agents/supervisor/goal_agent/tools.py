@@ -234,6 +234,7 @@ async def list_goals(config: RunnableConfig) -> str:
             count=len(active_goals)
         )
 
+
     except Exception as e:
         logger.error(f"Error listing goals: {e}", exc_info=True)
         return ResponseBuilder.error(
