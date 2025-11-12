@@ -20,6 +20,8 @@ def build_finance_capture_nova_intent_prompt(
     text: str,
     allowed_kinds: tuple[str, ...],
     plaid_expense_categories: tuple[str, ...],
+    plaid_category_subcategories: str = "",
+    vera_to_plaid_mapping: str = "",
     asset_categories: tuple[str, ...] = (),
     liability_categories: tuple[str, ...] = (),
 ) -> str:
@@ -29,6 +31,16 @@ def build_finance_capture_nova_intent_prompt(
     plaid_expense_joined = ", ".join(plaid_expense_categories)
     asset_categories_joined = ", ".join(asset_categories) if asset_categories else ", ".join(cat.value for cat in AssetCategory)
     liability_categories_joined = ", ".join(liability_categories) if liability_categories else ", ".join(cat.value for cat in LiabilityCategory)
+
+    subcategory_section = f"""
+Valid Plaid category and subcategory combinations:
+{plaid_category_subcategories}
+""" if plaid_category_subcategories else ""
+
+    mapping_section = f"""
+Mapping between Vera POV categories (for user display) and Plaid categories (for backend):
+{vera_to_plaid_mapping}
+""" if vera_to_plaid_mapping else ""
 
     prompt = f"""You are an expert financial data classifier. Given a user's free-form message, extract structured fields matching the schema below.
 
@@ -63,7 +75,10 @@ Rules:
   - If you pick a Vera POV income category, choose from: {vera_income_categories}
   - If you pick a Vera POV expense category, choose from: {vera_expense_categories}
   - suggested_plaid_category MUST be either "Income" or one of the Plaid expense categories listed in: {plaid_expense_joined}
-  - suggested_plaid_subcategory MUST be one of the allowed subcategories corresponding to the chosen Plaid category. If uncertain, return the closest match; otherwise use null
+  - suggested_plaid_subcategory MUST be one of the allowed subcategories corresponding to the chosen Plaid category (see valid combinations below). If uncertain, return the closest match; otherwise use null
+  - CRITICAL VALIDATION: The suggested_plaid_subcategory MUST exist under the suggested_plaid_category in the valid combinations list below. If a subcategory (e.g., "Coffee") only appears under one category (e.g., "Food & Dining"), you MUST use that category, not a different one.
+  - IMPORTANT: When suggesting both Vera POV and Plaid categories, ensure they are consistent with the mapping below. The Vera POV category is for user display, while the Plaid category/subcategory is for backend storage.
+  - EXAMPLE: For "coffee at Blue Bottle", the subcategory "Coffee" belongs to "Food & Dining", so use suggested_plaid_category="Food & Dining" and suggested_vera_expense_category="Food & Dining", NOT "Shopping & Entertainment".{subcategory_section}{mapping_section}
 - amount should be a stringified decimal without currency symbols
 - currency_code should be uppercase ISO-4217 (e.g., "USD") when available
 - date should be ISO-8601 (YYYY-MM-DD) if present

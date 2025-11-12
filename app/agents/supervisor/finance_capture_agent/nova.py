@@ -7,14 +7,82 @@ from app.core.app_state import get_bedrock_runtime_client
 from app.core.config import config
 from app.services.llm.prompt_loader import prompt_loader
 
-from .constants import AssetCategory, LiabilityCategory, VeraPovExpenseCategory
+from .constants import AssetCategory, LiabilityCategory
 from .schemas import NovaMicroIntentResult
 
 logger = logging.getLogger(__name__)
 
 
 def _format_plaid_expense_categories() -> tuple[str, ...]:
-    return tuple(category.value for category in VeraPovExpenseCategory)
+    """Extract unique Plaid category names from the mapping dictionary.
+
+    Returns the actual Plaid category names (like "Home & Other", "Food & Dining")
+    that are used as keys in VERA_EXPENSE_TO_PLAID_SUBCATEGORIES, not the Vera POV categories.
+    """
+    from .constants import VERA_EXPENSE_TO_PLAID_SUBCATEGORIES
+
+    plaid_categories: set[str] = set()
+    for plaid_map in VERA_EXPENSE_TO_PLAID_SUBCATEGORIES.values():
+        plaid_categories.update(plaid_map.keys())
+    return tuple(sorted(plaid_categories))
+
+
+def _format_plaid_category_subcategories() -> str:
+    """Format Plaid categories with their subcategories for the prompt.
+
+    Returns a formatted string showing each category and its valid subcategories.
+    Includes both expense and income categories.
+    """
+    from .constants import VERA_EXPENSE_TO_PLAID_SUBCATEGORIES, VERA_INCOME_TO_PLAID_SUBCATEGORIES
+
+    lines: list[str] = []
+    category_subcats: dict[str, set[str]] = {}
+
+    for plaid_map in VERA_EXPENSE_TO_PLAID_SUBCATEGORIES.values():
+        for category, subcats in plaid_map.items():
+            if category not in category_subcats:
+                category_subcats[category] = set()
+            category_subcats[category].update(subcats)
+
+    for plaid_map in VERA_INCOME_TO_PLAID_SUBCATEGORIES.values():
+        for category, subcats in plaid_map.items():
+            if category not in category_subcats:
+                category_subcats[category] = set()
+            category_subcats[category].update(subcats)
+
+    for category in sorted(category_subcats.keys()):
+        subcats_sorted = sorted(category_subcats[category])
+        subcats_str = ", ".join(f'"{s}"' for s in subcats_sorted)
+        lines.append(f'  - "{category}": {subcats_str}')
+
+    return "\n".join(lines)
+
+
+def _format_vera_to_plaid_mapping() -> str:
+    """Format the mapping between Vera POV categories and Plaid categories/subcategories.
+
+    Returns a formatted string showing which Vera POV category maps to which
+    Plaid category/subcategory combinations. This helps Nova understand
+    the relationship between user-facing categories and backend categories.
+    Includes both expense and income mappings.
+    """
+    from .constants import VERA_EXPENSE_TO_PLAID_SUBCATEGORIES, VERA_INCOME_TO_PLAID_SUBCATEGORIES
+
+    lines: list[str] = []
+
+    for vera_category, plaid_map in sorted(VERA_EXPENSE_TO_PLAID_SUBCATEGORIES.items()):
+        for plaid_category, subcats in plaid_map.items():
+            subcats_sorted = sorted(subcats)
+            subcats_str = ", ".join(f'"{s}"' for s in subcats_sorted)
+            lines.append(f'  - Vera POV: "{vera_category.value}" → Plaid: "{plaid_category}" ({subcats_str})')
+
+    for vera_category, plaid_map in sorted(VERA_INCOME_TO_PLAID_SUBCATEGORIES.items()):
+        for plaid_category, subcats in plaid_map.items():
+            subcats_sorted = sorted(subcats)
+            subcats_str = ", ".join(f'"{s}"' for s in subcats_sorted)
+            lines.append(f'  - Vera POV: "{vera_category.value}" → Plaid: "{plaid_category}" ({subcats_str})')
+
+    return "\n".join(lines)
 
 
 def _format_asset_categories() -> tuple[str, ...]:
@@ -31,6 +99,8 @@ def _load_prompt(user_message: str) -> str:
         text=user_message,
         allowed_kinds=("asset", "liability", "manual_tx"),
         plaid_expense_categories=_format_plaid_expense_categories(),
+        plaid_category_subcategories=_format_plaid_category_subcategories(),
+        vera_to_plaid_mapping=_format_vera_to_plaid_mapping(),
         asset_categories=_format_asset_categories(),
         liability_categories=_format_liability_categories(),
     )
@@ -107,9 +177,10 @@ def extract_intent(user_message: str) -> NovaMicroIntentResult | None:
 
     try:
         kind = str(parsed.get("kind")) if isinstance(parsed, dict) else ""
-        if kind in ("asset", "liability") and isinstance(parsed, dict):
+        if kind in ("asset", "liability", "manual_tx") and isinstance(parsed, dict):
             parsed.pop("date", None)
-        return NovaMicroIntentResult.model_validate(parsed)
+        result = NovaMicroIntentResult.model_validate(parsed)
+        return result
     except Exception as exc:  # noqa: BLE001
         logger.warning("finance_capture.nova.schema_validation_failed: %s payload=%s", exc, parsed)
         return None

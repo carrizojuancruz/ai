@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from typing import Any, Literal
+from urllib.parse import urlencode
 
 from pydantic import BaseModel, Field
 
@@ -45,12 +46,10 @@ async def get_taxonomy(
 ) -> TaxonomyResult:
     cached_data = get_cached_taxonomy(scope)
     if cached_data is not None:
-        logger.info("[finance_capture] get_taxonomy scope=%s (cached)", scope)
         return TaxonomyResult.model_validate(cached_data)
 
     fos_client = _ensure_client(client)
     endpoint = f"/internal/financial/taxonomy/{scope}"
-    logger.info("[finance_capture] get_taxonomy scope=%s (fetching)", scope)
     response = await fos_client.get(endpoint=endpoint)
     if response is None:
         raise RuntimeError(f"Failed to fetch taxonomy for scope={scope}")
@@ -99,7 +98,6 @@ async def persist_asset(
 ) -> PersistResponse:
     fos_client = _ensure_client(client)
     endpoint = f"/internal/assets/user/{user_id}"
-    logger.info("[finance_capture] persist_asset user_id=%s", user_id)
     response = await fos_client.post(endpoint=endpoint, data=dict(payload))
     if response is None:
         return PersistResponse(status_code=200, body=None)
@@ -116,7 +114,6 @@ async def persist_liability(
 ) -> PersistResponse:
     fos_client = _ensure_client(client)
     endpoint = f"/internal/liabilities/user/{user_id}"
-    logger.info("[finance_capture] persist_liability user_id=%s", user_id)
     response = await fos_client.post(endpoint=endpoint, data=dict(payload))
     if response is None:
         return PersistResponse(status_code=200, body=None)
@@ -132,8 +129,8 @@ async def persist_manual_transaction(
     client: FOSHttpClient | None = None,
 ) -> PersistResponse:
     fos_client = _ensure_client(client)
-    endpoint = f"/internal/financial/transactions/manual/{user_id}"
-    logger.info("[finance_capture] persist_manual_transaction user_id=%s", user_id)
+    query = urlencode({"user_id": user_id})
+    endpoint = f"/internal/financial/transactions/manual/?{query}"
     response = await fos_client.post(endpoint=endpoint, data=dict(payload))
     if response is None:
         return PersistResponse(status_code=200, body=None)

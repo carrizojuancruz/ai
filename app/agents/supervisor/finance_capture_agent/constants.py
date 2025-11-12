@@ -127,7 +127,9 @@ def to_fos_category(category: AssetCategory | LiabilityCategory | str) -> str:
         .replace(" ", "_")
     )
 
-VERA_EXPENSE_TO_PLAID_SUBCATEGORIES: dict[VeraPovExpenseCategory, dict[str, tuple[str, ...]]] = {
+VERA_EXPENSE_TO_PLAID_SUBCATEGORIES: dict[
+    VeraPovExpenseCategory, dict[str, tuple[str, ...]]
+] = {
     VeraPovExpenseCategory.FOOD_DINING: {
         "Food & Dining": (
             "Beer wine and liquor",
@@ -253,4 +255,24 @@ VERA_EXPENSE_TO_PLAID_SUBCATEGORIES: dict[VeraPovExpenseCategory, dict[str, tupl
     },
 }
 
+
+CATEGORY_VARIANTS: dict[str, tuple[str, ...]] = {
+    "Food & Dining": ("Food and Dining", "Food & Drink", "Food and Drink"),
+    "Shopping & Entertainment": ("Shopping and Entertainment", "Shopping", "Entertainment"),
+    "Housing & Utilities": ("Housing and Utilities", "Rent & Utilities", "Rent and Utilities"),
+    "Transportation & Travel": ("Transportation and Travel", "Transportation", "Travel"),
+    "Healthcare & Personal Care": ("Healthcare and Personal Care", "Healthcare", "Personal Care"),
+    "Professional Services": ("Professional Service", "General Services", "Consulting"),
+    "Debt & Government": ("Debt and Government", "Debt", "Government"),
+    "Fees & Other": ("Fees and Other", "Bank Fees", "Bank Fee"),
+    "Home & Maintenance": ("Home and Maintenance", "Home Improvement", "Home Maintenance"),
+    "Income": ("Salary", "Wages", "Payroll"),
+}
+
+
+SUBCATEGORY_VARIANTS: dict[str, tuple[str, ...]] = {
+    "Coffee": ("Coffee shop", "Coffee shops"),
+    "ATM fees": ("ATM fee",),
+    "Other bank fees": ("Other bank fee", "Bank fee", "Bank fees"),
+}
 

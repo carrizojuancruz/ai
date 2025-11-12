@@ -81,8 +81,12 @@ def create_finance_capture_graph(
             return {}
 
         draft: dict[str, Any] = state.get("capture_draft") or {}
-        # Decide scope from draft categories; default to expenses unless income explicitly selected
-        scope = "income" if draft.get("kind") == "income" else "expenses"
+        suggested_category = draft.get("taxonomy_category") or intent_dict.get("suggested_plaid_category")
+
+        scope = "expenses"
+        if draft.get("kind") == "income" or isinstance(suggested_category, str) and suggested_category.strip().lower() == "income" or draft.get("vera_income_category"):
+            scope = "income"
+
         try:
             taxonomy = await get_taxonomy(scope)  # HTTP call to FOS
         except Exception as exc:  # noqa: BLE001
@@ -119,19 +123,27 @@ def create_finance_capture_graph(
             suggested_subcat = draft.get("taxonomy_subcategory") or intent_dict.get("suggested_plaid_subcategory")
 
             chosen_category, chosen_subcategory, taxonomy_id = choose_from_taxonomy(categories, suggested_category, suggested_subcat)
+
+            if not chosen_category or not chosen_subcategory:
+                logger.warning("[finance_capture] taxonomy lookup failed, using Nova's suggestion: category=%r subcategory=%r", suggested_category, suggested_subcat)
+                chosen_category = suggested_category or ""
+                chosen_subcategory = suggested_subcat or ""
+                taxonomy_id = None
+
             draft["taxonomy_category"] = chosen_category or ""
             draft["taxonomy_subcategory"] = chosen_subcategory or ""
             draft["taxonomy_id"] = taxonomy_id
 
             # Derive Vera POV category (income vs expense)
-            # Match against primary_display from API (e.g., "Income")
             if chosen_category and str(chosen_category).strip().lower() == "income":
                 draft["kind"] = "income"
-                draft["vera_income_category"] = derive_vera_income(chosen_category, chosen_subcategory)
+                derived_income = derive_vera_income(chosen_category, chosen_subcategory)
+                draft["vera_income_category"] = derived_income or draft.get("vera_income_category")
                 draft["vera_expense_category"] = None
             else:
                 draft["kind"] = "expense"
-                draft["vera_expense_category"] = derive_vera_expense(chosen_category, chosen_subcategory)
+                derived_expense = derive_vera_expense(chosen_category, chosen_subcategory)
+                draft["vera_expense_category"] = derived_expense or draft.get("vera_expense_category")
                 draft["vera_income_category"] = None
 
             return {"capture_draft": draft}
@@ -164,7 +176,8 @@ def create_finance_capture_graph(
                     result["from_edit"] = True
                 return result
             if kind == "manual_tx":
-                payload = ManualTransactionCreate(**manual_tx_payload_from_draft(draft)).model_dump(mode="json")
+                payload_dict = manual_tx_payload_from_draft(draft)
+                payload = ManualTransactionCreate(**payload_dict).model_dump(mode="json")
                 payload["entity_kind"] = draft.get("entity_kind") or draft.get("kind") or "manual_tx"
                 result = {"validated": payload}
                 if was_edit:
@@ -195,8 +208,6 @@ def create_finance_capture_graph(
                     "confirm_id": confirm_id,
                 },
             })
-        else:
-            logger.info("[finance_capture.confirm_human] using existing confirm_id: %s", confirm_id)
 
         decision = interrupt({
             "event": "confirm.request",
@@ -239,10 +250,6 @@ def create_finance_capture_graph(
         if decision_str == "edit":
             update["capture_draft"] = updated_draft
 
-        logger.info(
-            "[finance_capture.confirm_human] RETURNING: state_update=%s",
-            {k: (v if k != "capture_draft" else "...draft...") for k, v in update.items()}
-        )
         return update
 
     async def persist(state: FinanceCaptureState, config: RunnableConfig) -> dict[str, Any]:

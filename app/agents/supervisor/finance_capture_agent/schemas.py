@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from .constants import (
     AssetCategory,
@@ -57,7 +57,8 @@ class ManualTransactionCreate(BaseModel):
     kind: ManualTransactionKind
     amount: Decimal = Field(ge=Decimal("0"))
     currency_code: str = Field(min_length=3, max_length=3)
-    merchant_or_payee: str = Field(min_length=1)
+    name: str | None = None
+    merchant_or_payee: str | None = None
     taxonomy_category: str
     taxonomy_subcategory: str
     taxonomy_id: str | None = None
@@ -72,22 +73,25 @@ class ManualTransactionCreate(BaseModel):
     def _currency_upper(cls, value: str) -> str:
         return value.upper()
 
-    @field_validator("vera_income_category", mode="after")
-    @classmethod
-    def _validate_vera_category(cls, value: VeraPovIncomeCategory | None, info: ValidationInfo) -> VeraPovIncomeCategory | None:
-        kind = info.data.get("kind")
-        expense_category = info.data.get("vera_expense_category")
+    @model_validator(mode="after")
+    def _validate_vera_categories(self) -> "ManualTransactionCreate":
+        """Validate that exactly one of vera_income_category or vera_expense_category is set based on kind."""
+        kind = self.kind
+        income_category = self.vera_income_category
+        expense_category = self.vera_expense_category
+
         if kind == ManualTransactionKind.INCOME:
-            if value is None:
+            if income_category is None:
                 raise ValueError("vera_income_category is required for income transactions")
             if expense_category is not None:
                 raise ValueError("vera_expense_category must be None for income transactions")
-        if kind == ManualTransactionKind.EXPENSE:
+        elif kind == ManualTransactionKind.EXPENSE:
             if expense_category is None:
                 raise ValueError("vera_expense_category is required for expense transactions")
-            if value is not None:
+            if income_category is not None:
                 raise ValueError("vera_income_category must be None for expense transactions")
-        return value
+
+        return self
 
     @field_validator("frequency", mode="after")
     @classmethod

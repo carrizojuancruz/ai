@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import logging
+import re
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
 from .constants import (
+    CATEGORY_VARIANTS,
+    SUBCATEGORY_VARIANTS,
     VERA_EXPENSE_TO_PLAID_SUBCATEGORIES,
     VERA_INCOME_TO_PLAID_SUBCATEGORIES,
     AssetCategory,
@@ -13,6 +18,72 @@ from .constants import (
     to_fos_category,
 )
 from .schemas import ManualTransactionKind, NovaMicroIntentResult
+
+logger = logging.getLogger(__name__)
+_ALIAS_KEY_PATTERN = re.compile(r"[^a-z0-9]")
+
+
+def _alias_key(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = _ALIAS_KEY_PATTERN.sub("", value.lower())
+    return normalized or None
+
+
+def _build_lookup(source: dict[str, tuple[str, ...]]) -> dict[str, str]:
+    lookup: dict[str, str] = {}
+    for canonical, variants in source.items():
+        keys = (canonical,) + variants
+        for name in keys:
+            key = _alias_key(name)
+            if key:
+                lookup[key] = canonical
+    return lookup
+
+
+_CATEGORY_LOOKUP = _build_lookup(CATEGORY_VARIANTS)
+_SUBCATEGORY_LOOKUP = _build_lookup(SUBCATEGORY_VARIANTS)
+
+
+def _normalize_category(value: str | None) -> str | None:
+    if value is None:
+        return None
+    key = _alias_key(value)
+    if key is None:
+        return value.strip() or None
+    return _CATEGORY_LOOKUP.get(key) or (value.strip() or None)
+
+
+def _normalize_subcategory(value: str | None) -> str | None:
+    if value is None:
+        return None
+    key = _alias_key(value)
+    if key is None:
+        return value.strip() or None
+    return _SUBCATEGORY_LOOKUP.get(key) or (value.strip() or None)
+
+
+@dataclass(frozen=True)
+class _TaxonomyRow:
+    category_key: str | None
+    subcategory_key: str | None
+    category_display: str
+    subcategory_display: str
+    taxonomy_id: str | None
+
+    @classmethod
+    def from_raw(cls, item: dict[str, Any]) -> "_TaxonomyRow":
+        primary_display = str(item.get("primary_display") or item.get("primary") or "").strip()
+        detailed_display = str(item.get("detailed_display") or item.get("detailed") or "").strip()
+        category = _normalize_category(primary_display)
+        subcategory = _normalize_subcategory(detailed_display)
+        return cls(
+            category_key=_alias_key(category),
+            subcategory_key=_alias_key(subcategory),
+            category_display=category or primary_display,
+            subcategory_display=subcategory or detailed_display,
+            taxonomy_id=item.get("id"),
+        )
 
 
 def seed_draft_from_intent(intent: NovaMicroIntentResult) -> dict[str, Any]:
@@ -57,50 +128,69 @@ def choose_from_taxonomy(categories: list[dict[str, Any]], cat: str | None, subc
 
     """
     if not categories:
+        logger.warning("[choose_from_taxonomy] no categories provided")
         return None, None, None
 
-    if cat and subcat:
-        for item in categories:
-            primary_display = str(item.get("primary_display") or "").strip().lower()
-            detailed_display = str(item.get("detailed_display") or "").strip().lower()
-            cat_lower = str(cat).strip().lower()
-            subcat_lower = str(subcat).strip().lower()
+    rows = [_TaxonomyRow.from_raw(item) for item in categories]
 
-            if primary_display == cat_lower and detailed_display == subcat_lower:
-                taxonomy_id = item.get("id")
-                return item.get("primary_display"), item.get("detailed_display"), taxonomy_id
+    cat_normalized = _normalize_category(cat)
+    subcat_normalized = _normalize_subcategory(subcat)
+    if cat_normalized and cat_normalized.strip().lower() == "income" and not subcat_normalized:
+        subcat_normalized = "Other income"
+    cat_key = _alias_key(cat_normalized)
+    subcat_key = _alias_key(subcat_normalized)
 
-    if cat:
-        for item in categories:
-            primary_display = str(item.get("primary_display") or "").strip().lower()
-            cat_lower = str(cat).strip().lower()
+    if cat_key and subcat_key:
+        for row in rows:
+            if row.category_key == cat_key and row.subcategory_key == subcat_key:
+                return row.category_display, row.subcategory_display, row.taxonomy_id
 
-            if primary_display == cat_lower:
-                taxonomy_id = item.get("id")
-                detailed_display = item.get("detailed_display")
-                return item.get("primary_display"), detailed_display, taxonomy_id
+    if subcat_key:
+        for row in rows:
+            if row.subcategory_key == subcat_key:
+                return row.category_display, row.subcategory_display, row.taxonomy_id
 
-    if categories:
-        first_item = categories[0]
-        taxonomy_id = first_item.get("id")
-        return first_item.get("primary_display"), first_item.get("detailed_display"), taxonomy_id
+    if cat_key:
+        for row in rows:
+            if row.category_key == cat_key:
+                return row.category_display, row.subcategory_display, row.taxonomy_id
 
+        logger.warning("[choose_from_taxonomy] no taxonomy category match for %r", cat)
+
+    logger.error(
+        "[choose_from_taxonomy] no taxonomy match found for category=%r subcategory=%r",
+        cat,
+        subcat,
+    )
     return None, None, None
 
 
 def derive_vera_income(category: str, subcategory: str | None) -> VeraPovIncomeCategory | None:
+    canonical_category = _normalize_category(category) or category
+    canonical_subcategory = _normalize_subcategory(subcategory) or subcategory
+    category_normalized = str(canonical_category).strip().lower() if canonical_category else ""
+    subcategory_normalized = str(canonical_subcategory).strip().lower() if canonical_subcategory else None
     for vera, plaid_map in VERA_INCOME_TO_PLAID_SUBCATEGORIES.items():
         for plaid_cat, subcats in plaid_map.items():
-            if plaid_cat == category and ((subcategory in subcats) if subcategory else True):
+            plaid_cat_normalized = str(plaid_cat).strip().lower()
+            subcats_normalized = [str(s).strip().lower() for s in subcats]
+            if plaid_cat_normalized == category_normalized and ((subcategory_normalized in subcats_normalized) if subcategory_normalized else True):
                 return vera
     return None
 
 
 def derive_vera_expense(category: str, subcategory: str | None) -> VeraPovExpenseCategory | None:
+    canonical_category = _normalize_category(category) or category
+    canonical_subcategory = _normalize_subcategory(subcategory) or subcategory
+    category_normalized = str(canonical_category).strip().lower() if canonical_category else ""
+    subcategory_normalized = str(canonical_subcategory).strip().lower() if canonical_subcategory else None
     for vera, plaid_map in VERA_EXPENSE_TO_PLAID_SUBCATEGORIES.items():
         for plaid_cat, subcats in plaid_map.items():
-            if plaid_cat == category and ((subcategory in subcats) if subcategory else True):
+            plaid_cat_normalized = str(plaid_cat).strip().lower()
+            subcats_normalized = [str(s).strip().lower() for s in subcats]
+            if plaid_cat_normalized == category_normalized and ((subcategory_normalized in subcats_normalized) if subcategory_normalized else True):
                 return vera
+    logger.warning("[derive_vera_expense] no match found for category=%r subcategory=%r", category, subcategory)
     return None
 
 
@@ -144,15 +234,40 @@ def liability_payload_from_draft(draft: dict[str, Any]) -> dict[str, Any]:
 def manual_tx_payload_from_draft(draft: dict[str, Any]) -> dict[str, Any]:
     """Build Pydantic validation payload from draft (uses Vera categories)."""
     kind = ManualTransactionKind.INCOME if (draft.get("kind") == "income") else ManualTransactionKind.EXPENSE
+
+    # Convert enum values to their string values for Pydantic
+    vera_income = draft.get("vera_income_category")
+    vera_expense = draft.get("vera_expense_category")
+    if isinstance(vera_income, VeraPovIncomeCategory):
+        vera_income = vera_income.value
+    if isinstance(vera_expense, VeraPovExpenseCategory):
+        vera_expense = vera_expense.value
+    raw_name = draft.get("name")
+    raw_merchant = draft.get("merchant_or_payee")
+    raw_notes = draft.get("notes")
+
+    def _clean(value: Any) -> str | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
+
+    merchant = _clean(raw_merchant) or _clean(raw_name) or _clean(raw_notes)
+    if not merchant:
+        merchant = "Manual income" if kind == ManualTransactionKind.INCOME else "Manual expense"
+
+    name_value = _clean(raw_name) or merchant
+
     payload = {
         "kind": kind,
         "amount": Decimal(str(draft.get("amount") or "0")),
         "currency_code": draft.get("currency_code") or "USD",
-        "merchant_or_payee": draft.get("merchant_or_payee") or "",
+        "name": name_value,
+        "merchant_or_payee": merchant,
         "taxonomy_category": draft.get("taxonomy_category") or ("Income" if kind == ManualTransactionKind.INCOME else "Food & Dining"),
         "taxonomy_subcategory": draft.get("taxonomy_subcategory") or "Other",
-        "vera_income_category": draft.get("vera_income_category"),
-        "vera_expense_category": draft.get("vera_expense_category"),
+        "vera_income_category": vera_income,
+        "vera_expense_category": vera_expense,
         "notes": draft.get("notes"),
         "recurring": draft.get("recurring"),
         "frequency": draft.get("frequency"),

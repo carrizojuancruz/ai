@@ -554,7 +554,8 @@ class SupervisorService:
         ):
             name = event.get("name")
             etype = event.get("event")
-            data = event.get("data") or {}
+            raw_data = event.get("data")
+            data = {} if isinstance(raw_data, Command) else raw_data if isinstance(raw_data, dict) else {}
 
             response_text = ""
             try:

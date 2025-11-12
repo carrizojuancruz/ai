@@ -272,12 +272,22 @@ class PromptLoader:
         text = kwargs.get("text", "")
         allowed_kinds: tuple[str, ...] = kwargs.get("allowed_kinds", ("asset", "liability", "manual_tx"))
         plaid_expense_categories: tuple[str, ...] = kwargs.get("plaid_expense_categories", tuple())
+        plaid_category_subcategories: str = kwargs.get("plaid_category_subcategories", "")
+        vera_to_plaid_mapping: str = kwargs.get("vera_to_plaid_mapping", "")
+        asset_categories: tuple[str, ...] = kwargs.get("asset_categories", tuple())
+        liability_categories: tuple[str, ...] = kwargs.get("liability_categories", tuple())
 
-        return agent_prompts.build_finance_capture_nova_intent_prompt(
+        prompt = agent_prompts.build_finance_capture_nova_intent_prompt(
             text=text,
             allowed_kinds=allowed_kinds,
             plaid_expense_categories=plaid_expense_categories,
+            plaid_category_subcategories=plaid_category_subcategories,
+            vera_to_plaid_mapping=vera_to_plaid_mapping,
+            asset_categories=asset_categories,
+            liability_categories=liability_categories,
         )
+        logger.info("[prompt_loader] finance_capture_nova_intent_prompt generated:\n%s", prompt)
+        return prompt
 
     def _get_memory_merge_summaries_local(self, **kwargs) -> str:
         memory_prompts = sys.modules.get('app.services.llm.memory_prompts')
