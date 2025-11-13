@@ -154,6 +154,16 @@ def create_wealth_subgraph(
                                         })
                                         logger.info("[WEALTH_AGENT] Detected reports subcategory, adding navigation event")
 
+                                    if metadata.get('subcategory') == 'profile':
+                                        navigation_events.append({
+                                            "event": "navigation.profile",
+                                            "data": {
+                                                "message": "View your profile",
+                                                "action": "view_profile",
+                                            },
+                                        })
+                                        logger.info("[WEALTH_AGENT] Detected profile subcategory, adding navigation event")
+
                                 new_sources.append(source)
                         retrieved_sources.extend(new_sources)
                 except Exception:

@@ -559,19 +559,22 @@ class SupervisorService:
 
             response_text = ""
             try:
-                if isinstance(data, dict) and data and 'output' in data and 'messages' in data['output']:
-                    messages_supervisor = data['output']['messages']
-                    for msg in reversed(messages_supervisor):
-                        content_list = getattr(msg, 'content', None)
-                        if isinstance(content_list, list):
-                            for content_item in reversed(content_list):
-                                if isinstance(content_item, dict) and content_item.get('type') == 'text':
-                                    candidate = content_item.get('text', '')
-                                    if candidate and candidate.strip():
-                                        response_text = candidate
-                                        break
-                        if response_text:
-                            break
+                if isinstance(data, dict) and data:
+                    output_payload = data.get('output')
+                    if isinstance(output_payload, dict):
+                        messages_payload = output_payload.get('messages')
+                        if isinstance(messages_payload, list):
+                            for msg in reversed(messages_payload):
+                                content_list = getattr(msg, 'content', None)
+                                if isinstance(content_list, list):
+                                    for content_item in reversed(content_list):
+                                        if isinstance(content_item, dict) and content_item.get('type') == 'text':
+                                            candidate = content_item.get('text', '')
+                                            if candidate and candidate.strip():
+                                                response_text = candidate
+                                                break
+                                if response_text:
+                                    break
 
                 if response_text:
                     prev_latest = (latest_response_text[:80] + "...") if latest_response_text else None
