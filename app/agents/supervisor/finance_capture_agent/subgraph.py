@@ -7,12 +7,12 @@ from typing import Annotated, Any, TypedDict
 
 from langchain_core.messages import AnyMessage
 from langchain_core.runnables import RunnableConfig
-from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.types import interrupt
 
 from app.core.app_state import get_sse_queue
+from app.services.memory.checkpointer import KVRedisCheckpointer
 from app.utils.tools import get_config_value
 
 from .constants import AssetCategory, LiabilityCategory
@@ -49,7 +49,7 @@ class FinanceCaptureState(TypedDict, total=False):
 
 
 def create_finance_capture_graph(
-    checkpointer: MemorySaver,
+    checkpointer: KVRedisCheckpointer,
 ):
     logger = logging.getLogger(__name__)
 
