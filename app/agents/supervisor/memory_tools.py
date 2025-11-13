@@ -137,6 +137,7 @@ async def semantic_memory_put(
     source: Optional[str] = None,
     importance: Optional[int] = None,
     pinned: Optional[bool] = None,
+    display_summary: Optional[str] = None,
     config: RunnableConfig = dict,
 ) -> dict[str, Any]:
     """Store a new semantic memory item in the user's memory store.
@@ -149,6 +150,7 @@ async def semantic_memory_put(
         source (Optional[str]): Source of the memory (e.g., "chat", "email", "document"). Defaults to "chat".
         importance (Optional[int]): Importance level of the memory (1-10 scale). Defaults to 1.
         pinned (Optional[bool]): Whether the memory should be pinned for quick access. Defaults to False.
+        display_summary (Optional[str]): Second-person, user-facing summary for UI rendering.
         config (RunnableConfig): Configuration dictionary, expected to include `user_id` inside `configurable`.
 
     Returns:
@@ -181,6 +183,8 @@ async def semantic_memory_put(
         "last_accessed": None,
         "last_used_at": None,
     }
+    if display_summary is not None and display_summary.strip():
+        value["display_summary"] = display_summary.strip()
 
     result = memory_service.create_memory(
         user_id=user_id,
@@ -260,6 +264,7 @@ async def episodic_memory_put(
 async def semantic_memory_update(
     key: str,
     summary: Optional[str] = None,
+    display_summary: Optional[str] = None,
     category: Optional[str] = None,
     tags: Optional[list[str]] = None,
     importance: Optional[int] = None,
@@ -271,6 +276,7 @@ async def semantic_memory_update(
     Args:
         key (str): Unique identifier of the memory item to update.
         summary (Optional[str]): New summary content for the memory item.
+        display_summary (Optional[str]): New second-person summary for UI.
         category (Optional[str]): New category classification for the memory item.
         tags (Optional[list[str]]): New list of tags for the memory item.
         importance (Optional[int]): New importance level for the memory item.
@@ -301,6 +307,8 @@ async def semantic_memory_update(
 
     if summary is not None:
         value["summary"] = summary
+    if display_summary is not None:
+        value["display_summary"] = display_summary
     if category is not None:
         value["category"] = _normalize_category(category)
     if tags is not None:

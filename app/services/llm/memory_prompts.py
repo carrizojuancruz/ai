@@ -31,8 +31,9 @@ Rules:
 - Extract only explicitly stated facts; do not infer or summarize plans/requests as facts.
 - Choose category from: [{categories}].
 - summary must be 1–2 sentences, concise and neutral (third person).
+- Also produce display_summary for UI in second person (address the user as "you"). Keep the meaning identical to summary, without time words.
 - importance: Rate 1-5 based on how critical this fact is for personalization (1=trivial, 3=useful, 5=essential like name/pronouns).
-- Output ONLY strict JSON: {{"should_create": bool, "type": "semantic", "category": string, "summary": string, "importance": int}}.
+- Output ONLY strict JSON: {{"should_create": bool, "type": "semantic", "category": string, "summary": string, "display_summary": string, "importance": int}}.
 
 AUTHORITATIVE DOMAINS POLICY — NEVER create semantic memories for facts owned by specialized agents:
 - Finance (Plaid/SQL): budgets, balances, account details, transaction totals, spending amounts/trends, bills due, interest rates.
@@ -51,13 +52,13 @@ Hard negatives — Finance/Goals/Wealth actions & queries:
   - Pure queries for amounts/status/dates (e.g., "How much did I spend last month?").
 
 Examples (create):
-- Input: 'Please remember my name is Ana' -> {{"should_create": true, "type": "semantic", "category": "Personal_Identity", "summary": "User's preferred name is Ana.", "importance": 5}}
-- Input: 'We usually speak Spanish at home' -> {{"should_create": true, "type": "semantic", "category": "Personal_Identity", "summary": "User usually speaks Spanish at home.", "importance": 4}}
-- Input: 'I prefer email over phone calls' -> {{"should_create": true, "type": "semantic", "category": "Communication_Preferences", "summary": "User prefers email communication over calls.", "importance": 3}}
-- Input: 'I go to the gym on Tue/Thu' -> {{"should_create": true, "type": "semantic", "category": "Routines_Habits", "summary": "User goes to the gym on Tuesdays and Thursdays.", "importance": 3}}
-- Input: 'My favorite book is Rich Dad Poor Dad' -> {{"should_create": true, "type": "semantic", "category": "Interests_Preferences", "summary": "User's favorite book is 'Rich Dad Poor Dad'.", "importance": 3}}
-- Input: 'My favorite restaurant is Bella Italia' -> {{"should_create": true, "type": "semantic", "category": "Interests_Preferences", "summary": "User's favorite restaurant is Bella Italia.", "importance": 3}}
-- Input: 'I prefer dark mode in apps' -> {{"should_create": true, "type": "semantic", "category": "Communication_Preferences", "summary": "User prefers dark mode in applications.", "importance": 2}}
+- Input: 'Please remember my name is Ana' -> {{"should_create": true, "type": "semantic", "category": "Personal_Identity", "summary": "User's preferred name is Ana.", "display_summary": "Your preferred name is Ana.", "importance": 5}}
+- Input: 'We usually speak Spanish at home' -> {{"should_create": true, "type": "semantic", "category": "Personal_Identity", "summary": "User usually speaks Spanish at home.", "display_summary": "You usually speak Spanish at home.", "importance": 4}}
+- Input: 'I prefer email over phone calls' -> {{"should_create": true, "type": "semantic", "category": "Communication_Preferences", "summary": "User prefers email communication over calls.", "display_summary": "You prefer email communication over calls.", "importance": 3}}
+- Input: 'I go to the gym on Tue/Thu' -> {{"should_create": true, "type": "semantic", "category": "Routines_Habits", "summary": "User goes to the gym on Tuesdays and Thursdays.", "display_summary": "You go to the gym on Tuesdays and Thursdays.", "importance": 3}}
+- Input: 'My favorite book is Rich Dad Poor Dad' -> {{"should_create": true, "type": "semantic", "category": "Interests_Preferences", "summary": "User's favorite book is 'Rich Dad Poor Dad'.", "display_summary": "Your favorite book is 'Rich Dad Poor Dad'.", "importance": 3}}
+- Input: 'My favorite restaurant is Bella Italia' -> {{"should_create": true, "type": "semantic", "category": "Interests_Preferences", "summary": "User's favorite restaurant is Bella Italia.", "display_summary": "Your favorite restaurant is Bella Italia.", "importance": 3}}
+- Input: 'I prefer dark mode in apps' -> {{"should_create": true, "type": "semantic", "category": "Communication_Preferences", "summary": "User prefers dark mode in applications.", "display_summary": "You prefer dark mode in applications.", "importance": 2}}
 
 Examples (corrections/updates):
 - Input: 'Actually, my favorite book is El Inversor Inteligente' -> {{"should_create": true, "type": "semantic", "category": "Interests_Preferences", "summary": "User's favorite book on finance is 'El Inversor Inteligente'.", "importance": 3}}

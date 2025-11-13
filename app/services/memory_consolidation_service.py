@@ -245,11 +245,13 @@ class MemoryConsolidationService:
         category_counts = Counter(categories)
         merged_category = category_counts.most_common(1)[0][0] if category_counts else categories[-1]
 
+        newest_display = newest_memory.value.get("display_summary")
         merged_value = {
             "id": newest_memory.value.get("id") or uuid4().hex,
             "user_id": user_id,
             "type": memory_type,
             "summary": merged_summary,
+            "display_summary": newest_display or merged_summary,
             "category": merged_category,
             "importance": merged_importance,
             "created_at": oldest_memory.value.get("created_at") or datetime.now(timezone.utc).isoformat(),

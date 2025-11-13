@@ -64,11 +64,16 @@ class MemoryService:
         return count >= limit
 
     def _map_value_fields(self, item: Any) -> dict[str, Any]:
-        """Map Item fields to value DTO format."""
-        value_dto = dict(item.value)
+        """Map Item fields to value DTO format while preserving last_used_at.
 
-        value_dto["updated_at"] = value_dto.pop("last_accessed", None)
-        value_dto["last_accessed"] = value_dto.pop("last_used_at", None)
+        - Expose updated_at derived from last_accessed (keep last_accessed if present)
+        - Preserve last_used_at as-is (do not remap)
+        """
+        value_dto = dict(item.value)
+        if "last_accessed" in value_dto and "updated_at" not in value_dto:
+            value_dto["updated_at"] = value_dto["last_accessed"]
+        if "last_used_at" in value_dto:
+            value_dto["last_accessed"] = value_dto["last_used_at"]
         return value_dto
 
     def get_memories(
@@ -130,11 +135,10 @@ class MemoryService:
     def _transform_single_item(self, item: Any) -> dict[str, Any]:
         """Transform single SearchItem to response dict with field mapping."""
         value = item.value.copy()
-
-        if "last_accessed" in value:
-            value["updated_at"] = value.pop("last_accessed")
+        if "last_accessed" in value and "updated_at" not in value:
+            value["updated_at"] = value["last_accessed"]
         if "last_used_at" in value:
-            value["last_accessed"] = value.pop("last_used_at")
+            value["last_accessed"] = value["last_used_at"]
 
         return {
             "key": item.key,

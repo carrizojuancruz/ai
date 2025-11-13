@@ -41,7 +41,8 @@ FALLBACK_TOPK = config.MEMORY_MERGE_FALLBACK_TOPK
 FALLBACK_RECENCY_DAYS = config.MEMORY_MERGE_FALLBACK_RECENCY_DAYS
 FALLBACK_CATEGORIES = (
     frozenset(c.strip() for c in config.MEMORY_MERGE_FALLBACK_CATEGORIES.split(",") if c.strip())
-    if config.MEMORY_MERGE_FALLBACK_CATEGORIES else None
+    if config.MEMORY_MERGE_FALLBACK_CATEGORIES
+    else None
 )
 
 
@@ -61,7 +62,7 @@ def _collect_recent_user_texts(messages: list[Any], max_messages: int = 3) -> li
 def _trigger_decide(text: str) -> dict[str, Any]:
     from app.services.llm.prompt_loader import prompt_loader
 
-    categories_list = ', '.join([cat.value for cat in MemoryCategory])
+    categories_list = ", ".join([cat.value for cat in MemoryCategory])
     prompt = prompt_loader.load("memory_hotpath_trigger_classifier", text=text[:1000], categories=categories_list)
     bedrock = get_bedrock_runtime_client()
     try:
@@ -116,7 +117,12 @@ def _search_neighbors(store: Any, namespace: tuple[str, ...], summary: str, cate
 
 
 def _do_update(
-    store: Any, namespace: tuple[str, ...], existing_key: str, summary: str, existing_item: Any | None = None
+    store: Any,
+    namespace: tuple[str, ...],
+    existing_key: str,
+    summary: str,
+    existing_item: Any | None = None,
+    candidate_value: dict[str, Any] | None = None,
 ) -> None:
     base_value: dict[str, Any] | None = None
     if existing_item is not None:
@@ -133,6 +139,10 @@ def _do_update(
     merged["last_accessed"] = _utc_now_iso()
     if summary and len(summary) > len(merged.get("summary", "")):
         merged["summary"] = summary
+    if candidate_value and isinstance(candidate_value.get("display_summary"), str):
+        cand_disp = candidate_value.get("display_summary", "").strip()
+        if cand_disp:
+            merged["display_summary"] = cand_disp
     store.put(namespace, existing_key, merged, index=["summary"])
 
 
@@ -167,6 +177,16 @@ def _do_recreate(
     except Exception:
         pass
     new_val["summary"] = composed
+
+    try:
+        existing_display = str(existing_value.get("display_summary") or "").strip()
+        candidate_display = str(candidate_value.get("display_summary") or "").strip()
+        if existing_display or candidate_display:
+            new_val["display_summary"] = _compose_display_summaries(existing_display, candidate_display)  # type: ignore[name-defined]
+        else:
+            new_val["display_summary"] = composed[:280]
+    except Exception:
+        new_val["display_summary"] = composed[:280]
     new_val["last_accessed"] = _utc_now_iso()
     if existing_value.get("created_at"):
         new_val["created_at"] = existing_value["created_at"]
@@ -206,7 +226,7 @@ async def _write_semantic_memory(
                     logger.info("memory.recreate: mode=auto id=%s from=%s", candidate_id, best.key)
                     updated_key = new_id
                 else:
-                    _do_update(store, namespace, best.key, summary, best)
+                    _do_update(store, namespace, best.key, summary, best, candidate_value)
                     did_update = True
                     logger.info("memory.update: mode=auto id=%s into=%s", candidate_id, best.key)
                     updated_key = best.key
@@ -222,7 +242,7 @@ async def _write_semantic_memory(
                                     "id": updated_memory.key,
                                     "type": mem_type,
                                     "category": (updated_memory.value or {}).get("category"),
-                                    "summary": (updated_memory.value or {}).get("summary"),
+                                    "summary": (updated_memory.value or {}).get("display_summary") or (updated_memory.value or {}).get("summary"),
                                     "importance": (updated_memory.value or {}).get("importance"),
                                     "created_at": updated_memory.created_at,
                                     "updated_at": updated_memory.updated_at,
@@ -244,10 +264,14 @@ async def _write_semantic_memory(
                     if same:
                         if MERGE_MODE == "recreate":
                             _do_recreate(store, namespace, getattr(n, "key", ""), n, summary, category, candidate_value)
-                            logger.info("memory.recreate: mode=classified id=%s from=%s", candidate_id, getattr(n, "key", ""))
+                            logger.info(
+                                "memory.recreate: mode=classified id=%s from=%s", candidate_id, getattr(n, "key", "")
+                            )
                         else:
-                            _do_update(store, namespace, getattr(n, "key", ""), summary, n)
-                            logger.info("memory.update: mode=classified id=%s into=%s", candidate_id, getattr(n, "key", ""))
+                            _do_update(store, namespace, getattr(n, "key", ""), summary, n, candidate_value)
+                            logger.info(
+                                "memory.update: mode=classified id=%s into=%s", candidate_id, getattr(n, "key", "")
+                            )
                         did_update = True
                         updated_memory = store.get(namespace, getattr(n, "key", ""))
                         if queue and updated_memory:
@@ -259,7 +283,7 @@ async def _write_semantic_memory(
                                             "id": updated_memory.key,
                                             "type": mem_type,
                                             "category": (updated_memory.value or {}).get("category"),
-                                            "summary": (updated_memory.value or {}).get("summary"),
+                                            "summary": (updated_memory.value or {}).get("display_summary") or (updated_memory.value or {}).get("summary"),
                                             "importance": (updated_memory.value or {}).get("importance"),
                                             "created_at": updated_memory.created_at,
                                             "updated_at": updated_memory.updated_at,
@@ -302,7 +326,7 @@ async def _write_semantic_memory(
                         _do_recreate(store, namespace, getattr(n, "key", ""), n, summary, category, candidate_value)
                         logger.info("memory.recreate: mode=fallback id=%s", candidate_id)
                     else:
-                        _do_update(store, namespace, getattr(n, "key", ""), summary, n)
+                        _do_update(store, namespace, getattr(n, "key", ""), summary, n, candidate_value)
                         logger.info("memory.update: mode=fallback id=%s", candidate_id)
                     did_update = True
                     updated_memory = store.get(namespace, getattr(n, "key", ""))
@@ -315,7 +339,7 @@ async def _write_semantic_memory(
                                         "id": updated_memory.key,
                                         "type": mem_type,
                                         "category": (updated_memory.value or {}).get("category"),
-                                        "summary": (updated_memory.value or {}).get("summary"),
+                                        "summary": (updated_memory.value or {}).get("display_summary") or (updated_memory.value or {}).get("summary"),
                                         "importance": (updated_memory.value or {}).get("importance"),
                                         "created_at": updated_memory.created_at,
                                         "updated_at": updated_memory.updated_at,
@@ -333,7 +357,7 @@ async def _write_semantic_memory(
                     memory_type="semantic",
                     key=candidate_value["id"],
                     value=candidate_value,
-                    index=["summary"]
+                    index=["summary"],
                 )
 
                 logger.info("memory.create: id=%s type=%s category=%s", candidate_value["id"], "semantic", category)
@@ -368,10 +392,13 @@ async def _write_semantic_memory(
 
 def _same_fact_classify(existing_summary: str, candidate_summary: str, category: str) -> bool:
     from app.services.llm.prompt_loader import prompt_loader
-    prompt = prompt_loader.load("memory_same_fact_classifier",
-                               category=category[:64],
-                               existing_summary=existing_summary[:500],
-                               candidate_summary=candidate_summary[:500])
+
+    prompt = prompt_loader.load(
+        "memory_same_fact_classifier",
+        category=category[:64],
+        existing_summary=existing_summary[:500],
+        candidate_summary=candidate_summary[:500],
+    )
     bedrock = get_bedrock_runtime_client()
     try:
         body_payload = {
@@ -414,10 +441,12 @@ def _same_fact_classify(existing_summary: str, candidate_summary: str, category:
 def _compose_summaries(existing_summary: str, candidate_summary: str, category: str) -> str:
     from app.services.llm.prompt_loader import prompt_loader
 
-    prompt = prompt_loader.load("memory_compose_summaries",
-                               category=category[:64],
-                               existing_summary=existing_summary[:500],
-                               candidate_summary=candidate_summary[:500])
+    prompt = prompt_loader.load(
+        "memory_compose_summaries",
+        category=category[:64],
+        existing_summary=existing_summary[:500],
+        candidate_summary=candidate_summary[:500],
+    )
 
     bedrock = get_bedrock_runtime_client()
     try:
@@ -467,6 +496,32 @@ def _compose_summaries(existing_summary: str, candidate_summary: str, category: 
         if b.lower() in a.lower():
             return a[:280]
         return f"{a} {b}"[:280]
+
+
+def _compose_display_summaries(existing_display: str, candidate_display: str) -> str:
+    try:
+        a = (existing_display or "").strip()
+        b = (candidate_display or "").strip()
+        if not a and not b:
+            return ""
+        if not a:
+            return b[:280]
+        if not b:
+            return a[:280]
+
+        al = a.lower()
+        bl = b.lower()
+
+        if al in bl:
+            return b[:280]
+        if bl in al:
+            return a[:280]
+
+        return (b if len(b) >= len(a) else a)[:280]
+    except Exception:
+        b = (candidate_display or "").strip()
+        a = (existing_display or "").strip()
+        return (b or a)[:280]
 
 
 def _normalize_summary_text(text: str) -> str:
@@ -636,6 +691,8 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
     summary_raw = str(trigger.get("summary") or recent_user_texts[0] or combined_text).strip()[:280]
     summary = _normalize_summary_text(summary_raw)
     summary = _sanitize_semantic_time_phrases(summary)
+    display_summary_raw = str(trigger.get("display_summary") or "").strip()[:280]
+    display_summary = display_summary_raw or summary
 
     if mem_type != "semantic":
         logger.info("memory.skip: entry node only writes semantic; type=%s", mem_type)
@@ -654,6 +711,7 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
         "user_id": user_id,
         "type": "semantic",
         "summary": summary,
+        "display_summary": display_summary,
         "category": category,
         "source": "chat",
         "importance": importance,
@@ -679,7 +737,13 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
             await queue.put(
                 {
                     "event": "memory.created",
-                    "data": {"id": candidate_id, "type": mem_type, "category": category, "summary": summary},
+                    "data": {
+                        "id": candidate_id,
+                        "type": mem_type,
+                        "category": category,
+                        "summary": summary,
+                        "display_summary": display_summary,
+                    },
                 }
             )
         except Exception:
