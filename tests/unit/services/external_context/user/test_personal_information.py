@@ -36,10 +36,12 @@ class TestGetAllPersonalInfo:
         service.http_client = mock_client_instance
 
         mock_client_instance.get.side_effect = [
+            {},  # profile
             {"interaction_style": "friendly", "topics_to_avoid": ["politics", "religion"]},
             {"topics": ["Spanish", "Finance"]},
             {"coverage_description": "Full coverage", "pays_for_self": True},
-            {"financial_goals": ["Save for house", "Build emergency fund"]}
+            {"financial_goals": ["Save for house", "Build emergency fund"]},
+            {},  # housing_household_info
         ]
 
         # Act
@@ -63,10 +65,12 @@ class TestGetAllPersonalInfo:
         service.http_client = mock_client_instance
 
         mock_client_instance.get.side_effect = [
+            {},  # profile
             Exception("Network error"),
             {"topics": ["Spanish"]},
             {"coverage_description": "Basic", "pays_for_self": False},
-            {"financial_goals": ["Retirement"]}
+            {"financial_goals": ["Retirement"]},
+            {},  # housing_household_info
         ]
 
         # Act
@@ -86,8 +90,7 @@ class TestGetAllPersonalInfo:
         mock_client_instance = AsyncMock()
         mock_http_client.return_value = mock_client_instance
         service.http_client = mock_client_instance
-
-        mock_client_instance.get.side_effect = [None, None, None, None]
+        mock_client_instance.get.side_effect = [None, None, None, None, None, None]
 
         # Act
         result = await service.get_all_personal_info("user_123")
@@ -107,7 +110,9 @@ class TestGetAllPersonalInfo:
             Exception("Error 1"),
             Exception("Error 2"),
             Exception("Error 3"),
-            Exception("Error 4")
+            Exception("Error 4"),
+            Exception("Error 5"),
+            Exception("Error 6")
         ]
 
         # Act
@@ -123,21 +128,20 @@ class TestGetAllPersonalInfo:
         mock_client_instance = AsyncMock()
         mock_http_client.return_value = mock_client_instance
         service.http_client = mock_client_instance
-
         mock_client_instance.get.side_effect = [
+            {},  # profile
             {"interaction_style": "casual", "topics_to_avoid": []},
             {"topics": []},
             {},
-            {"financial_goals": []}
+            {"financial_goals": []},
+            {},  # housing_household_info
         ]
 
         # Act
         result = await service.get_all_personal_info("user_123")
 
         # Assert
-        assert result is not None
-        assert "casual" in result
-        assert "none specified" in result
+        assert result == "The user prefers an interaction style that is casual."
 
     @pytest.mark.asyncio
     async def test_correct_endpoints_called(self, service, mock_http_client):
@@ -155,9 +159,10 @@ class TestGetAllPersonalInfo:
 
         # Assert
         calls = mock_client_instance.get.call_args_list
-        assert len(calls) == 5
+        assert len(calls) == 6
 
         expected_endpoints = [
+            f"/internal/users/profile/{user_id}",
             f"/internal/users/profile/vera-approach/{user_id}",
             f"/internal/users/profile/learning-topics/{user_id}",
             f"/internal/users/profile/health-insurance/{user_id}",
@@ -200,8 +205,7 @@ class TestFormatVeraApproach:
         result = service._format_vera_approach(data)
 
         # Assert
-        assert "casual" in result
-        assert "none specified" in result
+        assert result == "The user prefers an interaction style that is casual."
 
     def test_format_with_none_data(self, service):
         """Test formatting when data is None."""
@@ -266,7 +270,7 @@ class TestFormatLearningTopics:
         result = service._format_learning_topics(data)
 
         # Assert
-        assert "none specified" in result
+        assert result == ""
 
     def test_format_with_none_data(self, service):
         """Test formatting when data is None."""
@@ -335,7 +339,7 @@ class TestFormatHealthInsurance:
         result = service._format_health_insurance(data)
 
         # Assert
-        assert "unknown" in result
+        assert result == "Regarding health insurance: they pay for it themselves."
 
 
 class TestFormatFinancialGoals:
@@ -373,7 +377,7 @@ class TestFormatFinancialGoals:
         result = service._format_financial_goals(data)
 
         # Assert
-        assert "none specified" in result
+        assert result == ""
 
     def test_format_with_none_data(self, service):
         """Test formatting when data is None."""
@@ -396,10 +400,12 @@ class TestEdgeCases:
         service.http_client = mock_client_instance
 
         mock_client_instance.get.side_effect = [
+            {},  # profile
             {"interaction_style": "professional", "topics_to_avoid": []},
             Exception("API timeout"),
             {"coverage_description": "Full", "pays_for_self": True},
-            Exception("Service unavailable")
+            Exception("Service unavailable"),
+            {},  # housing_household_info
         ]
 
         # Act
@@ -419,10 +425,12 @@ class TestEdgeCases:
         service.http_client = mock_client_instance
 
         mock_client_instance.get.side_effect = [
+            {},  # profile
             {"interaction_style": "friendly & casual", "topics_to_avoid": ["politics", "religion & spirituality"]},
             {"topics": ["C++", "Node.js"]},
             {"coverage_description": "Plan: Premium (Tier 1)", "pays_for_self": True},
-            {"financial_goals": ["Save $50,000", "Invest 20%"]}
+            {"financial_goals": ["Save $50,000", "Invest 20%"]},
+            {},  # housing_household_info
         ]
 
         # Act
@@ -447,4 +455,4 @@ class TestEdgeCases:
         await service.get_all_personal_info("")
 
         # Assert - Should still make API calls (validation is API's responsibility)
-        assert mock_client_instance.get.call_count == 5
+        assert mock_client_instance.get.call_count == 6
