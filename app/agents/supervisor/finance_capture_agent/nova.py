@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import Any
 
 from app.core.app_state import get_bedrock_runtime_client
 from app.core.config import config
@@ -106,6 +107,14 @@ def _load_prompt(user_message: str) -> str:
     )
 
 
+def _load_completion_prompt(completion_summary: str, completion_context: str = "") -> str:
+    return prompt_loader.load(
+        "finance_capture_completion_prompt",
+        completion_summary=completion_summary,
+        completion_context=completion_context,
+    )
+
+
 def _extract_text_from_response(data: dict[str, object]) -> str:
     output = data.get("output")
     if isinstance(output, dict):
@@ -184,5 +193,26 @@ def extract_intent(user_message: str) -> NovaMicroIntentResult | None:
     except Exception as exc:  # noqa: BLE001
         logger.warning("finance_capture.nova.schema_validation_failed: %s payload=%s", exc, parsed)
         return None
+
+
+def generate_completion_response(completion_summary: str, completion_context: dict[str, Any] | None = None) -> str:
+    context_text = ""
+    if completion_context:
+        try:
+            context_text = json.dumps(completion_context, ensure_ascii=False, default=str)
+        except Exception:
+            context_text = str(completion_context)
+
+    prompt = _load_completion_prompt(completion_summary or "", context_text)
+    try:
+        response_data = _invoke_nova(prompt)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("finance_capture.nova.completion.invoke_failed: %s", exc)
+        return ""
+
+    text = _extract_text_from_response(response_data)
+    if not text:
+        logger.warning("finance_capture.nova.completion.empty_output")
+    return text
 
 

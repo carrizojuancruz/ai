@@ -13,6 +13,7 @@ from langfuse.langchain import CallbackHandler
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 
+from app.agents.supervisor.finance_capture_agent.nova import generate_completion_response
 from app.agents.supervisor.i18n import (
     _get_random_budget_completed,
     _get_random_budget_current,
@@ -834,13 +835,41 @@ class SupervisorService:
         # Emit a final message if present
         try:
             response_text = ""
-            if isinstance(result, dict) and isinstance(result.get("messages"), list):
-                for msg in reversed(result["messages"]):
-                    content = getattr(msg, "content", None)
-                    if isinstance(content, str) and content.strip():
-                        response_text = content.strip()
-                        break
+            completion_context: dict[str, Any] | None = None
+            if isinstance(result, dict):
+                completion_context = result.get("completion_context")
+                if isinstance(result.get("messages"), list):
+                    for msg in reversed(result["messages"]):
+                        content = getattr(msg, "content", None)
+                        if isinstance(content, str) and content.strip():
+                            response_text = content.strip()
+                            break
+
             if response_text:
+                streaming_text = ""
+                try:
+                    loop = asyncio.get_running_loop()
+                    streaming_text = await loop.run_in_executor(
+                        None,
+                        generate_completion_response,
+                        response_text,
+                        completion_context,
+                    )
+                except Exception as exc:
+                    logger.warning("[TRACE] resume_interrupt.completion_stream.error err=%s", exc)
+                if not streaming_text:
+                    streaming_text = response_text
+
+                clean_stream_text = _strip_emojis(self._strip_guardrail_marker(streaming_text))
+                words = clean_stream_text.split(" ")
+                sources: list[dict[str, Any]] = []
+                for i in range(0, len(words), STREAM_WORD_GROUP_SIZE):
+                    word_group = " ".join(words[i : i + STREAM_WORD_GROUP_SIZE]).strip()
+                    if not word_group:
+                        continue
+                    await q.put({"event": "token.delta", "data": {"text": f"{word_group} ", "sources": sources}})
+                    await asyncio.sleep(0)
+
                 await q.put({"event": "message.completed", "data": {"content": response_text}})
         except Exception:
             pass

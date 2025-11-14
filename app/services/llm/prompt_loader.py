@@ -121,6 +121,7 @@ class PromptLoader:
             "memory_icebreaker_generation_prompt": self._get_memory_icebreaker_generation_prompt_local,
             "conversation_summarizer_instruction": self._get_conversation_summarizer_instruction_local,
             "finance_capture_nova_intent_prompt": self._get_finance_capture_nova_intent_prompt,
+            "finance_capture_completion_prompt": self._get_finance_capture_completion_prompt,
             "memory_merge_summaries": self._get_memory_merge_summaries_local,
         })
 
@@ -287,6 +288,20 @@ class PromptLoader:
             liability_categories=liability_categories,
         )
         logger.info("[prompt_loader] finance_capture_nova_intent_prompt generated:\n%s", prompt)
+        return prompt
+
+    def _get_finance_capture_completion_prompt(self, **kwargs) -> str:
+        agent_prompts = sys.modules.get('app.services.llm.agent_prompts')
+        if agent_prompts is None:
+            from . import agent_prompts
+
+        completion_summary = kwargs.get("completion_summary", "")
+        completion_context = kwargs.get("completion_context", "")
+        prompt = agent_prompts.build_finance_capture_completion_prompt(
+            completion_summary=completion_summary,
+            completion_context=completion_context,
+        )
+        logger.info("[prompt_loader] finance_capture_completion_prompt generated:\n%s", prompt)
         return prompt
 
     def _get_memory_merge_summaries_local(self, **kwargs) -> str:

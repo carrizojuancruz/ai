@@ -46,6 +46,7 @@ class FinanceCaptureState(TypedDict, total=False):
     persisted_ids: list[str] | None
     confirm_id: str | None
     from_edit: bool | None
+    completion_context: dict[str, Any] | None
 
 
 def create_finance_capture_graph(
@@ -299,6 +300,21 @@ def create_finance_capture_graph(
         confirm_decision = state.get("confirm_decision")
         persisted_ids = state.get("persisted_ids")
         was_edited = state.get("from_edit")
+        completion_context: dict[str, Any] = {
+            "entity_kind": entity_kind,
+            "name": draft.get("name") or draft.get("merchant_or_payee"),
+            "amount": draft.get("amount") or draft.get("estimated_value") or draft.get("principal_balance"),
+            "currency_code": draft.get("currency_code"),
+            "vera_category": draft.get("vera_category"),
+            "vera_income_category": draft.get("vera_income_category"),
+            "vera_expense_category": draft.get("vera_expense_category"),
+            "taxonomy_category": draft.get("taxonomy_category"),
+            "taxonomy_subcategory": draft.get("taxonomy_subcategory"),
+            "persisted_ids": persisted_ids,
+            "was_edited": was_edited,
+            "confirm_decision": confirm_decision,
+            "draft": draft,
+        }
 
         # Check if task was cancelled
         if confirm_decision and confirm_decision.lower() == "cancel":
@@ -371,7 +387,8 @@ def create_finance_capture_graph(
             "response_metadata": {"is_handoff_back": True}
         })
 
-        return {"messages": clean_messages, "from_edit": None}
+        completion_context["completion_message"] = completion_msg
+        return {"messages": clean_messages, "from_edit": None, "completion_context": completion_context}
 
     workflow = StateGraph(FinanceCaptureState)
     workflow.add_node("parse_and_normalize", parse_and_normalize)

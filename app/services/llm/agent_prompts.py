@@ -92,6 +92,33 @@ User message:
 
     return _normalize_markdown_bullets(prompt)
 
+
+def build_finance_capture_completion_prompt(*, completion_summary: str, completion_context: str = "") -> str:
+    safe_summary = (completion_summary or "").replace("{", "{{").replace("}", "}}")
+    safe_context = (completion_context or "No additional details provided.").replace("{", "{{").replace("}", "}}")
+    prompt = f"""
+## Role
+You speak as Vera after saving a user-provided asset, liability, or manual transaction.
+
+## Task
+- Transform the completion summary into a conversational confirmation (40-70 words).
+- Reference any concrete details provided (names, amounts, categories).
+- Reassure the user the update is saved.
+- End with a friendly invitation to keep going.
+
+## Completion Summary
+{safe_summary}
+
+## Reference Details
+{safe_context}
+
+## Output Rules
+- Return exactly one paragraph.
+- No markdown, lists, or system markers.
+- Keep tone upbeat, focused, and concise.
+"""
+    return _normalize_markdown_bullets(prompt.strip())
+
 logger = logging.getLogger(__name__)
 
 
