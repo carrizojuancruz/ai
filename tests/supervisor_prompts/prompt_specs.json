@@ -190,9 +190,8 @@
     "loader": "app.agents.supervisor.memory.profile_sync:_profile_sync_from_memory",
     "type": "extractor_prompt",
     "parameters": [
-      {"name": "user_id", "type": "str", "required": true, "default": "00000000-0000-0000-0000-000000000000"},
-      {"name": "thread_id", "type": "Optional[str]", "required": false, "default": null},
-      {"name": "value", "type": "dict[str, Any]", "required": true, "default": {"summary": "User prefers email communication.", "category": "Personal", "importance": 2}}
+      {"name": "category", "type": "str", "required": true, "default": "Personal_Identity"},
+      {"name": "summary", "type": "str", "required": true, "default": "User's name is John and lives in New York."}
     ],
     "prompt_preview": "Task: From the memory summary below, extract user profile information that should be stored permanently. Extract only...",
     "description": "LLM prompt for extracting user profile fields from semantic memory summaries. Maps to profile fields like name, language, city, tone, etc.",

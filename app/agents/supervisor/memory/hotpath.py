@@ -232,7 +232,7 @@ async def _write_semantic_memory(
                     updated_key = best.key
                 updated_memory = store.get(namespace, updated_key)
                 if updated_memory:
-                    asyncio.create_task(_profile_sync_from_memory(user_id, thread_id, updated_memory.value))
+                    await _profile_sync_from_memory(user_id, thread_id, updated_memory.value)
                 if queue and updated_memory:
                     with contextlib.suppress(Exception):
                         await queue.put(
@@ -262,18 +262,23 @@ async def _write_semantic_memory(
                     )
                     logger.info("memory.classify: id=%s result_same=%s", candidate_id, same)
                     if same:
+                        updated_key = None
                         if MERGE_MODE == "recreate":
-                            _do_recreate(store, namespace, getattr(n, "key", ""), n, summary, category, candidate_value)
+                            new_id = _do_recreate(store, namespace, getattr(n, "key", ""), n, summary, category, candidate_value)
                             logger.info(
                                 "memory.recreate: mode=classified id=%s from=%s", candidate_id, getattr(n, "key", "")
                             )
+                            updated_key = new_id
                         else:
                             _do_update(store, namespace, getattr(n, "key", ""), summary, n, candidate_value)
                             logger.info(
                                 "memory.update: mode=classified id=%s into=%s", candidate_id, getattr(n, "key", "")
                             )
+                            updated_key = getattr(n, "key", "")
                         did_update = True
-                        updated_memory = store.get(namespace, getattr(n, "key", ""))
+                        updated_memory = store.get(namespace, updated_key)
+                        if updated_memory:
+                            await _profile_sync_from_memory(user_id, thread_id, updated_memory.value)
                         if queue and updated_memory:
                             with contextlib.suppress(Exception):
                                 await queue.put(
@@ -322,14 +327,20 @@ async def _write_semantic_memory(
                 )
                 checked += 1
                 if same:
+                    updated_key = None
                     if MERGE_MODE == "recreate":
-                        _do_recreate(store, namespace, getattr(n, "key", ""), n, summary, category, candidate_value)
+                        new_id = _do_recreate(store, namespace, getattr(n, "key", ""), n, summary, category, candidate_value)
                         logger.info("memory.recreate: mode=fallback id=%s", candidate_id)
+                        updated_key = new_id
                     else:
                         _do_update(store, namespace, getattr(n, "key", ""), summary, n, candidate_value)
                         logger.info("memory.update: mode=fallback id=%s", candidate_id)
+                        updated_key = getattr(n, "key", "")
+
                     did_update = True
-                    updated_memory = store.get(namespace, getattr(n, "key", ""))
+                    updated_memory = store.get(namespace, updated_key)
+                    if updated_memory:
+                        await _profile_sync_from_memory(user_id, thread_id, updated_memory.value)
                     if queue and updated_memory:
                         with contextlib.suppress(Exception):
                             await queue.put(
@@ -362,7 +373,7 @@ async def _write_semantic_memory(
 
                 logger.info("memory.create: id=%s type=%s category=%s", candidate_value["id"], "semantic", category)
 
-                asyncio.create_task(_profile_sync_from_memory(user_id, thread_id, candidate_value))
+                await _profile_sync_from_memory(user_id, thread_id, candidate_value)
                 if queue:
                     with contextlib.suppress(Exception):
                         await queue.put(

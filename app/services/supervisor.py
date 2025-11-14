@@ -794,6 +794,7 @@ class SupervisorService:
                 user_ctx_dict = session_ctx.get("user_context", {})
                 if user_ctx_dict:
                     ctx = UserContext.model_validate(user_ctx_dict)
+                    ctx = await self._load_user_context_from_external(ctx.user_id)
                     await self._export_user_context_to_external(ctx)
 
         except Exception as e:

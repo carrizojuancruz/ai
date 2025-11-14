@@ -160,7 +160,7 @@ MEMORY_PROFILE_SYNC_EXTRACTOR_LOCAL = """Task: From the memory summary below, ex
 Extract only explicitly stated facts. Do not infer or assume.
 
 Output strict JSON with these optional keys:
-{
+{{
   "preferred_name": string (only if the user stated their name),
   "language": string (e.g., "en-US", "es-ES"),
   "city": string (current city of residence),
@@ -169,7 +169,7 @@ Output strict JSON with these optional keys:
   "income_band": string (e.g., "under_25k", "25k_50k", "50k_75k", "75k_100k", "over_100k"),
   "money_feelings": string (how they feel about money: "anxious", "confused", "zen", "motivated"),
   "goals_add": [string] (list of financial goals to add, e.g., ["save for vacation", "pay off debt"])
-}
+}}
 
 Category: {category}
 Summary: {summary}

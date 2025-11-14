@@ -734,18 +734,16 @@ class TestProcessMessage:
 
             await supervisor_service.process_message(thread_id="thread-1", text="Hello")
 
-            # Verify context was refreshed
-            supervisor_service._load_user_context_from_external.assert_awaited_once_with(mock_user_id)
+            # Verify context was refreshed (called twice: once at start, once before final save for profile_sync updates)
+            assert supervisor_service._load_user_context_from_external.await_count == 2
+            supervisor_service._load_user_context_from_external.assert_awaited_with(mock_user_id)
 
-            # Verify updated context was stored
-            mock_store.set_session.assert_any_call(
-                "thread-1",
-                {
-                    "user_id": str(mock_user_id),
-                    "user_context": updated_context.model_dump(mode="json"),
-                    "conversation_messages": [{"role": "user", "content": "Hello", "sources": []}],
-                }
-            )
+            assert mock_store.set_session.called
+            call_args = mock_store.set_session.call_args_list[-1]
+            assert call_args[0][0] == "thread-1"
+            session_dict = call_args[0][1]
+            assert session_dict["user_id"] == str(mock_user_id)
+            assert session_dict["user_context"]["preferred_name"] == "New Name"
 
     @pytest.mark.asyncio
     async def test_process_message_stores_conversation(self, supervisor_service, mock_user_id):

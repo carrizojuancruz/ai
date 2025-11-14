@@ -186,10 +186,8 @@ def map_user_context_to_ai_context(user_ctx: UserContext) -> dict[str, Any]:
 
     for key in [
         "display_preferences",
-        "financial_context",
         "conversation_context",
         "communication_style",
-        "restrictions",
         "financial_insights",
         "behavioral_insights",
         "collected_information",
@@ -197,6 +195,8 @@ def map_user_context_to_ai_context(user_ctx: UserContext) -> dict[str, Any]:
         "decision_patterns",
         "personalization_data",
         "learning_data",
+        "financial_context",
+        "restrictions",
     ]:
         out.setdefault(key, {})
 

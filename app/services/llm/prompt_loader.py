@@ -205,7 +205,7 @@ class PromptLoader:
         memory_prompts = sys.modules.get('app.services.llm.memory_prompts')
         if memory_prompts is None:
             from . import memory_prompts
-        return memory_prompts.MEMORY_PROFILE_SYNC_EXTRACTOR_LOCAL.strip()
+        return memory_prompts.MEMORY_PROFILE_SYNC_EXTRACTOR_LOCAL.format(**kwargs).strip()
 
     def _get_guest_system_prompt_local(self, **kwargs) -> str:
         agent_prompts = sys.modules.get('app.services.llm.agent_prompts')

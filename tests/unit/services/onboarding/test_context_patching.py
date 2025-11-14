@@ -44,7 +44,7 @@ class TestNormalizePatchForStep:
 
         result = patching_service.normalize_patch_for_step("identity", patch)
 
-        assert result == {"age": 25, "location.city": "San Francisco", "goals": ["save money"]}
+        assert result == {"identity.age": 25, "location.city": "San Francisco", "goals": ["save money"]}
 
     def test_normalizes_income_money_fields(self, patching_service):
         patch = {"annual_income": 75000, "money_feelings": "stressed"}
@@ -59,7 +59,7 @@ class TestNormalizePatchForStep:
         result = patching_service.normalize_patch_for_step("identity", patch)
 
         assert result["custom_field"] == "value"
-        assert result["age"] == 30
+        assert result["identity.age"] == 30
 
     def test_returns_empty_for_non_dict_patch(self, patching_service):
         result = patching_service.normalize_patch_for_step("warmup", "not a dict")

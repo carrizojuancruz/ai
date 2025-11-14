@@ -18,7 +18,7 @@ class ContextPatchingService:
             },
             "identity": {
                 "preferred_name": "identity.preferred_name",
-                "age": "age",
+                "age": "identity.age",
                 "age_range": "age_range",
                 "location": "location.city",
                 "city": "location.city",
@@ -79,7 +79,7 @@ class ContextPatchingService:
 
         normalized_patch = self.normalize_patch_for_step(step, patch)
 
-        logger.info(f"[USER CONTEXT UPDATE] Step: {step.value}")
+        logger.info(f"[USER CONTEXT UPDATE] Step: {step}")
         logger.info(f"[USER CONTEXT UPDATE] Applying patch: {json.dumps(normalized_patch, indent=2)}")
 
         changes = []
