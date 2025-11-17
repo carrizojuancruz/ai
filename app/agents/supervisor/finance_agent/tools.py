@@ -7,15 +7,17 @@ import math
 import re
 import statistics
 import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Any, Final, Optional, Pattern
+from typing import Any, Callable, Final, Optional, Pattern
 from urllib.parse import urlencode
 from uuid import UUID
 
 from langchain_core.tools import tool
 
 from app.repositories.database_service import get_database_service
+from app.repositories.postgres.finance_repository import FinanceTables
 from app.services.external_context.http_client import FOSHttpClient
 
 logger = logging.getLogger(__name__)
@@ -69,6 +71,22 @@ COUNT_PRECHECK_REGEX: Final[Pattern[str]] = re.compile(
 )
 
 WHERE_USER_ID_REGEX: Final[Pattern[str]] = re.compile(r"WHERE.*user_id", re.IGNORECASE)
+
+PLAID_TABLES: Final[tuple[str, ...]] = (
+    FinanceTables.TRANSACTIONS,
+    FinanceTables.ACCOUNTS,
+)
+
+PLAID_REQUIRED_STATUS_PREFIX: Final[str] = "FINANCE_STATUS: PLAID_DATA_REQUIRED"
+PLAID_REQUIRED_STATUS_MESSAGE: Final[str] = (
+    f"{PLAID_REQUIRED_STATUS_PREFIX} — Connect an account (Financial Info → Connected Accounts) "
+    "to unlock live transaction and account analysis."
+)
+
+
+@dataclass
+class FinanceDataAvailability:
+    has_plaid_accounts: bool = False
 
 
 def _validate_query_security(query: str, user_id: UUID) -> Optional[str]:
@@ -127,23 +145,35 @@ def _validate_query_security(query: str, user_id: UUID) -> Optional[str]:
     return "Query must include user_id filter for security"
 
 
-def create_sql_db_query_tool(user_id):
+def create_sql_db_query_tool(
+    user_id: UUID,
+    availability_provider: Callable[[], FinanceDataAvailability | None] | None = None,
+):
     """Create a user-scoped SQL query tool."""
+
     @tool
     async def sql_db_query(query: str) -> str:
         """Execute a single read-only SQL query for this user's data."""
-        return await execute_financial_query(query, user_id)
+        availability = availability_provider() if availability_provider else None
+        return await execute_financial_query(query, user_id, availability)
 
     return sql_db_query
 
 
-def create_net_worth_summary_tool(user_id: UUID):
+def create_net_worth_summary_tool(
+    user_id: UUID,
+    availability_provider: Callable[[], FinanceDataAvailability | None] | None = None,
+):
     """Create a tool that fetches canonical net worth data from FOS service."""
     client = FOSHttpClient()
 
     @tool
-    async def net_worth_summary() -> dict[str, Any]:
+    async def net_worth_summary() -> dict[str, Any] | str:
         """Return canonical net worth summary (assets, liabilities, net worth)."""
+        availability = availability_provider() if availability_provider else None
+        if availability and not availability.has_plaid_accounts:
+            return PLAID_REQUIRED_STATUS_MESSAGE
+
         endpoint = f"/internal/financial/reports/net-worth?user_id={user_id}"
         response = await client.get(endpoint)
         if response is None:
@@ -160,7 +190,10 @@ def _default_income_expense_window() -> tuple[str, str]:
     return start.isoformat(), now.isoformat()
 
 
-def create_income_expense_summary_tool(user_id: UUID):
+def create_income_expense_summary_tool(
+    user_id: UUID,
+    availability_provider: Callable[[], FinanceDataAvailability | None] | None = None,
+):
     """Create a tool that fetches canonical income/expense data from FOS service."""
     client = FOSHttpClient()
 
@@ -169,8 +202,12 @@ def create_income_expense_summary_tool(user_id: UUID):
         date_from: str | None = None,
         date_to: str | None = None,
         include_pending: bool = False,
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | str:
         """Return canonical income & expense report for the specified period."""
+        availability = availability_provider() if availability_provider else None
+        if availability and not availability.has_plaid_accounts:
+            return PLAID_REQUIRED_STATUS_MESSAGE
+
         if date_from is None or date_to is None:
             default_from, default_to = _default_income_expense_window()
             date_from = date_from or default_from
@@ -193,7 +230,11 @@ def create_income_expense_summary_tool(user_id: UUID):
     return income_expense_summary
 
 
-async def execute_financial_query(query: str, user_id: UUID) -> str:
+async def execute_financial_query(
+    query: str,
+    user_id: UUID,
+    availability: FinanceDataAvailability | None = None,
+) -> str:
     """Execute SQL query against the financial database with user isolation."""
     db_service = get_database_service()
 
@@ -218,6 +259,10 @@ async def execute_financial_query(query: str, user_id: UUID) -> str:
                 if security_error:
                     return f"ERROR: {security_error}"
 
+                if availability and not availability.has_plaid_accounts and _query_targets_plaid_tables(query):
+                    logger.info("Blocking plaid-only SQL due to missing connected accounts.")
+                    return PLAID_REQUIRED_STATUS_MESSAGE
+
                 repo = db_service.get_finance_repository(session)
 
                 logger.info(f"Executing query via repository for user {user_id}")
@@ -237,6 +282,11 @@ async def execute_financial_query(query: str, user_id: UUID) -> str:
     except Exception as e:
         logger.error(f"Query execution failed: {e}")
         return f"Error: {str(e)}"
+
+
+def _query_targets_plaid_tables(query: str) -> bool:
+    normalized = query.lower()
+    return any(table_name.lower() in normalized for table_name in PLAID_TABLES)
 
 
 

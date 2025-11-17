@@ -396,23 +396,34 @@ class SupervisorService:
         uid: UUID = user_id
         ctx = await self._load_user_context_from_external(uid)
 
-        has_financial_accounts = False
+        has_plaid_accounts = False
+        has_financial_data = False
         try:
             db_service = get_database_service()
             async with db_service.get_session() as session:
                 repo = db_service.get_finance_repository(session)
-                has_financial_accounts = await repo.user_has_any_accounts(uid)
+                has_plaid_accounts = await repo.user_has_any_accounts(uid)
+                if has_plaid_accounts:
+                    has_financial_data = True
+                else:
+                    has_financial_data = await repo.user_has_manual_financial_data(uid)
         except Exception as e:
             logger.warning(f"[SUPERVISOR] Failed to check financial accounts for user {uid}: {e}")
+            has_financial_data = has_plaid_accounts
 
-        logger.info(f"[SUPERVISOR] User {uid} has financial accounts: {has_financial_accounts}")
+        logger.info(
+            f"[SUPERVISOR] User {uid} financial flags -> plaid_accounts={has_plaid_accounts}, "
+            f"financial_data={has_financial_data}"
+        )
         await session_store.set_session(
             thread_id,
             {
                 "user_id": str(uid),
                 "user_context": ctx.model_dump(mode="json"),
                 "conversation_messages": [],
-                "has_financial_accounts": has_financial_accounts,
+                "has_financial_accounts": has_plaid_accounts,
+                "has_plaid_accounts": has_plaid_accounts,
+                "has_financial_data": has_financial_data,
             },
         )
 
@@ -463,7 +474,7 @@ class SupervisorService:
             except Exception as e:
                 logger.error(f"[SUPERVISOR] Failed to generate welcome audio for thread_id {thread_id}: {e}")
 
-        if has_financial_accounts:
+        if has_financial_data:
             try:
                 from app.core.app_state import get_finance_agent
 
@@ -549,6 +560,7 @@ class SupervisorService:
                 "messages": [{"role": "user", "content": text}],
                 "sources": sources,
                 "context": {"thread_id": thread_id},
+                "navigation_events": None,
             },
             version="v2",
             config=config_payload,
@@ -866,8 +878,8 @@ class SupervisorService:
                 if not streaming_text:
                     streaming_text = response_text
 
-                clean_stream_text = _strip_emojis(self._strip_guardrail_marker(streaming_text))
-                words = clean_stream_text.split(" ")
+                cleaned_stream_text = _strip_emojis(self._strip_guardrail_marker(streaming_text or ""))
+                words = cleaned_stream_text.split(" ")
                 sources: list[dict[str, Any]] = []
                 for i in range(0, len(words), STREAM_WORD_GROUP_SIZE):
                     word_group = " ".join(words[i : i + STREAM_WORD_GROUP_SIZE]).strip()
@@ -876,7 +888,8 @@ class SupervisorService:
                     await q.put({"event": "token.delta", "data": {"text": f"{word_group} ", "sources": sources}})
                     await asyncio.sleep(0)
 
-                await q.put({"event": "message.completed", "data": {"content": response_text}})
+                final_completion_text = cleaned_stream_text.strip() or response_text
+                await q.put({"event": "message.completed", "data": {"content": final_completion_text}})
         except Exception:
             pass
 

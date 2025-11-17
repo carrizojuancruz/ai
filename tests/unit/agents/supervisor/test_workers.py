@@ -4,6 +4,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import MessagesState
 
+from app.agents.supervisor.finance_agent.tools import PLAID_REQUIRED_STATUS_PREFIX
 from app.agents.supervisor.workers import (
     finance_router,
     goal_agent,
@@ -293,7 +294,11 @@ class TestFinanceRouter:
     ):
         """Test finance_router with connected accounts."""
         mock_session_store.get_session.reset_mock()
-        mock_session_store.get_session.return_value = {"has_financial_accounts": True}
+        mock_session_store.get_session.return_value = {
+            "has_financial_accounts": True,
+            "has_plaid_accounts": True,
+            "has_financial_data": True,
+        }
         mock_finance_agent.reset_mock()
 
         state = MessagesState(messages=[HumanMessage(content="What's my balance?")])
@@ -304,17 +309,19 @@ class TestFinanceRouter:
 
     @pytest.mark.asyncio
     async def test_finance_router_without_accounts(
-        self, mock_session_store, mock_config
+        self, mock_session_store, mock_finance_agent, mock_config
     ):
         """Test finance_router without connected accounts."""
-        mock_session_store.get_session.return_value = {"has_financial_accounts": False}
+        mock_session_store.get_session.return_value = {
+            "has_financial_accounts": False,
+            "has_financial_data": False,
+        }
 
-        state = MessagesState(messages=[HumanMessage(content="Test")])
+        state = MessagesState(messages=[HumanMessage(content="List my assets")])
         result = await finance_router(state, mock_config)
 
-        assert "messages" in result
-        content = extract_message_content(result)
-        assert "NO_ACCOUNTS" in content or "connect" in content.lower()
+        mock_finance_agent.assert_called_once_with(state, mock_config)
+        assert result == await mock_finance_agent(state, mock_config)
 
     @pytest.mark.asyncio
     async def test_finance_router_missing_thread_id(
@@ -348,7 +355,11 @@ class TestFinanceRouter:
     ):
         """Test that finance_router checks session for financial accounts."""
         mock_session_store.get_session.reset_mock()
-        mock_session_store.get_session.return_value = {"has_financial_accounts": True}
+        mock_session_store.get_session.return_value = {
+            "has_financial_accounts": True,
+            "has_plaid_accounts": True,
+            "has_financial_data": True,
+        }
 
         state = MessagesState(messages=[HumanMessage(content="Test")])
 
@@ -375,16 +386,16 @@ class TestFinanceRouter:
 
     @pytest.mark.asyncio
     async def test_finance_router_with_none_session(
-        self, mock_session_store, mock_config
+        self, mock_session_store, mock_finance_agent, mock_config
     ):
         """Test finance_router when session is None."""
         mock_session_store.get_session.return_value = None
 
-        state = MessagesState(messages=[HumanMessage(content="Test")])
+        state = MessagesState(messages=[HumanMessage(content="List my assets")])
         result = await finance_router(state, mock_config)
 
-        content = extract_message_content(result)
-        assert "NO_ACCOUNTS" in content or "connect" in content.lower()
+        mock_finance_agent.assert_called_once_with(state, mock_config)
+        assert result == await mock_finance_agent(state, mock_config)
 
     @pytest.mark.asyncio
     async def test_finance_router_delegates_to_finance_worker(
@@ -392,7 +403,11 @@ class TestFinanceRouter:
     ):
         """Test that finance_router delegates to finance_worker when accounts exist."""
         mock_session_store.get_session.reset_mock()
-        mock_session_store.get_session.return_value = {"has_financial_accounts": True}
+        mock_session_store.get_session.return_value = {
+            "has_financial_accounts": True,
+            "has_plaid_accounts": True,
+            "has_financial_data": True,
+        }
         mock_finance_agent.reset_mock()
 
         state = MessagesState(messages=[HumanMessage(content="Show spending")])
@@ -402,3 +417,24 @@ class TestFinanceRouter:
         mock_finance_agent.assert_called_once_with(state, mock_config)
 
         assert result == await mock_finance_agent(state, mock_config)
+
+    @pytest.mark.asyncio
+    async def test_finance_router_adds_nav_event_when_plaid_required(
+        self, mock_session_store, mock_finance_agent, mock_config
+    ):
+        """Test that finance_router appends navigation event when plaid data is needed."""
+        mock_session_store.get_session.return_value = {
+            "has_financial_accounts": False,
+            "has_plaid_accounts": False,
+            "has_financial_data": True,
+        }
+        sentinel_text = f"{PLAID_REQUIRED_STATUS_PREFIX} — Please connect"
+        mock_finance_agent.return_value = {
+            "messages": [{"role": "assistant", "content": sentinel_text, "name": "finance_agent"}]
+        }
+
+        state = MessagesState(messages=[HumanMessage(content="Show latest transactions")])
+        result = await finance_router(state, mock_config)
+
+        nav_events = result.get("navigation_events", [])
+        assert any(event.get("event") == "navigation.connected-accounts" for event in nav_events)

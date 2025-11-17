@@ -6,12 +6,15 @@ from uuid import UUID
 import pytest
 
 from app.agents.supervisor.finance_agent.tools import (
+    PLAID_REQUIRED_STATUS_PREFIX,
+    FinanceDataAvailability,
     _validate_query_security,
     create_income_expense_summary_tool,
     create_net_worth_summary_tool,
     create_sql_db_query_tool,
     execute_financial_query,
 )
+from app.repositories.postgres.finance_repository import FinanceTables
 
 
 class TestValidateQuerySecurity:
@@ -183,7 +186,7 @@ class TestToolCreation:
 
     def test_create_sql_db_query_tool(self):
         """Test creating SQL DB query tool."""
-        tool = create_sql_db_query_tool(self.user_id)
+        tool = create_sql_db_query_tool(self.user_id, lambda: None)
         assert tool is not None
         assert hasattr(tool, 'name')
         assert hasattr(tool, 'description')
@@ -201,6 +204,22 @@ class TestToolCreation:
         assert tool is not None
         assert hasattr(tool, 'name')
         assert hasattr(tool, 'description')
+
+    @pytest.mark.asyncio
+    async def test_net_worth_tool_requires_plaid_accounts(self):
+        """Net worth tool should emit plaid status when accounts missing."""
+        availability = FinanceDataAvailability(has_plaid_accounts=False)
+        tool = create_net_worth_summary_tool(self.user_id, lambda: availability)
+        result = await tool.ainvoke({})
+        assert PLAID_REQUIRED_STATUS_PREFIX in result
+
+    @pytest.mark.asyncio
+    async def test_income_expense_tool_requires_plaid_accounts(self):
+        """Income/expense tool should emit plaid status when accounts missing."""
+        availability = FinanceDataAvailability(has_plaid_accounts=False)
+        tool = create_income_expense_summary_tool(self.user_id, lambda: availability)
+        result = await tool.ainvoke({})
+        assert PLAID_REQUIRED_STATUS_PREFIX in result
 
 
 class TestExecuteFinancialQuery:
@@ -273,6 +292,18 @@ class TestExecuteFinancialQuery:
 
         result = await execute_financial_query("SELECT * FROM test WHERE user_id = :user_id", self.user_id)
         assert "Error executing query" in result
+
+    @patch('app.agents.supervisor.finance_agent.tools.get_database_service')
+    @pytest.mark.asyncio
+    async def test_execute_financial_query_requires_plaid(self, mock_get_db_service):
+        """Test plaid-only queries emit status when accounts missing."""
+        mock_db_service = MagicMock()
+        mock_get_db_service.return_value = mock_db_service
+
+        availability = FinanceDataAvailability(has_plaid_accounts=False)
+        query = f"SELECT * FROM {FinanceTables.TRANSACTIONS} WHERE user_id = :user_id"
+        result = await execute_financial_query(query, self.user_id, availability)
+        assert PLAID_REQUIRED_STATUS_PREFIX in result
 
     @patch('app.agents.supervisor.finance_agent.tools.get_database_service')
     @pytest.mark.asyncio

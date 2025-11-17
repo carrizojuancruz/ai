@@ -95,6 +95,8 @@ def mock_session_store(mocker):
 
     default_session = {
         "has_financial_accounts": True,
+        "has_plaid_accounts": True,
+        "has_financial_data": True,
         "episodic_control": {
             "day_iso": datetime.now(UTC).date().isoformat(),
             "count_today": 0,

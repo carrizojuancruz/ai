@@ -6,7 +6,9 @@ from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import MessagesState
+from langgraph.types import Command
 
+from app.agents.supervisor.finance_agent.tools import PLAID_REQUIRED_STATUS_PREFIX
 from app.repositories.session_store import get_session_store
 from app.utils.tools import get_config_value
 
@@ -146,36 +148,86 @@ async def wealth_router(state: MessagesState, config: RunnableConfig) -> dict[st
 
 
 async def finance_router(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
-    """Short-circuit when no accounts; else forward to finance_agent."""
+    """Route to finance_agent and surface Plaid-only gating when required."""
     try:
         thread_id = get_config_value(config, "thread_id")
 
         if not thread_id:
             logger.warning("finance_router: missing thread_id, defaulting to no accounts")
-            content = "FINANCE_STATUS: NO_ACCOUNTS_CONNECTED — COULDNT FIND A THREAD ID"
+            content = (
+                "FINANCE_STATUS: NO_ACCOUNTS_CONNECTED — Could not determine your thread. "
+                "Please reconnect and try again."
+            )
             return {"messages": [{"role": "assistant", "content": content, "name": "finance_agent"}]}
 
         session_store = get_session_store()
-        sess = await session_store.get_session(thread_id)
+        sess = await session_store.get_session(thread_id) or {}
 
-        has_accounts = bool(sess.get("has_financial_accounts", False)) if isinstance(sess, dict) else False
+        has_plaid_accounts = bool(
+            sess.get("has_plaid_accounts", sess.get("has_financial_accounts", False))
+        )
 
-        if not has_accounts:
-            content = "FINANCE_STATUS: NO_ACCOUNTS_CONNECTED — You don't have any financial accounts connected yet. To get started, go to Financial Info and then the Connected Accounts button and connect your accounts."
-            return {
-                "messages": [{"role": "assistant", "content": content, "name": "finance_agent"}],
-                "navigation_events": [{
-                    "event": "navigation.connected-accounts",
-                    "data": {
-                        "message": "You don't have any financial accounts connected yet. To get started, go to Financial Info and then the Connected Accounts button and connect your accounts.",
-                        "action": "connect_accounts",
-                    },
-                }],
-            }
-
-        return await finance_worker(state, config)
+        result = await finance_worker(state, config)
+        return _attach_plaid_navigation_event_if_needed(result, has_plaid_accounts)
 
     except Exception as e:
         logger.error(f"finance_router: error - {e}")
         content = "I'm having trouble accessing your financial information right now. Please try again, or connect your accounts through the Connected Accounts menu if you haven't already."
         return {"messages": [{"role": "assistant", "content": content, "name": "finance_agent"}]}
+
+
+def _attach_plaid_navigation_event_if_needed(result: Any, has_plaid_accounts: bool) -> Any:
+    """Append connect-accounts navigation event when plaid data is required but unavailable."""
+    if has_plaid_accounts:
+        return result
+
+    update_block: dict[str, Any] | None = None
+    if isinstance(result, Command):
+        if result.update is None or not isinstance(result.update, dict):
+            result.update = {}
+        update_block = result.update
+    elif isinstance(result, dict):
+        update_block = result
+
+    messages = _extract_messages_from_result(result)
+    if not _messages_require_plaid_data(messages):
+        return result
+
+    event_payload = {
+        "event": "navigation.connected-accounts",
+        "data": {
+            "message": "Connect an account (Financial Info → Connected Accounts) to enable live transaction insights.",
+            "action": "connect_accounts",
+        },
+    }
+    if update_block is not None:
+        nav_events = update_block.setdefault("navigation_events", [])
+        if event_payload not in nav_events:
+            nav_events.append(event_payload)
+        return result
+
+    return Command(update={"navigation_events": [event_payload]}, goto=getattr(result, "goto", None))
+
+
+def _messages_require_plaid_data(messages: list[Any]) -> bool:
+    """Detect whether any message indicates a plaid-specific requirement."""
+    for msg in messages or []:
+        content = getattr(msg, "content", None)
+        if content is None and isinstance(msg, dict):
+            content = msg.get("content")
+        if isinstance(content, str) and PLAID_REQUIRED_STATUS_PREFIX in content:
+            return True
+    return False
+
+
+def _extract_messages_from_result(result: Any) -> list[Any]:
+    if isinstance(result, Command):
+        update_block = result.update if isinstance(result.update, dict) else {}
+        if isinstance(update_block, dict):
+            messages = update_block.get("messages")
+            return messages if isinstance(messages, list) else []
+        return []
+    if isinstance(result, dict):
+        messages = result.get("messages")
+        return messages if isinstance(messages, list) else []
+    return []

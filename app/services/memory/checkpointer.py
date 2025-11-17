@@ -157,47 +157,22 @@ class KVRedisCheckpointer(BaseCheckpointSaver[str]):
         checkpoint_ns: str,
         checkpoint_id: str,
     ) -> list[PendingWrite]:
-        t0 = time.perf_counter()
+        time.perf_counter()
         pattern = self._writes_pattern(thread_id, checkpoint_ns, checkpoint_id)
         keys: list[str] = []
         async for key in client.scan_iter(match=pattern, count=100):
             keys.append(key.decode() if isinstance(key, bytes) else str(key))
-        t1 = time.perf_counter()
+        time.perf_counter()
 
         if not keys:
-            logger.info(
-                "kv_checkpointer.timing.legacy_scan thread_id=%s ns=%s cp=%s ms=%d keys=%d",
-                thread_id,
-                checkpoint_ns,
-                checkpoint_id,
-                int((t1 - t0) * 1000),
-                0,
-            )
             return []
 
-        logger.info(
-            "kv_checkpointer.timing.legacy_scan thread_id=%s ns=%s cp=%s ms=%d keys=%d",
-            thread_id,
-            checkpoint_ns,
-            checkpoint_id,
-            int((t1 - t0) * 1000),
-            len(keys),
-        )
-
-        t2 = time.perf_counter()
+        time.perf_counter()
         pipe = client.pipeline(transaction=False)
         for key in keys:
             pipe.hgetall(key)
         raw_results = await pipe.execute()
-        t3 = time.perf_counter()
-        logger.info(
-            "kv_checkpointer.timing.legacy_hgetall thread_id=%s ns=%s cp=%s ms=%d batches=%d",
-            thread_id,
-            checkpoint_ns,
-            checkpoint_id,
-            int((t3 - t2) * 1000),
-            len(keys),
-        )
+        time.perf_counter()
 
         entries: list[tuple[int, PendingWrite]] = []
         for key, write_data in zip(keys, raw_results, strict=False):
@@ -225,14 +200,6 @@ class KVRedisCheckpointer(BaseCheckpointSaver[str]):
             entries.append((idx, (task_id, channel, value)))
 
         ordered = [item for _, item in sorted(entries, key=lambda entry: entry[0])]
-        logger.info(
-            "kv_checkpointer.timing.legacy_result thread_id=%s ns=%s cp=%s total_entries=%d total_ms=%d",
-            thread_id,
-            checkpoint_ns,
-            checkpoint_id,
-            len(ordered),
-            int((t3 - t0) * 1000),
-        )
         return self._order_pending_writes(ordered)
 
     async def _clear_legacy_pending_writes(
@@ -264,12 +231,6 @@ class KVRedisCheckpointer(BaseCheckpointSaver[str]):
             return entries
         # FAST PATH: if no blob fields exist at all, skip legacy scan entirely
         if both_none:
-            logger.info(
-                "kv_checkpointer.pending_blob.absent thread_id=%s ns=%s cp=%s -> returning empty writes (skip legacy)",
-                thread_id,
-                checkpoint_ns,
-                checkpoint_id,
-            )
             return []
 
         legacy_entries = await self._load_legacy_pending_writes(
@@ -384,79 +345,31 @@ class KVRedisCheckpointer(BaseCheckpointSaver[str]):
         )
 
     async def aget_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
-        t_total0 = time.perf_counter()
+        time.perf_counter()
         thread_id = self._get_thread_id(config)
         checkpoint_ns = self._get_checkpoint_ns(config)
         checkpoint_id = get_checkpoint_id(config)
 
         client = await self._ensure_client()
         if checkpoint_id:
-            t_l0 = time.perf_counter()
             result = await self._load_checkpoint_tuple(client, thread_id, checkpoint_ns, checkpoint_id)
-            t_l1 = time.perf_counter()
-            logger.info(
-                "kv_checkpointer.timing.load_checkpoint direct thread_id=%s ns=%s cp=%s ms=%d found=%s",
-                thread_id,
-                checkpoint_ns,
-                checkpoint_id,
-                int((t_l1 - t_l0) * 1000),
-                bool(result),
-            )
             return result
 
         pointer_key = self._latest_pointer_key(thread_id, checkpoint_ns)
-        t_p0 = time.perf_counter()
         pointer_raw = await client.get(pointer_key)
-        t_p1 = time.perf_counter()
-        logger.info(
-            "kv_checkpointer.timing.pointer_get thread_id=%s ns=%s ms=%d has_pointer=%s",
-            thread_id,
-            checkpoint_ns,
-            int((t_p1 - t_p0) * 1000),
-            bool(pointer_raw),
-        )
         if pointer_raw:
             pointer_id = pointer_raw.decode() if isinstance(pointer_raw, bytes) else str(pointer_raw)
-            t_l0 = time.perf_counter()
             tuple_candidate = await self._load_checkpoint_tuple(
                 client,
                 thread_id,
                 checkpoint_ns,
                 pointer_id,
             )
-            t_l1 = time.perf_counter()
-            logger.info(
-                "kv_checkpointer.timing.load_checkpoint from_pointer thread_id=%s ns=%s cp=%s ms=%d found=%s",
-                thread_id,
-                checkpoint_ns,
-                pointer_id,
-                int((t_l1 - t_l0) * 1000),
-                bool(tuple_candidate),
-            )
             if tuple_candidate:
-                t_total1 = time.perf_counter()
-                logger.info(
-                    "kv_checkpointer.timing.aget_tuple.total thread_id=%s ns=%s ms=%d",
-                    thread_id,
-                    checkpoint_ns,
-                    int((t_total1 - t_total0) * 1000),
-                )
                 return tuple_candidate
 
         # FAST PATH: do not perform expensive SCAN fallback if pointer missing
         limited_result: CheckpointTuple | None = None
-        logger.info(
-            "kv_checkpointer.timing.alist_fallback.skipped thread_id=%s ns=%s reason=no_pointer",
-            thread_id,
-            checkpoint_ns,
-        )
-        t_total1 = time.perf_counter()
-        logger.info(
-            "kv_checkpointer.timing.aget_tuple.total thread_id=%s ns=%s ms=%d",
-            thread_id,
-            checkpoint_ns,
-            int((t_total1 - t_total0) * 1000),
-        )
         return limited_result
 
     async def aput(
@@ -493,17 +406,7 @@ class KVRedisCheckpointer(BaseCheckpointSaver[str]):
                 pipe.expire(key, self._default_ttl)
             pipe.set(pointer_key, checkpoint_id)
             # Do NOT expire the latest pointer to avoid slow fallback paths
-            t0 = time.perf_counter()
             await pipe.execute()
-            t1 = time.perf_counter()
-            logger.info(
-                "kv_checkpointer.timing.aput.pipeline thread_id=%s ns=%s cp=%s ms=%d ttl=%s",
-                thread_id,
-                checkpoint_ns,
-                checkpoint_id,
-                int((t1 - t0) * 1000),
-                self._default_ttl,
-            )
 
         logger.debug(
             "kv_checkpointer.put checkpoint thread_id=%s checkpoint_ns=%s checkpoint_id=%s ttl=%s",
@@ -541,22 +444,11 @@ class KVRedisCheckpointer(BaseCheckpointSaver[str]):
         client = await self._ensure_client()
         async with self._lock:
             checkpoint_key = self._checkpoint_key(thread_id, checkpoint_ns, checkpoint_id)
-            t_lw0 = time.perf_counter()
             existing_writes = await self._load_pending_writes(
                 client,
                 thread_id,
                 checkpoint_ns,
                 checkpoint_id,
-            )
-            t_lw1 = time.perf_counter()
-            logger.info(
-                "kv_checkpointer.timing.aput_writes.load_existing thread_id=%s ns=%s cp=%s ms=%d existing=%d new=%d",
-                thread_id,
-                checkpoint_ns,
-                checkpoint_id,
-                int((t_lw1 - t_lw0) * 1000),
-                len(existing_writes),
-                len(writes),
             )
             combined_writes = list(existing_writes)
             combined_writes.extend((task_id, channel, value) for channel, value in writes)
@@ -572,17 +464,7 @@ class KVRedisCheckpointer(BaseCheckpointSaver[str]):
             if self._default_ttl:
                 pipe.expire(checkpoint_key, self._default_ttl)
                 # Do NOT expire the latest pointer to avoid slow fallback paths
-            t0 = time.perf_counter()
             await pipe.execute()
-            t1 = time.perf_counter()
-            logger.info(
-                "kv_checkpointer.timing.aput_writes.pipeline thread_id=%s ns=%s cp=%s ms=%d combined=%d",
-                thread_id,
-                checkpoint_ns,
-                checkpoint_id,
-                int((t1 - t0) * 1000),
-                len(combined_writes),
-            )
 
         logger.debug(
             "kv_checkpointer.put_writes.commit thread_id=%s checkpoint_ns=%s checkpoint_id=%s task_id=%s count=%d",
@@ -638,7 +520,6 @@ def get_supervisor_checkpointer():
     try:
         client = _build_async_redis_client()
         saver = KVRedisCheckpointer(client=client, namespace=namespace, default_ttl=ttl_value)
-        logger.info("Supervisor checkpointer: using KVRedisCheckpointer (SET/GET, TTL=%s)", ttl_value)
         return saver
     except Exception as exc:
         logger.warning("Redis checkpointer unavailable err=%s", exc)
@@ -652,7 +533,6 @@ async def redis_healthcheck() -> bool:
         return False
     try:
         await client.ping()
-        logger.info("Redis healthcheck: healthy")
         return True
     except Exception as exc:
         logger.error("Redis healthcheck failed err=%s", exc)

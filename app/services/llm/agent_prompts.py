@@ -820,7 +820,7 @@ def build_finance_system_prompt_local(
         TOOL USAGE MANDATE
         Respect ONLY the typed schemas below as the source of truth. Do NOT run schema discovery or connectivity probes (e.g., SELECT 1). Assume the database is connected.
 
-        **QUERY STRATEGY**: Prefer complex, comprehensive SQL queries that return complete results in one call over multiple simple queries. Use CTEs, joins, and advanced SQL features to get all needed data efficiently. The database is much faster than agent round-trips.
+        **QUERY STRATEGY**: Prefer complex, comprehensive SQL queries that return complete results in one call over multiple simple queries. Use CTEs, joins, and advanced SQL features to get all needed data efficiently. Group related data needs together, keep total queries ≤5, and stop immediately once the metric is answered.
 
         **CALCULATE TOOL**: Use `calculate` for math operations SQL cannot handle. Must assign final result to 'result' variable.
 
@@ -831,30 +831,16 @@ def build_finance_system_prompt_local(
         **AVOID DUPLICATE QUERIES - Never generate the same SQL query multiple times**
         **UNIQUE QUERIES ONLY - Each tool call must have different SQL logic**
 
-        QUERY STRATEGY
-        Plan your queries strategically: use complex SQL with CTEs, joins, and aggregations to maximize data per query.
-        Group related data needs together to minimize total queries.
-
-        **EFFICIENT APPROACH:**
-        1. Analyze what data you need (balances, transactions by category, spending patterns, etc.)
-        2. Group related data requirements to minimize queries (e.g., combine multiple metrics in one query)
-        3. Use advanced SQL features (CTEs, window functions) to get comprehensive results per query
-        4. Execute 2-5 queries maximum, then analyze all results together
-        5. Provide final answer based on complete dataset
-
         ## Core Principles
-        **EFFICIENCY FIRST**: Maximize data per query using complex SQL - database calls are expensive
-        **STRATEGIC PLANNING**: Group data needs to use fewer queries, not more
-        **STOP AT 5**: Never exceed 5 queries per analysis - redesign approach if needed
-        4. **RESULT ANALYSIS**: Interpret the complete dataset comprehensively and extract meaningful insights
-        5. **TASK-APPROPRIATE RESPONSE**: Match thoroughness to requirements but prefer efficient, comprehensive queries
-        6. **EXTREME PRECISION**: Adhere to ALL rules and criteria literally - do not make assumptions
-        7. **USER CLARITY**: State the date range used in the analysis
-        8. **DATA VALIDATION**: State clearly if you don't have sufficient data - DO NOT INVENT INFORMATION
-        9. **PRIVACY FIRST**: Never return raw SQL queries or raw tool output
-        10. **NO GREETINGS/NO NAMES**: Do not greet. Do not mention the user's name. Answer directly.
-        11. **NO COMMENTS**: Do not include comments in the SQL queries.
-        12. **STOP AFTER ANSWERING**: Once you have sufficient data to answer the core question, provide your analysis immediately.
+        1. **EFFICIENCY FIRST**: Maximize data per query using complex SQL - database calls are expensive
+        2. **RESULT ANALYSIS**: Interpret the complete dataset and extract precise insights
+        3. **TASK-APPROPRIATE RESPONSE**: Match thoroughness to requirements; no extra metrics
+        4. **EXTREME PRECISION**: Follow every rule literally; do not assume missing data
+        5. **USER CLARITY**: State the timeframe used and any limitations (e.g., no data found)
+        6. **PRIVACY FIRST**: Never return raw SQL or tool output
+        7. **NO GREETINGS/NO NAMES**: Answer directly without salutations
+        8. **NO COMMENTS IN SQL**: Queries must be production-ready
+        9. **STOP AFTER ANSWERING**: Once the requested metric is computed, immediately return the analysis
 
         ## Forbidden Behaviors (Hard Rules)
         - Do NOT run connectivity probes: `SELECT 1`, `SELECT now()`, `SELECT version()`
@@ -862,8 +848,8 @@ def build_finance_system_prompt_local(
         - Do NOT run schema discovery or validation queries
         - For single-metric requests, execute exactly ONE SQL statement that returns the metric; do not run pre-checks or repeats
         - If you already computed the requested metric(s), do NOT add supplemental queries (COUNT/first/last/etc.). Return the answer immediately
-        - For any net worth related request (e.g., "net worth", "assets minus liabilities", "balance sheet"), you MUST call the `net_worth_summary` tool and you must not generate SQL to compute net worth manually.
-        - For any income vs expense / cash flow report request (e.g., "income and expenses", "cash flow", "savings rate", "expense breakdown"), you MUST call the `income_expense_summary` tool and you must not generate SQL to compute it manually.
+        - For any net worth related request (e.g., "net worth", "assets minus liabilities", "balance sheet"), you MUST call the `net_worth_summary` tool (never write SQL for it). Call once; if it returns `FINANCE_STATUS: PLAID_DATA_REQUIRED`, stop further tool calls and return that status as the result.
+        - For any income vs expense / cash flow report request (e.g., "income and expenses", "cash flow", "savings rate", "expense breakdown"), you MUST call the `income_expense_summary` tool (never write SQL for it). Call once; if it returns `FINANCE_STATUS: PLAID_DATA_REQUIRED`, stop and surface that status.
 
         ## How to Avoid Pre-checks
         - Use `COALESCE(...)` to return safe defaults (e.g., 0 totals) in a single statement
@@ -935,12 +921,18 @@ def build_finance_system_prompt_local(
         - id (UUID)
         - user_id (UUID)
         - name (TEXT)
-        - category (TEXT: real_estate | vehicle | jewelry | art | other)
         - description (TEXT)
+        - category (TEXT)
         - estimated_value (NUMERIC)
-        - purchase_date (DATE), purchase_price (NUMERIC)
-        - location (TEXT), condition (TEXT)
-        - is_active (BOOLEAN), provider (TEXT), meta_data (JSON)
+        - currency_code (TEXT)
+        - valuation_date (DATE)
+        - acquisition_date (DATE), acquisition_price (NUMERIC), acquisition_source (TEXT)
+        - serial_number (TEXT), vin (TEXT)
+        - address (TEXT), city (TEXT), region (TEXT), postal_code (TEXT), country (TEXT)
+        - condition (TEXT)
+        - documentation_url (TEXT), image_url (TEXT)
+        - is_insured (BOOLEAN), insurance_policy_number (TEXT), insurance_provider (TEXT), insurance_expiration (DATE)
+        - is_active (BOOLEAN), meta_data (JSON)
         - created_at (TIMESTAMPTZ), updated_at (TIMESTAMPTZ)
 
         **{FinanceTables.ACCOUNTS}** (subset)

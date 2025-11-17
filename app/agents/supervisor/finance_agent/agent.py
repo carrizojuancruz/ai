@@ -19,6 +19,7 @@ from app.agents.supervisor.finance_agent.helpers import (
 from app.agents.supervisor.finance_agent.procedural_memory.sql_hints import get_finance_procedural_templates
 from app.agents.supervisor.finance_agent.subgraph import create_finance_subgraph
 from app.agents.supervisor.finance_agent.tools import (
+    FinanceDataAvailability,
     create_calculate_tool,
     create_income_expense_summary_tool,
     create_net_worth_summary_tool,
@@ -106,6 +107,7 @@ class FinanceAgent:
         )
         logger.info("FinanceAgent initialization completed")
         self._sample_cache: dict[str, dict[str, Any]] = {}
+        self._user_data_availability: dict[str, FinanceDataAvailability] = {}
 
     async def _fetch_shallow_samples(self, user_id: UUID) -> tuple[str, str, str, str]:
         """Fetch sample data for transactions, assets, liabilities, and accounts.
@@ -248,10 +250,13 @@ class FinanceAgent:
     async def _create_agent_with_tools(self, user_id: UUID):
         logger.info(f"Creating financial agent for user {user_id}")
 
+        def availability_provider(user_ref=user_id):
+            return self._get_data_availability(user_ref)
+
         tools = [
-            create_net_worth_summary_tool(user_id),
-            create_income_expense_summary_tool(user_id),
-            create_sql_db_query_tool(user_id),
+            create_net_worth_summary_tool(user_id, availability_provider),
+            create_income_expense_summary_tool(user_id, availability_provider),
+            create_sql_db_query_tool(user_id, availability_provider),
             create_calculate_tool(),
         ]
 
@@ -263,7 +268,15 @@ class FinanceAgent:
         return create_finance_subgraph(self.sql_generator, tools, prompt_builder)
 
 
-    async def process_query_with_agent(self, query: str, user_id: UUID) -> Command:
+    def _get_data_availability(self, user_id: UUID) -> FinanceDataAvailability | None:
+        return self._user_data_availability.get(str(user_id))
+
+    async def process_query_with_agent(
+        self,
+        query: str,
+        user_id: UUID,
+        availability: FinanceDataAvailability | None = None,
+    ) -> Command:
         """Process financial queries and return the Command from agent execution."""
         try:
             logger.info(f"Processing finance query with agent for user {user_id}: {query}")
@@ -278,7 +291,21 @@ class FinanceAgent:
             messages = [HumanMessage(content=query)]
 
             logger.info(f"Starting LangGraph agent execution for user {user_id}")
-            agent_command = await agent.ainvoke({"messages": messages}, config={"recursion_limit": 8})
+            key = str(user_id)
+            previous_availability = self._user_data_availability.get(key)
+            if availability is not None:
+                self._user_data_availability[key] = availability
+            else:
+                self._user_data_availability.pop(key, None)
+
+            try:
+                agent_command = await agent.ainvoke({"messages": messages}, config={"recursion_limit": 8})
+            finally:
+                if availability is not None:
+                    if previous_availability is not None:
+                        self._user_data_availability[key] = previous_availability
+                    else:
+                        self._user_data_availability.pop(key, None)
             logger.info(f"Agent execution completed for user {user_id}")
 
             return agent_command
@@ -307,7 +334,15 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> Command
             return _create_error_command("ERROR: No task description provided for analysis.")
 
         finance_agent_instance = get_finance_agent()
-        agent_command = await finance_agent_instance.process_query_with_agent(query, user_id)
+        has_plaid_accounts = bool(
+            get_config_value(
+                config,
+                "has_plaid_accounts",
+                get_config_value(config, "has_financial_accounts", False),
+            )
+        )
+        availability = FinanceDataAvailability(has_plaid_accounts=has_plaid_accounts)
+        agent_command = await finance_agent_instance.process_query_with_agent(query, user_id, availability)
 
         return agent_command
 
