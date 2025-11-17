@@ -10,7 +10,7 @@ from uuid import uuid4
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from app.api.schemas.cron import BackgroundSyncStartedResponse, MemoryMergeResponse
-from app.knowledge.sync_service import KnowledgeBaseSyncService
+from app.knowledge.unified_sync_service import UnifiedSyncService
 from app.services.goals import get_goals_service
 from app.services.memory_consolidation_service import memory_consolidation_service
 
@@ -21,14 +21,12 @@ router = APIRouter(prefix="/cron", tags=["Cron"])
 
 @router.post("/knowledge-base", response_model=BackgroundSyncStartedResponse)
 async def sync_all_sources(
-    background_tasks: BackgroundTasks,
-    limit: Optional[int] = None
+    background_tasks: BackgroundTasks
 ) -> BackgroundSyncStartedResponse:
-    """Trigger synchronization of all knowledge base sources in background.
+    """Trigger unified synchronization of all knowledge base sources in background.
 
     Args:
         background_tasks: FastAPI background tasks handler.
-        limit: Optional limit on the number of sources to sync. If not provided, all enabled sources will be synced.
 
     """
     try:
@@ -37,7 +35,7 @@ async def sync_all_sources(
 
         logger.info(f"Starting background sync with job_id={job_id}")
 
-        background_tasks.add_task(run_background_sync_non_async, job_id, limit)
+        background_tasks.add_task(run_background_sync_non_async, job_id)
 
         return BackgroundSyncStartedResponse(
             job_id=job_id,
@@ -52,35 +50,33 @@ async def sync_all_sources(
         ) from e
 
 
-def run_background_sync_non_async(job_id: str, limit: Optional[int] = None):
-    """Non-async sync wrapper - runs in separate thread (StackOverflow solution)."""
+def run_background_sync_non_async(job_id: str):
+    """Non-async sync wrapper - runs in separate thread."""
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
     try:
-        loop.run_until_complete(run_background_sync(job_id, limit))
+        loop.run_until_complete(run_background_sync(job_id))
     finally:
         loop.close()
 
 
-async def run_background_sync(job_id: str, limit: Optional[int] = None):
+async def run_background_sync(job_id: str):
     start_time = datetime.utcnow()
 
     try:
-        logger.info(f"Starting knowledge sync job {job_id}")
+        logger.info(f"Starting unified knowledge sync job {job_id}")
 
-        sync_service = KnowledgeBaseSyncService()
-        result = await sync_service.sync_all(limit=limit)
+        sync_service = UnifiedSyncService()
+        result = await sync_service.sync_all_sources()
         duration = (datetime.utcnow() - start_time).total_seconds()
 
         logger.info(
             f"Job {job_id} completed successfully in {duration:.2f}s: "
-            f"Created: {result.get('sources_created', 0)}, "
-            f"Updated: {result.get('sources_updated', 0)}, "
-            f"No changes: {result.get('sources_no_changes', 0)}, "
-            f"Deleted: {result.get('sources_deleted', 0)}, "
-            f"Errors: {result.get('sources_errors', 0)}, "
-            f"Total chunks: {result.get('total_chunks_created', 0)}"
+            f"Sources synced: {result['summary']['sources_synced']}, "
+            f"Chunks created: {result['summary']['chunks_created']}, "
+            f"Errors: {result['summary']['errors']}, "
+            f"Profile uploaded: {result['profile_uploaded']}"
         )
 
     except Exception as e:

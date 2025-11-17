@@ -6,9 +6,17 @@ from urllib.parse import urlparse
 from fastapi import APIRouter, HTTPException, UploadFile
 
 from app.core.config import config
+from app.knowledge.constants import (
+    VERA_GUIDANCE_CATEGORY,
+    VERA_GUIDANCE_CONTENT_SOURCE,
+    VERA_GUIDANCE_DESCRIPTION,
+    VERA_GUIDANCE_NAME,
+    VERA_GUIDANCE_TYPE,
+)
 from app.knowledge.models import Source
 from app.knowledge.s3_sync_service import S3SyncService
 from app.knowledge.service import KnowledgeService
+from app.knowledge.unified_sync_service import UnifiedSyncService
 from app.knowledge.utils import generate_source_id
 
 from .schemas.knowledge import (
@@ -356,19 +364,19 @@ async def sync_internal_guidance():
 
         source = Source(
             id=source_id,
-            name="Vera In-App Guidance",
+            name=VERA_GUIDANCE_NAME,
             url=url,
             enabled=True,
-            type="Internal Documentation",
-            category="In-App Guidance",
-            description="Vera help center documentation",
+            type=VERA_GUIDANCE_TYPE,
+            category=VERA_GUIDANCE_CATEGORY,
+            description=VERA_GUIDANCE_DESCRIPTION,
             recursion_depth=config.VERA_GUIDANCE_RECURSION_DEPTH
         )
 
         knowledge_service = KnowledgeService()
         result = await knowledge_service.upsert_source(
             source=source,
-            content_source="internal"
+            content_source=VERA_GUIDANCE_CONTENT_SOURCE
         )
 
         if result["success"]:
@@ -469,3 +477,16 @@ async def sync_single_source(request: SyncSourceRequest) -> SyncSourceResponse:
         ) from e
 
 
+@router.post("/sync-all")
+async def sync_all_knowledge_sources():
+    """Synchronize all knowledge base sources.
+
+    Syncs: External sources (FOS API), S3 files, Vera guidance.
+    Auto-uploads Profile.md if missing.
+    """
+    try:
+        result = await UnifiedSyncService().sync_all_sources()
+        return result
+    except Exception as e:
+        logger.error(f"Unified sync failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e

@@ -220,6 +220,20 @@ class S3SyncService:
             logger.error(f"Delete all error: {e}")
             return {"success": False, "error": str(e)}
 
+    def file_exists(self, s3_key: str) -> bool:
+        """Check if a file exists in S3 bucket."""
+        try:
+            self.s3_client.head_object(Bucket=self.bucket_name, Key=s3_key)
+            return True
+        except self.s3_client.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                return False
+            logger.error(f"Error checking S3 file existence for {s3_key}: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error checking S3 file {s3_key}: {e}")
+            raise
+
     async def sync_file(self, s3_key: str) -> Dict[str, Any]:
         """Sync a single S3 file to the vector store.
 
