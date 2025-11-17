@@ -29,18 +29,30 @@ def build_finance_capture_nova_intent_prompt(
     vera_expense_categories = ", ".join(category.value for category in VeraPovExpenseCategory)
     allowed_kinds_joined = ", ".join(allowed_kinds)
     plaid_expense_joined = ", ".join(plaid_expense_categories)
-    asset_categories_joined = ", ".join(asset_categories) if asset_categories else ", ".join(cat.value for cat in AssetCategory)
-    liability_categories_joined = ", ".join(liability_categories) if liability_categories else ", ".join(cat.value for cat in LiabilityCategory)
+    asset_categories_joined = (
+        ", ".join(asset_categories) if asset_categories else ", ".join(cat.value for cat in AssetCategory)
+    )
+    liability_categories_joined = (
+        ", ".join(liability_categories) if liability_categories else ", ".join(cat.value for cat in LiabilityCategory)
+    )
 
-    subcategory_section = f"""
+    subcategory_section = (
+        f"""
 Valid Plaid category and subcategory combinations:
 {plaid_category_subcategories}
-""" if plaid_category_subcategories else ""
+"""
+        if plaid_category_subcategories
+        else ""
+    )
 
-    mapping_section = f"""
+    mapping_section = (
+        f"""
 Mapping between Vera POV categories (for user display) and Plaid categories (for backend):
 {vera_to_plaid_mapping}
-""" if vera_to_plaid_mapping else ""
+"""
+        if vera_to_plaid_mapping
+        else ""
+    )
 
     prompt = f"""You are an expert financial data classifier. Given a user's free-form message, extract structured fields matching the schema below.
 
@@ -143,6 +155,7 @@ Transform the technical completion summary into a natural, conversational acknow
 """
     return _normalize_markdown_bullets(prompt.strip())
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -194,6 +207,10 @@ When users ask about your values, ethics, or principles, share these foundationa
 
 - wealth_agent - for personal finance EDUCATION, knowledge base searches, AND app usage guidance (how to use Vera features like connecting bank accounts, profile, reports, etc).
 - finance_capture_agent - for capturing user-provided Assets, Liabilities, and Manual Transactions through chat. This agent internally raises human-in-the-loop confirmation requests before persisting data; show Vera POV categories to the user while mapping internally to Plaid categories/subcategories. **CRITICAL**: The subagent extracts ALL fields internally (name, amount, category, date, etc.) using Nova Micro. Route IMMEDIATELY when users request to add assets/liabilities/transactions - do NOT ask for missing information first. The subagent handles all data collection and validation internally.
+
+## Product Guardrails
+- Describe only navigation elements, labels, and flows that exist in the current Vera build. If the UI you remember doesn’t match the data in front of you, keep guidance high-level or ask a clarifying question instead of inventing screens.
+- Never mention pricing tiers, paywalls, or premium-only reports unless the provided source explicitly confirms those plans are live today.
 
 ## Personality and Tone
 - Genuinely curious about people's lives beyond money;
@@ -526,8 +543,6 @@ Assistant: "Of course! Last time we looked at your spending breakdown in Septemb
 """
 
 
-
-
 async def get_supervisor_system_prompt() -> str:
     """Get supervisor system prompt based on TEST_MODE configuration.
 
@@ -545,8 +560,6 @@ async def get_supervisor_system_prompt() -> str:
         logger.warning("Falling back to local supervisor prompt")
 
     return SUPERVISOR_SYSTEM_PROMPT_LOCAL
-
-
 
 
 async def build_wealth_system_prompt(user_context: dict = None) -> str:
@@ -573,11 +586,11 @@ async def build_wealth_system_prompt(user_context: dict = None) -> str:
             # Add user context if provided
             if user_context:
                 context_section = "\n\nUSER CONTEXT:"
-                if 'location' in user_context:
+                if "location" in user_context:
                     context_section += f"\n- Location: {user_context['location']}"
-                if 'financial_situation' in user_context:
+                if "financial_situation" in user_context:
                     context_section += f"\n- Financial Situation: {user_context['financial_situation']}"
-                if 'preferences' in user_context:
+                if "preferences" in user_context:
                     context_section += f"\n- Preferences: {user_context['preferences']}"
                 prompt += context_section
 
@@ -591,6 +604,7 @@ async def build_wealth_system_prompt(user_context: dict = None) -> str:
 def build_wealth_system_prompt_local(user_context: dict = None) -> str:
     """Build dynamic system prompt for wealth agent with optional user context (local version)."""
     from app.core.config import config
+
     max_searches = config.WEALTH_AGENT_MAX_TOOL_CALLS
     base_prompt = f"""You are Verde Money's Wealth Specialist Agent, an expert AI assistant focused on providing accurate, evidence-based financial information. You specialize in personal finance, government programs, financial assistance, debt/credit management, investment education, emergency resources, and financial tools. Your role is to deliver reliable insights drawn directly from verified knowledge sources to support informed decision-making.
 
@@ -711,20 +725,24 @@ REMINDER: You are a comprehensive research agent. SEARCH FIRST, then synthesize 
 
     if user_context:
         context_section = "\n\nUSER CONTEXT:"
-        if 'location' in user_context:
+        if "location" in user_context:
             context_section += f"\n- Location: {user_context['location']}"
-        if 'financial_situation' in user_context:
+        if "financial_situation" in user_context:
             context_section += f"\n- Financial Situation: {user_context['financial_situation']}"
-        if 'preferences' in user_context:
+        if "preferences" in user_context:
             context_section += f"\n- Preferences: {user_context['preferences']}"
         base_prompt += context_section
 
     return base_prompt
 
 
-
-
-async def build_finance_system_prompt(user_id="test_user", tx_samples: str = "Sample transaction data", asset_samples: str = "Sample asset data", liability_samples: str = "Sample liability data", accounts_samples: str = "Sample account data") -> str:
+async def build_finance_system_prompt(
+    user_id="test_user",
+    tx_samples: str = "Sample transaction data",
+    asset_samples: str = "Sample asset data",
+    liability_samples: str = "Sample liability data",
+    accounts_samples: str = "Sample account data",
+) -> str:
     """Build the finance agent system prompt.
 
     Args:
@@ -761,7 +779,7 @@ async def build_finance_system_prompt(user_id="test_user", tx_samples: str = "Sa
                 accounts_samples=accounts_samples,
                 today=today,
                 FinanceTables=FinanceTables,
-                business_rules=get_business_rules_context_str()
+                business_rules=get_business_rules_context_str(),
             )
             return prompt
         logger.warning("Falling back to local finance prompt")
@@ -770,7 +788,13 @@ async def build_finance_system_prompt(user_id="test_user", tx_samples: str = "Sa
     return build_finance_system_prompt_local(user_id, tx_samples, asset_samples, liability_samples, accounts_samples)
 
 
-def build_finance_system_prompt_local(user_id="test_user", tx_samples: str = "Sample transaction data", asset_samples: str = "Sample asset data", liability_samples: str = "Sample liability data", accounts_samples: str = "Sample account data") -> str:
+def build_finance_system_prompt_local(
+    user_id="test_user",
+    tx_samples: str = "Sample transaction data",
+    asset_samples: str = "Sample asset data",
+    liability_samples: str = "Sample liability data",
+    accounts_samples: str = "Sample account data",
+) -> str:
     """Build the finance agent system prompt (local version)."""
     import datetime
 
@@ -781,8 +805,7 @@ def build_finance_system_prompt_local(user_id="test_user", tx_samples: str = "Sa
 
     today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
 
-    return (
-        f"""You are an AI text-to-SQL agent over the user's Plaid-mirrored PostgreSQL database. Your goal is to generate correct SQL, execute it via tools, and present a concise, curated answer.
+    return f"""You are an AI text-to-SQL agent over the user's Plaid-mirrored PostgreSQL database. Your goal is to generate correct SQL, execute it via tools, and present a concise, curated answer.
         AGENT BEHAVIOR & CONTROL
         You are a SPECIALIZED ANALYSIS agent working under a supervisor. You are NOT responding directly to users.
         Your role is to:
@@ -1001,9 +1024,6 @@ def build_finance_system_prompt_local(user_id="test_user", tx_samples: str = "Sa
 
         Today's date: {today}
         """
-    )
-
-
 
 
 async def build_guest_system_prompt(max_messages: int = 5) -> str:
@@ -1137,8 +1157,6 @@ def build_guest_system_prompt_local(max_messages: int = 5) -> str:
     )
 
 
-
-
 async def build_goal_agent_system_prompt() -> str:
     """Build the goal agent system prompt.
 
@@ -1154,6 +1172,7 @@ async def build_goal_agent_system_prompt() -> str:
         prompt_template = await prompt_service.get_agent_prompt("goal-agent")
         if prompt_template:
             import datetime
+
             today = datetime.datetime.now().strftime("%B %d, %Y")
             # Format with today's date
             prompt = f"TODAY: {today}\n## GOAL AGENT SYSTEM PROMPT\n\n{prompt_template}"
@@ -1167,6 +1186,7 @@ async def build_goal_agent_system_prompt() -> str:
 def build_goal_agent_system_prompt_local() -> str:
     """Build the goal agent system prompt (local version)."""
     import datetime
+
     today = datetime.datetime.now().strftime("%B %d, %Y")
     return f"""TODAY: {today}
 ## GOAL AGENT SYSTEM PROMPT

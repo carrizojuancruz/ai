@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 def _error(code: str, message: str, cause: str | None = None) -> dict:
     return {"code": code, "message": message, "cause": cause}
 
+
 @tool
 async def search_kb(query: str, content_source: str = "external") -> str:
     """Search the knowledge base for a query.
@@ -33,7 +34,20 @@ async def search_kb(query: str, content_source: str = "external") -> str:
 
     """
     if content_source not in ["internal", "external", "all"]:
-        return json.dumps([{"source": str(_error("INVALID_PARAMETER", f"content_source must be 'internal', 'external', or 'all', got '{content_source}'", None))}], ensure_ascii=False)
+        return json.dumps(
+            [
+                {
+                    "source": str(
+                        _error(
+                            "INVALID_PARAMETER",
+                            f"content_source must be 'internal', 'external', or 'all', got '{content_source}'",
+                            None,
+                        )
+                    )
+                }
+            ],
+            ensure_ascii=False,
+        )
 
     try:
         kb_service = get_knowledge_service()
@@ -62,17 +76,21 @@ async def search_kb(query: str, content_source: str = "external") -> str:
                     "type": result.get("type", ""),
                     "category": result.get("category", ""),
                     "description": result.get("description", ""),
-                    "content_source": result.get("content_source", "")
+                    "content_source": result.get("content_source", ""),
                 }
 
                 if "subcategory" in result:
                     metadata["subcategory"] = result["subcategory"]
 
-                formatted_results.append({
-                    "content": content,
-                    "source": source_reference or result.get("name", "Unknown source"),
-                    "metadata": metadata
-                })
+                formatted_results.append(
+                    {
+                        "content": content,
+                        "source": source_reference or result.get("name", "Unknown source"),
+                        "metadata": metadata,
+                    }
+                )
         return json.dumps(formatted_results, ensure_ascii=False)
     except Exception as e:
-        return json.dumps([{"source": str(_error("SEARCH_FAILED", "Failed to search the kb", str(e)))}], ensure_ascii=False)
+        return json.dumps(
+            [{"source": str(_error("SEARCH_FAILED", "Failed to search the kb", str(e)))}], ensure_ascii=False
+        )
