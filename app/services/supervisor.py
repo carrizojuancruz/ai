@@ -17,6 +17,8 @@ from app.agents.supervisor.finance_capture_agent.nova import generate_completion
 from app.agents.supervisor.i18n import (
     _get_random_budget_completed,
     _get_random_budget_current,
+    _get_random_finance_capture_completed,
+    _get_random_finance_capture_current,
     _get_random_finance_completed,
     _get_random_finance_current,
     _get_random_step_planning_completed,
@@ -610,6 +612,8 @@ class SupervisorService:
                         description = _get_random_budget_current()
                     elif tool_name == "transfer_to_wealth_agent":
                         description = _get_random_wealth_current()
+                    elif tool_name == "transfer_to_finance_capture_agent":
+                        description = _get_random_finance_capture_current()
 
                     await q.put(
                         {
@@ -688,6 +692,8 @@ class SupervisorService:
                                         description = _get_random_budget_completed()
                                     elif current_agent_tool == "transfer_to_wealth_agent":
                                         description = _get_random_wealth_completed()
+                                    elif current_agent_tool == "transfer_to_finance_capture_agent":
+                                        description = _get_random_finance_capture_completed()
 
                                     supervisor_name = "Supervisor"
                                     await q.put(
