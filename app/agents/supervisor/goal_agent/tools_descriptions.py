@@ -2,15 +2,40 @@
 
 class ToolDescriptions:
     GOAL_CREATION_TOOL = """Create a new goal (financial or non-financial, habit or punctual) for a user.
+    MINIMUM REQUIRED FOR ACTIVATION (in_progress status):
 
-    REQUIRED FIELDS:
-    - goal: {{title: str, description?: str}} - Goal title and optional description
-    - category: {{value: str}} - One of: saving, spending, debt, income, investment, net_worth, other
-    - nature: {{value: str}} - Either "increase" or "reduce"
-    - kind: {{value: str}} - One of: financial_habit, financial_punctual, nonfin_habit, nonfin_punctual
-    - amount: {{type: str, ...}} - Object defining target (see Amount section below)
-    - frequency: {{type: str, ...}} - Object defining evaluation calendar (see Frequency section below)
-    - notifications: {{enabled: bool}} - REQUIRED. Must explicitly set to true or false.
+    Non-Financial Goals (3 critical fields):
+    - goal: {title: str, description: str} - BOTH title AND description required
+    - amount: {type: "absolute", absolute: {currency: "times|books|pages|...", target: NUMBER}}
+    - Auto-completed if not provided: kind, category ("other"), nature, frequency, notifications
+
+    Financial Goals (4 critical fields - same as above PLUS):
+    - evaluation: {affected_categories: [...]} - MUST include valid Plaid categories for tracking
+    - Auto-completed if not provided: kind, category (inferred), nature, frequency, notifications
+
+    STATUS ON CREATION:
+    - If ALL minimum fields provided → status = "in_progress" (activated and ready to track)
+    - If missing ANY critical field → status = "pending" (draft that needs completion)
+
+    The agent should automatically determine the correct status based on field completeness.
+    Do NOT create goals in pending status when all minimum fields are available.
+
+    ** IMPORTANT **
+    If the goal has all the required fields to be activated, the agent MUST set the status to "in_progress".
+
+    FULL FIELD REFERENCE:
+
+    REQUIRED FIELDS FOR ACTIVATION:
+    - goal: {title: str, description: str} - Goal title and description (WHY the user wants this goal)
+    - amount: {type: str, ...} - Object defining target (see Amount section below)
+    - evaluation.affected_categories: REQUIRED for financial goals ONLY (see Evaluation section)
+
+    OPTIONAL FIELDS (auto-completed with defaults):
+    - category: {value: str} - One of: saving, spending, debt, income, investment, net_worth, other
+    - nature: {value: str} - Either "increase" or "reduce"
+    - kind: str - One of: financial_habit, financial_punctual, nonfin_habit, nonfin_punctual
+    - frequency: {type: str, ...} - Object defining evaluation calendar (see Frequency section below)
+    - notifications: {enabled: bool} - Default: false (less intrusive)
 
     GOAL KINDS:
     - financial_habit: Recurring financial goals (e.g., save $500/month). REQUIRES evaluation.affected_categories.
@@ -61,10 +86,33 @@ class ToolDescriptions:
     - days: Number of days in cadence window
     - Automatically tracks window rollover and streak counting
 
-    Example - Financial Habit with Reminders:
+    EXAMPLES:
+
+    Example 1 - Financial Habit (Auto-Activated with minimum fields):
     ```
     create_goal({
-        "goal": {"title": "Reduce dining out", "description": "Limit restaurant spending"},
+        "goal": {"title": "Reduce dining out", "description": "Save money for vacation fund"},
+        "amount": {"type": "absolute", "absolute": {"currency": "USD", "target": 300}},
+        "evaluation": {"affected_categories": ["food_drink"]}
+    })
+    # Result: Created with status = "in_progress" (all 4 critical fields present)
+    # Auto-completed: kind=financial_habit, category=spending, nature=reduce, frequency=monthly, notifications.enabled=false
+    ```
+
+    Example 2 - Non-Financial Habit (Auto-Activated with minimum fields):
+    ```
+    create_goal({
+        "goal": {"title": "Exercise regularly", "description": "Improve health and energy levels"},
+        "amount": {"type": "absolute", "absolute": {"currency": "times", "target": 3}}
+    })
+    # Result: Created with status = "in_progress" (all 3 critical fields present)
+    # Auto-completed: kind=nonfin_habit, category=other, nature=increase, frequency=weekly, notifications.enabled=false
+    ```
+
+    Example 3 - Financial Goal with Full Configuration:
+    ```
+    create_goal({
+        "goal": {"title": "Reduce dining out", "description": "Limit restaurant spending to save for vacation"},
         "category": {"value": "spending"},
         "nature": {"value": "reduce"},
         "kind": "financial_habit",
@@ -77,20 +125,28 @@ class ToolDescriptions:
         ]},
         "cadence": {"days": 30}
     })
+    # Result: Created with status = "in_progress" (fully configured)
     ```
 
-    Example - Non-Financial Punctual:
+    Example 4 - Non-Financial Punctual (Auto-Activated):
     ```
     create_goal({
-        "goal": {"title": "Read 12 books", "description": "Annual reading goal"},
-        "category": {"value": "other"},
-        "nature": {"value": "increase"},
-        "kind": "nonfin_punctual",
+        "goal": {"title": "Read 12 books", "description": "Expand knowledge and improve focus"},
         "amount": {"type": "absolute", "absolute": {"currency": "books", "target": 12}},
-        "frequency": {"type": "specific", "specific": {"date": "2025-12-31T23:59:59"}},
-        "notifications": {"enabled": false},
-        "nonfin_category": "personal_development"
+        "frequency": {"type": "specific", "specific": {"date": "2025-12-31T23:59:59"}}
     })
+    # Result: Created with status = "in_progress" (all 3 critical fields present)
+    # Auto-completed: kind=nonfin_punctual, category=other, nature=increase, notifications.enabled=false
+    ```
+
+    Example 5 - Incomplete Goal (Created as Pending):
+    ```
+    create_goal({
+        "goal": {"title": "Save money"}
+        # Missing: description, target amount
+    })
+    # Result: Created with status = "pending" (missing critical fields)
+    # Agent should ask: "To activate this goal, I need to know: why you want to save (description) and how much (target)?"
     ```
     """
 
