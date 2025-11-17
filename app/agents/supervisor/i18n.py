@@ -78,9 +78,9 @@ def _get_random_wealth_completed() -> str:
 def _get_random_finance_capture_current() -> str:
     """Get random current state message for FinanceCaptureAgent."""
     options = [
-        "Done, your details are saved!",
-        "All set, I've recorded that for you!",
-        "Finished! Your info is saved"
+        "Reviewing your info...",
+        "Saving your details...",
+        "Recording your financial info..."
     ]
     return random.choice(options)
 
