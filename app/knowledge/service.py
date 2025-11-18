@@ -187,6 +187,7 @@ class KnowledgeService:
                     'category': meta.get('category', ''),
                     'description': meta.get('description', ''),
                     'content_source': meta.get('content_source', ''),
+                    'score': r.get('score', 0.0),
                 }
 
                 if 'subcategory' in meta:

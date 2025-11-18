@@ -23,6 +23,7 @@ from .schemas.knowledge import (
     DeleteAllVectorsResponse,
     SearchRequest,
     SearchResponse,
+    SearchResultItem,
     SourceDetailsResponse,
     SourceResponse,
     SourcesResponse,
@@ -64,10 +65,11 @@ async def search_knowledge_base(request: SearchRequest) -> SearchResponse:
     try:
         knowledge_service = KnowledgeService()
         results = await knowledge_service.search(request.query, filter=request.filter)
+        result_items = [SearchResultItem(**r) for r in results]
         return SearchResponse(
-            results=results,
+            results=result_items,
             query=request.query,
-            total_results=len(results)
+            total_results=len(result_items)
         )
     except Exception as e:
         logger.error(f"Search failed for query '{request.query}': {str(e)}", exc_info=True)
@@ -154,6 +156,25 @@ async def delete_source_vectors(source_id: str) -> DeleteAllVectorsResponse:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to delete vectors: {str(e)}"
+        ) from e
+
+
+@router.get("/vectors/count")
+async def get_vectors_count():
+    """Get the total count of vectors in S3."""
+    try:
+        knowledge_service = KnowledgeService()
+        vector_keys = knowledge_service.vector_store_service._get_all_vector_keys()
+        return {
+            "total_vectors": len(vector_keys),
+            "bucket": knowledge_service.vector_store_service.bucket_name,
+            "index": knowledge_service.vector_store_service.index_name
+        }
+    except Exception as e:
+        logger.error(f"Failed to count vectors: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to count vectors: {str(e)}"
         ) from e
 
 

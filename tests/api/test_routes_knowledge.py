@@ -19,7 +19,9 @@ class TestKnowledgeRoutes:
                 "name": "Test Source",
                 "type": "web",
                 "category": "documentation",
-                "description": "Test description"
+                "description": "Test description",
+                "content_source": "external",
+                "score": 0.85
             }
         ]
         mock_knowledge_service.search.return_value = mock_results

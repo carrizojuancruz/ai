@@ -31,8 +31,25 @@ class SearchRequest(BaseModel):
         ]
     )
 
+
+class SearchResultItem(BaseModel):
+    """Individual search result item."""
+
+    content: str
+    section_url: str
+    source_url: str
+    source_id: str
+    name: str
+    type: str
+    category: str
+    description: str
+    content_source: str
+    score: float = Field(..., description="Similarity score (0.0-1.0)")
+    subcategory: Optional[str] = None
+
+
 class SearchResponse(BaseModel):
-    results: list
+    results: List[SearchResultItem]
     query: str
     total_results: int
 
