@@ -7,11 +7,11 @@ class ToolDescriptions:
     Non-Financial Goals (3 critical fields):
     - goal: {title: str, description: str} - BOTH title AND description required
     - amount: {type: "absolute", absolute: {currency: "times|books|pages|...", target: NUMBER}}
-    - Auto-completed if not provided: kind, category ("other"), nature, frequency, notifications
+    - Auto-completed if not provided: kind, category ("other"), nature, frequency
 
     Financial Goals (4 critical fields - same as above PLUS):
     - evaluation: {affected_categories: [...]} - MUST include valid Plaid categories for tracking
-    - Auto-completed if not provided: kind, category (inferred), nature, frequency, notifications
+    - Auto-completed if not provided: kind, category (inferred), nature, frequency
 
     STATUS ON CREATION:
     - If ALL minimum fields provided → status = "in_progress" (activated and ready to track)
@@ -35,7 +35,7 @@ class ToolDescriptions:
     - nature: {value: str} - Either "increase" or "reduce"
     - kind: str - One of: financial_habit, financial_punctual, nonfin_habit, nonfin_punctual
     - frequency: {type: str, ...} - Object defining evaluation calendar (see Frequency section below)
-    - notifications: {enabled: bool} - Default: false (less intrusive)
+    - notifications: {enabled: bool, min_gap_hours?: int} - Do not assume a default; only set this if the user explicitly asks to enable/disable reminders. If omitted, do not state a notifications status.
 
     GOAL KINDS:
     - financial_habit: Recurring financial goals (e.g., save $500/month). REQUIRES evaluation.affected_categories.
@@ -61,10 +61,11 @@ class ToolDescriptions:
     - direction: "≥" (default), "≤", "="
     - source: "linked_accounts" (default), "manual_input", "mixed"
 
-    NOTIFICATIONS (REQUIRED):
-    - enabled: bool - MUST be set explicitly (true or false). No default value.
-    - min_gap_hours: int - Minimum hours between notifications (default: 24)
+    NOTIFICATIONS:
+    - enabled: bool - Set ONLY when the user explicitly asks to change notifications for the goal. Do NOT assume they are OFF by default. When available, read the current value from the goal using get_goal_by_id/list_goals and reflect it accurately.
+    - min_gap_hours: int - Minimum hours between notifications (default behavior is 24 if configured)
     - If enabled=false, no notifications will be sent regardless of reminders configuration
+    - App-level/device notification status is not visible to this agent. Do NOT assert that app/device notifications are on/off. Prefer a neutral phrasing: "Push notifications depend on your device/app settings; I can configure goal reminders here."
 
     REMINDERS (optional):
     - items: List of reminder schedules
@@ -76,6 +77,9 @@ class ToolDescriptions:
       * month_day: int (1-31, for monthly schedules)
       * start_date: ISO datetime string (anchor date)
       * time_of_day: "HH:MM" in 24h format (e.g., "09:00", "14:30")
+
+        SUPPORTED REMINDER CAPABILITIES ONLY:
+        - Do NOT invent unsupported options like "daily nudges" as a separate feature, "weekly check-ins" as a distinct type, "per-book prompts", or custom intervals beyond the fields above. If the user requests something outside this schema, offer the closest supported equivalent (e.g., recurring weekly Mondays at 09:00).
 
     THRESHOLDS (optional):
     - warn_progress_pct: Percentage for warning (0-100)
@@ -96,7 +100,7 @@ class ToolDescriptions:
         "evaluation": {"affected_categories": ["food_drink"]}
     })
     # Result: Created with status = "in_progress" (all 4 critical fields present)
-    # Auto-completed: kind=financial_habit, category=spending, nature=reduce, frequency=monthly, notifications.enabled=false
+    # Auto-completed: kind=financial_habit, category=spending, nature=reduce, frequency=monthly
     ```
 
     Example 2 - Non-Financial Habit (Auto-Activated with minimum fields):
@@ -106,7 +110,7 @@ class ToolDescriptions:
         "amount": {"type": "absolute", "absolute": {"currency": "times", "target": 3}}
     })
     # Result: Created with status = "in_progress" (all 3 critical fields present)
-    # Auto-completed: kind=nonfin_habit, category=other, nature=increase, frequency=weekly, notifications.enabled=false
+    # Auto-completed: kind=nonfin_habit, category=other, nature=increase, frequency=weekly
     ```
 
     Example 3 - Financial Goal with Full Configuration:
@@ -136,7 +140,7 @@ class ToolDescriptions:
         "frequency": {"type": "specific", "specific": {"date": "2025-12-31T23:59:59"}}
     })
     # Result: Created with status = "in_progress" (all 3 critical fields present)
-    # Auto-completed: kind=nonfin_punctual, category=other, nature=increase, notifications.enabled=false
+    # Auto-completed: kind=nonfin_punctual, category=other, nature=increase
     ```
 
     Example 5 - Incomplete Goal (Created as Pending):
@@ -257,7 +261,7 @@ class ToolDescriptions:
     ```
     """
 
-    SWITCH_GOAL_STATUS_TOOL = """Switch a goal's status with state machine validation.    Vali transitions:
+    SWITCH_GOAL_STATUS_TOOL = """Switch a goal's status with state machine validation.    Valid transitions:
     - PENDING → IN_PROGRESS, OFF_TRACK
     - IN_PROGRESS → COMPLETED, OFF_TRACK
     - OFF_TRACK → IN_PROGRESS
