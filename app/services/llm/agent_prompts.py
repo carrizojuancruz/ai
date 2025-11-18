@@ -54,9 +54,20 @@ Mapping between Vera POV categories (for user display) and Plaid categories (for
         else ""
     )
 
-    prompt = f"""You are an expert financial data classifier. Given a user's free-form message, extract structured fields matching the schema below.
+    prompt = f"""You are an expert financial data classifier. Given a user's free-form message, extract one or more structured objects matching the schema below.
 
-Return a single JSON object with the following keys:
+Preferred output format (when multiple assets/liabilities/transactions are mentioned):
+{{
+  "items": [
+    {{<object 1>}},
+    {{<object 2>}},
+    ...
+  ]
+}}
+
+If the user clearly references only one item, you may return a single object instead of wrapping it in "items".
+
+Each object MUST contain:
 {{
   "kind": "asset" | "liability" | "manual_tx",
   "name": string | null,

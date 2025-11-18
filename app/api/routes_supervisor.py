@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
@@ -81,10 +81,19 @@ async def supervisor_sse(thread_id: str, request: Request) -> StreamingResponse:
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
+class SupervisorConfirmDecision(BaseModel):
+    item_id: str = Field(..., description="ID of the item being decided")
+    decision: Literal["approve", "cancel", "edit"] = Field(..., description="Decision for this item")
+    draft: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional draft overrides when decision is edit/approve with changes",
+    )
+
+
 class SupervisorConfirmPayload(BaseModel):
     thread_id: str = Field(..., description="Thread ID of the conversation")
-    decision: dict[str, Any] | str | bool = Field(
-        ...,
+    decision: dict[str, Any] | str | bool | None = Field(
+        default=None,
         description="Decision payload. Can be a boolean, string, or dict with 'action' and/or 'draft' fields.",
         examples=[
             # Approve (simple boolean)
@@ -114,6 +123,10 @@ class SupervisorConfirmPayload(BaseModel):
                 }
             }
         ]
+    )
+    decisions: list[SupervisorConfirmDecision] | None = Field(
+        default=None,
+        description="List of per-item decisions for multi-item confirmations",
     )
     confirm_id: str = Field(..., description="Confirmation ID from the confirm.request event. Required to match the response to the correct confirmation request.")
 
@@ -262,7 +275,18 @@ async def supervisor_confirm(payload: SupervisorConfirmPayload) -> dict:
         ```
 
     """
-    await supervisor_service.resume_interrupt(thread_id=payload.thread_id, decision=payload.decision, confirm_id=payload.confirm_id)
+    if payload.decisions:
+        decision_payload = {"decisions": [decision.model_dump() for decision in payload.decisions]}
+    elif payload.decision is not None:
+        decision_payload = payload.decision
+    else:
+        raise HTTPException(status_code=400, detail="Either 'decision' or 'decisions' must be provided.")
+
+    await supervisor_service.resume_interrupt(
+        thread_id=payload.thread_id,
+        decision=decision_payload,
+        confirm_id=payload.confirm_id,
+    )
     return {"status": "resumed"}
 
 

@@ -287,7 +287,6 @@ class PromptLoader:
             asset_categories=asset_categories,
             liability_categories=liability_categories,
         )
-        logger.info("[prompt_loader] finance_capture_nova_intent_prompt generated:\n%s", prompt)
         return prompt
 
     def _get_finance_capture_completion_prompt(self, **kwargs) -> str:
@@ -301,7 +300,6 @@ class PromptLoader:
             completion_summary=completion_summary,
             completion_context=completion_context,
         )
-        logger.info("[prompt_loader] finance_capture_completion_prompt generated:\n%s", prompt)
         return prompt
 
     def _get_memory_merge_summaries_local(self, **kwargs) -> str:

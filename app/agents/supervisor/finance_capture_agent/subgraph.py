@@ -3,7 +3,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import uuid
-from typing import Annotated, Any, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 
 from langchain_core.messages import AnyMessage
 from langchain_core.runnables import RunnableConfig
@@ -31,9 +31,27 @@ from .helpers import (
     normalize_basic_fields,
     seed_draft_from_intent,
 )
-from .nova import extract_intent
+from .nova import extract_intents
 from .schemas import AssetCreate, LiabilityCreate, ManualTransactionCreate, NovaMicroIntentResult
 from .tools import get_taxonomy, persist_asset, persist_liability, persist_manual_transaction
+
+
+class CaptureConfirmationItem(TypedDict, total=False):
+    item_id: str
+    summary: str
+    draft: dict[str, Any]
+    validated: dict[str, Any] | None
+    entity_kind: str | None
+    was_edited: bool | None
+    persisted_ids: list[str] | None
+
+
+DecisionLiteral = Literal["approve", "edit", "cancel"]
+
+
+class CaptureDecisionPayload(TypedDict, total=False):
+    decision: DecisionLiteral
+    draft: dict[str, Any] | None
 
 
 class FinanceCaptureState(TypedDict, total=False):
@@ -47,6 +65,217 @@ class FinanceCaptureState(TypedDict, total=False):
     confirm_id: str | None
     from_edit: bool | None
     completion_context: dict[str, Any] | None
+    completion_contexts: list[dict[str, Any]] | None
+    active_item_id: str | None
+    pending_confirmation_items: list[CaptureConfirmationItem] | None
+    confirmation_decisions: dict[str, CaptureDecisionPayload] | None
+    intent_queue: list[dict[str, Any]] | None
+
+
+def _generate_item_id(state: FinanceCaptureState, *, force_new: bool = False) -> str:
+    active_id = state.get("active_item_id")
+    if not force_new and isinstance(active_id, str) and active_id:
+        return active_id
+    return str(uuid.uuid4())
+
+
+def _upsert_confirmation_item(
+    *,
+    state: FinanceCaptureState,
+    item_id: str,
+    draft: dict[str, Any],
+    validated: dict[str, Any] | None,
+    entity_kind: str | None,
+    summary: str,
+    was_edited: bool,
+) -> list[CaptureConfirmationItem]:
+    existing = list(state.get("pending_confirmation_items") or [])
+    filtered = [item for item in existing if item.get("item_id") != item_id]
+    filtered.append(
+        {
+            "item_id": item_id,
+            "draft": draft,
+            "validated": validated,
+            "entity_kind": entity_kind,
+            "summary": summary,
+            "was_edited": was_edited,
+        }
+    )
+    return filtered
+
+
+def _serialize_confirmation_items(items: list[CaptureConfirmationItem]) -> list[dict[str, Any]]:
+    serialized: list[dict[str, Any]] = []
+    for item in items:
+        draft = item.get("validated") or item.get("draft") or {}
+        serialized.append(
+            {
+                "item_id": item.get("item_id"),
+                "summary": item.get("summary") or build_confirmation_summary(draft),
+                "draft": draft,
+            }
+        )
+    return serialized
+
+
+def _coerce_single_decision(decision: Any) -> tuple[DecisionLiteral, dict[str, Any] | None]:
+    decision_str: DecisionLiteral = "approve"
+    draft_patch: dict[str, Any] | None = None
+
+    if isinstance(decision, dict) and "decisions" in decision:
+        raise ValueError("Expected single decision payload without 'decisions' key")
+
+    if isinstance(decision, dict):
+        maybe_draft = decision.get("draft")
+        if isinstance(maybe_draft, dict) and maybe_draft:
+            draft_patch = maybe_draft
+            action = str(decision.get("action") or "edit").lower()
+            decision_str = "edit" if action not in ("cancel", "reject", "no", "false") else "cancel"
+        elif "approved" in decision:
+            decision_str = "approve" if decision.get("approved") else "cancel"
+        else:
+            action = str(decision.get("action") or "approve").lower()
+            if action in ("approve", "approved", "yes", "true"):
+                decision_str = "approve"
+            elif action in ("cancel", "reject", "no", "false"):
+                decision_str = "cancel"
+            elif action in ("edit", "update"):
+                decision_str = "edit"
+    elif isinstance(decision, bool):
+        decision_str = "approve" if decision else "cancel"
+    elif isinstance(decision, str):
+        action = decision.lower()
+        if action in ("approve", "approved", "yes", "true"):
+            decision_str = "approve"
+        elif action in ("cancel", "reject", "no", "false"):
+            decision_str = "cancel"
+
+    return decision_str, draft_patch
+
+
+def _as_decision_literal(value: str) -> DecisionLiteral:
+    if value == "cancel":
+        return "cancel"
+    if value == "edit":
+        return "edit"
+    return "approve"
+
+
+def normalize_confirmation_decisions(
+    decision_payload: Any,
+    items: list[CaptureConfirmationItem],
+) -> dict[str, CaptureDecisionPayload]:
+    normalized: dict[str, CaptureDecisionPayload] = {}
+    if isinstance(decision_payload, dict) and isinstance(decision_payload.get("decisions"), list):
+        for entry in decision_payload["decisions"]:
+            if not isinstance(entry, dict):
+                continue
+            item_id = entry.get("item_id")
+            if not item_id:
+                continue
+            decision_value = entry.get("decision") or entry.get("action") or entry.get("status") or "approve"
+            decision = str(decision_value).lower()
+            if decision in ("yes", "true", "approved"):
+                decision_literal = "approve"
+            elif decision in ("no", "false", "rejected", "cancelled", "cancel"):
+                decision_literal = "cancel"
+            elif decision in ("edit", "update"):
+                decision_literal = "edit"
+            else:
+                decision_literal = "approve"
+            draft_patch = entry.get("draft")
+            normalized[item_id] = {
+                "decision": decision_literal,
+                "draft": draft_patch if isinstance(draft_patch, dict) else None,
+            }
+        if normalized:
+            return normalized
+
+    decision_str, draft_patch = _coerce_single_decision(decision_payload)
+    for item in items:
+        item_id = item.get("item_id")
+        if not item_id:
+            continue
+        normalized[item_id] = {
+            "decision": _as_decision_literal(decision_str),
+            "draft": draft_patch,
+        }
+    return normalized
+
+
+def _validate_draft_payload(
+    *,
+    draft: dict[str, Any],
+    intent_dict: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], str]:
+    working_draft = dict(draft)
+    normalize_basic_fields(working_draft)
+    kind = str((intent_dict or {}).get("kind") or working_draft.get("entity_kind") or "").strip()
+
+    if kind == "asset":
+        payload = AssetCreate(**asset_payload_from_draft(working_draft)).model_dump(mode="json")
+        payload["entity_kind"] = "asset"
+        return payload, "asset"
+    if kind == "liability":
+        payload = LiabilityCreate(**liability_payload_from_draft(working_draft)).model_dump(mode="json")
+        payload["entity_kind"] = "liability"
+        return payload, "liability"
+    if kind == "manual_tx":
+        payload_dict = manual_tx_payload_from_draft(working_draft)
+        payload = ManualTransactionCreate(**payload_dict).model_dump(mode="json")
+        payload["entity_kind"] = working_draft.get("entity_kind") or working_draft.get("kind") or "manual_tx"
+        return payload, payload["entity_kind"]
+
+    raise ValueError(f"Unsupported entity kind: {kind or 'unknown'}")
+
+
+def _build_completion_message(
+    *,
+    entity_kind: str | None,
+    draft: dict[str, Any],
+    confirm_decision: DecisionLiteral | str,
+    persisted_ids: list[str] | None,
+    was_edited: bool,
+    error: str | None = None,
+) -> str:
+    entity_kind_normalized = (entity_kind or draft.get("entity_kind") or draft.get("kind") or "").lower()
+    if error:
+        return f"Task failed: {error}"
+    if confirm_decision == "cancel":
+        if entity_kind_normalized == "asset":
+            name = draft.get("name", "asset")
+            return f"Task cancelled: Asset '{name}' was not saved."
+        if entity_kind_normalized == "liability":
+            name = draft.get("name", "liability")
+            return f"Task cancelled: Liability '{name}' was not saved."
+        if entity_kind_normalized in ("income", "expense", "manual_tx"):
+            merchant = draft.get("merchant_or_payee", "transaction")
+            label = "Income" if entity_kind_normalized == "income" else "Expense"
+            return f"Task cancelled: {label} transaction for {merchant} was not saved."
+        return "Task cancelled: No changes were saved."
+
+    if persisted_ids:
+        if entity_kind_normalized == "asset":
+            name = draft.get("name", "asset")
+            value = draft.get("estimated_value", "")
+            currency = draft.get("currency_code", "USD")
+            edit_note = " Note: The user edited the original values before saving." if was_edited else ""
+            return f"TASK COMPLETED: Asset '{name}' worth {value} {currency} has been successfully saved to the user's financial profile.{edit_note} No further action needed."
+        if entity_kind_normalized == "liability":
+            name = draft.get("name", "liability")
+            balance = draft.get("principal_balance", "")
+            currency = draft.get("currency_code", "USD")
+            edit_note = " Note: The user edited the original values before saving." if was_edited else ""
+            return f"TASK COMPLETED: Liability '{name}' with balance {balance} {currency} has been successfully saved to the user's financial profile.{edit_note} No further action needed."
+        if entity_kind_normalized in ("income", "expense", "manual_tx"):
+            kind_label = "Income" if entity_kind_normalized == "income" else "Expense"
+            amount = draft.get("amount", "")
+            currency = draft.get("currency_code", "USD")
+            merchant = draft.get("merchant_or_payee", "transaction")
+            edit_note = " Note: The user edited the original values before saving." if was_edited else ""
+            return f"TASK COMPLETED: {kind_label} transaction for {merchant} ({amount} {currency}) has been successfully saved.{edit_note} No further action needed."
+
+    return "Finance data capture task completed."
 
 
 def create_finance_capture_graph(
@@ -64,15 +293,26 @@ def create_finance_capture_graph(
                     user_message = content.strip()
                     break
 
-        intent: NovaMicroIntentResult | None = None
+        intents: list[NovaMicroIntentResult] = []
         if user_message:
-            intent = extract_intent(user_message)
+            intents = extract_intents(user_message)
 
         update: dict[str, Any] = {}
-        if intent is not None:
-            update["intent"] = intent.model_dump()
-            # Seed working draft fields
-            update["capture_draft"] = seed_draft_from_intent(intent)
+        if not intents:
+            return update
+
+        active_item_id = _generate_item_id(state, force_new=True)
+        update["active_item_id"] = active_item_id
+        primary_intent = intents[0]
+        update["intent"] = primary_intent.model_dump()
+        draft = seed_draft_from_intent(primary_intent)
+        if draft:
+            draft["item_id"] = active_item_id
+        update["capture_draft"] = draft
+        if len(intents) > 1:
+            remaining = [intent.model_dump() for intent in intents[1:]]
+            update["intent_queue"] = remaining
+
         return update
 
     async def fetch_taxonomy_if_needed(state: FinanceCaptureState, config: RunnableConfig) -> dict[str, Any]:
@@ -151,217 +391,285 @@ def create_finance_capture_graph(
 
         return {}
 
+    async def load_next_intent(state: FinanceCaptureState, config: RunnableConfig) -> dict[str, Any]:
+        queue = list(state.get("intent_queue") or [])
+        if not queue:
+            return {}
+
+        next_intent_dict = queue.pop(0)
+        try:
+            next_intent = NovaMicroIntentResult.model_validate(next_intent_dict)
+        except Exception:
+            return {"intent_queue": queue or None}
+
+        active_item_id = _generate_item_id(state, force_new=True)
+        draft = seed_draft_from_intent(next_intent)
+        if draft:
+            draft["item_id"] = active_item_id
+
+        update: dict[str, Any] = {
+            "intent": next_intent.model_dump(),
+            "capture_draft": draft,
+            "active_item_id": active_item_id,
+            "intent_queue": queue or None,
+            "from_edit": None,
+            "validated": None,
+            "taxonomy": None,
+        }
+        return update
+
     async def validate_schema(state: FinanceCaptureState, config: RunnableConfig) -> dict[str, Any]:
         draft: dict[str, Any] = dict(state.get("capture_draft") or {})
         intent_dict = state.get("intent") or {}
-        kind = str(intent_dict.get("kind") or draft.get("entity_kind") or "").strip()
-
-        # Normalize basic fields
-        normalize_basic_fields(draft)
-
         was_edit = state.get("confirm_decision") == "edit"
 
         try:
-            if kind == "asset":
-                payload = AssetCreate(**asset_payload_from_draft(draft)).model_dump(mode="json")
-                payload["entity_kind"] = "asset"
-                result = {"validated": payload}
-                if was_edit:
-                    result["from_edit"] = True
-                return result
-            if kind == "liability":
-                payload = LiabilityCreate(**liability_payload_from_draft(draft)).model_dump(mode="json")
-                payload["entity_kind"] = "liability"
-                result = {"validated": payload}
-                if was_edit:
-                    result["from_edit"] = True
-                return result
-            if kind == "manual_tx":
-                payload_dict = manual_tx_payload_from_draft(draft)
-                payload = ManualTransactionCreate(**payload_dict).model_dump(mode="json")
-                payload["entity_kind"] = draft.get("entity_kind") or draft.get("kind") or "manual_tx"
-                result = {"validated": payload}
-                if was_edit:
-                        result["from_edit"] = True
-                return result
+            payload, entity_kind = _validate_draft_payload(draft=draft, intent_dict=intent_dict)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("[finance_capture] schema_validation_failed kind=%s error=%s", kind, exc)
-            # Ask for targeted follow-up: let the model handle the question using system prompt
+            logger.warning("[finance_capture] schema_validation_failed error=%s", exc)
             return {"messages": [{"role": "assistant", "content": "Could you confirm or provide the missing details?"}]}
 
-        return {}
+        item_id = state.get("active_item_id") or draft.get("item_id") or _generate_item_id(state)
+        summary = build_confirmation_summary(payload)
+        pending_items = _upsert_confirmation_item(
+            state=state,
+            item_id=item_id,
+            draft=draft,
+            validated=payload,
+            entity_kind=entity_kind,
+            summary=summary,
+            was_edited=was_edit,
+        )
+
+        result: dict[str, Any] = {
+            "validated": payload,
+            "pending_confirmation_items": pending_items,
+            "active_item_id": item_id,
+        }
+        if was_edit:
+            result["from_edit"] = True
+        return result
 
     async def confirm_human(state: FinanceCaptureState, config: RunnableConfig) -> dict[str, Any]:
+        items = state.get("pending_confirmation_items") or []
+        if not items:
+            fallback_draft: dict[str, Any] = state.get("validated") or state.get("capture_draft") or {}
+            if fallback_draft:
+                items = [
+                    {
+                        "item_id": state.get("active_item_id") or str(uuid.uuid4()),
+                        "draft": fallback_draft,
+                        "validated": state.get("validated"),
+                        "summary": build_confirmation_summary(fallback_draft),
+                        "entity_kind": fallback_draft.get("entity_kind"),
+                        "was_edited": False,
+                    }
+                ]
 
-        draft: dict[str, Any] = state.get("validated") or state.get("capture_draft") or {}
-        summary = build_confirmation_summary(draft)
+        serialized_items = _serialize_confirmation_items(items)
+        if not serialized_items:
+            return {}
 
         confirm_id = get_config_value(config, "confirm_id")
 
+        event_data = {"items": serialized_items, "confirm_id": confirm_id or str(uuid.uuid4())}
+        if len(serialized_items) == 1:
+            event_data["summary"] = serialized_items[0]["summary"]
+            event_data["draft"] = serialized_items[0]["draft"]
+
         if not confirm_id:
             confirm_id = str(uuid.uuid4())
+            event_data["confirm_id"] = confirm_id
             q = get_sse_queue(get_config_value(config, "thread_id"))
-            await q.put({
-                "event": "confirm.request",
-                "data": {
-                    "summary": summary,
-                    "draft": draft,
-                    "confirm_id": confirm_id,
-                },
-            })
+            await q.put({"event": "confirm.request", "data": event_data})
 
-        decision = interrupt({
-            "event": "confirm.request",
-            "data": {
-                "summary": summary,
-                "draft": draft,
-                "confirm_id": confirm_id,
-            },
-        })
+        decision_payload = interrupt({"event": "confirm.request", "data": event_data})
 
+        decisions_map = normalize_confirmation_decisions(decision_payload, items)
+        update: dict[str, Any] = {
+            "confirmation_decisions": decisions_map,
+            "confirm_id": confirm_id,
+            "confirm_decision": None,
+        }
 
-        decision_str = "approve"
-        updated_draft = draft
-
-        if isinstance(decision, dict):
-            maybe_draft = decision.get("draft")
-            if isinstance(maybe_draft, dict) and maybe_draft:
-                updated_draft = {**draft, **maybe_draft}
-                decision_str = "edit"  # Route back to validation
-            elif "approved" in decision:
-                decision_str = "approve" if decision.get("approved") else "cancel"
-            else:
-                action = str(decision.get("action") or "approve").lower()
-                if action in ("approve", "approved", "yes"):
-                    decision_str = "approve"
-                elif action in ("edit", "update"):
-                    decision_str = "edit"
-                elif action in ("cancel", "reject", "no"):
-                    decision_str = "cancel"
-        elif isinstance(decision, bool):
-            decision_str = "approve" if decision else "cancel"
-        elif isinstance(decision, str):
-            action = decision.lower()
-            if action in ("approve", "approved", "yes", "true"):
-                decision_str = "approve"
-            elif action in ("cancel", "reject", "no", "false"):
-                decision_str = "cancel"
-
-        update: dict[str, Any] = {"confirm_decision": decision_str, "confirm_id": confirm_id}
-        if decision_str == "edit":
-            update["capture_draft"] = updated_draft
+        if len(decisions_map) == 1:
+            update["confirm_decision"] = next(iter(decisions_map.values())).get("decision")
 
         return update
 
     async def persist(state: FinanceCaptureState, config: RunnableConfig) -> dict[str, Any]:
         user_id = get_config_value(config, "user_id")
-        draft: dict[str, Any] = state.get("validated") or state.get("capture_draft") or {}
+        items = state.get("pending_confirmation_items") or []
+        decisions = state.get("confirmation_decisions") or {}
 
         if not isinstance(user_id, str) or not user_id:
             logger.error("[finance_capture] missing_user_id_for_persist")
             return {"messages": [{"role": "assistant", "content": "Cannot save right now. Missing user id.", "name": "finance_capture_agent"}]}
 
-        persisted_ids: list[str] = []
-        entity_kind = draft.get("kind") or draft.get("entity_kind")
+        completion_contexts: list[dict[str, Any]] = []
 
-        try:
-            if entity_kind == "income" or entity_kind == "expense":
-                validated_payload = draft  # Already validated by schema
-                fos_payload = manual_tx_payload_to_fos(validated_payload)
-                resp = await persist_manual_transaction(user_id=user_id, payload=fos_payload)
-                entity_id = extract_id_from_response(resp.body) if resp else None
-                if entity_id:
-                    persisted_ids.append(str(entity_id))
-            elif entity_kind == "asset":
-                fos_payload = asset_payload_to_fos(draft)
-                resp = await persist_asset(user_id=user_id, payload=fos_payload)
-                entity_id = extract_id_from_response(resp.body) if resp else None
-                if entity_id:
-                    persisted_ids.append(str(entity_id))
-            elif entity_kind == "liability":
-                fos_payload = liability_payload_to_fos(draft)
-                resp = await persist_liability(user_id=user_id, payload=fos_payload)
-                entity_id = extract_id_from_response(resp.body) if resp else None
-                if entity_id:
-                    persisted_ids.append(str(entity_id))
-        except Exception as exc:  # noqa: BLE001
-            logger.error("[finance_capture] persist_failed kind=%s error=%s", entity_kind, exc)
-            return {"messages": [{"role": "assistant", "content": "There was an error saving this. Please try again.", "name": "finance_capture_agent"}]}
+        for item in items:
+            item_id = item.get("item_id") or str(uuid.uuid4())
+            decision_payload = decisions.get(item_id) or {"decision": "approve"}
+            decision = _as_decision_literal(str(decision_payload.get("decision") or "approve"))
+            draft = dict(item.get("draft") or {})
+            patch = decision_payload.get("draft")
+            if isinstance(patch, dict) and patch:
+                draft = {**draft, **patch}
 
-        state_update: dict[str, Any] = {}
-        if persisted_ids:
-            state_update["persisted_ids"] = persisted_ids
-        state_update["confirm_decision"] = None
-        return state_update
+            if decision == "cancel":
+                completion_contexts.append(
+                    {
+                        "item_id": item_id,
+                        "entity_kind": item.get("entity_kind") or draft.get("entity_kind"),
+                        "confirm_decision": "cancel",
+                        "persisted_ids": None,
+                        "was_edited": item.get("was_edited", False),
+                        "draft": draft,
+                        "completion_message": _build_completion_message(
+                            entity_kind=item.get("entity_kind"),
+                            draft=draft,
+                            confirm_decision="cancel",
+                            persisted_ids=None,
+                            was_edited=item.get("was_edited", False),
+                            error=None,
+                        ),
+                    }
+                )
+                continue
 
-    def handoff_back(state: FinanceCaptureState) -> dict[str, Any]:
-        draft: dict[str, Any] = state.get("validated") or state.get("capture_draft") or {}
-        entity_kind = draft.get("kind") or draft.get("entity_kind")
-        confirm_decision = state.get("confirm_decision")
-        persisted_ids = state.get("persisted_ids")
-        was_edited = state.get("from_edit")
-        completion_context: dict[str, Any] = {
-            "entity_kind": entity_kind,
-            "name": draft.get("name") or draft.get("merchant_or_payee"),
-            "amount": draft.get("amount") or draft.get("estimated_value") or draft.get("principal_balance"),
-            "currency_code": draft.get("currency_code"),
-            "vera_category": draft.get("vera_category"),
-            "vera_income_category": draft.get("vera_income_category"),
-            "vera_expense_category": draft.get("vera_expense_category"),
-            "taxonomy_category": draft.get("taxonomy_category"),
-            "taxonomy_subcategory": draft.get("taxonomy_subcategory"),
-            "persisted_ids": persisted_ids,
-            "was_edited": was_edited,
-            "confirm_decision": confirm_decision,
-            "draft": draft,
+            try:
+                validated_payload, entity_kind = _validate_draft_payload(draft=draft, intent_dict=None)
+            except Exception as exc:  # noqa: BLE001
+                error_msg = f"Validation failed: {exc}"
+                logger.warning("[finance_capture] multi_item.validation_failed item=%s error=%s", item_id, exc)
+                completion_contexts.append(
+                    {
+                        "item_id": item_id,
+                        "entity_kind": draft.get("entity_kind"),
+                        "confirm_decision": "error",
+                        "persisted_ids": None,
+                        "was_edited": True,
+                        "draft": draft,
+                        "error": error_msg,
+                        "completion_message": _build_completion_message(
+                            entity_kind=draft.get("entity_kind"),
+                            draft=draft,
+                            confirm_decision="approve",
+                            persisted_ids=None,
+                            was_edited=True,
+                            error=error_msg,
+                        ),
+                    }
+                )
+                continue
+
+            persisted_ids: list[str] = []
+            try:
+                if entity_kind in ("income", "expense", "manual_tx"):
+                    fos_payload = manual_tx_payload_to_fos(validated_payload)
+                    resp = await persist_manual_transaction(user_id=user_id, payload=fos_payload)
+                    entity_id = extract_id_from_response(resp.body) if resp else None
+                    if entity_id:
+                        persisted_ids.append(str(entity_id))
+                elif entity_kind == "asset":
+                    fos_payload = asset_payload_to_fos(validated_payload)
+                    resp = await persist_asset(user_id=user_id, payload=fos_payload)
+                    entity_id = extract_id_from_response(resp.body) if resp else None
+                    if entity_id:
+                        persisted_ids.append(str(entity_id))
+                elif entity_kind == "liability":
+                    fos_payload = liability_payload_to_fos(validated_payload)
+                    resp = await persist_liability(user_id=user_id, payload=fos_payload)
+                    entity_id = extract_id_from_response(resp.body) if resp else None
+                    if entity_id:
+                        persisted_ids.append(str(entity_id))
+                else:
+                    logger.warning("[finance_capture] unsupported_entity_kind entity_kind=%s", entity_kind)
+            except Exception as exc:  # noqa: BLE001
+                error_msg = f"Persistence failed: {exc}"
+                logger.error("[finance_capture] persist_failed item=%s error=%s", item_id, exc)
+                completion_contexts.append(
+                    {
+                        "item_id": item_id,
+                        "entity_kind": entity_kind,
+                        "confirm_decision": "error",
+                        "persisted_ids": None,
+                        "was_edited": decision == "edit" or item.get("was_edited", False),
+                        "draft": draft,
+                        "error": error_msg,
+                        "completion_message": _build_completion_message(
+                            entity_kind=entity_kind,
+                            draft=draft,
+                            confirm_decision="approve",
+                            persisted_ids=None,
+                            was_edited=decision == "edit" or item.get("was_edited", False),
+                            error=error_msg,
+                        ),
+                    }
+                )
+                continue
+
+            completion_contexts.append(
+                {
+                    "item_id": item_id,
+                    "entity_kind": entity_kind,
+                    "confirm_decision": decision,
+                    "persisted_ids": persisted_ids or None,
+                    "was_edited": decision == "edit" or item.get("was_edited", False),
+                    "draft": draft,
+                    "completion_message": _build_completion_message(
+                        entity_kind=entity_kind,
+                        draft=draft,
+                        confirm_decision=decision,
+                        persisted_ids=persisted_ids or None,
+                        was_edited=decision == "edit" or item.get("was_edited", False),
+                        error=None,
+                    ),
+                }
+            )
+
+        return {
+            "completion_contexts": completion_contexts,
+            "completion_context": completion_contexts[0] if completion_contexts else None,
+            "pending_confirmation_items": None,
+            "confirmation_decisions": None,
+            "validated": None,
+            "capture_draft": None,
+            "confirm_decision": None,
+            "active_item_id": None,
         }
 
-        # Check if task was cancelled
-        if confirm_decision and confirm_decision.lower() == "cancel":
-            if entity_kind == "asset":
-                name = draft.get("name", "asset")
-                completion_msg = f"Task cancelled: Asset '{name}' was not saved."
-            elif entity_kind == "liability":
-                name = draft.get("name", "liability")
-                completion_msg = f"Task cancelled: Liability '{name}' was not saved."
-            elif entity_kind in ("income", "expense"):
-                kind_label = "Income" if entity_kind == "income" else "Expense"
-                merchant = draft.get("merchant_or_payee", "transaction")
-                completion_msg = f"Task cancelled: {kind_label} transaction for {merchant} was not saved."
-            else:
-                completion_msg = "Task cancelled: No changes were saved."
-        elif persisted_ids:
-            if entity_kind == "asset":
-                name = draft.get("name", "asset")
-                value = draft.get("estimated_value", "")
-                currency = draft.get("currency_code", "USD")
-                if was_edited:
-                    completion_msg = f"TASK COMPLETED: Asset '{name}' worth {value} {currency} has been successfully saved to the user's financial profile. Note: The user edited the original values before saving. No further action needed."
-                else:
-                    completion_msg = f"TASK COMPLETED: Asset '{name}' worth {value} {currency} has been successfully saved to the user's financial profile. No further action needed."
-            elif entity_kind == "liability":
-                name = draft.get("name", "liability")
-                balance = draft.get("principal_balance", "")
-                currency = draft.get("currency_code", "USD")
-                if was_edited:
-                    completion_msg = f"TASK COMPLETED: Liability '{name}' with balance {balance} {currency} has been successfully saved to the user's financial profile. Note: The user edited the original values before saving. No further action needed."
-                else:
-                    completion_msg = f"TASK COMPLETED: Liability '{name}' with balance {balance} {currency} has been successfully saved to the user's financial profile. No further action needed."
-            elif entity_kind in ("income", "expense"):
-                kind_label = "Income" if entity_kind == "income" else "Expense"
-                amount = draft.get("amount", "")
-                currency = draft.get("currency_code", "USD")
-                merchant = draft.get("merchant_or_payee", "transaction")
-                if was_edited:
-                    completion_msg = f"TASK COMPLETED: {kind_label} transaction for {merchant} ({amount} {currency}) has been successfully saved. Note: The user edited the original values before saving. No further action needed."
-                else:
-                    completion_msg = f"TASK COMPLETED: {kind_label} transaction for {merchant} ({amount} {currency}) has been successfully saved. No further action needed."
-        else:
-            # Fallback: no persisted IDs and no cancel decision
-            completion_msg = "Finance data capture task completed."
+    def handoff_back(state: FinanceCaptureState) -> dict[str, Any]:
+        completion_contexts = state.get("completion_contexts") or []
+        if not completion_contexts:
+            draft: dict[str, Any] = state.get("validated") or state.get("capture_draft") or {}
+            fallback_context = {
+                "item_id": draft.get("item_id") or str(uuid.uuid4()),
+                "entity_kind": draft.get("entity_kind"),
+                "draft": draft,
+                "confirm_decision": state.get("confirm_decision") or "approve",
+                "persisted_ids": state.get("persisted_ids"),
+                "was_edited": state.get("from_edit"),
+                "completion_message": _build_completion_message(
+                    entity_kind=draft.get("entity_kind"),
+                    draft=draft,
+                    confirm_decision=state.get("confirm_decision") or "approve",
+                    persisted_ids=state.get("persisted_ids"),
+                    was_edited=bool(state.get("from_edit")),
+                    error=None,
+                ),
+            }
+            completion_contexts = [fallback_context]
 
-        # Keep only the original delegator message and our completion message
-        # Remove all intermediate analysis messages to avoid confusion
+        messages = []
+        summary_lines = [ctx.get("completion_message", "Finance data capture task completed.") for ctx in completion_contexts]
+        if len(summary_lines) == 1:
+            completion_msg = summary_lines[0]
+        else:
+            bullet_lines = "\n".join(f"- {line}" for line in summary_lines)
+            completion_msg = f"Here’s the status of your items:\n{bullet_lines}"
+
         original_messages = state.get("messages", [])
         delegator_message = None
         for msg in original_messages:
@@ -375,26 +683,36 @@ def create_finance_capture_graph(
                 delegator_message = msg
                 break
 
-        # Build clean message list: delegator + completion only
-        clean_messages = []
         if delegator_message:
-            clean_messages.append(delegator_message)
+            messages.append(delegator_message)
 
-        clean_messages.append({
-            "role": "assistant",
-            "content": completion_msg,
-            "name": "finance_capture_agent",
-            "response_metadata": {"is_handoff_back": True}
-        })
+        messages.append(
+            {
+                "role": "assistant",
+                "content": completion_msg,
+                "name": "finance_capture_agent",
+                "response_metadata": {"is_handoff_back": True},
+            }
+        )
 
-        completion_context["completion_message"] = completion_msg
-        return {"messages": clean_messages, "from_edit": None, "completion_context": completion_context}
+        aggregate_context = {
+            "summary": completion_msg,
+            "items": completion_contexts,
+        }
+
+        return {
+            "messages": messages,
+            "from_edit": None,
+            "completion_contexts": completion_contexts,
+            "completion_context": aggregate_context,
+        }
 
     workflow = StateGraph(FinanceCaptureState)
     workflow.add_node("parse_and_normalize", parse_and_normalize)
     workflow.add_node("fetch_taxonomy_if_needed", fetch_taxonomy_if_needed)
     workflow.add_node("map_categories", map_categories)
     workflow.add_node("validate_schema", validate_schema)
+    workflow.add_node("load_next_intent", load_next_intent)
     workflow.add_node("confirm_human", confirm_human)
     workflow.add_node("persist", persist)
     workflow.add_node("handoff_back", handoff_back)
@@ -403,25 +721,27 @@ def create_finance_capture_graph(
     workflow.add_edge("parse_and_normalize", "fetch_taxonomy_if_needed")
     workflow.add_edge("fetch_taxonomy_if_needed", "map_categories")
     workflow.add_edge("map_categories", "validate_schema")
+    workflow.add_edge("load_next_intent", "fetch_taxonomy_if_needed")
 
     def _after_validate(state: FinanceCaptureState) -> str:
         if state.get("from_edit"):
             return "persist"
+        queue = state.get("intent_queue") or []
+        if queue:
+            return "load_next_intent"
         return "confirm_human"
 
-    workflow.add_conditional_edges("validate_schema", _after_validate, {"persist": "persist", "confirm_human": "confirm_human"})
+    workflow.add_conditional_edges(
+        "validate_schema",
+        _after_validate,
+        {
+            "persist": "persist",
+            "confirm_human": "confirm_human",
+            "load_next_intent": "load_next_intent",
+        },
+    )
 
     def _after_confirm(state: FinanceCaptureState) -> str:
-        decision = state.get("confirm_decision")
-        if not decision:
-            logger.warning("[finance_capture] _after_confirm called with no decision, defaulting to persist")
-            return "persist"
-
-        decision = decision.lower()
-        if decision == "edit":
-            return "validate_schema"
-        if decision == "cancel":
-            return "handoff_back"
         return "persist"
 
     workflow.add_conditional_edges("confirm_human", _after_confirm)

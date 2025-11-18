@@ -14,6 +14,13 @@ from .schemas import NovaMicroIntentResult
 logger = logging.getLogger(__name__)
 
 
+def _truncate_for_log(value: str, limit: int = 4000) -> str:
+    sanitized = value.replace("\n", "\\n").replace("\r", "\\r")
+    if len(sanitized) <= limit:
+        return sanitized
+    return f"{sanitized[:limit]}… (truncated, len={len(sanitized)})"
+
+
 def _format_plaid_expense_categories() -> tuple[str, ...]:
     """Extract unique Plaid category names from the mapping dictionary.
 
@@ -146,7 +153,7 @@ def _invoke_nova(prompt: str) -> dict[str, object]:
 
     body_payload = {
         "messages": [{"role": "user", "content": [{"text": prompt}]}],
-        "inferenceConfig": {"temperature": 0.0, "topP": 0.1, "maxTokens": 180, "stopSequences": []},
+        "inferenceConfig": {"temperature": 0.0, "topP": 0.1, "stopSequences": []},
     }
 
     client = get_bedrock_runtime_client()
@@ -157,45 +164,118 @@ def _invoke_nova(prompt: str) -> dict[str, object]:
 
 
 def extract_intent(user_message: str) -> NovaMicroIntentResult | None:
-    prompt = _load_prompt(user_message)
+    intents = extract_intents(user_message)
+    if intents:
+        return intents[0]
+    return None
+
+
+def _parse_intent_payload(payload: Any) -> list[NovaMicroIntentResult]:
+    items: list[Any]
+    if isinstance(payload, dict) and isinstance(payload.get("items"), list):
+        items = payload.get("items", [])
+    elif isinstance(payload, list):
+        items = payload
+    elif isinstance(payload, dict):
+        items = [payload]
+    else:
+        return []
+
+    results: list[NovaMicroIntentResult] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        item.pop("date", None)
+        try:
+            results.append(NovaMicroIntentResult.model_validate(item))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("finance_capture.nova.schema_validation_failed: %s payload=%s", exc, item)
+    return results
+
+
+def _clean_json_text(text: str) -> str:
+    candidate = text.strip()
+    if candidate.startswith("```"):
+        closing = candidate.rfind("```")
+        if closing > 3:
+            inner = candidate[3:closing].strip()
+            if inner.lower().startswith("json"):
+                inner = inner[4:].strip()
+            candidate = inner
+    return candidate
+
+
+def _load_and_parse_intents(prompt: str) -> list[NovaMicroIntentResult]:
     try:
         response_data = _invoke_nova(prompt)
     except Exception as exc:  # noqa: BLE001
         logger.error("finance_capture.nova.invoke_failed: %s", exc)
-        return None
+        return []
 
     text = _extract_text_from_response(response_data)
     if not text:
         logger.warning("finance_capture.nova.empty_output")
-        return None
+        return []
 
+
+    raw_payload: Any
+    candidate = _clean_json_text(text)
+
+    raw_payload: Any | None = None
     try:
-        parsed = json.loads(text)
+        raw_payload = json.loads(candidate)
     except json.JSONDecodeError:
-        # Attempt to salvage JSON substring
-        start = text.find("{")
-        end = text.rfind("}")
-        if start == -1 or end == -1 or end <= start:
-            logger.warning("finance_capture.nova.invalid_json: %s", text)
-            return None
-        try:
-            parsed = json.loads(text[start : end + 1])
-        except json.JSONDecodeError:
-            logger.warning("finance_capture.nova.json_extract_failed: %s", text)
-            return None
+        bracket_payload = _attempt_json_bracket_extract(candidate, "[", "]")
+        if bracket_payload is None:
+            bracket_payload = _attempt_json_bracket_extract(candidate, "{", "}")
+        if bracket_payload is None:
+            logger.warning(
+                "finance_capture.nova.json_extract_failed len=%s payload=%s",
+                len(candidate),
+                _truncate_for_log(candidate),
+            )
+            return []
+        raw_payload = bracket_payload
 
+    intents = _parse_intent_payload(raw_payload)
+    return intents
+
+
+def _attempt_json_bracket_extract(text: str, opener: str, closer: str) -> Any | None:
+    start = text.find(opener)
+    end = text.rfind(closer)
+    if start == -1 or end == -1 or end <= start:
+        return None
+    snippet = text[start : end + 1]
     try:
-        kind = str(parsed.get("kind")) if isinstance(parsed, dict) else ""
-        if kind in ("asset", "liability", "manual_tx") and isinstance(parsed, dict):
-            parsed.pop("date", None)
-        result = NovaMicroIntentResult.model_validate(parsed)
-        return result
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("finance_capture.nova.schema_validation_failed: %s payload=%s", exc, parsed)
+        return json.loads(snippet)
+    except json.JSONDecodeError:
         return None
 
 
-def generate_completion_response(completion_summary: str, completion_context: dict[str, Any] | None = None) -> str:
+def extract_intents(user_message: str) -> list[NovaMicroIntentResult]:
+    if not user_message or not user_message.strip():
+        return []
+    prompt = _load_prompt(user_message)
+    intents = _load_and_parse_intents(prompt)
+    if intents:
+        return intents
+    # Fallback: try legacy single-object path by invoking again and forcing simple parse
+    single = extract_intent_single_object(user_message)
+    return [single] if single else []
+
+
+def extract_intent_single_object(user_message: str) -> NovaMicroIntentResult | None:
+    """Legacy helper: request single object output for fallbacks."""
+    prompt = _load_prompt(user_message)
+    intents = _load_and_parse_intents(prompt)
+    return intents[0] if intents else None
+
+
+def generate_completion_response(
+    completion_summary: str,
+    completion_context: dict[str, Any] | list[dict[str, Any]] | None = None,
+) -> str:
     context_text = ""
     if completion_context:
         try:
