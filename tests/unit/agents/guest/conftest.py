@@ -10,14 +10,16 @@ from app.core.config import config
 @pytest.fixture
 def mock_config():
     """Mock configuration for guest agent tests."""
-    with patch.object(config, 'GUEST_AGENT_MODEL_ID', 'anthropic.claude-3-sonnet-20240229-v1:0'), \
-         patch.object(config, 'GUEST_AGENT_MODEL_REGION', 'us-east-1'), \
-         patch.object(config, 'GUEST_AGENT_GUARDRAIL_ID', 'test-guardrail-id'), \
-         patch.object(config, 'GUEST_AGENT_GUARDRAIL_VERSION', '1'), \
-         patch.object(config, 'LANGFUSE_GUEST_PUBLIC_KEY', 'test-public-key'), \
-         patch.object(config, 'LANGFUSE_GUEST_SECRET_KEY', 'test-secret-key'), \
-         patch.object(config, 'LANGFUSE_HOST', 'https://test.langfuse.com'), \
-         patch.object(config, 'GUEST_MAX_MESSAGES', 5):
+    with (
+        patch.object(config, "GUEST_AGENT_MODEL_ID", "anthropic.claude-3-sonnet-20240229-v1:0"),
+        patch.object(config, "GUEST_AGENT_MODEL_REGION", "us-east-1"),
+        patch.object(config, "GUEST_AGENT_GUARDRAIL_ID", "test-guardrail-id"),
+        patch.object(config, "GUEST_AGENT_GUARDRAIL_VERSION", "1"),
+        patch.object(config, "LANGFUSE_GUEST_PUBLIC_KEY", "test-public-key"),
+        patch.object(config, "LANGFUSE_GUEST_SECRET_KEY", "test-secret-key"),
+        patch.object(config, "LANGFUSE_HOST", "https://test.langfuse.com"),
+        patch.object(config, "GUEST_MAX_MESSAGES", 5),
+    ):
         yield config
 
 
@@ -33,11 +35,3 @@ def mock_chat_bedrock():
     """Mock ChatBedrock instance."""
     mock_bedrock = Mock()
     return mock_bedrock
-
-
-@pytest.fixture
-def mock_react_agent():
-    """Mock create_react_agent function."""
-    mock_graph = Mock()
-    with patch('app.agents.guest.agent.create_react_agent', return_value=mock_graph) as mock_create:
-        yield mock_create

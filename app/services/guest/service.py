@@ -83,13 +83,13 @@ class GuestService:
         await queue.put({"event": "conversation.started", "data": {"thread_id": thread_id}})
         await queue.put({"event": "token.delta", "data": {"text": HARDCODED_GUEST_WELCOME}})
 
-        content = HARDCODED_GUEST_WELCOME.strip() or (
+        welcome_content = HARDCODED_GUEST_WELCOME.strip() or (
             "Hi! Quick heads up: this guest chat won't be remembered. What money question can I help with now?"
         )
         state["message_count"] = 1
-        state["messages"].append({"role": "assistant", "content": content})
+        state["messages"].append({"role": "assistant", "content": welcome_content})
 
-        payload = _wrap(content, state["message_count"], self.max_messages)
+        payload = _wrap(welcome_content, state["message_count"], self.max_messages)
         await queue.put({"event": "message.completed", "data": payload})
 
         if state["message_count"] >= self.max_messages:
@@ -124,12 +124,27 @@ class GuestService:
             )
             return {"status": "ended"}
 
-        prior = state.get("messages", [])
-        inputs = {"messages": prior + [{"role": "user", "content": text}]}
+        prior_messages = state.get("messages", [])
+        real_messages = [
+            msg
+            for msg in prior_messages
+            if not (
+                msg.get("role") == "assistant" and msg.get("content", "").strip() == HARDCODED_GUEST_WELCOME.strip()
+            )
+        ]
+        inputs = {"messages": real_messages + [{"role": "user", "content": text}]}
 
         accumulated = ""
         latest_response_text = ""
+        configurable = {"thread_id": thread_id, "checkpoint_ns": "guest"}
+
         try:
+            logger.info(
+                "[GUEST][CKPT] Starting graph run thread_id=%s message_idx=%s ended=%s",
+                thread_id,
+                state.get("message_count"),
+                state.get("ended"),
+            )
             async for ev in self.graph.astream_events(
                 inputs,
                 version="v1",
@@ -137,17 +152,20 @@ class GuestService:
                     "run_name": "guest.message",
                     "tags": ["guest"],
                     "metadata": {"thread_id": thread_id, "phase": "message"},
+                    "configurable": configurable,
                 },
             ):
                 if ev.get("event") == "on_chat_model_stream":
                     data = ev.get("data", {}) or {}
                     chunk = data.get("chunk")
                     try:
-                        content = getattr(chunk, "content", "")
-                        if isinstance(content, list):
-                            token_text = "".join(str(p.get("text", "")) for p in content if isinstance(p, dict))
+                        chunk_content = getattr(chunk, "content", "")
+                        if isinstance(chunk_content, list):
+                            token_text = "".join(
+                                str(piece.get("text", "")) for piece in chunk_content if isinstance(piece, dict)
+                            )
                         else:
-                            token_text = str(content or "")
+                            token_text = str(chunk_content or "")
                     except Exception:
                         token_text = ""
                     if token_text:
@@ -177,10 +195,16 @@ class GuestService:
                         logger.debug("[GUEST] Failed to parse fallback text from event: %s", e)
         except Exception as e:
             logger.exception("[GUEST] Error while streaming guest message: %s", e)
+        else:
+            logger.info(
+                "[GUEST][CKPT] Graph run completed thread_id=%s tokens_emitted=%d",
+                thread_id,
+                len(accumulated),
+            )
 
-        content = accumulated.strip() or (latest_response_text.strip() if latest_response_text else "")
+        final_text = accumulated.strip() or (latest_response_text.strip() if latest_response_text else "")
 
-        if not accumulated.strip() and not (latest_response_text and latest_response_text.strip()):
+        if not final_text:
             try:
                 result = await self.graph.ainvoke(
                     inputs,
@@ -188,6 +212,7 @@ class GuestService:
                         "run_name": "guest.message.fallback",
                         "tags": ["guest", "fallback"],
                         "metadata": {"thread_id": thread_id, "phase": "message_fallback"},
+                        "configurable": configurable,
                     },
                 )
                 fallback_text = ""
@@ -215,43 +240,46 @@ class GuestService:
                 except Exception as e:
                     logger.debug("[GUEST] Failed to parse text from non-stream fallback result: %s", e)
                 if fallback_text and fallback_text.strip():
-                    content = fallback_text.strip()
-                    await queue.put({"event": "token.delta", "data": {"text": content}})
+                    final_text = fallback_text.strip()
+                    await queue.put({"event": "token.delta", "data": {"text": final_text}})
             except Exception as e:
                 logger.exception("[GUEST] Non-stream fallback failed: %s", e)
+            else:
+                logger.info("[GUEST][CKPT] Fallback invoke succeeded thread_id=%s", thread_id)
 
-        if not content:
-            content = SAFE_FALLBACK_ASSISTANT_REPLY
-            await queue.put({"event": "token.delta", "data": {"text": content}})
+        if not final_text:
+            final_text = SAFE_FALLBACK_ASSISTANT_REPLY
+            await queue.put({"event": "token.delta", "data": {"text": final_text}})
 
-        if self._has_guardrail_intervention(content):
+        # Guardrail intervention logic
+        if self._has_guardrail_intervention(final_text):
             logger.info("[GUEST] Guardrail intervention detected, removing offending message from state")
-            prior_messages = state.get("messages", [])
-            if prior_messages and prior_messages[-1].get("role") == "user":
-                prior_messages[-1] = {"role": "user", "content": GUARDRAIL_USER_PLACEHOLDER}
-                state["messages"] = prior_messages
+            prior_msgs = state.get("messages", [])
+            if prior_msgs and prior_msgs[-1].get("role") == "user":
+                prior_msgs[-1] = {"role": "user", "content": GUARDRAIL_USER_PLACEHOLDER}
+                state["messages"] = prior_msgs
                 logger.info("[GUEST] Replaced offending user message with guardrail placeholder")
-            state.setdefault("messages", []).append({"role": "assistant", "content": content})
+            state.setdefault("messages", []).append({"role": "assistant", "content": final_text})
         else:
             state.setdefault("messages", []).append({"role": "user", "content": text})
-            state.setdefault("messages", []).append({"role": "assistant", "content": content})
+            state.setdefault("messages", []).append({"role": "assistant", "content": final_text})
 
         next_count = int(state.get("message_count", 0)) + 1
 
-        final_content = content
+        nudge_content = final_text
         if next_count >= self.max_messages:
-            if LAST_MESSAGE_NUDGE_TEXT not in final_content:
-                final_content = (final_content + "\n\n" + LAST_MESSAGE_NUDGE_TEXT).strip()
+            if LAST_MESSAGE_NUDGE_TEXT not in nudge_content:
+                nudge_content = (nudge_content + "\n\n" + LAST_MESSAGE_NUDGE_TEXT).strip()
                 await queue.put({"event": "token.delta", "data": {"text": "\n\n" + LAST_MESSAGE_NUDGE_TEXT}})
             messages = state.get("messages", [])
             for i in range(len(messages) - 1, -1, -1):
                 msg = messages[i]
                 if msg.get("role") == "assistant":
-                    messages[i] = {"role": "assistant", "content": final_content}
+                    messages[i] = {"role": "assistant", "content": nudge_content}
                     break
             state["messages"] = messages
 
-        payload = _wrap(final_content, next_count, self.max_messages)
+        payload = _wrap(nudge_content, next_count, self.max_messages)
         await queue.put({"event": "message.completed", "data": payload})
 
         state["message_count"] = next_count

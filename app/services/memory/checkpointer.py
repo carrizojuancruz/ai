@@ -519,10 +519,30 @@ def get_supervisor_checkpointer():
 
     try:
         client = _build_async_redis_client()
-        saver = KVRedisCheckpointer(client=client, namespace=namespace, default_ttl=ttl_value)
-        return saver
+        return KVRedisCheckpointer(client=client, namespace=namespace, default_ttl=ttl_value)
     except Exception as exc:
         logger.warning("Redis checkpointer unavailable err=%s", exc)
+        return None
+
+
+def get_guest_checkpointer() -> Optional[KVRedisCheckpointer]:
+    ttl_default_raw = app_config.REDIS_TTL_DEFAULT or app_config.REDIS_TTL_SESSION
+    ttl_value: Optional[int] = None
+    if ttl_default_raw not in (None, ""):
+        try:
+            ttl_value = int(str(ttl_default_raw))
+        except Exception:
+            ttl_value = None
+
+    namespace = "langgraph:guest"
+
+    try:
+        client = _build_async_redis_client()
+        logger.info("Guest checkpointer: using KVRedisCheckpointer (SET/GET, TTL=%s)", ttl_value)
+        return KVRedisCheckpointer(client=client, namespace=namespace, default_ttl=ttl_value)
+    except Exception as exc:
+        logger.warning("Guest checkpointer unavailable err=%s", exc)
+        return None
 
 
 async def redis_healthcheck() -> bool:
