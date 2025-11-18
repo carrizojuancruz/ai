@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
@@ -8,6 +9,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.core.config import config
 
+logger = logging.getLogger(__name__)
+
 
 def _format_user_context_for_prompt(user_context: dict[str, Any]) -> str:
     name = user_context.get("identity", {}).get("preferred_name") or user_context.get("preferred_name") or "there"
@@ -15,7 +18,14 @@ def _format_user_context_for_prompt(user_context: dict[str, Any]) -> str:
     locale = user_context.get("locale", "en-US")
     goals = user_context.get("goals", [])
     goals_str = ", ".join(goals[:3]) if isinstance(goals, list) and goals else ""
-    return f"name={name}; tone={tone}; locale={locale}; goals={goals_str}"
+
+    parts = [f"name={name}", f"tone={tone}", f"locale={locale}", f"goals={goals_str}"]
+
+    personal_info = user_context.get("personal_information")
+    if isinstance(personal_info, str) and personal_info.strip():
+        parts.append(f"profile={personal_info.strip()}")
+
+    return "; ".join(parts)
 
 
 async def generate_personalized_welcome(
