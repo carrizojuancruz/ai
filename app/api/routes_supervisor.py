@@ -136,50 +136,23 @@ class SupervisorConfirmPayload(BaseModel):
                 {
                     "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
                     "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
-                    "decision": True
-                },
-                {
-                    "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
-                    "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
-                    "decision": "approve"
-                },
-                {
-                    "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
-                    "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
-                    "decision": False
-                },
-                {
-                    "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
-                    "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
-                    "decision": {"approved": False}
-                },
-                {
-                    "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
-                    "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
-                    "decision": {
-                        "action": "cancel"
-                    }
-                },
-                {
-                    "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
-                    "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
-                    "decision": {
-                        "action": "edit",
-                        "draft": {
-                            "name": "Updated Car Name",
-                            "estimated_value": "45000.0"
+                    "decisions": [
+                        {
+                            "item_id": "item-uuid-1",
+                            "decision": "edit",
+                            "draft": {
+                                "estimated_value": "50000.0"
+                            }
+                        },
+                        {
+                            "item_id": "item-uuid-2",
+                            "decision": "approve"
+                        },
+                        {
+                            "item_id": "item-uuid-3",
+                            "decision": "cancel"
                         }
-                    }
-                },
-                {
-                    "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
-                    "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
-                    "decision": {
-                        "draft": {
-                            "name": "Updated Name",
-                            "estimated_value": "50000.0"
-                        }
-                    }
+                    ]
                 }
             ]
         }
@@ -194,89 +167,65 @@ async def supervisor_confirm(payload: SupervisorConfirmPayload) -> dict:
     **Required Fields:**
         - `thread_id`: The conversation thread ID
         - `confirm_id`: The confirmation ID from the confirm.request event (required to match the response to the correct confirmation)
-        - `decision`: The user's decision (see formats below)
+        - `decisions`: Array of decision objects (see format below)
 
-    **Decision Formats:**
-        - Boolean: `True` to approve, `False` to cancel
-        - String: `"approve"`, `"cancel"`, `"edit"`, etc.
-        - Dict with optional fields:
-            * `"action"`: `"approve"` | `"cancel"` | `"edit"`
-            * `"approved"`: boolean (alternative to action)
-            * `"draft"`: dict with updated fields (for edits)
+    **Decision Format:**
+        - Array of decision objects, each with:
+            * `item_id`: string (required) - The item ID from the confirm.request event
+            * `decision`: `"approve"` | `"cancel"` | `"edit"` (required)
+            * `draft`: dict | null (optional) - Partial draft updates when decision is "edit"
 
     When editing, include a `"draft"` object with the fields you want to update.
     The system will merge these changes with the existing draft and re-validate.
 
     **Examples:**
 
-        Approve (boolean):
+        Approve all items:
         ```json
         {
             "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
             "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
-            "decision": true
-        }
-        ```
-
-        Approve (string):
-        ```json
-        {
-            "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
-            "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
-            "decision": "approve"
-        }
-        ```
-
-        Cancel (boolean):
-        ```json
-        {
-            "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
-            "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
-            "decision": false
-        }
-        ```
-
-        Cancel (dict):
-        ```json
-        {
-            "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
-            "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
-            "decision": {"action": "cancel"}
-        }
-        ```
-
-        Edit with updates:
-        ```json
-        {
-            "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
-            "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
-            "decision": {
-                "action": "edit",
-                "draft": {
-                    "name": "Updated Name",
-                    "estimated_value": "45000.0"
+            "decisions": [
+                {
+                    "item_id": "item-uuid-1",
+                    "decision": "approve"
+                },
+                {
+                    "item_id": "item-uuid-2",
+                    "decision": "approve"
                 }
-            }
+            ]
         }
         ```
 
-        Edit (draft only, action inferred):
+        Mixed decisions (edit one, approve another, cancel third):
         ```json
         {
             "thread_id": "a3384d17-501b-44d5-9715-61824781e1b6",
             "confirm_id": "b98ce4fe-c61c-4597-b4c7-df5c7993eaa9",
-            "decision": {
-                "draft": {
-                    "name": "Updated Name",
-                    "estimated_value": "50000.0"
+            "decisions": [
+                {
+                    "item_id": "item-uuid-1",
+                    "decision": "edit",
+                    "draft": {
+                        "estimated_value": "50000.0"
+                    }
+                },
+                {
+                    "item_id": "item-uuid-2",
+                    "decision": "approve"
+                },
+                {
+                    "item_id": "item-uuid-3",
+                    "decision": "cancel"
                 }
-            }
+            ]
         }
         ```
 
     """
     if payload.decisions:
-        decision_payload = {"decisions": [decision.model_dump() for decision in payload.decisions]}
+        decision_payload = {"decisions": [decision.model_dump(exclude_none=True) for decision in payload.decisions]}
     elif payload.decision is not None:
         decision_payload = payload.decision
     else:
