@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List
 
 from app.core.config import config
 from app.knowledge.models import Source
@@ -47,6 +47,7 @@ class KnowledgeService:
             logger.info(f"Successfully deleted {deletion_result['vectors_deleted']} vectors for source {source_id}")
             return {
                 "success": True,
+                "vectors_found": deletion_result.get("vectors_found", 0),
                 "vectors_deleted": deletion_result["vectors_deleted"],
                 "message": deletion_result["message"]
             }
@@ -55,6 +56,7 @@ class KnowledgeService:
             return {
                 "success": False,
                 "error": deletion_result.get("message", "Unknown error"),
+                "vectors_found": deletion_result.get("vectors_found", 0),
                 "vectors_deleted": deletion_result.get("vectors_deleted", 0),
                 "vectors_failed": deletion_result.get("vectors_failed", 0)
             }
@@ -108,39 +110,27 @@ class KnowledgeService:
         chunks = self.document_service.split_documents(documents, source, content_source)
         logger.info(f"Split into {len(chunks)} chunks for {source.url}")
 
-        new_hashes = {doc.metadata.get("content_hash") for doc in chunks}
-
         vector_sources = self.get_vector_sources()
         existing_source_data = next(
-            (s for s in vector_sources['sources'] if s['url'] == source.url),
+            (s for s in vector_sources['sources'] if s['source_id'] == source.id),
             None
         )
         is_update = existing_source_data is not None
 
         if is_update:
-            if not self._needs_reindex(source.id, new_hashes):
-                logger.info(f"No changes detected for {source.url} - skipping reindex")
-                return {
-                    "source_url": source.url,
-                    "success": True,
-                    "message": "No changes detected",
-                    "is_new_source": False,
-                    "documents_added": 0,
-                    "documents_processed": len(documents)
-                }
-
-            logger.info(f"Source {source.url} needs reindexing - deleting old documents")
-            delete_result = self.delete_source(source.url)
+            logger.info(f"Source exists with source_id={source.id}, url={source.url} - deleting all old documents for clean replacement")
+            delete_result = self.delete_source_vectors_by_id(source.id)
             if not delete_result["success"]:
-                logger.error(f"Failed to delete existing source during reindex: {delete_result['error']}")
+                logger.error(f"Failed to delete existing source during replacement: {delete_result.get('error')}")
                 return {
                     "source_url": source.url,
                     "success": False,
-                    "message": f"Failed to delete existing documents: {delete_result['error']['message']}",
+                    "message": f"Failed to delete existing documents: {delete_result.get('error', 'Unknown error')}",
                     "is_new_source": False,
                     "documents_added": 0,
                     "documents_processed": len(documents)
                 }
+            logger.info(f"✅ Deleted {delete_result['vectors_deleted']} old chunks (found {delete_result['vectors_found']}) for source_id={source.id}, url={source.url}")
 
         logger.info(f"Generating embeddings for {len(chunks)} chunks from {source.url}")
         chunk_texts = [doc.page_content for doc in chunks]
@@ -240,16 +230,6 @@ class KnowledgeService:
                 continue
 
         return sources
-
-    def _needs_reindex(self, source_id: str, new_hashes: Set[str]) -> bool:
-        """Check if source needs complete reindexing by comparing hash sets."""
-        old_hashes = self.vector_store_service.get_source_chunk_hashes(source_id)
-        needs_reindex = old_hashes != new_hashes
-
-        if needs_reindex:
-            logger.info(f"Changes detected for source_id {source_id}: {len(old_hashes)} → {len(new_hashes)} chunks")
-
-        return needs_reindex
 
     def get_source_details(self, source_id: str) -> Dict[str, Any]:
         """Get detailed information about a source including chunk count and content.

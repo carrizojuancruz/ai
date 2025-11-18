@@ -18,10 +18,14 @@ class TestKnowledgeService:
             "vectors_deleted": 10,
             "message": "Successfully deleted vectors"
         }
-        mock_instance.delete_documents_by_source_id.return_value = {"success": True}
+        mock_instance.delete_documents_by_source_id.return_value = {
+            "success": True,
+            "vectors_found": 0,
+            "vectors_deleted": 0,
+            "message": "No vectors found to delete"
+        }
         mock_instance.add_documents.return_value = None
         mock_instance.similarity_search.return_value = []
-        mock_instance.get_source_chunk_hashes.return_value = set()
         mock.return_value = mock_instance
         return mock_instance
 
@@ -247,35 +251,17 @@ class TestKnowledgeService:
             assert item["content"] == "Test content"
             assert item["source_id"] == "s1"
 
-    @pytest.mark.parametrize("old_hashes,new_hashes,expected_reindex", [
-        ({"hash1", "hash2"}, {"hash1", "hash3"}, True),   # Different hashes
-        ({"hash1", "hash2"}, {"hash1", "hash2"}, False),  # Same hashes
-        (set(), {"hash1"}, True),                         # Empty old hashes
-    ])
-    def test_needs_reindex_scenarios(
-        self,
-        knowledge_service,
-        mock_vector_store,
-        old_hashes,
-        new_hashes,
-        expected_reindex
-    ):
-        mock_vector_store.get_source_chunk_hashes.return_value = old_hashes
-
-        result = knowledge_service._needs_reindex("test123", new_hashes)
-
-        assert result is expected_reindex
-        mock_vector_store.get_source_chunk_hashes.assert_called_once_with("test123")
-
     @pytest.mark.asyncio
-    async def test_upsert_source_no_changes_skips_reindex(
+    async def test_upsert_source_updates_existing_source(
         self,
         knowledge_service,
         mock_document_service,
         mock_vector_store,
+        mock_crawler_service,
         sample_source,
         mocker
     ):
+        """Test that updating an existing source deletes old vectors and adds new ones."""
         from langchain_core.documents import Document
 
         mocker.patch.object(
@@ -287,27 +273,37 @@ class TestKnowledgeService:
             }
         )
 
-        # Prepare chunks with known hashes
+        # Mock deletion result
+        mock_vector_store.delete_documents_by_source_id.return_value = {
+            "success": True,
+            "vectors_found": 10,
+            "vectors_deleted": 10,
+            "message": "Successfully deleted all 10 vectors"
+        }
+
+        # Prepare new chunks
         chunks = [
-            Document(page_content="a", metadata={"content_hash": "h1"}),
-            Document(page_content="b", metadata={"content_hash": "h2"}),
+            Document(page_content="new content 1", metadata={"content_hash": "new_h1"}),
+            Document(page_content="new content 2", metadata={"content_hash": "new_h2"}),
         ]
         mock_document_service.split_documents.return_value = chunks
-        mock_vector_store.get_source_chunk_hashes.return_value = {"h1", "h2"}
+        mock_document_service.generate_embeddings.return_value = [[0.1] * 1536] * 2
 
-        # Ensure crawler returns some documents for the existing service instance
-        knowledge_service.crawler_service.crawl_source = AsyncMock(
-            return_value={"documents": [Document(page_content="doc", metadata={})], "documents_loaded": 1}
-        )
+        # Mock crawler
+        mock_crawler_service.crawl_source.return_value = {
+            "documents": [Document(page_content="doc", metadata={})],
+            "documents_loaded": 1
+        }
 
         result = await knowledge_service.upsert_source(sample_source)
 
         assert result["success"] is True
-        assert result["message"] == "No changes detected"
         assert result["is_new_source"] is False
-        assert result["documents_added"] == 0
-        # Ensure we didn't attempt to delete/add when no changes
-        knowledge_service.vector_store_service.add_documents.assert_not_called()
+        assert result["documents_added"] == 2
+        # Verify deletion was called
+        mock_vector_store.delete_documents_by_source_id.assert_called_once_with(sample_source.id)
+        # Verify new documents were added
+        knowledge_service.vector_store_service.add_documents.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_upsert_source_applies_chunk_limit(

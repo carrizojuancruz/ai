@@ -150,10 +150,12 @@ class S3VectorStoreService:
     def delete_documents_by_source_id(self, source_id: str) -> dict[str, any]:
         """Delete all documents for a given source_id."""
         try:
+            logger.info(f"Starting deletion process for source_id={source_id}")
             vector_keys = self._get_vector_keys_by_source_id(source_id)
+            logger.info(f"Found {len(vector_keys)} vector keys to delete for source_id={source_id}")
 
             if not vector_keys:
-                logger.info(f"No vectors found for source {source_id}")
+                logger.warning(f"No vectors found for source_id={source_id}")
                 return {
                     "success": True,
                     "vectors_found": 0,
@@ -235,16 +237,6 @@ class S3VectorStoreService:
         """Get all vector keys for a specific source_id."""
         return [v.get('key') for v in self._iterate_vectors_by_source_id(source_id) if v.get('key')]
 
-
-    def get_source_chunk_hashes(self, source_id: str) -> set[str]:
-        """Get all content hashes for a specific source_id."""
-        hashes = set()
-        for vector in self._iterate_vectors_by_source_id(source_id):
-            content_hash = vector.get('metadata', {}).get('content_hash')
-            if content_hash:
-                hashes.add(content_hash)
-
-        return hashes
 
     def similarity_search(
         self,

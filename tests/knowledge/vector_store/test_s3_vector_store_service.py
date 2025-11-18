@@ -179,31 +179,6 @@ class TestS3VectorStoreService:
         call_args = mock_s3_client.query_vectors.call_args
         assert call_args[1]["topK"] == top_k
 
-    def test_get_source_chunk_hashes(
-        self,
-        vector_store,
-        mocker
-    ):
-        vectors = [
-            {"metadata": {"content_hash": "hash1"}},
-            {"metadata": {"content_hash": "hash2"}},
-            {"metadata": {"content_hash": "hash1"}},
-            {"metadata": {}},
-            {"metadata": {"content_hash": None}},
-            {"metadata": {"content_hash": ""}}
-        ]
-        mocker.patch.object(
-            vector_store,
-            '_iterate_vectors_by_source_id',
-            return_value=iter(vectors)
-        )
-
-        hashes = vector_store.get_source_chunk_hashes("test123")
-
-        assert len(hashes) == 2
-        assert "hash1" in hashes
-        assert "hash2" in hashes
-
     def test_add_documents_put_vectors_exception(
         self,
         vector_store,
