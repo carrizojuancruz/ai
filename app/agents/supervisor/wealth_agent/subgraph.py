@@ -118,6 +118,7 @@ def create_wealth_subgraph(
 
         retrieved_sources = getattr(state, 'retrieved_sources', state.get('retrieved_sources', []))
         navigation_events = getattr(state, 'navigation_events', state.get('navigation_events')) or []
+        seen_navigation_events = {event.get("event") for event in navigation_events if isinstance(event, dict)}
 
         for msg in state["messages"]:
             if getattr(msg, '__class__', None).__name__ == 'ToolMessage' and getattr(msg, 'name', None) == 'search_kb':
@@ -144,7 +145,8 @@ def create_wealth_subgraph(
                                     if metadata.get('content_source'):
                                         source['content_source'] = metadata['content_source']
 
-                                    if metadata.get('subcategory') == 'reports':
+                                    subcategory = metadata.get('subcategory')
+                                    if subcategory == 'reports' and "navigation.reports" not in seen_navigation_events:
                                         navigation_events.append({
                                             "event": "navigation.reports",
                                             "data": {
@@ -152,9 +154,10 @@ def create_wealth_subgraph(
                                                 "action": "view_reports",
                                             },
                                         })
+                                        seen_navigation_events.add("navigation.reports")
                                         logger.info("[WEALTH_AGENT] Detected reports subcategory, adding navigation event")
 
-                                    if metadata.get('subcategory') == 'profile':
+                                    if subcategory == 'profile' and "navigation.profile" not in seen_navigation_events:
                                         navigation_events.append({
                                             "event": "navigation.profile",
                                             "data": {
@@ -162,7 +165,18 @@ def create_wealth_subgraph(
                                                 "action": "view_profile",
                                             },
                                         })
+                                        seen_navigation_events.add("navigation.profile")
                                         logger.info("[WEALTH_AGENT] Detected profile subcategory, adding navigation event")
+
+                                    if subcategory == 'connect-account' and "navigation.connected-accounts" not in seen_navigation_events:
+                                        navigation_events.append({
+                                            "event": "navigation.connected-accounts",
+                                            "data": {
+                                                "message": "Connect an account (Financial Info → Connected Accounts) to enable live transaction insights.",
+                                                "action": "connect_accounts",
+                                            },
+                                        })
+                                        seen_navigation_events.add("navigation.connected-accounts")
 
                                 new_sources.append(source)
                         retrieved_sources.extend(new_sources)
