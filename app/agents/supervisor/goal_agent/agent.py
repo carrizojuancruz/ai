@@ -66,13 +66,16 @@ class GoalAgent:
                     "[Langfuse][goal] Env vars missing or incomplete; tracing disabled (host=%s)",
                     goal_host,
                 )
-        self.llm = ChatBedrockConverse(
-            model_id=config.GOAL_AGENT_MODEL_ID,
-            region_name=config.GOAL_AGENT_MODEL_REGION,
-            provider=config.GOAL_AGENT_PROVIDER,
-            temperature=config.GOAL_AGENT_TEMPERATURE,
-            callbacks=self.callbacks,
-        )
+        model_id = config.GOAL_AGENT_MODEL_ID
+        llm_kwargs = {
+            "model_id": model_id,
+            "region_name": config.GOAL_AGENT_MODEL_REGION,
+            "temperature": config.GOAL_AGENT_TEMPERATURE,
+            "callbacks": self.callbacks,
+        }
+        if model_id != "openai.gpt-oss-120b-1:0" and getattr(config, "GOAL_AGENT_PROVIDER", None):
+            llm_kwargs["provider"] = config.GOAL_AGENT_PROVIDER
+        self.llm = ChatBedrockConverse(**llm_kwargs)
 
     def _create_agent_with_tools(self):
         from .tools_math import calculate
