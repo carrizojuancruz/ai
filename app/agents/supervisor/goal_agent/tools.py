@@ -144,6 +144,10 @@ async def update_goal(data, config: RunnableConfig) -> str:
             if value is not None:
                 updated_data[key] = value
 
+        # Remove metadata to avoid validation issues with backend format
+        if 'metadata' in updated_data:
+            del updated_data['metadata']
+
         # Auto-calculate percent_complete if progress.current_value was updated
         if 'progress' in updated_data and updated_data['progress']:
             from decimal import Decimal
