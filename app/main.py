@@ -24,6 +24,7 @@ from .api.routes_nudge_eval import router as nudge_eval_router
 from .api.routes_prompts import router as prompts_router
 from .api.routes_stt import router as stt_router
 from .api.routes_supervisor import router as supervisor_router
+from .api.routes_test import router as test_router
 from .api.routes_title_gen import router as title_gen_router
 from .api.routes_tts import router as tts_router
 from .core.config import config
@@ -232,3 +233,4 @@ app.include_router(prompts_router)
 app.include_router(tts_router)
 app.include_router(stt_router)
 app.include_router(audio_router)
+app.include_router(test_router)
