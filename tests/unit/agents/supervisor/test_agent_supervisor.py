@@ -330,19 +330,17 @@ class TestCompileSupervisorGraph:
 
     @patch("app.agents.supervisor.agent.create_s3_vectors_store_from_env")
     @patch("app.agents.supervisor.agent.MemorySaver")
-    @patch("app.agents.supervisor.agent.ChatBedrock")
+    @patch("app.agents.supervisor.agent.ChatCerebras")
     @patch("app.agents.supervisor.agent.app_config")
     def test_compile_supervisor_graph_creates_graph(
-        self, mock_config, mock_bedrock, mock_saver, mock_store
+        self, mock_config, mock_cerebras, mock_saver, mock_store
     ):
         """Test that compile_supervisor_graph creates a graph successfully."""
-        mock_config.SUPERVISOR_AGENT_MODEL_ID = "anthropic.claude-3"
+        mock_config.SUPERVISOR_AGENT_MODEL_ID = "gpt-oss-120b"
         mock_config.SUPERVISOR_AGENT_MODEL_REGION = "us-east-1"
         mock_config.SUPERVISOR_AGENT_TEMPERATURE = 0.7
-        mock_config.SUPERVISOR_AGENT_GUARDRAIL_ID = "guard-123"
-        mock_config.SUPERVISOR_AGENT_GUARDRAIL_VERSION = "1"
-        mock_config.SUPERVISOR_AGENT_REASONING_EFFORT = "medium"
-        mock_config.SUMMARY_MODEL_ID = "anthropic.claude-3-haiku"
+        mock_config.CEREBRAS_API_KEY = "test-api-key"
+        mock_config.SUMMARY_MODEL_ID = "gpt-oss-120b"
         mock_config.SUMMARY_MAX_SUMMARY_TOKENS = "1000"
         mock_config.SUMMARY_TAIL_TOKEN_BUDGET = "2000"
         mock_config.SUMMARY_MAX_TOKENS_BEFORE = "8000"
@@ -350,7 +348,7 @@ class TestCompileSupervisorGraph:
         mock_llm = MagicMock()
         mock_llm.bind.return_value = mock_llm
         mock_llm.get_num_tokens_from_messages.return_value = 100
-        mock_bedrock.return_value = mock_llm
+        mock_cerebras.return_value = mock_llm
 
         mock_store_instance = MagicMock()
         mock_store.return_value = mock_store_instance
@@ -358,23 +356,21 @@ class TestCompileSupervisorGraph:
         graph = compile_supervisor_graph()
 
         assert graph is not None
-        mock_bedrock.assert_called()
+        mock_cerebras.assert_called()
         mock_store.assert_called_once()
 
     @patch("app.agents.supervisor.agent.create_s3_vectors_store_from_env")
     @patch("app.agents.supervisor.agent.MemorySaver")
-    @patch("app.agents.supervisor.agent.ChatBedrock")
+    @patch("app.agents.supervisor.agent.ChatCerebras")
     @patch("app.agents.supervisor.agent.app_config")
     def test_compile_supervisor_graph_no_summary_model(
-        self, mock_config, mock_bedrock, mock_saver, mock_store
+        self, mock_config, mock_cerebras, mock_saver, mock_store
     ):
         """Test graph compilation when no separate summary model is configured."""
-        mock_config.SUPERVISOR_AGENT_MODEL_ID = "anthropic.claude-3"
+        mock_config.SUPERVISOR_AGENT_MODEL_ID = "gpt-oss-120b"
         mock_config.SUPERVISOR_AGENT_MODEL_REGION = "us-east-1"
         mock_config.SUPERVISOR_AGENT_TEMPERATURE = 0.7
-        mock_config.SUPERVISOR_AGENT_GUARDRAIL_ID = "guard-123"
-        mock_config.SUPERVISOR_AGENT_GUARDRAIL_VERSION = "1"
-        mock_config.SUPERVISOR_AGENT_REASONING_EFFORT = "medium"
+        mock_config.CEREBRAS_API_KEY = "test-api-key"
         mock_config.SUMMARY_MODEL_ID = None  # No separate summary model
         mock_config.SUMMARY_MAX_SUMMARY_TOKENS = "1000"
         mock_config.SUMMARY_TAIL_TOKEN_BUDGET = "2000"
@@ -383,30 +379,28 @@ class TestCompileSupervisorGraph:
         mock_llm = MagicMock()
         mock_llm.bind.return_value = mock_llm
         mock_llm.get_num_tokens_from_messages.return_value = 100
-        mock_bedrock.return_value = mock_llm
+        mock_cerebras.return_value = mock_llm
 
         graph = compile_supervisor_graph()
 
         assert graph is not None
-        # Should only create one ChatBedrock instance
-        assert mock_bedrock.call_count >= 1
+        # Should only create one ChatCerebras instance
+        assert mock_cerebras.call_count >= 1
 
     @patch("app.agents.supervisor.agent.create_s3_vectors_store_from_env")
     @patch("app.agents.supervisor.agent.MemorySaver")
-    @patch("app.agents.supervisor.agent.ChatBedrock")
+    @patch("app.agents.supervisor.agent.ChatCerebras")
     @patch("app.agents.supervisor.agent.app_config")
     @patch("app.agents.supervisor.agent.logger")
     def test_compile_supervisor_graph_bind_exception(
-        self, mock_logger, mock_config, mock_bedrock, mock_saver, mock_store
+        self, mock_logger, mock_config, mock_cerebras, mock_saver, mock_store
     ):
         """Test that bind exceptions are logged and handled."""
-        mock_config.SUPERVISOR_AGENT_MODEL_ID = "anthropic.claude-3"
+        mock_config.SUPERVISOR_AGENT_MODEL_ID = "gpt-oss-120b"
         mock_config.SUPERVISOR_AGENT_MODEL_REGION = "us-east-1"
         mock_config.SUPERVISOR_AGENT_TEMPERATURE = 0.7
-        mock_config.SUPERVISOR_AGENT_GUARDRAIL_ID = "guard-123"
-        mock_config.SUPERVISOR_AGENT_GUARDRAIL_VERSION = "1"
-        mock_config.SUPERVISOR_AGENT_REASONING_EFFORT = "medium"
-        mock_config.SUMMARY_MODEL_ID = "anthropic.claude-3-haiku"
+        mock_config.CEREBRAS_API_KEY = "test-api-key"
+        mock_config.SUMMARY_MODEL_ID = "gpt-oss-120b"
         mock_config.SUMMARY_MAX_SUMMARY_TOKENS = "1000"
         mock_config.SUMMARY_TAIL_TOKEN_BUDGET = "2000"
         mock_config.SUMMARY_MAX_TOKENS_BEFORE = "8000"
@@ -414,7 +408,7 @@ class TestCompileSupervisorGraph:
         mock_llm = MagicMock()
         mock_llm.bind.side_effect = Exception("Bind not supported")
         mock_llm.get_num_tokens_from_messages.return_value = 100
-        mock_bedrock.return_value = mock_llm
+        mock_cerebras.return_value = mock_llm
 
         graph = compile_supervisor_graph()
 
@@ -428,18 +422,16 @@ class TestTokenCountingAndGating:
 
     @patch("app.agents.supervisor.agent.create_s3_vectors_store_from_env")
     @patch("app.agents.supervisor.agent.MemorySaver")
-    @patch("app.agents.supervisor.agent.ChatBedrock")
+    @patch("app.agents.supervisor.agent.ChatCerebras")
     @patch("app.agents.supervisor.agent.app_config")
     def test_token_counter_uses_llm_method(
-        self, mock_config, mock_bedrock, mock_saver, mock_store
+        self, mock_config, mock_cerebras, mock_saver, mock_store
     ):
         """Test that token counter uses LLM method when available."""
-        mock_config.SUPERVISOR_AGENT_MODEL_ID = "anthropic.claude-3"
+        mock_config.SUPERVISOR_AGENT_MODEL_ID = "gpt-oss-120b"
         mock_config.SUPERVISOR_AGENT_MODEL_REGION = "us-east-1"
         mock_config.SUPERVISOR_AGENT_TEMPERATURE = 0.7
-        mock_config.SUPERVISOR_AGENT_GUARDRAIL_ID = "guard-123"
-        mock_config.SUPERVISOR_AGENT_GUARDRAIL_VERSION = "1"
-        mock_config.SUPERVISOR_AGENT_REASONING_EFFORT = "medium"
+        mock_config.CEREBRAS_API_KEY = "test-api-key"
         mock_config.SUMMARY_MODEL_ID = None
         mock_config.SUMMARY_MAX_SUMMARY_TOKENS = "1000"
         mock_config.SUMMARY_TAIL_TOKEN_BUDGET = "2000"
@@ -448,7 +440,7 @@ class TestTokenCountingAndGating:
         mock_llm = MagicMock()
         mock_llm.bind.return_value = mock_llm
         mock_llm.get_num_tokens_from_messages.return_value = 150
-        mock_bedrock.return_value = mock_llm
+        mock_cerebras.return_value = mock_llm
 
         # Compile graph to get token counter
         graph = compile_supervisor_graph()
@@ -456,19 +448,17 @@ class TestTokenCountingAndGating:
 
     @patch("app.agents.supervisor.agent.create_s3_vectors_store_from_env")
     @patch("app.agents.supervisor.agent.MemorySaver")
-    @patch("app.agents.supervisor.agent.ChatBedrock")
+    @patch("app.agents.supervisor.agent.ChatCerebras")
     @patch("app.agents.supervisor.agent.app_config")
     @patch("app.agents.supervisor.agent.count_tokens_approximately")
     def test_token_counter_fallback_on_exception(
-        self, mock_approx, mock_config, mock_bedrock, mock_saver, mock_store
+        self, mock_approx, mock_config, mock_cerebras, mock_saver, mock_store
     ):
         """Test that token counter falls back to approximate counting."""
-        mock_config.SUPERVISOR_AGENT_MODEL_ID = "anthropic.claude-3"
+        mock_config.SUPERVISOR_AGENT_MODEL_ID = "gpt-oss-120b"
         mock_config.SUPERVISOR_AGENT_MODEL_REGION = "us-east-1"
         mock_config.SUPERVISOR_AGENT_TEMPERATURE = 0.7
-        mock_config.SUPERVISOR_AGENT_GUARDRAIL_ID = "guard-123"
-        mock_config.SUPERVISOR_AGENT_GUARDRAIL_VERSION = "1"
-        mock_config.SUPERVISOR_AGENT_REASONING_EFFORT = "medium"
+        mock_config.CEREBRAS_API_KEY = "test-api-key"
         mock_config.SUMMARY_MODEL_ID = None
         mock_config.SUMMARY_MAX_SUMMARY_TOKENS = "1000"
         mock_config.SUMMARY_TAIL_TOKEN_BUDGET = "2000"
@@ -477,7 +467,7 @@ class TestTokenCountingAndGating:
         mock_llm = MagicMock()
         mock_llm.bind.return_value = mock_llm
         mock_llm.get_num_tokens_from_messages.side_effect = Exception("Not supported")
-        mock_bedrock.return_value = mock_llm
+        mock_cerebras.return_value = mock_llm
         mock_approx.return_value = 200
 
         graph = compile_supervisor_graph()

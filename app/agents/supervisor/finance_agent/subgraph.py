@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable
 
-from langchain_aws import ChatBedrockConverse
+from langchain_core.language_models import BaseChatModel
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 
@@ -10,7 +10,7 @@ from app.agents.supervisor.handoff import create_handoff_back_messages
 
 
 def create_finance_subgraph(
-    sql_generator: ChatBedrockConverse,
+    sql_generator: BaseChatModel,
     tools,
     prompt_builder: Callable[[MessagesState], Awaitable[str]],
 ):

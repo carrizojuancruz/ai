@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from uuid import UUID
 
+from langchain_cerebras import ChatCerebras
 from langchain_core.messages import HumanMessage
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
@@ -10,7 +11,6 @@ from langgraph.types import Command
 from app.core.app_state import get_wealth_agent
 from app.core.config import config
 from app.observability.logging_config import configure_logging
-from app.services.llm.chat_bedrock import ChatBedrock
 
 from .helpers import create_error_command
 from .tools import search_kb
@@ -22,21 +22,12 @@ class WealthAgent:
     """Wealth agent for searching knowledge base and providing financial information."""
 
     def __init__(self):
-        logger.info("Initializing WealthAgent with Bedrock models")
-        guardrails = {
-            "guardrailIdentifier": config.WEALTH_AGENT_GUARDRAIL_ID,
-            "guardrailVersion": config.WEALTH_AGENT_GUARDRAIL_VERSION,
-            "trace": "enabled",
-        }
+        logger.info("Initializing WealthAgent with Cerebras models")
 
-        self.llm = ChatBedrock(
-            model_id=config.WEALTH_AGENT_MODEL_ID,
-            region_name=config.WEALTH_AGENT_MODEL_REGION,
-            temperature=config.WEALTH_AGENT_TEMPERATURE,
-            guardrail_config=guardrails,
-            additional_model_request_fields={
-                "reasoning_effort": config.WEALTH_AGENT_REASONING_EFFORT
-            }
+        self.llm = ChatCerebras(
+            model="gpt-oss-120b",
+            api_key=config.CEREBRAS_API_KEY,
+            temperature=config.WEALTH_AGENT_TEMPERATURE or 0.4,
         )
 
     async def process_query_with_agent(self, query: str, user_id: UUID) -> Command:

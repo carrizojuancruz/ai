@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
 
+from langchain_cerebras import ChatCerebras
 from langchain_core.messages import BaseMessage
 from langchain_core.messages.utils import count_tokens_approximately
 from langfuse.langchain import CallbackHandler
@@ -17,7 +18,6 @@ from langmem.short_term import RunningSummary
 from app.agents.supervisor.memory import episodic_capture, memory_context, memory_hotpath
 from app.agents.supervisor.summarizer import ConversationSummarizer
 from app.core.config import config as app_config
-from app.services.llm.chat_bedrock import ChatBedrock
 from app.services.memory.checkpointer import get_supervisor_checkpointer
 from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
@@ -173,28 +173,20 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
         """,
     )
 
-    guardrails = {
-        "guardrailIdentifier": app_config.SUPERVISOR_AGENT_GUARDRAIL_ID,
-        "guardrailVersion": app_config.SUPERVISOR_AGENT_GUARDRAIL_VERSION,
-        "trace": "enabled",
-    }
-
     if checkpointer is None:
         checkpointer = get_supervisor_checkpointer()
 
-    chat_bedrock = ChatBedrock(
-        model_id=app_config.SUPERVISOR_AGENT_MODEL_ID,
-        region_name=app_config.SUPERVISOR_AGENT_MODEL_REGION,
-        temperature=app_config.SUPERVISOR_AGENT_TEMPERATURE,
-        guardrail_config=guardrails,
-        additional_model_request_fields={"reasoning_effort": app_config.SUPERVISOR_AGENT_REASONING_EFFORT},
+    chat_bedrock = ChatCerebras(
+        model="gpt-oss-120b",
+        api_key=app_config.CEREBRAS_API_KEY,
+        temperature=app_config.SUPERVISOR_AGENT_TEMPERATURE or 0.4
     )
 
     if app_config.SUMMARY_MODEL_ID:
-        summarize_model = ChatBedrock(
-            model_id=app_config.SUMMARY_MODEL_ID,
-            region_name=app_config.SUPERVISOR_AGENT_MODEL_REGION,
-            temperature=0.0,
+        summarize_model = ChatCerebras(
+            model="gpt-oss-120b",
+            api_key=app_config.CEREBRAS_API_KEY,
+            temperature=0.0
         )
     else:
         summarize_model = chat_bedrock

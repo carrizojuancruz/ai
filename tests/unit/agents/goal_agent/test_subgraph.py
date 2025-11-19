@@ -36,12 +36,12 @@ def create_mock_tool(name: str = "test_tool", description: str = "Test tool") ->
 class TestGoalSubgraph:
     """Test cases for GoalSubgraph class."""
 
-    @patch('app.agents.supervisor.goal_agent.subgraph.ChatBedrockConverse')
-    def test_goal_subgraph_initialization(self, mock_bedrock):
+    @patch('app.agents.supervisor.goal_agent.subgraph.ChatCerebras')
+    def test_goal_subgraph_initialization(self, mock_cerebras):
         """Test GoalSubgraph initialization."""
         # Arrange
         mock_llm = MagicMock()
-        mock_bedrock.return_value = mock_llm
+        mock_cerebras.return_value = mock_llm
         mock_tools = [create_mock_tool()]
         mock_prompt_builder = MagicMock(return_value="test prompt")
 
@@ -53,12 +53,12 @@ class TestGoalSubgraph:
         assert subgraph.tools == mock_tools
         assert subgraph.prompt_builder == mock_prompt_builder
 
-    @patch('app.agents.supervisor.goal_agent.subgraph.ChatBedrockConverse')
-    def test_create_goal_subgraph_function(self, mock_bedrock):
+    @patch('app.agents.supervisor.goal_agent.subgraph.ChatCerebras')
+    def test_create_goal_subgraph_function(self, mock_cerebras):
         """Test create_goal_subgraph function."""
         # Arrange
         mock_llm = MagicMock()
-        mock_bedrock.return_value = mock_llm
+        mock_cerebras.return_value = mock_llm
         mock_tools = [create_mock_tool()]
         mock_prompt_builder = MagicMock(return_value="test prompt")
 
@@ -70,13 +70,13 @@ class TestGoalSubgraph:
         # Should return a compiled workflow
         assert hasattr(result, 'ainvoke')
 
-    @patch('app.agents.supervisor.goal_agent.subgraph.ChatBedrockConverse')
+    @patch('app.agents.supervisor.goal_agent.subgraph.ChatCerebras')
     @pytest.mark.asyncio
-    async def test_agent_node_processing(self, mock_bedrock):
+    async def test_agent_node_processing(self, mock_cerebras):
         """Test agent_node message processing."""
         # Arrange
         mock_llm = MagicMock()
-        mock_bedrock.return_value = mock_llm
+        mock_cerebras.return_value = mock_llm
         mock_tools = [create_mock_tool()]
         mock_prompt_builder = MagicMock(return_value="test prompt")
 
@@ -101,9 +101,9 @@ class TestGoalSubgraph:
         assert "messages" in result
         assert len(result["messages"]) > 1  # Should have added the AI response
 
-    @patch('app.agents.supervisor.goal_agent.subgraph.ChatBedrockConverse')
+    @patch('app.agents.supervisor.goal_agent.subgraph.ChatCerebras')
     @pytest.mark.asyncio
-    async def test_supervisor_node_processing(self, mock_bedrock):
+    async def test_supervisor_node_processing(self, mock_cerebras):
         """Test supervisor_node response formatting."""
         # Arrange
         mock_llm = MagicMock()
@@ -111,7 +111,7 @@ class TestGoalSubgraph:
         mock_model_with_tools = MagicMock()
         mock_model_with_tools.ainvoke = AsyncMock(return_value=AIMessage(content="Mocked AI response"))
         mock_llm.bind_tools = MagicMock(return_value=mock_model_with_tools)
-        mock_bedrock.return_value = mock_llm
+        mock_cerebras.return_value = mock_llm
         mock_tools = [create_mock_tool()]
         mock_prompt_builder = MagicMock(return_value="test prompt")
 
@@ -139,12 +139,12 @@ class TestGoalSubgraph:
         assert final_message.type == "ai"
         assert "Mocked AI response" in final_message.content
 
-    @patch('app.agents.supervisor.goal_agent.subgraph.ChatBedrockConverse')
-    def test_workflow_structure_and_edges(self, mock_bedrock):
+    @patch('app.agents.supervisor.goal_agent.subgraph.ChatCerebras')
+    def test_workflow_structure_and_edges(self, mock_cerebras):
         """Test workflow structure has correct nodes and edges."""
         # Arrange
         mock_llm = MagicMock()
-        mock_bedrock.return_value = mock_llm
+        mock_cerebras.return_value = mock_llm
         mock_tools = [create_mock_tool()]
         mock_prompt_builder = MagicMock(return_value="test prompt")
 

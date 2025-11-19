@@ -1,6 +1,6 @@
 from typing import Callable, List
 
-from langchain_aws import ChatBedrockConverse
+from langchain_cerebras import ChatCerebras
 from langchain_core.tools import BaseTool
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
@@ -21,7 +21,7 @@ Analysis Results:
 STATUS: GOAL AGENT ANALYSIS COMPLETE
 This goal agent analysis is provided to the supervisor for final user response formatting."""
 
-    def __init__(self, llm: ChatBedrockConverse, tools: List[BaseTool], prompt_builder: Callable[[], str], callbacks: list = None):
+    def __init__(self, llm: ChatCerebras, tools: List[BaseTool], prompt_builder: Callable[[], str], callbacks: list = None):
         self.llm = llm
         self.tools = tools
         self.prompt_builder = prompt_builder
@@ -36,7 +36,7 @@ This goal agent analysis is provided to the supervisor for final user response f
             """Agent node that processes messages with tools."""
             system_prompt = self.prompt_builder()
 
-            # Filter messages to only include valid roles for Bedrock
+            # Filter messages to only include valid roles for Cerebras
             valid_messages = []
             for msg in state["messages"]:
                 if isinstance(msg, dict):
@@ -103,7 +103,7 @@ This goal agent analysis is provided to the supervisor for final user response f
         return workflow.compile(checkpointer=None)
 
 
-def create_goal_subgraph(llm: ChatBedrockConverse, tools: List[BaseTool], prompt_builder: Callable[[], str], callbacks: list = None):
+def create_goal_subgraph(llm: ChatCerebras, tools: List[BaseTool], prompt_builder: Callable[[], str], callbacks: list = None):
     """Create the goal subgraph."""
     subgraph = GoalSubgraph(llm, tools, prompt_builder, callbacks)
     return subgraph.create()

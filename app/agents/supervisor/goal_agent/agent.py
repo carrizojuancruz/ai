@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from langchain_aws import ChatBedrockConverse
+from langchain_cerebras import ChatCerebras
 from langfuse import Langfuse
 from langfuse.langchain import CallbackHandler
 from langgraph.graph.state import CompiledStateGraph
@@ -38,7 +38,7 @@ class GoalAgent:
 
         """
         configure_logging()
-        logger.info("Initializing GoalAgent with Bedrock models")
+        logger.info("Initializing GoalAgent with Cerebras models")
 
         # Use provided callbacks or initialize from env vars
         if callbacks is not None:
@@ -66,16 +66,12 @@ class GoalAgent:
                     "[Langfuse][goal] Env vars missing or incomplete; tracing disabled (host=%s)",
                     goal_host,
                 )
-        model_id = config.GOAL_AGENT_MODEL_ID
-        llm_kwargs = {
-            "model_id": model_id,
-            "region_name": config.GOAL_AGENT_MODEL_REGION,
-            "temperature": config.GOAL_AGENT_TEMPERATURE,
-            "callbacks": self.callbacks,
-        }
-        if model_id != "openai.gpt-oss-120b-1:0" and getattr(config, "GOAL_AGENT_PROVIDER", None):
-            llm_kwargs["provider"] = config.GOAL_AGENT_PROVIDER
-        self.llm = ChatBedrockConverse(**llm_kwargs)
+        self.llm = ChatCerebras(
+            model="gpt-oss-120b",
+            api_key=config.CEREBRAS_API_KEY,
+            temperature=config.GOAL_AGENT_TEMPERATURE or 0.4,
+            callbacks=self.callbacks,
+        )
 
     def _create_agent_with_tools(self):
         from .tools_math import calculate

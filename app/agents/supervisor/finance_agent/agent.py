@@ -5,6 +5,7 @@ import logging
 from typing import Any, Optional
 from uuid import UUID
 
+from langchain_cerebras import ChatCerebras
 from langchain_core.messages import HumanMessage
 from langgraph.graph import MessagesState
 from langgraph.types import Command, RunnableConfig
@@ -36,7 +37,6 @@ from app.core.app_state import (
 from app.core.config import config
 from app.repositories.database_service import get_database_service
 from app.repositories.postgres.finance_repository import FinanceTables
-from app.services.llm.chat_bedrock import ChatBedrock
 from app.utils.tools import get_config_value
 
 logger = logging.getLogger(__name__)
@@ -89,21 +89,12 @@ class FinanceAgent:
     MAX_ACCOUNT_SAMPLES: int = 1
 
     def __init__(self):
-        logger.info("Initializing FinanceAgent with Bedrock models")
-        guardrails = {
-            "guardrailIdentifier": config.FINANCIAL_AGENT_GUARDRAIL_ID,
-            "guardrailVersion": config.FINANCIAL_AGENT_GUARDRAIL_VERSION,
-            "trace": "enabled",
-        }
+        logger.info("Initializing FinanceAgent with Cerebras models")
 
-        self.sql_generator = ChatBedrock(
-            model_id=config.FINANCIAL_AGENT_MODEL_ID,
-            region_name=config.FINANCIAL_AGENT_MODEL_REGION,
-            temperature=config.FINANCIAL_AGENT_TEMPERATURE,
-            guardrail_config=guardrails,
-            additional_model_request_fields={
-                "reasoning_effort": config.FINANCIAL_AGENT_REASONING_EFFORT
-            }
+        self.sql_generator = ChatCerebras(
+            model="gpt-oss-120b",
+            api_key=config.CEREBRAS_API_KEY,
+            temperature=config.FINANCIAL_AGENT_TEMPERATURE or 0.4,
         )
         logger.info("FinanceAgent initialization completed")
         self._sample_cache: dict[str, dict[str, Any]] = {}

@@ -10,29 +10,29 @@ from app.agents.supervisor.goal_agent.agent import GoalAgent, compile_goal_agent
 class TestGoalAgent:
     """Test cases for GoalAgent class."""
 
-    @patch('app.agents.supervisor.goal_agent.agent.ChatBedrockConverse')
+    @patch('app.agents.supervisor.goal_agent.agent.ChatCerebras')
     @patch('app.agents.supervisor.goal_agent.agent.configure_logging')
-    def test_goal_agent_initialization(self, mock_configure_logging, mock_bedrock):
+    def test_goal_agent_initialization(self, mock_configure_logging, mock_cerebras):
         """Test GoalAgent initialization."""
         # Arrange
         mock_llm = MagicMock()
-        mock_bedrock.return_value = mock_llm
+        mock_cerebras.return_value = mock_llm
 
         # Act
         agent = GoalAgent()
 
         # Assert
         assert agent.llm == mock_llm
-        mock_bedrock.assert_called_once()
+        mock_cerebras.assert_called_once()
         mock_configure_logging.assert_called_once()
 
-    @patch('app.agents.supervisor.goal_agent.agent.ChatBedrockConverse')
+    @patch('app.agents.supervisor.goal_agent.agent.ChatCerebras')
     @patch('app.agents.supervisor.goal_agent.agent.configure_logging')
-    def test_create_agent_with_tools(self, mock_configure_logging, mock_bedrock):
+    def test_create_agent_with_tools(self, mock_configure_logging, mock_cerebras):
         """Test _create_agent_with_tools method."""
         # Arrange
         mock_llm = MagicMock()
-        mock_bedrock.return_value = mock_llm
+        mock_cerebras.return_value = mock_llm
         agent = GoalAgent()
 
         with patch('app.agents.supervisor.goal_agent.agent.create_goal_subgraph') as mock_create_subgraph:
@@ -50,13 +50,13 @@ class TestGoalAgent:
             assert len(args[1]) == 8  # Should have 8 tools
             assert callable(args[2])  # prompt_builder should be callable
 
-    @patch('app.agents.supervisor.goal_agent.agent.ChatBedrockConverse')
+    @patch('app.agents.supervisor.goal_agent.agent.ChatCerebras')
     @patch('app.agents.supervisor.goal_agent.agent.configure_logging')
-    def test_create_system_prompt(self, mock_configure_logging, mock_bedrock):
+    def test_create_system_prompt(self, mock_configure_logging, mock_cerebras):
         """Test _create_system_prompt method."""
         # Arrange
         mock_llm = MagicMock()
-        mock_bedrock.return_value = mock_llm
+        mock_cerebras.return_value = mock_llm
         agent = GoalAgent()
 
         # Act
@@ -67,14 +67,14 @@ class TestGoalAgent:
         assert len(prompt) > 0
         assert "GOAL AGENT" in prompt
 
-    @patch('app.agents.supervisor.goal_agent.agent.ChatBedrockConverse')
+    @patch('app.agents.supervisor.goal_agent.agent.ChatCerebras')
     @patch('app.agents.supervisor.goal_agent.agent.configure_logging')
     @pytest.mark.asyncio
-    async def test_process_query_with_agent(self, mock_configure_logging, mock_bedrock):
+    async def test_process_query_with_agent(self, mock_configure_logging, mock_cerebras):
         """Test process_query_with_agent method."""
         # Arrange
         mock_llm = MagicMock()
-        mock_bedrock.return_value = mock_llm
+        mock_cerebras.return_value = mock_llm
         agent = GoalAgent()
 
         mock_workflow = AsyncMock()

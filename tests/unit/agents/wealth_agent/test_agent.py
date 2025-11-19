@@ -20,7 +20,7 @@ class TestWealthAgent:
 
     def test_wealth_agent_initialization(self, mock_llm, mocker):
         """Test WealthAgent initializes correctly."""
-        mocker.patch("app.agents.supervisor.wealth_agent.agent.ChatBedrock", return_value=mock_llm)
+        mocker.patch("app.agents.supervisor.wealth_agent.agent.ChatCerebras", return_value=mock_llm)
 
         agent = WealthAgent()
 
@@ -29,7 +29,7 @@ class TestWealthAgent:
 
     def test_wealth_agent_has_correct_llm_config(self, mock_llm, mocker):
         """Test WealthAgent configures LLM with correct parameters."""
-        mock_llm_class = mocker.patch("app.agents.supervisor.wealth_agent.agent.ChatBedrock")
+        mock_llm_class = mocker.patch("app.agents.supervisor.wealth_agent.agent.ChatCerebras")
         mock_llm_class.return_value = mock_llm
 
         WealthAgent()
@@ -37,10 +37,9 @@ class TestWealthAgent:
         mock_llm_class.assert_called_once()
         call_kwargs = mock_llm_class.call_args[1]
 
-        assert "model_id" in call_kwargs
-        assert "region_name" in call_kwargs
+        assert "model" in call_kwargs
+        assert "api_key" in call_kwargs
         assert "temperature" in call_kwargs
-        assert "guardrail_config" in call_kwargs
 
     def test_create_system_prompt(self, mock_wealth_agent_instance):
         """Test _create_system_prompt generates prompt."""
@@ -106,7 +105,7 @@ class TestCompileWealthAgentGraph:
     def test_compile_creates_wealth_agent(self, mock_llm, mocker):
         """Test compile_wealth_agent_graph creates WealthAgent instance."""
         mock_wealth_class = mocker.patch("app.agents.supervisor.wealth_agent.agent.WealthAgent")
-        mocker.patch("app.agents.supervisor.wealth_agent.agent.ChatBedrock", return_value=mock_llm)
+        mocker.patch("app.agents.supervisor.wealth_agent.agent.ChatCerebras", return_value=mock_llm)
 
         compile_wealth_agent_graph()
 

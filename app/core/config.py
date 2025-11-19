@@ -109,6 +109,8 @@ class Config:
     WEALTH_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("WEALTH_AGENT_GUARDRAIL_ID")
     WEALTH_AGENT_GUARDRAIL_VERSION: Optional[str] = os.getenv("WEALTH_AGENT_GUARDRAIL_VERSION")
 
+    CEREBRAS_API_KEY: str = os.getenv("CEREBRAS_API_KEY") or os.getenv("CEREBRAS_KEY")
+
     # Goal Agent Configuration
     GOAL_AGENT_MODEL_ID: str = os.getenv("GOAL_AGENT_MODEL_ID")
     GOAL_AGENT_PROVIDER: str = os.getenv("GOAL_AGENT_PROVIDER")
@@ -298,6 +300,11 @@ class Config:
         if secrets:
             for key, value in secrets.items():
                 cls.set_env_var(key, value)
+
+            secret_cerebras_key = secrets.get("CEREBRAS_API_KEY") or secrets.get("CEREBRAS_KEY")
+            if secret_cerebras_key and not cls.CEREBRAS_API_KEY:
+                cls.CEREBRAS_API_KEY = str(secret_cerebras_key)
+                os.environ.setdefault("CEREBRAS_API_KEY", str(secret_cerebras_key))
 
         cls.MODEL_STATE = secrets.get("MODEL_STATE", cls.MODEL_STATE)
 

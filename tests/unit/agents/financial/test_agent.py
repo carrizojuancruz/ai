@@ -50,14 +50,14 @@ class TestFinanceAgent:
         """Set up test fixtures."""
         self.user_id = UUID("12345678-1234-5678-9012-123456789012")
 
-    @patch('app.agents.supervisor.finance_agent.agent.ChatBedrock')
+    @patch('app.agents.supervisor.finance_agent.agent.ChatCerebras')
     @patch('app.agents.supervisor.finance_agent.agent.get_database_service')
     @patch('app.agents.supervisor.finance_agent.agent.get_finance_samples')
     @patch('app.agents.supervisor.finance_agent.agent.set_finance_samples')
     @pytest.mark.asyncio
-    async def test_fetch_shallow_samples_cached(self, mock_set_samples, mock_get_samples, mock_get_db, mock_bedrock):
+    async def test_fetch_shallow_samples_cached(self, mock_set_samples, mock_get_samples, mock_get_db, mock_cerebras):
         """Test fetching samples when cached."""
-        mock_bedrock.return_value = MagicMock()
+        mock_cerebras.return_value = MagicMock()
         agent = FinanceAgent()
         mock_get_samples.return_value = ("[]", "[]", "[]", "[]")
 
@@ -67,14 +67,14 @@ class TestFinanceAgent:
         mock_get_samples.assert_called_once_with(self.user_id)
         mock_get_db.assert_not_called()
 
-    @patch('app.agents.supervisor.finance_agent.agent.ChatBedrock')
+    @patch('app.agents.supervisor.finance_agent.agent.ChatCerebras')
     @patch('app.agents.supervisor.finance_agent.agent.get_database_service')
     @patch('app.agents.supervisor.finance_agent.agent.get_finance_samples')
     @patch('app.agents.supervisor.finance_agent.agent.set_finance_samples')
     @pytest.mark.asyncio
-    async def test_fetch_shallow_samples_from_db(self, mock_set_samples, mock_get_samples, mock_get_db, mock_bedrock):
+    async def test_fetch_shallow_samples_from_db(self, mock_set_samples, mock_get_samples, mock_get_db, mock_cerebras):
         """Test fetching samples from database."""
-        mock_bedrock.return_value = MagicMock()
+        mock_cerebras.return_value = MagicMock()
         agent = FinanceAgent()
         mock_get_samples.return_value = None
 
@@ -99,13 +99,13 @@ class TestFinanceAgent:
         assert all(isinstance(r, str) for r in result)
         mock_repo.execute_query.assert_called()
 
-    @patch('app.agents.supervisor.finance_agent.agent.ChatBedrock')
+    @patch('app.agents.supervisor.finance_agent.agent.ChatCerebras')
     @patch('app.agents.supervisor.finance_agent.agent.get_finance_procedural_templates')
     @patch('app.services.llm.agent_prompts.build_finance_system_prompt_local')
     @pytest.mark.asyncio
-    async def test_create_system_prompt(self, mock_build_prompt, mock_get_templates, mock_bedrock):
+    async def test_create_system_prompt(self, mock_build_prompt, mock_get_templates, mock_cerebras):
         """Test creating system prompt."""
-        mock_bedrock.return_value = MagicMock()
+        mock_cerebras.return_value = MagicMock()
         agent = FinanceAgent()
         mock_build_prompt.return_value = "Base prompt"
         mock_get_templates.return_value = []
@@ -116,13 +116,13 @@ class TestFinanceAgent:
         mock_build_prompt.assert_called_once()
         mock_get_templates.assert_called_once()
 
-    @patch('app.agents.supervisor.finance_agent.agent.ChatBedrock')
+    @patch('app.agents.supervisor.finance_agent.agent.ChatCerebras')
     @patch('app.agents.supervisor.finance_agent.agent.create_finance_subgraph')
     @patch('app.agents.supervisor.finance_agent.agent.FinanceAgent._create_system_prompt')
     @pytest.mark.asyncio
-    async def test_create_agent_with_tools(self, mock_create_prompt, mock_create_subgraph, mock_bedrock):
+    async def test_create_agent_with_tools(self, mock_create_prompt, mock_create_subgraph, mock_cerebras):
         """Test creating agent with tools."""
-        mock_bedrock.return_value = MagicMock()
+        mock_cerebras.return_value = MagicMock()
         agent = FinanceAgent()
         mock_create_prompt.return_value = "System prompt"
         mock_subgraph = MagicMock()
@@ -133,14 +133,14 @@ class TestFinanceAgent:
         assert result == mock_subgraph
         mock_create_subgraph.assert_called_once()
 
-    @patch('app.agents.supervisor.finance_agent.agent.ChatBedrock')
+    @patch('app.agents.supervisor.finance_agent.agent.ChatCerebras')
     @patch('app.agents.supervisor.finance_agent.agent.get_cached_finance_agent')
     @patch('app.agents.supervisor.finance_agent.agent.set_cached_finance_agent')
     @patch('app.agents.supervisor.finance_agent.agent.FinanceAgent._create_agent_with_tools')
     @pytest.mark.asyncio
-    async def test_process_query_with_and_without_cache(self, mock_create_agent, mock_set_cached, mock_get_cached, mock_bedrock):
+    async def test_process_query_with_and_without_cache(self, mock_create_agent, mock_set_cached, mock_get_cached, mock_cerebras):
         """Test processing query with and without cached agent."""
-        mock_bedrock.return_value = MagicMock()
+        mock_cerebras.return_value = MagicMock()
         agent = FinanceAgent()
 
         # Test with cached agent

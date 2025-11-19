@@ -16,7 +16,7 @@ def pytest_configure(config):
 
 @pytest.fixture
 def mock_llm():
-    """Mock ChatBedrockConverse LLM."""
+    """Mock ChatCerebras LLM."""
     mock = MagicMock()
     mock.bind_tools = MagicMock(return_value=mock)
 
@@ -95,7 +95,7 @@ def sample_messages():
 @pytest.fixture
 def mock_wealth_agent_instance(mocker, mock_llm):
     """Mock WealthAgent instance."""
-    mocker.patch("app.agents.supervisor.wealth_agent.agent.ChatBedrock", return_value=mock_llm)
+    mocker.patch("app.agents.supervisor.wealth_agent.agent.ChatCerebras", return_value=mock_llm)
 
     from app.agents.supervisor.wealth_agent.agent import WealthAgent
 

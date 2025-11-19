@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Sequence
 
-from langchain_aws import ChatBedrockConverse
+from langchain_core.language_models import BaseChatModel
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
@@ -30,7 +30,7 @@ def _extract_supervisor_text(content: Any) -> str:
 
 
 def create_supervisor_subgraph(
-    model: ChatBedrockConverse,
+    model: BaseChatModel,
     tools: Sequence[Any],
     system_prompt: str,
 ) -> CompiledStateGraph:

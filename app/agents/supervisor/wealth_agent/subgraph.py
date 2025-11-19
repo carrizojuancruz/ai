@@ -4,7 +4,7 @@ import json
 import re
 from typing import Any, Callable, Dict, List
 
-from langchain_aws import ChatBedrockConverse
+from langchain_core.language_models import BaseChatModel
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 
@@ -81,7 +81,7 @@ def _clean_response(response, tool_call_count: int, state: dict, logger):
     return response
 
 def create_wealth_subgraph(
-    llm: ChatBedrockConverse,
+    llm: BaseChatModel,
     tools,
     prompt_builder: Callable[[], str],
 ):

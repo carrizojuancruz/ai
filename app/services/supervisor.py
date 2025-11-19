@@ -575,20 +575,20 @@ class SupervisorService:
             response_text = ""
             try:
                 if isinstance(data, dict) and data:
-                    output_payload = data.get('output')
+                    output_payload = data.get("output")
                     if isinstance(output_payload, dict):
-                        messages_payload = output_payload.get('messages')
+                        messages_payload = output_payload.get("messages")
                         if isinstance(messages_payload, list):
                             for msg in reversed(messages_payload):
-                                content_list = getattr(msg, 'content', None)
-                                if isinstance(content_list, list):
-                                    for content_item in reversed(content_list):
-                                        if isinstance(content_item, dict) and content_item.get('type') == 'text':
-                                            candidate = content_item.get('text', '')
-                                            if candidate and candidate.strip():
-                                                response_text = candidate
-                                                break
-                                if response_text:
+                                raw_content: Any = None
+                                if isinstance(msg, dict):
+                                    raw_content = msg.get("content")
+                                else:
+                                    raw_content = getattr(msg, "content", None)
+
+                                candidate = self._content_to_text(raw_content)
+                                if candidate and candidate.strip():
+                                    response_text = candidate.strip()
                                     break
 
                 if response_text:

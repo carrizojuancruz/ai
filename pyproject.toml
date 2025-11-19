@@ -11,7 +11,7 @@ readme = "README.md"
 package-mode = false
 
 [tool.poetry.dependencies]
-python = ">=3.13,<3.14"
+python = ">=3.12,<3.13"
 fastapi = "^0.116.1"
 uvicorn = "^0.35.0"
 langgraph = "^0.6.5"
@@ -26,6 +26,7 @@ langchain = "^0.3.7"
 langchain_core = "0.3.74"
 langchain-aws = "^0.2.0"
 langchain-community = "^0.3.27"
+langchain-cerebras = "^0.7.0"
 beautifulsoup4 = "^4.13.4"
 langchain-text-splitters = "^0.3.9"
 SQLAlchemy = "2.0.43"

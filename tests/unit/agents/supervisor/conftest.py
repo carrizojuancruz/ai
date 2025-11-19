@@ -43,7 +43,7 @@ def mock_bedrock_client(mocker):
 
 @pytest.fixture
 def mock_chat_bedrock(mocker):
-    mock = mocker.patch("app.agents.supervisor.agent.ChatBedrockConverse")
+    mock = mocker.patch("app.agents.supervisor.agent.ChatCerebras")
     mock_instance = MagicMock()
 
     mock_response = MagicMock()
