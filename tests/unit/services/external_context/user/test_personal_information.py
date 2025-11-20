@@ -174,6 +174,34 @@ class TestGetAllPersonalInfo:
         assert sorted(actual_endpoints) == sorted(expected_endpoints)
 
 
+class TestGetProfileDetails:
+    """Tests for get_profile_details helper."""
+
+    @pytest.mark.asyncio
+    async def test_returns_profile_details(self, service, mock_http_client):
+        mock_client_instance = AsyncMock()
+        mock_http_client.return_value = mock_client_instance
+        service.http_client = mock_client_instance
+
+        mock_client_instance.get.return_value = {"birth_date": "1990-05-10", "location": "Austin, TX"}
+
+        result = await service.get_profile_details("user_123")
+
+        assert result == {"birth_date": "1990-05-10", "location": "Austin, TX"}
+        mock_client_instance.get.assert_awaited_once_with("/internal/users/profile/user_123")
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_error(self, service, mock_http_client):
+        mock_client_instance = AsyncMock()
+        mock_http_client.return_value = mock_client_instance
+        service.http_client = mock_client_instance
+        mock_client_instance.get.side_effect = Exception("boom")
+
+        result = await service.get_profile_details("user_123")
+
+        assert result is None
+
+
 class TestFormatVeraApproach:
     """Test cases for _format_vera_approach method."""
 

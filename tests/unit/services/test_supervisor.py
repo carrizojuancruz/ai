@@ -9,9 +9,10 @@ Focus on valuable business logic:
 - Prior conversation retrieval
 - Thread management
 """
+
 import contextlib
 from datetime import datetime
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import UUID
 
 import pytest
@@ -134,11 +135,7 @@ class TestContentToText:
 
     def test_extracts_from_dict_list(self, supervisor_service):
         """Should extract text from list of dicts."""
-        content = [
-            {"text": "First part "},
-            {"content": "second part"},
-            {"text": " third part"}
-        ]
+        content = [{"text": "First part "}, {"content": "second part"}, {"text": " third part"}]
 
         result = supervisor_service._content_to_text(content)
 
@@ -146,12 +143,7 @@ class TestContentToText:
 
     def test_handles_mixed_list(self, supervisor_service):
         """Should handle mixed list of strings and dicts."""
-        content = [
-            {"text": "Part 1"},
-            "ignored string",
-            {"content": "Part 2"},
-            {"other_key": "ignored"}
-        ]
+        content = [{"text": "Part 1"}, "ignored string", {"content": "Part 2"}, {"other_key": "ignored"}]
 
         result = supervisor_service._content_to_text(content)
 
@@ -170,7 +162,7 @@ class TestExtractChatPairs:
             {"role": "assistant", "content": "Hi there"},
             {"role": "system", "content": "System message"},
             {"role": "user", "content": "How are you?"},
-            {"role": "assistant", "content": "I'm good!"}
+            {"role": "assistant", "content": "I'm good!"},
         ]
 
         result = supervisor_service._extract_chat_pairs(messages)
@@ -182,10 +174,7 @@ class TestExtractChatPairs:
         assert result[3] == ("assistant", "I'm good!")
 
         # Handles 'human' and 'ai' role names
-        messages_alt = [
-            {"role": "human", "content": "Question"},
-            {"role": "ai", "content": "Answer"}
-        ]
+        messages_alt = [{"role": "human", "content": "Question"}, {"role": "ai", "content": "Answer"}]
 
         result_alt = supervisor_service._extract_chat_pairs(messages_alt)
         assert result_alt == [("user", "Question"), ("assistant", "Answer")]
@@ -197,7 +186,7 @@ class TestExtractChatPairs:
             {"role": "user", "content": "Valid message"},
             {"role": "assistant", "content": "  "},
             {"role": "user", "content": ""},
-            {"role": "assistant", "content": "Another valid"}
+            {"role": "assistant", "content": "Another valid"},
         ]
 
         result = supervisor_service._extract_chat_pairs(messages)
@@ -235,7 +224,6 @@ class TestLoadUserContextFromExternal:
             assert result.user_id == mock_user_id
             mock_repo.get_by_id.assert_called_once_with(mock_user_id)
 
-
     @pytest.mark.asyncio
     async def test_load_user_context_handles_external_error(self, supervisor_service, mock_user_id):
         """Should fallback to empty context on external service error."""
@@ -249,6 +237,32 @@ class TestLoadUserContextFromExternal:
             # Should return fallback UserContext
             assert result.user_id == mock_user_id
 
+    @pytest.mark.asyncio
+    async def test_load_user_context_merges_profile_details(self, supervisor_service, mock_user_id):
+        """Should merge birth date and infer region from profile details."""
+        with (
+            patch("app.services.supervisor.ExternalUserRepository") as mock_repo_class,
+            patch("app.services.supervisor.PersonalInformationService") as mock_info_class,
+            patch("app.services.supervisor.location_normalizer") as mock_normalizer,
+        ):
+            mock_repo = AsyncMock()
+            mock_repo.get_by_id.return_value = None
+            mock_repo_class.return_value = mock_repo
+
+            mock_info = MagicMock()
+            mock_info.get_all_personal_info = AsyncMock(return_value=None)
+            mock_info.get_profile_details = AsyncMock(return_value={"birth_date": "1990-05-10", "location": "Austin"})
+            mock_info_class.return_value = mock_info
+
+            mock_normalizer.normalize.return_value = ("Austin", "Texas")
+
+            result = await supervisor_service._load_user_context_from_external(mock_user_id)
+
+            assert result.identity.birth_date == "1990-05-10"
+            assert result.location.city == "Austin"
+            assert result.location.region == "Texas"
+            mock_normalizer.normalize.assert_called_once_with("Austin")
+
 
 class TestExportUserContextToExternal:
     """Test user context export to external service."""
@@ -260,8 +274,8 @@ class TestExportUserContextToExternal:
         mock_response = {"success": True}
 
         with (
-            patch("app.services.external_context.user.mapping.map_user_context_to_ai_context") as mock_map,
-            patch("app.services.external_context.user.repository.ExternalUserRepository") as mock_repo_class,
+            patch("app.services.supervisor.map_user_context_to_ai_context") as mock_map,
+            patch("app.services.supervisor.ExternalUserRepository") as mock_repo_class,
         ):
             mock_map.return_value = {"preferred_name": "John"}
             mock_repo = AsyncMock()
@@ -270,8 +284,11 @@ class TestExportUserContextToExternal:
 
             result = await supervisor_service._export_user_context_to_external(user_context)
 
-            assert result is True
-            mock_repo.upsert.assert_awaited_once_with(mock_user_id, {"preferred_name": "John"})
+        assert result is True
+        mock_repo.upsert.assert_awaited_once()
+        upsert_args, _ = mock_repo.upsert.await_args
+        assert upsert_args[0] == mock_user_id
+        assert upsert_args[1]["preferred_name"] == "John"
 
     @pytest.mark.asyncio
     async def test_export_user_context_handles_none_response(self, supervisor_service, mock_user_id):
@@ -307,6 +324,63 @@ class TestExportUserContextToExternal:
 
             assert result is False
 
+    @pytest.mark.asyncio
+    async def test_export_user_context_updates_metadata(self, supervisor_service, mock_user_id):
+        """Should update profile metadata alongside context upsert."""
+        user_context = UserContext(user_id=mock_user_id)
+
+        with (
+            patch("app.services.supervisor.map_user_context_to_ai_context", return_value={"foo": "bar"}),
+            patch("app.services.supervisor.ExternalUserRepository") as mock_repo_class,
+            patch(
+                "app.services.supervisor.build_profile_metadata_payload",
+                return_value={"meta_data": {"user_profile": {"preferred_name": "Alice"}}},
+            ),
+        ):
+            mock_repo = AsyncMock()
+            mock_repo.upsert.return_value = {"status": "ok"}
+            mock_repo.update_user_profile_metadata = AsyncMock(return_value={"status": "ok"})
+            mock_repo_class.return_value = mock_repo
+
+            result = await supervisor_service._export_user_context_to_external(user_context)
+
+        assert result is True
+        mock_repo.upsert.assert_awaited_once()
+        upsert_args, _ = mock_repo.upsert.await_args
+        assert upsert_args[0] == mock_user_id
+        assert upsert_args[1]["foo"] == "bar"
+        mock_repo.update_user_profile_metadata.assert_awaited_once_with(
+            mock_user_id,
+            {"meta_data": {"user_profile": {"preferred_name": "Alice"}}},
+        )
+
+    @pytest.mark.asyncio
+    async def test_export_user_context_metadata_error_is_tolerated(self, supervisor_service, mock_user_id):
+        """Metadata errors should not block context export."""
+        user_context = UserContext(user_id=mock_user_id)
+
+        with (
+            patch("app.services.supervisor.map_user_context_to_ai_context", return_value={"foo": "bar"}),
+            patch("app.services.supervisor.ExternalUserRepository") as mock_repo_class,
+            patch(
+                "app.services.supervisor.build_profile_metadata_payload",
+                return_value={"meta_data": {"user_profile": {"preferred_name": "Alice"}}},
+            ),
+        ):
+            mock_repo = AsyncMock()
+            mock_repo.upsert.return_value = {"status": "ok"}
+            mock_repo.update_user_profile_metadata = AsyncMock(side_effect=Exception("metadata failure"))
+            mock_repo_class.return_value = mock_repo
+
+            result = await supervisor_service._export_user_context_to_external(user_context)
+
+        assert result is True
+        mock_repo.upsert.assert_awaited_once()
+        upsert_args, _ = mock_repo.upsert.await_args
+        assert upsert_args[0] == mock_user_id
+        assert upsert_args[1]["foo"] == "bar"
+        mock_repo.update_user_profile_metadata.assert_awaited_once()
+
 
 class TestLoadConversationMessages:
     """Test conversation message loading from session."""
@@ -316,10 +390,7 @@ class TestLoadConversationMessages:
         mock_store = Mock()
         mock_store.sessions = {
             "thread-123": {
-                "conversation_messages": [
-                    {"role": "user", "content": "Hello"},
-                    {"role": "assistant", "content": "Hi"}
-                ]
+                "conversation_messages": [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi"}]
             }
         }
 
@@ -341,9 +412,7 @@ class TestLoadConversationMessages:
     def test_load_conversation_messages_handles_missing_messages_key(self, supervisor_service):
         """Should return empty list when conversation_messages key missing."""
         mock_store = Mock()
-        mock_store.sessions = {
-            "thread-123": {"user_id": "user-1"}
-        }
+        mock_store.sessions = {"thread-123": {"user_id": "user-1"}}
 
         result = supervisor_service._load_conversation_messages(mock_store, "thread-123")
 
@@ -364,9 +433,7 @@ class TestFindLatestPriorThread:
             "thread-3": {"last_accessed": datetime(2024, 1, 2)},
         }
 
-        result = await supervisor_service._find_latest_prior_thread(
-            mock_store, "user-1", "thread-2"
-        )
+        result = await supervisor_service._find_latest_prior_thread(mock_store, "user-1", "thread-2")
 
         # Should skip thread-2 (current) and return thread-3 as most recent
         assert result == "thread-3"
@@ -381,9 +448,7 @@ class TestFindLatestPriorThread:
             "thread-2": {"last_accessed": datetime(2024, 1, 5)},  # Current thread
         }
 
-        result = await supervisor_service._find_latest_prior_thread(
-            mock_store, "user-1", "thread-2"
-        )
+        result = await supervisor_service._find_latest_prior_thread(mock_store, "user-1", "thread-2")
 
         assert result == "thread-1"
 
@@ -396,9 +461,7 @@ class TestFindLatestPriorThread:
             "thread-1": {"last_accessed": datetime(2024, 1, 1)},
         }
 
-        result = await supervisor_service._find_latest_prior_thread(
-            mock_store, "user-1", "thread-1"
-        )
+        result = await supervisor_service._find_latest_prior_thread(mock_store, "user-1", "thread-1")
 
         assert result is None
 
@@ -409,9 +472,7 @@ class TestFindLatestPriorThread:
         mock_store.get_user_threads.return_value = []
         mock_store.sessions = {}
 
-        result = await supervisor_service._find_latest_prior_thread(
-            mock_store, "user-1", "thread-1"
-        )
+        result = await supervisor_service._find_latest_prior_thread(mock_store, "user-1", "thread-1")
 
         assert result is None
 
@@ -566,9 +627,7 @@ class TestInitialize:
             assert "welcome" in result
             assert "sse_url" in result
             assert result["welcome"] == "Welcome to Vera!"
-            mock_q.put.assert_any_call(
-                {"event": "conversation.started", "data": {"thread_id": result["thread_id"]}}
-            )
+            mock_q.put.assert_any_call({"event": "conversation.started", "data": {"thread_id": result["thread_id"]}})
 
     @pytest.mark.asyncio
     async def test_initialize_with_prior_conversation(self, supervisor_service, mock_user_id):
@@ -590,9 +649,7 @@ class TestInitialize:
             mock_store.sessions = {
                 "thread-1": {
                     "last_accessed": 100,
-                    "conversation_messages": [
-                        {"role": "user", "content": "Previous chat"}
-                    ],
+                    "conversation_messages": [{"role": "user", "content": "Previous chat"}],
                 }
             }
             mock_store_getter.return_value = mock_store
@@ -686,10 +743,7 @@ class TestProcessMessage:
                 await supervisor_service.process_message(thread_id="thread-1", text="Hello")
 
             # Check that step.update was emitted
-            step_updates = [
-                call for call in mock_q.put.call_args_list
-                if call[0][0].get("event") == "step.update"
-            ]
+            step_updates = [call for call in mock_q.put.call_args_list if call[0][0].get("event") == "step.update"]
             assert len(step_updates) > 0
             assert step_updates[0][0][0]["data"]["status"] == "processing"
 
@@ -719,18 +773,14 @@ class TestProcessMessage:
 
             async def mock_stream(*args, **kwargs):
                 # Emit minimal events to complete the flow
-                yield {"event": "on_chain_end", "name": "supervisor", "data": {
-                    "output": {"messages": []}
-                }}
+                yield {"event": "on_chain_end", "name": "supervisor", "data": {"output": {"messages": []}}}
 
             mock_compiled.astream_events = mock_stream
             mock_graph.return_value = mock_compiled
 
             # Mock external context loading
             updated_context = UserContext(user_id=mock_user_id, preferred_name="New Name")
-            supervisor_service._load_user_context_from_external = AsyncMock(
-                return_value=updated_context
-            )
+            supervisor_service._load_user_context_from_external = AsyncMock(return_value=updated_context)
 
             await supervisor_service.process_message(thread_id="thread-1", text="Hello")
 
@@ -775,15 +825,7 @@ class TestProcessMessage:
                     def __init__(self):
                         self.content = [{"type": "text", "text": "Hi there! How can I help?"}]
 
-                yield {
-                    "event": "on_chain_end",
-                    "name": "supervisor",
-                    "data": {
-                        "output": {
-                            "messages": [MockMessage()]
-                        }
-                    }
-                }
+                yield {"event": "on_chain_end", "name": "supervisor", "data": {"output": {"messages": [MockMessage()]}}}
 
             mock_compiled.astream_events = mock_stream
             mock_graph.return_value = mock_compiled
@@ -837,15 +879,7 @@ class TestProcessMessage:
                         # Strip will remove everything from marker onwards, leaving "I cannot help with that."
                         self.content = [{"type": "text", "text": "I cannot help with that. [GUARDRAIL_INTERVENED]"}]
 
-                yield {
-                    "event": "on_chain_end",
-                    "name": "supervisor",
-                    "data": {
-                        "output": {
-                            "messages": [MockMessage()]
-                        }
-                    }
-                }
+                yield {"event": "on_chain_end", "name": "supervisor", "data": {"output": {"messages": [MockMessage()]}}}
 
             mock_compiled.astream_events = mock_stream
             mock_graph.return_value = mock_compiled
@@ -907,11 +941,7 @@ class TestProcessMessage:
                     def __init__(self):
                         self.content = [{"type": "text", "text": "Found some info!"}]
 
-                yield {
-                    "event": "on_chain_end",
-                    "name": "supervisor",
-                    "data": {"output": {"messages": [MockMessage()]}}
-                }
+                yield {"event": "on_chain_end", "name": "supervisor", "data": {"output": {"messages": [MockMessage()]}}}
 
             mock_compiled.astream_events = mock_stream
             mock_graph.return_value = mock_compiled
@@ -923,14 +953,8 @@ class TestProcessMessage:
             await supervisor_service.process_message(thread_id="thread-1", text="Search for info")
 
             # Check tool events were emitted
-            tool_starts = [
-                call for call in mock_q.put.call_args_list
-                if call[0][0].get("event") == "tool.start"
-            ]
-            tool_ends = [
-                call for call in mock_q.put.call_args_list
-                if call[0][0].get("event") == "tool.end"
-            ]
+            tool_starts = [call for call in mock_q.put.call_args_list if call[0][0].get("event") == "tool.start"]
+            tool_ends = [call for call in mock_q.put.call_args_list if call[0][0].get("event") == "tool.end"]
 
             assert len(tool_starts) > 0
             assert len(tool_ends) > 0
@@ -965,18 +989,12 @@ class TestProcessMessage:
                     def __init__(self):
                         self.content = [{"type": "text", "text": "Response"}]
 
-                yield {
-                    "event": "on_chain_end",
-                    "name": "supervisor",
-                    "data": {"output": {"messages": [MockMessage()]}}
-                }
+                yield {"event": "on_chain_end", "name": "supervisor", "data": {"output": {"messages": [MockMessage()]}}}
 
             mock_compiled.astream_events = mock_stream
             mock_graph.return_value = mock_compiled
 
-            supervisor_service._load_user_context_from_external = AsyncMock(
-                return_value=user_context
-            )
+            supervisor_service._load_user_context_from_external = AsyncMock(return_value=user_context)
             supervisor_service._export_user_context_to_external = AsyncMock()
 
             await supervisor_service.process_message(thread_id="thread-1", text="Hello")
@@ -997,21 +1015,13 @@ class TestAddSourceFromToolEnd:
         data = {
             "output": {
                 "content": [
-                    {
-                        "source": "https://example.com/doc1",
-                        "metadata": {"name": "Document 1", "type": "pdf"}
-                    },
-                    {
-                        "source": "https://example.com/doc2",
-                        "metadata": {"name": "Document 2"}
-                    }
+                    {"source": "https://example.com/doc1", "metadata": {"name": "Document 1", "type": "pdf"}},
+                    {"source": "https://example.com/doc2", "metadata": {"name": "Document 2"}},
                 ]
             }
         }
 
-        result = supervisor_service._add_source_from_tool_end(
-            sources, "search_knowledge", data, None
-        )
+        result = supervisor_service._add_source_from_tool_end(sources, "search_knowledge", data, None)
 
         assert len(result) == 2
         assert result[0]["url"] == "https://example.com/doc1"
@@ -1022,15 +1032,9 @@ class TestAddSourceFromToolEnd:
     def test_add_source_handles_string_content(self, supervisor_service):
         """Should handle tool output with plain string URL."""
         sources = []
-        data = {
-            "output": {
-                "content": "https://example.com/page"
-            }
-        }
+        data = {"output": {"content": "https://example.com/page"}}
 
-        result = supervisor_service._add_source_from_tool_end(
-            sources, "web_search", data, None
-        )
+        result = supervisor_service._add_source_from_tool_end(sources, "web_search", data, None)
 
         assert len(result) == 1
         assert result[0]["url"] == "https://example.com/page"
@@ -1040,9 +1044,7 @@ class TestAddSourceFromToolEnd:
         sources = [{"url": "https://existing.com"}]
         data = {}
 
-        result = supervisor_service._add_source_from_tool_end(
-            sources, "some_tool", data, None
-        )
+        result = supervisor_service._add_source_from_tool_end(sources, "some_tool", data, None)
 
         assert len(result) == 1
         assert result[0]["url"] == "https://existing.com"
@@ -1050,63 +1052,36 @@ class TestAddSourceFromToolEnd:
     def test_add_source_skips_finance_agent_sources(self, supervisor_service):
         """Should skip sources when current agent is finance_agent."""
         sources = []
-        data = {
-            "output": {
-                "content": [{"source": "https://example.com"}]
-            }
-        }
+        data = {"output": {"content": [{"source": "https://example.com"}]}}
 
-        result = supervisor_service._add_source_from_tool_end(
-            sources, "tool", data, "transfer_to_finance_agent"
-        )
+        result = supervisor_service._add_source_from_tool_end(sources, "tool", data, "transfer_to_finance_agent")
 
         assert len(result) == 0
 
     def test_add_source_skips_goal_agent_sources(self, supervisor_service):
         """Should skip sources when current agent is goal_agent."""
         sources = []
-        data = {
-            "output": {
-                "content": [{"source": "https://example.com"}]
-            }
-        }
+        data = {"output": {"content": [{"source": "https://example.com"}]}}
 
-        result = supervisor_service._add_source_from_tool_end(
-            sources, "tool", data, "transfer_to_goal_agent"
-        )
+        result = supervisor_service._add_source_from_tool_end(sources, "tool", data, "transfer_to_goal_agent")
 
         assert len(result) == 0
 
     def test_add_source_skips_search_kb_tool(self, supervisor_service):
         """Should skip sources from search_kb tool."""
         sources = []
-        data = {
-            "output": {
-                "content": [{"source": "https://example.com"}]
-            }
-        }
+        data = {"output": {"content": [{"source": "https://example.com"}]}}
 
-        result = supervisor_service._add_source_from_tool_end(
-            sources, "search_kb", data, None
-        )
+        result = supervisor_service._add_source_from_tool_end(sources, "search_kb", data, None)
 
         assert len(result) == 0
 
     def test_add_source_handles_dict_with_source(self, supervisor_service):
         """Should handle single dict with source field."""
         sources = []
-        data = {
-            "output": {
-                "content": {
-                    "source": "https://example.com/article",
-                    "metadata": {"name": "Article Title"}
-                }
-            }
-        }
+        data = {"output": {"content": {"source": "https://example.com/article", "metadata": {"name": "Article Title"}}}}
 
-        result = supervisor_service._add_source_from_tool_end(
-            sources, "fetch_article", data, None
-        )
+        result = supervisor_service._add_source_from_tool_end(sources, "fetch_article", data, None)
 
         assert len(result) == 1
         assert result[0]["url"] == "https://example.com/article"
@@ -1126,9 +1101,7 @@ class TestAddSourceFromToolEnd:
             }
         }
 
-        result = supervisor_service._add_source_from_tool_end(
-            sources, "tool", data, None
-        )
+        result = supervisor_service._add_source_from_tool_end(sources, "tool", data, None)
 
         # Only the first valid source should be added
         assert len(result) == 1

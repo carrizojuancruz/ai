@@ -210,7 +210,7 @@ class PersonalInformationService:
             "learning_topics": f"/internal/users/profile/learning-topics/{user_id}",
             "health_insurance": f"/internal/users/profile/health-insurance/{user_id}",
             "financial_goals": f"/internal/users/profile/financial-goals/{user_id}",
-            "housing_household_info": f"/internal/users/profile/housing-info/{user_id}"
+            "housing_household_info": f"/internal/users/profile/housing-info/{user_id}",
         }
 
         tasks = [self.http_client.get(endpoint) for endpoint in endpoints.values()]
@@ -237,3 +237,18 @@ class PersonalInformationService:
         # Combine all sections into one natural language string
         natural_description = " ".join(filter(None, formatted_sections))
         return natural_description if natural_description else None
+
+    async def get_profile_details(self, user_id: str) -> Dict[str, Any] | None:
+        """Fetch raw profile details for structured fields (birth_date, location, etc.)."""
+        if not user_id:
+            return None
+
+        endpoint = f"/internal/users/profile/{user_id}"
+        try:
+            data = await self.http_client.get(endpoint)
+            if isinstance(data, dict):
+                return data
+            return None
+        except Exception as exc:
+            logger.warning("Failed to fetch profile details for user %s: %s", user_id, exc)
+            return None

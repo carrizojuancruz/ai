@@ -88,13 +88,14 @@ class TestMergeSummaryIntoContext:
     def test_merges_nested_identity_fields(self, test_user_id):
         """Should merge nested identity object."""
         user_ctx = UserContext(user_id=test_user_id)
-        summary = {"identity": {"preferred_name": "Jane", "pronouns": "she/her", "age": 28}}
+        summary = {"identity": {"preferred_name": "Jane", "pronouns": "she/her", "age": 28, "birth_date": "1995-05-01"}}
 
         _merge_summary_into_context(summary, user_ctx)
 
         assert user_ctx.identity.preferred_name == "Jane"
         assert user_ctx.identity.pronouns == "she/her"
         assert user_ctx.identity.age == 28
+        assert user_ctx.identity.birth_date == "1995-05-01"
 
     def test_merges_nested_style_fields(self, test_user_id):
         """Should merge nested style preferences."""

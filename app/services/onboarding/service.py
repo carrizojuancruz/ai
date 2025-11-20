@@ -21,12 +21,12 @@ from app.core.app_state import (
     set_last_emitted_text,
     set_thread_state,
 )
-from app.models.user import UserContext
 from app.repositories.session_store import get_session_store
 from app.services.external_context.user.mapping import (
     map_ai_context_to_user_context,
     map_user_context_to_ai_context,
 )
+from app.services.external_context.user.profile_metadata import build_profile_metadata_payload
 from app.services.external_context.user.repository import ExternalUserRepository
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ class OnboardingService:
             body = map_user_context_to_ai_context(state.user_context)
             logger.info("[USER CONTEXT EXPORT] Prepared external payload: %s", json.dumps(body, ensure_ascii=False))
 
-            metadata_payload = _build_profile_metadata_payload(state.user_context)
+            metadata_payload = build_profile_metadata_payload(state.user_context)
 
             task_defs: list[tuple[str, Awaitable[dict[str, Any] | None]]] = [
                 ("context_upsert", repo.upsert(state.user_id, body))
@@ -284,26 +284,3 @@ class OnboardingService:
 
 
 onboarding_service = OnboardingService()
-
-
-def _build_profile_metadata_payload(user_ctx: UserContext) -> dict[str, Any] | None:
-    user_profile: dict[str, Any] = {}
-
-    preferred_name = user_ctx.preferred_name or user_ctx.identity.preferred_name
-    if preferred_name:
-        user_profile["preferred_name"] = preferred_name
-
-    birth_date = getattr(user_ctx.identity, "birth_date", None)
-    if birth_date:
-        user_profile["birth_date"] = birth_date
-
-    city = getattr(user_ctx.location, "city", None)
-    region = getattr(user_ctx.location, "region", None)
-    location_parts = [part for part in [city, region] if part]
-    if location_parts:
-        user_profile["location"] = ", ".join(location_parts)
-
-    if not user_profile:
-        return None
-
-    return {"meta_data": {"user_profile": user_profile}}

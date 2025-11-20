@@ -67,7 +67,7 @@ def _merge_summary_into_context(summary: dict[str, Any], user_ctx: UserContext) 
                 logger.warning("[CONTEXT_LOAD] Could not set list field %s: %s", field, e)
 
     nested_fields = {
-        "identity": ["preferred_name", "pronouns", "age"],
+        "identity": ["preferred_name", "pronouns", "age", "birth_date"],
         "safety": ["blocked_categories", "allow_sensitive"],
         "style": ["tone", "verbosity", "formality", "emojis"],
         "location": ["city", "region", "cost_of_living", "travel", "local_rules"],

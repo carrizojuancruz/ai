@@ -5,7 +5,7 @@ import json
 import logging
 import re
 from os import environ
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Awaitable, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
 from langfuse import Langfuse
@@ -36,9 +36,14 @@ from app.models.user import UserContext
 from app.repositories.database_service import get_database_service
 from app.repositories.session_store import InMemorySessionStore, get_session_store
 from app.services.audio_service import get_audio_service, start_audio_service_for_thread
-from app.services.external_context.user.mapping import map_ai_context_to_user_context
+from app.services.external_context.user.mapping import (
+    map_ai_context_to_user_context,
+    map_user_context_to_ai_context,
+)
 from app.services.external_context.user.personal_information import PersonalInformationService
+from app.services.external_context.user.profile_metadata import build_profile_metadata_payload
 from app.services.external_context.user.repository import ExternalUserRepository
+from app.services.location.normalizer import location_normalizer
 from app.utils.mapping import get_source_name
 from app.utils.tools import check_repeated_sources
 from app.utils.welcome import call_llm, generate_personalized_welcome
@@ -76,7 +81,6 @@ if config.LANGFUSE_PUBLIC_GOAL_KEY and config.LANGFUSE_SECRET_GOAL_KEY:
 STREAM_WORD_GROUP_SIZE = 3
 
 
-
 # Guardrail handling
 GUARDRAIL_INTERVENED_MARKER: str = "[GUARDRAIL_INTERVENED]"
 GUARDRAIL_USER_PLACEHOLDER: str = "THIS MESSAGE HIT THE BEDROCK GUARDRAIL, SO IT WAS REMOVED"
@@ -86,10 +90,12 @@ _EMOJI_STRIP_RE = re.compile(
     flags=re.UNICODE,
 )
 
+
 def _strip_emojis(text: str) -> str:
     if not isinstance(text, str):
         return text
     return _EMOJI_STRIP_RE.sub("", text)
+
 
 # Warn if Langfuse env is missing so callbacks would be disabled silently
 if not config.is_langfuse_supervisor_enabled():
@@ -113,6 +119,10 @@ class SupervisorService:
             personal_info = await personal_info_service.get_all_personal_info(str(user_id))
             if personal_info:
                 ctx.personal_information = personal_info
+
+            profile_details = await personal_info_service.get_profile_details(str(user_id))
+            if profile_details:
+                self._merge_profile_details(ctx, profile_details)
             if external_ctx:
                 ctx = map_ai_context_to_user_context(external_ctx, ctx)
                 logger.info(f"[SUPERVISOR] External AI Context loaded for user: {user_id}")
@@ -129,19 +139,66 @@ class SupervisorService:
     async def _export_user_context_to_external(self, user_context: UserContext) -> bool:
         """Export UserContext to external FOS service."""
         try:
-            from app.services.external_context.user.mapping import map_user_context_to_ai_context
-            from app.services.external_context.user.repository import ExternalUserRepository
-
             repo = ExternalUserRepository()
             body = map_user_context_to_ai_context(user_context)
             logger.info(f"[SUPERVISOR] Prepared external payload: {json.dumps(body, ensure_ascii=False)}")
-            resp = await repo.upsert(user_context.user_id, body)
-            if resp is not None:
-                logger.info(f"[SUPERVISOR] External API acknowledged update for user {user_context.user_id}")
-                return True
-            else:
-                logger.warning(f"[SUPERVISOR] External API returned no body or 404 for user {user_context.user_id}")
-                return False
+
+            metadata_payload = build_profile_metadata_payload(user_context)
+
+            task_defs: list[tuple[str, Awaitable[dict[str, Any] | None]]] = [
+                ("context_upsert", repo.upsert(user_context.user_id, body))
+            ]
+            if metadata_payload:
+                logger.info(
+                    "[SUPERVISOR] Prepared profile metadata payload for user %s: %s",
+                    user_context.user_id,
+                    json.dumps(metadata_payload, ensure_ascii=False),
+                )
+                task_defs.append(
+                    (
+                        "profile_metadata_update",
+                        repo.update_user_profile_metadata(user_context.user_id, metadata_payload),
+                    )
+                )
+
+            results = await asyncio.gather(*(coro for _, coro in task_defs), return_exceptions=True)
+
+            context_upsert_success = False
+            for (task_name, _), result in zip(task_defs, results, strict=True):
+                if isinstance(result, Exception):
+                    logger.warning(
+                        "[SUPERVISOR] %s failed for user %s: %s",
+                        task_name,
+                        user_context.user_id,
+                        result,
+                    )
+                    continue
+
+                if task_name == "context_upsert":
+                    if result is not None:
+                        logger.info(
+                            "[SUPERVISOR] External API acknowledged update for user %s",
+                            user_context.user_id,
+                        )
+                        context_upsert_success = True
+                    else:
+                        logger.warning(
+                            "[SUPERVISOR] External API returned no body or 404 for user %s",
+                            user_context.user_id,
+                        )
+                elif task_name == "profile_metadata_update":
+                    if result is not None:
+                        logger.info(
+                            "[SUPERVISOR] Profile metadata updated for user %s",
+                            user_context.user_id,
+                        )
+                    else:
+                        logger.warning(
+                            "[SUPERVISOR] Profile metadata update returned no body for user %s",
+                            user_context.user_id,
+                        )
+
+            return context_upsert_success
         except Exception as e:
             logger.error(f"[SUPERVISOR] Failed to export user context: {e}")
             return False
@@ -278,6 +335,29 @@ class SupervisorService:
 
         return sources
 
+    def _merge_profile_details(self, ctx: UserContext, details: dict[str, Any]) -> None:
+        """Merge birth date and location fields from user profile service."""
+        birth_date = details.get("birth_date")
+        if isinstance(birth_date, str) and birth_date.strip():
+            ctx.identity.birth_date = birth_date.strip()
+
+        location = details.get("location")
+        if isinstance(location, str) and location.strip():
+            parts = [p.strip() for p in location.split(",") if p.strip()]
+            city: str | None = None
+            region: str | None = None
+            if len(parts) >= 2:
+                city, region = parts[0], parts[1]
+            elif parts:
+                city, region = location_normalizer.normalize(parts[0])
+            else:
+                city, region = None, None
+
+            if city:
+                ctx.location.city = city
+            if region:
+                ctx.location.region = region
+
     async def _find_latest_prior_thread(
         self, session_store: InMemorySessionStore, user_id: str, exclude_thread_id: str
     ) -> Optional[str]:
@@ -340,6 +420,7 @@ class SupervisorService:
         transcript = "\n".join(transcript_lines)
 
         from app.services.llm.prompt_loader import prompt_loader
+
         system_prompt = prompt_loader.load("conversation_summarizer_system_prompt")
 
         prompt = f"Past conversation:\n{transcript}\n\nNatural summary:"
@@ -468,7 +549,7 @@ class SupervisorService:
                     welcome_cleaned,
                     config.TTS_VOICE_ID,
                     config.TTS_OUTPUT_FORMAT,
-                    get_audio_queue(thread_id)
+                    get_audio_queue(thread_id),
                 )
                 logger.info(f"[SUPERVISOR] Welcome audio generated for thread_id: {thread_id}")
             except Exception as e:
@@ -595,7 +676,9 @@ class SupervisorService:
                     prev_latest = (latest_response_text[:80] + "...") if latest_response_text else None
                     latest_response_text = response_text
                     if name == "supervisor":
-                        prev_super = (supervisor_latest_response_text[:80] + "...") if supervisor_latest_response_text else None
+                        prev_super = (
+                            (supervisor_latest_response_text[:80] + "...") if supervisor_latest_response_text else None
+                        )
                         supervisor_latest_response_text = response_text
                         logger.info(
                             f"[TRACE] supervisor.buffer.update from={prev_super} to={(supervisor_latest_response_text[:80] + '...') if supervisor_latest_response_text else None}"
@@ -642,7 +725,6 @@ class SupervisorService:
                 if name and not name.startswith("transfer_to_"):
                     await q.put({"event": "tool.start", "data": {"tool": name}})
 
-
             elif etype == "on_tool_end":
                 sources = self._add_source_from_tool_end(sources, name, data, current_agent_tool)
                 if name and not name.startswith("transfer_to_"):
@@ -670,10 +752,11 @@ class SupervisorService:
 
                         messages = output.get("messages")
                         if isinstance(messages, list) and messages:
+
                             def _meta(msg):
                                 try:
                                     if isinstance(msg, dict):
-                                        return (msg.get("response_metadata", {}) or {})
+                                        return msg.get("response_metadata", {}) or {}
                                     return getattr(msg, "response_metadata", {}) or {}
                                 except Exception:
                                     return {}
@@ -689,10 +772,11 @@ class SupervisorService:
                                 dedupe_key = f"{agent_name}:{current_agent_tool or 'unknown'}"
 
                                 # Only emit source.search.end if we have an active handoff to close
-                                if (dedupe_key not in emitted_handoff_back_keys and
-                                    current_agent_tool and
-                                    current_agent_tool in active_handoffs):
-
+                                if (
+                                    dedupe_key not in emitted_handoff_back_keys
+                                    and current_agent_tool
+                                    and current_agent_tool in active_handoffs
+                                ):
                                     emitted_handoff_back_keys.add(dedupe_key)
                                     # Remove from active handoffs since we're closing it
                                     active_handoffs.discard(current_agent_tool)
@@ -775,9 +859,11 @@ class SupervisorService:
                     words = text_to_stream_cleaned.split(" ")
                     chunks_emitted = 0
                     for i in range(0, len(words), STREAM_WORD_GROUP_SIZE):
-                        word_group = " ".join(words[i:i+STREAM_WORD_GROUP_SIZE])
+                        word_group = " ".join(words[i : i + STREAM_WORD_GROUP_SIZE])
                         if word_group.strip():
-                            await q.put({"event": "token.delta", "data": {"text": word_group + " ", "sources": sources}})
+                            await q.put(
+                                {"event": "token.delta", "data": {"text": word_group + " ", "sources": sources}}
+                            )
                             chunks_emitted += 1
                             await asyncio.sleep(0)
                     logger.info(f"[TRACE] supervisor.stream.end chunks={chunks_emitted}")
@@ -785,13 +871,17 @@ class SupervisorService:
         try:
             final_text = supervisor_latest_response_text
             if final_text:
-                final_text_to_emit = _strip_emojis(self._strip_guardrail_marker(final_text) if hit_guardrail else final_text)
+                final_text_to_emit = _strip_emojis(
+                    self._strip_guardrail_marker(final_text) if hit_guardrail else final_text
+                )
 
                 for nav_event in navigation_events_to_emit:
-                    await q.put({
-                        "event": nav_event.get("event"),
-                        "data": nav_event.get("data", {}),
-                    })
+                    await q.put(
+                        {
+                            "event": nav_event.get("event"),
+                            "data": nav_event.get("data", {}),
+                        }
+                    )
                     logger.info(f"[SUPERVISOR] Emitted navigation event: {nav_event.get('event')}")
 
                 await q.put({"event": "message.completed", "data": {"content": final_text_to_emit}})
@@ -805,7 +895,7 @@ class SupervisorService:
                             final_text_to_emit,
                             config.TTS_VOICE_ID,
                             config.TTS_OUTPUT_FORMAT,
-                            get_audio_queue(thread_id)
+                            get_audio_queue(thread_id),
                         )
                         logger.info(f"[SUPERVISOR] Triggered audio synthesis for thread_id: {thread_id}")
                     except Exception as e:
@@ -821,7 +911,9 @@ class SupervisorService:
         try:
             final_text = supervisor_latest_response_text
             if final_text:
-                assistant_response = _strip_emojis(self._strip_guardrail_marker(final_text) if hit_guardrail else final_text).strip()
+                assistant_response = _strip_emojis(
+                    self._strip_guardrail_marker(final_text) if hit_guardrail else final_text
+                ).strip()
                 if hit_guardrail:
                     # Replace the last user message with a guardrail placeholder to prevent loops
                     for i in range(len(conversation_messages) - 1, -1, -1):
@@ -849,7 +941,9 @@ class SupervisorService:
         except Exception as e:
             logger.exception(f"Failed to store conversation for thread {thread_id}: {e}")
 
-    async def resume_interrupt(self, *, thread_id: str, decision: dict[str, Any] | str | bool, confirm_id: Optional[str] = None) -> None:
+    async def resume_interrupt(
+        self, *, thread_id: str, decision: dict[str, Any] | str | bool, confirm_id: Optional[str] = None
+    ) -> None:
         """Resume a paused graph run for this thread with a decision payload.
 
         The decision value becomes the return value of interrupt() inside the node.
@@ -923,6 +1017,12 @@ class SupervisorService:
         except Exception:
             pass
 
-        await q.put({"event": "step.update", "data": {"status": "presented", "description": _get_random_step_planning_completed()}})
+        await q.put(
+            {
+                "event": "step.update",
+                "data": {"status": "presented", "description": _get_random_step_planning_completed()},
+            }
+        )
+
 
 supervisor_service = SupervisorService()

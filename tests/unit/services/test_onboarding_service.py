@@ -15,7 +15,8 @@ import pytest
 from fastapi import HTTPException
 
 from app.agents.onboarding.state import OnboardingState
-from app.services.onboarding.service import OnboardingService, _build_profile_metadata_payload
+from app.services.external_context.user.profile_metadata import build_profile_metadata_payload
+from app.services.onboarding.service import OnboardingService
 
 
 class TestOnboardingService:
@@ -188,7 +189,7 @@ class TestOnboardingService:
 
     def test_build_profile_metadata_payload_with_full_data(self, onboarding_state_with_profile):
         """Profile metadata payload includes available fields."""
-        payload = _build_profile_metadata_payload(onboarding_state_with_profile.user_context)
+        payload = build_profile_metadata_payload(onboarding_state_with_profile.user_context)
         assert payload == {
             "meta_data": {
                 "user_profile": {
@@ -202,7 +203,7 @@ class TestOnboardingService:
     def test_build_profile_metadata_payload_returns_none_when_empty(self):
         """Payload builder skips empty data."""
         empty_state = OnboardingState(user_id=uuid4())
-        payload = _build_profile_metadata_payload(empty_state.user_context)
+        payload = build_profile_metadata_payload(empty_state.user_context)
         assert payload is None
 
     @pytest.mark.asyncio

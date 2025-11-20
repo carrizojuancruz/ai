@@ -1,5 +1,5 @@
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -22,15 +22,12 @@ def mock_bedrock_response():
     def _create_response(extracted_data):
         return {
             "body": MagicMock(
-                read=lambda: json.dumps({
-                    "output": {
-                        "message": {
-                            "content": [{"text": json.dumps(extracted_data)}]
-                        }
-                    }
-                }).encode("utf-8")
+                read=lambda: json.dumps(
+                    {"output": {"message": {"content": [{"text": json.dumps(extracted_data)}]}}}
+                ).encode("utf-8")
             )
         }
+
     return _create_response
 
 
@@ -45,18 +42,20 @@ class TestProfileSyncFromMemory:
         mock_client = MagicMock()
         mock_bedrock.return_value = mock_client
 
-        extracted_data = {
-            "preferred_name": "Alice",
-            "city": "San Francisco",
-            "age": 30,
-            "tone": "friendly"
-        }
+        extracted_data = {"preferred_name": "Alice", "city": "San Francisco", "age": 30, "tone": "friendly"}
         mock_client.invoke_model.return_value = mock_bedrock_response(extracted_data)
 
         mock_repo = AsyncMock()
         mock_repo.get_by_id.return_value = None
         mock_repo.upsert.return_value = {"status": "ok"}
+        mock_repo.update_user_profile_metadata = AsyncMock(return_value={"status": "ok"})
         mock_repo_class.return_value = mock_repo
+
+        def _apply_patch_side_effect(state, *_args, **_kwargs):
+            state.user_context.preferred_name = "Alice"
+            state.user_context.location.city = "San Francisco"
+
+        mock_patching.apply_context_patch.side_effect = _apply_patch_side_effect
 
         value = {"summary": "User mentioned their name is Alice and they live in SF", "category": "Identity"}
 
@@ -65,6 +64,10 @@ class TestProfileSyncFromMemory:
         mock_client.invoke_model.assert_called_once()
         mock_patching.apply_context_patch.assert_called_once()
         mock_repo.upsert.assert_called_once()
+        mock_repo.update_user_profile_metadata.assert_awaited_once_with(
+            ANY,
+            {"meta_data": {"user_profile": {"preferred_name": "Alice", "location": "San Francisco"}}},
+        )
 
     @pytest.mark.asyncio
     @patch("app.agents.supervisor.memory.profile_sync.context_patching_service")
@@ -76,9 +79,7 @@ class TestProfileSyncFromMemory:
         mock_client = MagicMock()
         mock_bedrock.return_value = mock_client
 
-        extracted_data = {
-            "goals_add": ["save for vacation", "pay off debt"]
-        }
+        extracted_data = {"goals_add": ["save for vacation", "pay off debt"]}
         mock_client.invoke_model.return_value = mock_bedrock_response(extracted_data)
 
         mock_repo = AsyncMock()
@@ -102,10 +103,7 @@ class TestProfileSyncFromMemory:
         mock_client = MagicMock()
         mock_bedrock.return_value = mock_client
 
-        extracted_data = {
-            "income_band": "50k_75k",
-            "money_feelings": "anxious"
-        }
+        extracted_data = {"income_band": "50k_75k", "money_feelings": "anxious"}
         mock_client.invoke_model.return_value = mock_bedrock_response(extracted_data)
 
         mock_repo = AsyncMock()
@@ -132,13 +130,7 @@ class TestProfileSyncFromMemory:
         response_text = 'Here is the JSON: {"city": "Boston", "age": 25} and some extra text'
         mock_client.invoke_model.return_value = {
             "body": MagicMock(
-                read=lambda: json.dumps({
-                    "output": {
-                        "message": {
-                            "content": [{"text": response_text}]
-                        }
-                    }
-                }).encode("utf-8")
+                read=lambda: json.dumps({"output": {"message": {"content": [{"text": response_text}]}}}).encode("utf-8")
             )
         }
 
@@ -162,11 +154,7 @@ class TestProfileSyncFromMemory:
         mock_client = MagicMock()
         mock_bedrock.return_value = mock_client
 
-        extracted_data = {
-            "preferred_name": "  ",
-            "city": "",
-            "age": 0
-        }
+        extracted_data = {"preferred_name": "  ", "city": "", "age": 0}
         mock_client.invoke_model.return_value = mock_bedrock_response(extracted_data)
 
         mock_repo = AsyncMock()
@@ -192,12 +180,7 @@ class TestProfileSyncFromMemory:
         extracted_data = {"city": "Denver"}
         mock_client.invoke_model.return_value = mock_bedrock_response(extracted_data)
 
-        existing_context = {
-            "profile": {
-                "preferred_name": "Bob",
-                "goals": ["save money"]
-            }
-        }
+        existing_context = {"profile": {"preferred_name": "Bob", "goals": ["save money"]}}
 
         mock_repo = AsyncMock()
         mock_repo.get_by_id.return_value = existing_context
@@ -270,21 +253,15 @@ class TestProfileSyncFromMemory:
     @pytest.mark.asyncio
     @patch("app.agents.supervisor.memory.profile_sync.get_bedrock_runtime_client")
     @patch("app.agents.supervisor.memory.profile_sync.ExternalUserRepository")
-    async def test_handles_invalid_json_response(
-        self, mock_repo_class, mock_bedrock, mock_user_id, mock_thread_id
-    ):
+    async def test_handles_invalid_json_response(self, mock_repo_class, mock_bedrock, mock_user_id, mock_thread_id):
         mock_client = MagicMock()
         mock_bedrock.return_value = mock_client
 
         mock_client.invoke_model.return_value = {
             "body": MagicMock(
-                read=lambda: json.dumps({
-                    "output": {
-                        "message": {
-                            "content": [{"text": "not valid json at all"}]
-                        }
-                    }
-                }).encode("utf-8")
+                read=lambda: json.dumps(
+                    {"output": {"message": {"content": [{"text": "not valid json at all"}]}}}
+                ).encode("utf-8")
             )
         }
 

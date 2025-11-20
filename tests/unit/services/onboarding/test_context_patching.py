@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -82,6 +82,18 @@ class TestApplyContextPatch:
 
         assert hasattr(mock_state.user_context, "income")
         mock_state.user_context.sync_nested_to_flat.assert_called_once()
+
+    def test_infers_location_region_when_missing(self, patching_service, mock_state, mock_step):
+        mock_state.user_context.location = MagicMock()
+        mock_step.value = "identity"
+        patch_data = {"city": "Austin"}
+
+        with patch("app.services.onboarding.context_patching.location_normalizer") as mock_normalizer:
+            mock_normalizer.normalize.return_value = ("Austin", "Texas")
+            patching_service.apply_context_patch(mock_state, mock_step, patch_data)
+
+        mock_normalizer.normalize.assert_called_once_with("Austin")
+        assert mock_state.user_context.location.region == "Texas"
 
     def test_applies_nested_field_patch(self, patching_service, mock_state, mock_step):
         mock_state.user_context.identity = MagicMock()

@@ -6,6 +6,7 @@ from contextlib import suppress
 from typing import Any
 
 from app.agents.onboarding.state import OnboardingState
+from app.services.location.normalizer import location_normalizer
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,7 @@ class ContextPatchingService:
             return
 
         normalized_patch = self.normalize_patch_for_step(step, patch)
+        normalized_patch = self._apply_location_inference(normalized_patch)
 
         logger.info(f"[USER CONTEXT UPDATE] Step: {step}")
         logger.info(f"[USER CONTEXT UPDATE] Applying patch: {json.dumps(normalized_patch, indent=2)}")
@@ -174,6 +176,27 @@ class ContextPatchingService:
                 return
 
             target = next_obj
+
+    def _apply_location_inference(self, patch: dict[str, Any]) -> dict[str, Any]:
+        """Infer region when only a city update is present."""
+        location_keys = {"location.city", "city"}
+        region_keys = {"location.region", "region"}
+
+        city_value = None
+        for key in location_keys:
+            if key in patch and isinstance(patch[key], str) and patch[key].strip():
+                city_value = patch[key].strip()
+                break
+
+        has_region = any(isinstance(patch.get(key), str) and patch.get(key).strip() for key in region_keys)
+
+        if city_value and not has_region:
+            normalized_city, normalized_region = location_normalizer.normalize(city_value)
+            if normalized_city:
+                patch["location.city"] = normalized_city
+            if normalized_region:
+                patch["location.region"] = normalized_region
+        return patch
 
 
 context_patching_service = ContextPatchingService()
