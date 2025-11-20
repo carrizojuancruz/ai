@@ -7,7 +7,7 @@ import time
 from datetime import datetime, timezone, tzinfo
 from typing import Any
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_store
 from langgraph.graph import MessagesState
@@ -229,7 +229,7 @@ def _build_context_response(epi_bullets: list[str], sem_bullets: list[str], conf
         sections.extend(f"- {example}" for example in routing_examples)
 
     context_str = "Relevant context for tailoring this turn:\n" + "\n".join(sections)
-    return {"messages": [AIMessage(content=context_str)]}
+    return {"messages": [SystemMessage(content=context_str)]}
 
 
 async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
@@ -291,6 +291,6 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
     except Exception:
         pass
 
-    if not locals().get("epi_bullets") and not locals().get("sem_bullets"):
+    if not locals().get("epi_bullets") and not locals().get("sem_bullets") and not locals().get("routing_examples"):
         return {}
     return _build_context_response(epi_bullets, sem_bullets, config, routing_examples)
