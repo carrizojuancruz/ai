@@ -84,6 +84,45 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Redis healthcheck encountered an error: {e}")
 
+    # Seed supervisor procedural memories (routing examples)
+    try:
+        from app.services.memory.procedural_seeder import get_procedural_seeder
+
+        seeder = get_procedural_seeder()
+        result = await seeder.seed_supervisor_procedurals(force=False)
+
+        if result.get("ok"):
+            logger.info(
+                "Supervisor procedural memories seeded: created=%d skipped=%d errors=%d",
+                result.get("created", 0),
+                result.get("skipped", 0),
+                result.get("errors", 0),
+            )
+        else:
+            logger.warning("Failed to seed supervisor procedural memories: %s", result.get("message", "unknown error"))
+    except Exception as e:
+        logger.error(f"Error seeding supervisor procedural memories: {e}")
+        # Continue startup even if seeding fails (routing examples are optional)
+
+    # Seed finance procedural templates
+    try:
+        from app.services.memory.procedural_seeder import get_procedural_seeder
+
+        seeder = get_procedural_seeder()
+        result = await seeder.seed_finance_templates(force=False)
+
+        if result.get("ok"):
+            logger.info(
+                "Finance procedural templates seeded: created=%d skipped=%d errors=%d",
+                result.get("created", 0),
+                result.get("skipped", 0),
+                result.get("errors", 0),
+            )
+        else:
+            logger.warning("Failed to seed finance procedural templates: %s", result.get("message", "unknown error"))
+    except Exception as e:
+        logger.error(f"Error seeding finance procedural templates: {e}")
+
     try:
         yield
     finally:
@@ -206,6 +245,35 @@ async def redis_health_check() -> dict:
             return {"status": "unhealthy"}
     except Exception as e:
         logger.error(f"Redis health check failed: {e}")
+        return {"status": "error", "error": str(e)}
+
+
+@app.get("/health/procedurals")
+async def procedurals_health_check() -> dict:
+    """Check supervisor procedural memories health."""
+    try:
+        from app.services.memory.procedural_seeder import get_procedural_seeder
+
+        seeder = get_procedural_seeder()
+        result = await seeder.verify_procedurals_exist()
+
+        if result.get("ok"):
+            count = result.get("count", 0)
+            status = "healthy" if count > 0 else "empty"
+            return {
+                "status": status,
+                "count": count,
+                "sample_keys": result.get("sample_keys", []),
+                "message": f"Found {count} supervisor procedural memories" if count > 0 else "No procedural memories found",
+            }
+        else:
+            return {
+                "status": "error",
+                "count": 0,
+                "error": result.get("error", "unknown error"),
+            }
+    except Exception as e:
+        logger.error(f"Procedurals health check failed: {e}")
         return {"status": "error", "error": str(e)}
 
 
