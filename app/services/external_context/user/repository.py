@@ -23,3 +23,8 @@ class ExternalUserRepository:
         """Upsert user context data."""
         endpoint = f"/internal/ai/context/{user_id}"
         return await self.client.put(endpoint, data)
+
+    async def update_user_profile_metadata(self, user_id: UUID, data: dict[str, Any]) -> dict[str, Any] | None:
+        """Update user profile metadata."""
+        endpoint = f"/internal/users/{user_id}"
+        return await self.client.patch(endpoint, data)

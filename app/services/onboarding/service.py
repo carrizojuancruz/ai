@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+from collections.abc import Awaitable
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -19,7 +21,13 @@ from app.core.app_state import (
     set_last_emitted_text,
     set_thread_state,
 )
+from app.models.user import UserContext
 from app.repositories.session_store import get_session_store
+from app.services.external_context.user.mapping import (
+    map_ai_context_to_user_context,
+    map_user_context_to_ai_context,
+)
+from app.services.external_context.user.repository import ExternalUserRepository
 
 logger = logging.getLogger(__name__)
 
@@ -32,24 +40,71 @@ class OnboardingService:
             if session_ctx.get("fos_exported"):
                 return
 
-            from app.services.external_context.user.mapping import map_user_context_to_ai_context
-            from app.services.external_context.user.repository import ExternalUserRepository
-
             repo = ExternalUserRepository()
             body = map_user_context_to_ai_context(state.user_context)
             logger.info("[USER CONTEXT EXPORT] Prepared external payload: %s", json.dumps(body, ensure_ascii=False))
-            resp = await repo.upsert(state.user_id, body)
-            if resp is not None:
-                logger.info("[USER CONTEXT EXPORT] External API acknowledged update for user %s", state.user_id)
-            else:
-                logger.warning("[USER CONTEXT EXPORT] External API returned no body or 404 for user %s", state.user_id)
+
+            metadata_payload = _build_profile_metadata_payload(state.user_context)
+
+            task_defs: list[tuple[str, Awaitable[dict[str, Any] | None]]] = [
+                ("context_upsert", repo.upsert(state.user_id, body))
+            ]
+            if metadata_payload:
+                logger.info(
+                    "[USER CONTEXT EXPORT] Prepared profile metadata payload for user %s: %s",
+                    state.user_id,
+                    json.dumps(metadata_payload, ensure_ascii=False),
+                )
+                task_defs.append(
+                    (
+                        "profile_metadata_update",
+                        repo.update_user_profile_metadata(state.user_id, metadata_payload),
+                    )
+                )
+
+            results = await asyncio.gather(*(coro for _, coro in task_defs), return_exceptions=True)
+
+            for (task_name, _), result in zip(task_defs, results, strict=True):
+                if isinstance(result, Exception):
+                    logger.warning(
+                        "[USER CONTEXT EXPORT] %s failed for user %s: %s",
+                        task_name,
+                        state.user_id,
+                        result,
+                    )
+                    continue
+
+                if task_name == "context_upsert":
+                    if result is not None:
+                        logger.info(
+                            "[USER CONTEXT EXPORT] External API acknowledged update for user %s",
+                            state.user_id,
+                        )
+                    else:
+                        logger.warning(
+                            "[USER CONTEXT EXPORT] External API returned no body or 404 for user %s",
+                            state.user_id,
+                        )
+                elif task_name == "profile_metadata_update":
+                    if result is not None:
+                        logger.info(
+                            "[USER CONTEXT EXPORT] Profile metadata updated for user %s",
+                            state.user_id,
+                        )
+                    else:
+                        logger.warning(
+                            "[USER CONTEXT EXPORT] Profile metadata update returned no body for user %s",
+                            state.user_id,
+                        )
 
             session_ctx["fos_exported"] = True
             await session_store.set_session(thread_id, session_ctx)
         except Exception as e:
             logger.error("[USER CONTEXT EXPORT] Failed to export user context: %s", e)
 
-    async def initialize(self, *, user_id: str | None = None, show_complete_welcome_message: bool = True) -> dict[str, Any]:
+    async def initialize(
+        self, *, user_id: str | None = None, show_complete_welcome_message: bool = True
+    ) -> dict[str, Any]:
         thread_id = str(uuid4())
 
         if user_id and user_id.strip():
@@ -64,9 +119,6 @@ class OnboardingService:
         state = OnboardingState(user_id=user_uuid, show_complete_welcome_message=show_complete_welcome_message)
 
         try:
-            from app.services.external_context.user.mapping import map_ai_context_to_user_context
-            from app.services.external_context.user.repository import ExternalUserRepository
-
             repo = ExternalUserRepository()
             external_ctx = await repo.get_by_id(user_uuid)
             if external_ctx:
@@ -232,3 +284,26 @@ class OnboardingService:
 
 
 onboarding_service = OnboardingService()
+
+
+def _build_profile_metadata_payload(user_ctx: UserContext) -> dict[str, Any] | None:
+    user_profile: dict[str, Any] = {}
+
+    preferred_name = user_ctx.preferred_name or user_ctx.identity.preferred_name
+    if preferred_name:
+        user_profile["preferred_name"] = preferred_name
+
+    birth_date = getattr(user_ctx.identity, "birth_date", None)
+    if birth_date:
+        user_profile["birth_date"] = birth_date
+
+    city = getattr(user_ctx.location, "city", None)
+    region = getattr(user_ctx.location, "region", None)
+    location_parts = [part for part in [city, region] if part]
+    if location_parts:
+        user_profile["location"] = ", ".join(location_parts)
+
+    if not user_profile:
+        return None
+
+    return {"meta_data": {"user_profile": user_profile}}

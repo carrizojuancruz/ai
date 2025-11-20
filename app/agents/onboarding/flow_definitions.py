@@ -37,7 +37,9 @@ STEP_1_CHOICES = [
 ]
 
 INCOME_DECISION_CHOICES = [
-    Choice(id="income_exact", label="Share exact number", value="income_exact", synonyms=["sure", "okay", "yes", "exact"]),
+    Choice(
+        id="income_exact", label="Share exact number", value="income_exact", synonyms=["sure", "okay", "yes", "exact"]
+    ),
     Choice(
         id="income_range",
         label="Pick a range",
@@ -54,7 +56,12 @@ MONEY_FEELINGS_CHOICES = [
         value="confused",
         synonyms=["lost", "unsure", "don't understand", "complicated"],
     ),
-    Choice(id="confident", label="Confident", value="confident", synonyms=["calm", "good", "fine", "comfortable", "confident"]),
+    Choice(
+        id="confident",
+        label="Confident",
+        value="confident",
+        synonyms=["calm", "good", "fine", "comfortable", "confident"],
+    ),
     Choice(
         id="keen_to_learn",
         label="Keen to learn",
@@ -85,6 +92,7 @@ def validate_name(response: str, state: "OnboardingState") -> tuple[bool, str | 
         llm = BedrockLLM()
         schema = {"type": "object", "properties": {"preferred_name": {"type": ["string", "null"]}}}
         from app.services.llm.prompt_loader import prompt_loader
+
         instructions = prompt_loader.load("onboarding_name_extraction")
         out = llm.extract(schema=schema, text=raw, instructions=instructions)
         extracted = (out or {}).get("preferred_name")
@@ -126,6 +134,7 @@ def validate_dob(response: str, state: "OnboardingState") -> tuple[bool, str | N
             return False, "Please use a valid date format like YYYY-MM-DD or MM/DD/YYYY."
 
         today = _dt.date.today()
+        state.user_context.identity.birth_date = parsed.isoformat()
         age_years = today.year - parsed.year - ((today.month, today.day) < (parsed.month, parsed.day))
         with contextlib.suppress(Exception):
             state.user_context.age = age_years
@@ -164,6 +173,7 @@ def validate_location(response: str, state: "OnboardingState") -> tuple[bool, st
                 },
             }
             from app.services.llm.prompt_loader import prompt_loader
+
             instructions = prompt_loader.load("onboarding_location_extraction")
             out = llm.extract(schema=schema, text=response, instructions=instructions)
             if isinstance(out, dict):

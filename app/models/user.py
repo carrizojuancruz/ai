@@ -15,6 +15,7 @@ class Identity(BaseModel):
     preferred_name: str | None = None
     pronouns: str | None = None
     age: int | None = Field(default=None, ge=0)
+    birth_date: str | None = None
 
 
 class Safety(BaseModel):
