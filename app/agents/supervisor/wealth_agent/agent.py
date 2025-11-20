@@ -13,6 +13,7 @@ from app.core.config import config
 from app.observability.logging_config import configure_logging
 
 from .helpers import create_error_command
+from .subgraph import DEFAULT_TEMPERATURE, RECURSION_LIMIT
 from .tools import search_kb
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ class WealthAgent:
         self.llm = ChatCerebras(
             model="gpt-oss-120b",
             api_key=config.CEREBRAS_API_KEY,
-            temperature=config.WEALTH_AGENT_TEMPERATURE or 0.4,
+            temperature=config.WEALTH_AGENT_TEMPERATURE or DEFAULT_TEMPERATURE,
         )
 
     async def process_query_with_agent(self, query: str, user_id: UUID) -> Command:
@@ -41,8 +42,8 @@ class WealthAgent:
             messages = [HumanMessage(content=query)]
 
             logger.info(f"Starting LangGraph agent execution for user {user_id}")
-            initial_state = {"messages": messages, "tool_call_count": 0}
-            agent_command = await agent.ainvoke(initial_state, config={"recursion_limit": 10})
+            initial_state = {"messages": messages, "search_count": 0}
+            agent_command = await agent.ainvoke(initial_state, config={"recursion_limit": RECURSION_LIMIT})
             logger.info(f"Agent execution completed for user {user_id}")
 
             return agent_command
@@ -54,7 +55,11 @@ class WealthAgent:
     def _create_system_prompt(self, user_context: dict = None) -> str:
         """Create system prompt for the wealth agent."""
         from app.services.llm.prompt_loader import prompt_loader
-        return prompt_loader.load("wealth_agent_system_prompt", user_context=user_context)
+        return prompt_loader.load(
+            "wealth_agent_system_prompt",
+            user_context=user_context,
+            max_tool_calls=config.WEALTH_AGENT_MAX_TOOL_CALLS
+        )
 
     def _create_agent_with_tools(self):
         """Create wealth agent with knowledge base search tool."""

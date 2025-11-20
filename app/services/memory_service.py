@@ -458,5 +458,35 @@ class MemoryService:
             logger.error(f"Failed to get all memories: {e}", exc_info=True)
             return []
 
+    def list_supervisor_routing_memories(self) -> list[dict[str, Any]]:
+        """List all supervisor procedural routing memories.
+
+        Returns:
+            List of dicts with keys: key, summary, category
+
+        """
+        try:
+            namespace = ("system", "supervisor_procedural")
+            items = self._store.list_by_namespace(
+                namespace,
+                return_metadata=True,
+                limit=100,
+            )
+            results = []
+            for item in items:
+                value = getattr(item, "value", {}) or {}
+                results.append({
+                    "key": getattr(item, "key", ""),
+                    "summary": value.get("summary", ""),
+                    "category": value.get("category", "Routing")
+                })
+
+            logger.info(f"Listed {len(results)} supervisor routing memories")
+            return results
+
+        except Exception as e:
+            logger.error(f"Failed to list supervisor routing memories: {e}", exc_info=True)
+            raise
+
 
 memory_service = MemoryService()

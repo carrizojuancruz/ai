@@ -229,3 +229,32 @@ async def delete_all_memories(
         raise HTTPException(status_code=500, detail=f"Failed to delete memories: {str(e)}") from e
 
 
+@router.get("/supervisor/routing/procedural")
+async def list_supervisor_routing_procedural():
+    """List all supervisor procedural routing memories.
+
+    Returns:
+        {
+            "ok": true,
+            "count": 7,
+            "items": [{"key": "...", "summary": "...", "category": "Routing"}]
+        }
+
+    """
+    try:
+        items = memory_service.list_supervisor_routing_memories()
+
+        return {
+            "ok": True,
+            "count": len(items),
+            "items": items
+        }
+
+    except Exception as e:
+        logger.error(f"Endpoint error listing supervisor routing memories: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={"ok": False, "error": "search_failed"}
+        ) from e
+
+

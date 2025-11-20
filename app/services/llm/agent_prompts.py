@@ -284,6 +284,10 @@ When users ask about your values, ethics, or principles, share these foundationa
 - Be direct but gentle; be adaptive to the user's tone and anxiety level.
 - If you used a tool, summarize its result briefly and clearly.
 
+## Wealth Agent Response Handling (CRITICAL)
+- If you receive "STATUS: WEALTH AGENT ANALYSIS COMPLETE", the wealth agent has finished - DO NOT call it again.
+- "The knowledge base search did not return relevant information" is a final result - answer from your own knowledge or acknowledge the limitation.
+
 ## Goal Agent Response Formatting
 
 After goal_agent returns:
@@ -429,11 +433,12 @@ async def get_supervisor_system_prompt() -> str:
     return SUPERVISOR_SYSTEM_PROMPT_LOCAL
 
 
-async def build_wealth_system_prompt(user_context: dict = None) -> str:
+async def build_wealth_system_prompt(user_context: dict = None, max_tool_calls: int = 3) -> str:
     """Build dynamic system prompt for wealth agent with optional user context.
 
     Args:
         user_context: Optional user context dictionary
+        max_tool_calls: Maximum number of tool calls allowed
 
     Returns:
         Formatted wealth agent system prompt
@@ -447,8 +452,10 @@ async def build_wealth_system_prompt(user_context: dict = None) -> str:
         prompt_template = await prompt_service.get_agent_prompt("wealth-agent")
         if prompt_template:
             # Format with variables
-            max_searches = config.WEALTH_AGENT_MAX_TOOL_CALLS
-            prompt = prompt_template.format(max_searches=max_searches)
+            try:
+                prompt = prompt_template.format(max_tool_calls=max_tool_calls)
+            except Exception:
+                prompt = prompt_template.format()
 
             # Add user context if provided
             if user_context:
@@ -465,15 +472,12 @@ async def build_wealth_system_prompt(user_context: dict = None) -> str:
         logger.warning("Falling back to local wealth prompt")
 
     # Fallback to local prompt
-    return build_wealth_system_prompt_local(user_context)
+    return build_wealth_system_prompt_local(user_context, max_tool_calls=max_tool_calls)
 
 
-def build_wealth_system_prompt_local(user_context: dict = None) -> str:
+def build_wealth_system_prompt_local(user_context: dict = None, max_tool_calls: int = 3) -> str:
     """Build dynamic system prompt for wealth agent with optional user context (local version)."""
-    from app.core.config import config
-
-    max_searches = config.WEALTH_AGENT_MAX_TOOL_CALLS
-    base_prompt = f"""You are Verde Money's Wealth Specialist Agent, an expert AI assistant focused on providing accurate, evidence-based financial information to Verde Money app users. You specialize in personal finance, government programs, financial assistance, debt/credit management, investment education, emergency resources, and financial tools. Your role is to deliver reliable insights drawn directly from verified knowledge sources to support informed decision-making.
+    base_prompt = """You are Verde Money's Wealth Specialist Agent, an expert AI assistant focused on providing accurate, evidence-based financial information to Verde Money app users. You specialize in personal finance, government programs, financial assistance, debt/credit management, investment education, emergency resources, and financial tools. Your role is to deliver reliable insights drawn directly from verified knowledge sources to support informed decision-making.
 
 YOUR AUDIENCE: End-users of the Verde Money app seeking financial education or app usage guidance.
 
@@ -497,6 +501,7 @@ SEARCH STRATEGY:
   4. **Process & Steps**: How it works, application process, or procedures
   5. **Limitations & Considerations**: Important restrictions, risks, or caveats
 - **Query Formulation**: Craft specific, targeted queries for each aspect using relevant keywords from the user's question.
+- **Simple Keywords**: Use simple, broad keywords for searches. Avoid complex natural language sentences in queries.
 - **Context Integration**: Incorporate available user context (e.g., location, financial situation) to refine search terms when relevant.
 - **Source Prioritization**: Favor authoritative sources (e.g., government agencies, financial regulators) when synthesizing findings.
 
@@ -670,6 +675,8 @@ Before submitting your response, verify:
 
 REMINDER: SEARCH FIRST, then synthesize results into a clear response with proper source attribution.
 """
+
+    base_prompt = base_prompt.replace("{max_searches}", str(max_tool_calls))
 
     if user_context:
         context_section = "\n\nUSER CONTEXT:"

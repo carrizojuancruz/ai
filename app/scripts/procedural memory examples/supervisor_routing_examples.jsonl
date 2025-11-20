@@ -32,3 +32,187 @@
 {"summary":"User says 'I want to log a cash deposit $300' → route to finance_capture_agent. Rationale: manual transaction deposit/income capture.","category":"Routing","key":"routing_example_capture_manual_tx_deposit"}
 {"summary":"User says 'Add a liability: personal loan from my dad, 2,000' → route to finance_capture_agent. Rationale: other loan liability capture.","category":"Routing","key":"routing_example_capture_liability_personal"}
 {"summary":"User says 'Track a healthcare expense $120 for pharmacy' → route to finance_capture_agent. Rationale: manual transaction expense capture with category hint.","category":"Routing","key":"routing_example_capture_manual_tx_healthcare"}
+{"summary":"When user asks 'When will I have to pay for Vera?', route to wealth_agent. Rationale: Vera pricing.","category":"Routing","key":"routing_example_wealth_faq_cost"}
+{"summary":"When user asks 'Do you sell my personal data?', route to wealth_agent. Rationale: Data privacy.","category":"Routing","key":"routing_example_wealth_faq_data_sale"}
+{"summary":"When user asks 'How can I request my data to be erased?', route to wealth_agent. Rationale: Data erasure.","category":"Routing","key":"routing_example_wealth_faq_data_erasure"}
+{"summary":"When user asks 'How can I reset my password?', route to wealth_agent. Rationale: Reset password.","category":"Routing","key":"routing_example_wealth_faq_reset_password"}
+{"summary":"When user asks 'How can I get help setting up my account?', route to wealth_agent. Rationale: Account setup help.","category":"Routing","key":"routing_example_wealth_faq_setup_help"}
+{"summary":"When user asks 'Do I have to link my bank accounts?', route to wealth_agent. Rationale: Linking accounts requirement.","category":"Routing","key":"routing_example_wealth_faq_link_accounts"}
+{"summary":"When user asks 'How does account connection work?', route to wealth_agent. Rationale: Plaid security.","category":"Routing","key":"routing_example_wealth_faq_plaid_security"}
+{"summary":"When user asks 'Who is Vera?', route to wealth_agent. Rationale: Vera identity.","category":"Routing","key":"routing_example_wealth_faq_who_is_vera"}
+{"summary":"When user asks 'Is Vera a human?', route to wealth_agent. Rationale: AI identity.","category":"Routing","key":"routing_example_wealth_faq_is_vera_human"}
+{"summary":"When user asks 'Is the information I share with Vera secure?', route to wealth_agent. Rationale: Security.","category":"Routing","key":"routing_example_wealth_faq_security"}
+{"summary":"When user asks 'How can I delete my account?', route to wealth_agent. Rationale: Delete account.","category":"Routing","key":"routing_example_wealth_faq_delete_account"}
+{"summary":"When user asks 'Which languages does Vera support?', route to wealth_agent. Rationale: Supported languages.","category":"Routing","key":"routing_example_wealth_faq_languages"}
+{"summary":"When user asks 'How can I update my financial information?', route to wealth_agent. Rationale: Update financial info.","category":"Routing","key":"routing_example_wealth_fin_info_update"}
+{"summary":"When user asks 'How can I connect my bank accounts?', route to wealth_agent. Rationale: Connect bank accounts.","category":"Routing","key":"routing_example_wealth_fin_info_connect"}
+{"summary":"When user asks 'How do I add income or expenses?', route to wealth_agent. Rationale: Add income/expenses.","category":"Routing","key":"routing_example_wealth_fin_info_income_expense"}
+{"summary":"When user asks 'How do I add assets or liabilities?', route to wealth_agent. Rationale: Add assets/liabilities.","category":"Routing","key":"routing_example_wealth_fin_info_assets_liabilities"}
+{"summary":"When user asks 'How do I add payment reminders?', route to wealth_agent. Rationale: Add payment reminders.","category":"Routing","key":"routing_example_wealth_fin_info_reminders"}
+{"summary":"When user asks 'Where can I find my reports?', route to wealth_agent. Rationale: Reports location.","category":"Routing","key":"routing_example_wealth_reports_location"}
+{"summary":"When user asks 'What is the Net Worth report?', route to wealth_agent. Rationale: Net Worth report.","category":"Routing","key":"routing_example_wealth_reports_net_worth"}
+{"summary":"When user asks 'What is the Cash Flow report?', route to wealth_agent. Rationale: Cash Flow report.","category":"Routing","key":"routing_example_wealth_reports_cash_flow"}
+{"summary":"When user asks 'Where do I check my profile?', route to wealth_agent. Rationale: Profile location.","category":"Routing","key":"routing_example_wealth_profile_location"}
+{"summary":"When user asks 'How do I change my name in the app?', route to wealth_agent. Rationale: Update personal info.","category":"Routing","key":"routing_example_wealth_profile_personal_info"}
+{"summary":"When user asks 'How do I change how Vera talks to me?', route to wealth_agent. Rationale: Communication style.","category":"Routing","key":"routing_example_wealth_profile_tone"}
+{"summary":"When user asks 'How do I update my housing situation?', route to wealth_agent. Rationale: Update housing info.","category":"Routing","key":"routing_example_wealth_profile_housing"}
+{"summary":"When user asks 'Where do I tell you about my financial goals?', route to wealth_agent. Rationale: Profile financial goals.","category":"Routing","key":"routing_example_wealth_profile_goals"}
+{"summary":"When user asks 'How do I pin a message?', route to wealth_agent. Rationale: Pin message.","category":"Routing","key":"routing_example_wealth_general_pin_message"}
+{"summary":"When user asks 'How do I unpin a message?', route to wealth_agent. Rationale: Unpin message.","category":"Routing","key":"routing_example_wealth_general_unpin_message"}
+{"summary":"When user asks 'Where are my pinned messages?', route to wealth_agent. Rationale: Pinned messages location.","category":"Routing","key":"routing_example_wealth_general_pinned_location"}
+{"summary":"When user asks 'How do I create a new goal?', route to wealth_agent. Rationale: Add goal.","category":"Routing","key":"routing_example_wealth_goals_add"}
+{"summary":"When user asks 'How do I delete a goal?', route to wealth_agent. Rationale: Delete goal.","category":"Routing","key":"routing_example_wealth_goals_delete"}
+{"summary":"When user asks 'Where is the Goals section in the app?', route to wealth_agent. Rationale: Goals section navigation.","category":"Routing","key":"routing_example_wealth_goals_navigation"}
+{"summary":"When user asks 'Where do I find my Memories?', route to wealth_agent. Rationale: Memories section location.","category":"Routing","key":"routing_example_wealth_memories_location"}
+{"summary":"When user asks 'How do I manage my memories in the app?', route to wealth_agent. Rationale: Memories management guidance.","category":"Routing","key":"routing_example_wealth_memories_management"}
+{"summary":"When user asks 'How do I delete a memory?', route to wealth_agent. Rationale: Delete specific memory.","category":"Routing","key":"routing_example_wealth_memories_delete"}
+{"summary":"When user asks 'Where is the Financial Info menu?', route to wealth_agent. Rationale: Financial Info menu navigation.","category":"Routing","key":"routing_example_wealth_fin_info_menu_location"}
+{"summary":"When user asks 'How do I access Financial Information section?', route to wealth_agent. Rationale: Financial Info access guidance.","category":"Routing","key":"routing_example_wealth_fin_info_menu_access"}
+{"summary":"When user asks 'Where do I find Connected Accounts?', route to wealth_agent. Rationale: Connected accounts location.","category":"Routing","key":"routing_example_wealth_connected_accounts_location"}
+{"summary":"When user asks 'How do I disconnect a bank account?', route to wealth_agent. Rationale: Disconnect account guidance.","category":"Routing","key":"routing_example_wealth_connected_accounts_disconnect"}
+{"summary":"When user asks 'How do I revoke access to a linked account?', route to wealth_agent. Rationale: Revoke account access.","category":"Routing","key":"routing_example_wealth_connected_accounts_revoke"}
+{"summary":"When user asks 'What is Plaid and how does it work?', route to wealth_agent. Rationale: Plaid explanation.","category":"Routing","key":"routing_example_wealth_plaid_explanation"}
+{"summary":"When user asks 'Is Plaid secure for connecting my accounts?', route to wealth_agent. Rationale: Plaid security info.","category":"Routing","key":"routing_example_wealth_plaid_security"}
+{"summary":"When user asks 'How much does Vera cost?', route to wealth_agent. Rationale: Subscription pricing.","category":"Routing","key":"routing_example_wealth_subscription_cost"}
+{"summary":"When user asks 'How do I upgrade to a paid subscription?', route to wealth_agent. Rationale: Upgrade subscription.","category":"Routing","key":"routing_example_wealth_subscription_upgrade"}
+{"summary":"When user asks 'How long is the free trial?', route to wealth_agent. Rationale: Free trial duration.","category":"Routing","key":"routing_example_wealth_subscription_trial"}
+{"summary":"When user asks 'How do I cancel my subscription?', route to wealth_agent. Rationale: Cancel subscription.","category":"Routing","key":"routing_example_wealth_subscription_cancel"}
+{"summary":"When user asks 'Are there any hidden charges?', route to wealth_agent. Rationale: Pricing transparency.","category":"Routing","key":"routing_example_wealth_subscription_hidden_charges"}
+{"summary":"When user asks 'Where do I find Settings in the app?', route to wealth_agent. Rationale: Settings navigation.","category":"Routing","key":"routing_example_wealth_settings_location"}
+{"summary":"When user asks 'How do I access My Account settings?', route to wealth_agent. Rationale: Account settings access.","category":"Routing","key":"routing_example_wealth_settings_account"}
+{"summary":"When user asks 'Where is the support bubble?', route to wealth_agent. Rationale: Support access guidance.","category":"Routing","key":"routing_example_wealth_support_bubble_location"}
+{"summary":"When user asks 'How do I contact customer support?', route to wealth_agent. Rationale: Customer support contact.","category":"Routing","key":"routing_example_wealth_support_contact"}
+{"summary":"When user asks 'How do I access the Help Center?', route to wealth_agent. Rationale: Help Center access.","category":"Routing","key":"routing_example_wealth_help_center_access"}
+{"summary":"When user asks 'Will Vera remember my conversations?', route to wealth_agent. Rationale: Conversation memory explanation.","category":"Routing","key":"routing_example_wealth_faq_conversation_memory"}
+{"summary":"When user asks 'How do I create an account in Vera?', route to wealth_agent. Rationale: Account creation guidance.","category":"Routing","key":"routing_example_wealth_account_creation"}
+{"summary":"When user asks 'Can I use Vera without creating an account?', route to wealth_agent. Rationale: Account requirement explanation.","category":"Routing","key":"routing_example_wealth_account_requirement"}
+{"summary":"When user asks 'Will Vera remember my trial conversations after I pay?', route to wealth_agent. Rationale: Trial to paid transition.","category":"Routing","key":"routing_example_wealth_trial_to_paid"}
+{"summary":"When user asks 'What happens if I don't upgrade after the trial?', route to wealth_agent. Rationale: Trial expiration.","category":"Routing","key":"routing_example_wealth_trial_expiration"}
+{"summary":"When user asks 'How will my data be used?', route to wealth_agent. Rationale: Data usage explanation.","category":"Routing","key":"routing_example_wealth_data_usage"}
+{"summary":"When user asks 'Will you sell my information?', route to wealth_agent. Rationale: Data selling policy.","category":"Routing","key":"routing_example_wealth_data_selling"}
+{"summary":"When user asks 'Does Vera use my data to train AI?', route to wealth_agent. Rationale: LLM training policy.","category":"Routing","key":"routing_example_wealth_data_llm_training"}
+{"summary":"When user asks 'Can I delete specific financial information?', route to wealth_agent. Rationale: Delete specific data.","category":"Routing","key":"routing_example_wealth_data_delete_specific"}
+{"summary":"When user asks 'How do I edit my income information?', route to wealth_agent. Rationale: Edit income guidance.","category":"Routing","key":"routing_example_wealth_income_edit"}
+{"summary":"When user asks 'How do I modify my expenses?', route to wealth_agent. Rationale: Edit expenses guidance.","category":"Routing","key":"routing_example_wealth_expenses_edit"}
+{"summary":"When user asks 'How do I edit an asset?', route to wealth_agent. Rationale: Edit asset guidance.","category":"Routing","key":"routing_example_wealth_assets_edit"}
+{"summary":"When user asks 'How do I edit a liability?', route to wealth_agent. Rationale: Edit liability guidance.","category":"Routing","key":"routing_example_wealth_liabilities_edit"}
+{"summary":"When user asks 'How do I pause a payment reminder?', route to wealth_agent. Rationale: Pause reminder guidance.","category":"Routing","key":"routing_example_wealth_reminder_pause"}
+{"summary":"When user asks 'How do I edit a payment reminder?', route to wealth_agent. Rationale: Edit reminder guidance.","category":"Routing","key":"routing_example_wealth_reminder_edit"}
+{"summary":"When user asks 'Where do I set reminder frequency?', route to wealth_agent. Rationale: Reminder frequency setting.","category":"Routing","key":"routing_example_wealth_reminder_frequency"}
+{"summary":"When user asks 'Can I set weekly payment reminders?', route to wealth_agent. Rationale: Weekly reminder option.","category":"Routing","key":"routing_example_wealth_reminder_weekly"}
+{"summary":"When user asks 'How do I see my pinned messages list?', route to wealth_agent. Rationale: View pinned messages.","category":"Routing","key":"routing_example_wealth_pinned_view"}
+{"summary":"When user asks 'How do I remove a pinned message?', route to wealth_agent. Rationale: Remove pinned message.","category":"Routing","key":"routing_example_wealth_pinned_remove"}
+{"summary":"When user asks 'Can I continue chatting from a pinned message?', route to wealth_agent. Rationale: Continue from pinned.","category":"Routing","key":"routing_example_wealth_pinned_continue"}
+{"summary":"When user asks 'Where is the Profile & Memories section?', route to wealth_agent. Rationale: Profile & Memories navigation.","category":"Routing","key":"routing_example_wealth_profile_memories_section"}
+{"summary":"When user asks 'How do I update my nickname?', route to wealth_agent. Rationale: Update nickname.","category":"Routing","key":"routing_example_wealth_profile_nickname"}
+{"summary":"When user asks 'How do I tell Vera to skip certain topics?', route to wealth_agent. Rationale: Skip topics setting.","category":"Routing","key":"routing_example_wealth_profile_skip_topics"}
+{"summary":"When user asks 'How do I update my household info?', route to wealth_agent. Rationale: Update household info.","category":"Routing","key":"routing_example_wealth_profile_household"}
+{"summary":"When user asks 'Where do I add my health insurance info?', route to wealth_agent. Rationale: Add health insurance.","category":"Routing","key":"routing_example_wealth_profile_health_insurance"}
+{"summary":"When user asks 'What should I write in What would you like to learn about?', route to wealth_agent. Rationale: Profile learning section.","category":"Routing","key":"routing_example_wealth_profile_learning"}
+{"summary":"When user asks 'Where is the Save button in Profile?', route to wealth_agent. Rationale: Profile save button.","category":"Routing","key":"routing_example_wealth_profile_save"}
+{"summary":"When user asks 'How often should I update my profile?', route to wealth_agent. Rationale: Profile update frequency.","category":"Routing","key":"routing_example_wealth_profile_update_frequency"}
+{"summary":"When user asks 'What is the difference between profile goals and goal section goals?', route to wealth_agent. Rationale: Goals section difference.","category":"Routing","key":"routing_example_wealth_profile_goals_difference"}
+{"summary":"When user asks 'Where do I see my Net Worth trend?', route to wealth_agent. Rationale: Net Worth trend location.","category":"Routing","key":"routing_example_wealth_reports_net_worth_trend"}
+{"summary":"When user asks 'Where do I see my Cash Flow trend?', route to wealth_agent. Rationale: Cash Flow trend location.","category":"Routing","key":"routing_example_wealth_reports_cash_flow_trend"}
+{"summary":"When user asks 'How do I access the Reports section?', route to wealth_agent. Rationale: Reports access guidance.","category":"Routing","key":"routing_example_wealth_reports_access"}
+{"summary":"When user asks 'What will I see in the Reports view?', route to wealth_agent. Rationale: Reports view content.","category":"Routing","key":"routing_example_wealth_reports_view_content"}
+{"summary":"When user asks 'Why don't I see historical data in my reports?', route to wealth_agent. Rationale: Historical data requirement.","category":"Routing","key":"routing_example_wealth_reports_historical_data"}
+{"summary":"When user asks 'Is Vera a financial advisor?', route to wealth_agent. Rationale: Advisor clarification.","category":"Routing","key":"routing_example_wealth_faq_advisor"}
+{"summary":"When user asks 'Does Vera provide investment advice?', route to wealth_agent. Rationale: Investment advice disclaimer.","category":"Routing","key":"routing_example_wealth_faq_investment_advice"}
+{"summary":"When user asks 'Should I consult a professional before making financial decisions?', route to wealth_agent. Rationale: Professional consultation recommendation.","category":"Routing","key":"routing_example_wealth_faq_professional_consultation"}
+{"summary":"When user asks 'Can I talk to a human financial advisor?', route to wealth_agent. Rationale: Human advisor availability.","category":"Routing","key":"routing_example_wealth_faq_human_advisor"}
+{"summary":"When user asks 'Is Vera available 24/7?', route to wealth_agent. Rationale: Availability explanation.","category":"Routing","key":"routing_example_wealth_faq_availability"}
+{"summary":"When user asks 'What language is Vera set to?', route to wealth_agent. Rationale: Language settings.","category":"Routing","key":"routing_example_wealth_faq_language_settings"}
+{"summary":"When user asks 'Can Vera understand multiple languages?', route to wealth_agent. Rationale: Multi-language support.","category":"Routing","key":"routing_example_wealth_faq_multi_language"}
+{"summary":"When user asks 'Where is the menu icon in the app?', route to wealth_agent. Rationale: Menu icon location.","category":"Routing","key":"routing_example_wealth_navigation_menu_icon"}
+{"summary":"When user asks 'Where is the top bar in the home screen?', route to wealth_agent. Rationale: Top bar location.","category":"Routing","key":"routing_example_wealth_navigation_top_bar"}
+{"summary":"When user asks 'How do I navigate back to the home screen?', route to wealth_agent. Rationale: Home screen navigation.","category":"Routing","key":"routing_example_wealth_navigation_home"}
+{"summary":"When user asks 'What happens when I delete my account?', route to wealth_agent. Rationale: Account deletion consequences.","category":"Routing","key":"routing_example_wealth_account_deletion_consequences"}
+{"summary":"When user asks 'Will my data be recovered if I create a new account?', route to wealth_agent. Rationale: Data recovery policy.","category":"Routing","key":"routing_example_wealth_account_data_recovery"}
+{"summary":"When user asks 'What data is retained for legal requirements?', route to wealth_agent. Rationale: Legal data retention.","category":"Routing","key":"routing_example_wealth_data_legal_retention"}
+{"summary":"When user asks 'How do I disconnect Plaid?', route to wealth_agent. Rationale: Plaid disconnection.","category":"Routing","key":"routing_example_wealth_plaid_disconnect"}
+{"summary":"When user asks 'What is Plaid Privacy Policy?', route to wealth_agent. Rationale: Plaid privacy.","category":"Routing","key":"routing_example_wealth_plaid_privacy"}
+{"summary":"When user asks 'Can I connect retirement accounts?', route to wealth_agent. Rationale: Retirement account connection.","category":"Routing","key":"routing_example_wealth_connect_retirement"}
+{"summary":"When user asks 'Can I connect my 401k?', route to wealth_agent. Rationale: 401k connection.","category":"Routing","key":"routing_example_wealth_connect_401k"}
+{"summary":"When user asks 'Can I connect my HSA?', route to wealth_agent. Rationale: HSA connection.","category":"Routing","key":"routing_example_wealth_connect_hsa"}
+{"summary":"When user asks 'Can I connect my brokerage account?', route to wealth_agent. Rationale: Brokerage connection.","category":"Routing","key":"routing_example_wealth_connect_brokerage"}
+{"summary":"When user asks 'What types of accounts can I connect?', route to wealth_agent. Rationale: Supported account types.","category":"Routing","key":"routing_example_wealth_connect_account_types"}
+{"summary":"When user asks 'How secure is my data with Vera?', route to wealth_agent. Rationale: Data security measures.","category":"Routing","key":"routing_example_wealth_security_measures"}
+{"summary":"When user asks 'What encryption does Vera use?', route to wealth_agent. Rationale: Encryption technology.","category":"Routing","key":"routing_example_wealth_security_encryption"}
+{"summary":"When user asks 'Where can I find the Privacy Policy?', route to wealth_agent. Rationale: Privacy Policy location.","category":"Routing","key":"routing_example_wealth_privacy_policy_location"}
+{"summary":"When user asks 'How does Vera monitor for intrusions?', route to wealth_agent. Rationale: Intrusion monitoring.","category":"Routing","key":"routing_example_wealth_security_monitoring"}
+{"summary":"When user asks 'Are there third-party ads in Vera?', route to wealth_agent. Rationale: Advertising policy.","category":"Routing","key":"routing_example_wealth_faq_ads"}
+{"summary":"When user asks 'Does Vera show ads?', route to wealth_agent. Rationale: No ads confirmation.","category":"Routing","key":"routing_example_wealth_faq_no_ads"}
+{"summary":"When user asks 'How does Vera make money?', route to wealth_agent. Rationale: Business model explanation.","category":"Routing","key":"routing_example_wealth_faq_business_model"}
+{"summary":"When user asks 'Are there setup fees for Vera?', route to wealth_agent. Rationale: Setup fees clarification.","category":"Routing","key":"routing_example_wealth_subscription_setup_fees"}
+{"summary":"When user asks 'Where do I tap to open the main menu?', route to wealth_agent. Rationale: Main menu access.","category":"Routing","key":"routing_example_wealth_navigation_main_menu"}
+{"summary":"When user asks 'How do I get to Financial Info from the menu?', route to wealth_agent. Rationale: Financial Info navigation.","category":"Routing","key":"routing_example_wealth_navigation_financial_info"}
+{"summary":"When user asks 'Where is the Add + button?', route to wealth_agent. Rationale: Add button location.","category":"Routing","key":"routing_example_wealth_navigation_add_button"}
+{"summary":"When user asks 'Where is the Edit button for my items?', route to wealth_agent. Rationale: Edit button location.","category":"Routing","key":"routing_example_wealth_navigation_edit_button"}
+{"summary":"When user asks 'Where is the trash bin icon to delete?', route to wealth_agent. Rationale: Delete button location.","category":"Routing","key":"routing_example_wealth_navigation_delete_button"}
+{"summary":"When user asks 'How do I use the support chat bubble?', route to wealth_agent. Rationale: Support chat usage.","category":"Routing","key":"routing_example_wealth_support_chat_usage"}
+{"summary":"When user asks 'Where is the chat button on the website?', route to wealth_agent. Rationale: Website chat location.","category":"Routing","key":"routing_example_wealth_support_website_chat"}
+{"summary":"When user asks 'Can I get help through live chat?', route to wealth_agent. Rationale: Live chat support.","category":"Routing","key":"routing_example_wealth_support_live_chat"}
+{"summary":"When user asks 'How do I check my credit report for free?', route to wealth_agent. Rationale: AnnualCreditReport.com resource.","category":"Routing","key":"routing_example_external_credit_report"}
+{"summary":"When user asks 'Where can I get my Equifax report?', route to wealth_agent. Rationale: Credit report access.","category":"Routing","key":"routing_example_external_credit_bureaus"}
+{"summary":"When user asks 'What are I Bonds?', route to wealth_agent. Rationale: TreasuryDirect I Bonds information.","category":"Routing","key":"routing_example_external_i_bonds"}
+{"summary":"When user asks 'How do I buy savings bonds?', route to wealth_agent. Rationale: TreasuryDirect program.","category":"Routing","key":"routing_example_external_treasury_bonds"}
+{"summary":"When user asks 'What inflation-protected investments are available?', route to wealth_agent. Rationale: I Bonds and TIPS.","category":"Routing","key":"routing_example_external_inflation_investments"}
+{"summary":"When user asks 'I need mental health help right now', route to wealth_agent. Rationale: SAMHSA helpline and crisis resources.","category":"Routing","key":"routing_example_external_mental_health_crisis"}
+{"summary":"When user asks 'Is there a 24/7 mental health hotline?', route to wealth_agent. Rationale: 988 Suicide & Crisis Lifeline.","category":"Routing","key":"routing_example_external_988_lifeline"}
+{"summary":"When user asks 'What is the crisis text line?', route to wealth_agent. Rationale: Crisis Text Line resource.","category":"Routing","key":"routing_example_external_crisis_text"}
+{"summary":"When user asks 'Where can I find local social services?', route to wealth_agent. Rationale: 211.org information.","category":"Routing","key":"routing_example_external_211"}
+{"summary":"When user asks 'How do I find help with bills and food?', route to wealth_agent. Rationale: 211 social services.","category":"Routing","key":"routing_example_external_211_assistance"}
+{"summary":"When user asks 'What government benefits am I eligible for?', route to wealth_agent. Rationale: Benefits.gov finder.","category":"Routing","key":"routing_example_external_benefits_finder"}
+{"summary":"When user asks 'How can I find federal assistance programs?', route to wealth_agent. Rationale: Benefits.gov resource.","category":"Routing","key":"routing_example_external_federal_benefits"}
+{"summary":"When user asks 'I need help with my heating bill', route to wealth_agent. Rationale: LIHEAP energy assistance.","category":"Routing","key":"routing_example_external_liheap"}
+{"summary":"When user asks 'What assistance is available for energy costs?', route to wealth_agent. Rationale: LIHEAP program.","category":"Routing","key":"routing_example_external_energy_assistance"}
+{"summary":"When user asks 'Can I get a discount on my phone bill?', route to wealth_agent. Rationale: Lifeline program.","category":"Routing","key":"routing_example_external_lifeline"}
+{"summary":"When user asks 'Is there help for internet costs?', route to wealth_agent. Rationale: Lifeline phone/internet discount.","category":"Routing","key":"routing_example_external_internet_discount"}
+{"summary":"When user asks 'How do I qualify for Earned Income Tax Credit?', route to wealth_agent. Rationale: IRS EITC information.","category":"Routing","key":"routing_example_external_eitc"}
+{"summary":"When user asks 'What tax credits can help me?', route to wealth_agent. Rationale: EITC and tax benefits.","category":"Routing","key":"routing_example_external_tax_credits"}
+{"summary":"When user asks 'What are 529 plans?', route to wealth_agent. Rationale: FINRA 529 college savings information.","category":"Routing","key":"routing_example_external_529_plans"}
+{"summary":"When user asks 'How do I save for college?', route to wealth_agent. Rationale: 529 college savings plans.","category":"Routing","key":"routing_example_external_college_savings"}
+{"summary":"When user asks 'How do I avoid foreclosure?', route to wealth_agent. Rationale: HUD foreclosure prevention.","category":"Routing","key":"routing_example_external_foreclosure"}
+{"summary":"When user asks 'What do I do if I'm behind on my mortgage?', route to wealth_agent. Rationale: HUD foreclosure help.","category":"Routing","key":"routing_example_external_mortgage_behind"}
+{"summary":"When user asks 'Where can I find HUD counseling?', route to wealth_agent. Rationale: HUD housing counselor directory.","category":"Routing","key":"routing_example_external_hud_counselor"}
+{"summary":"When user asks 'I need help with rent', route to wealth_agent. Rationale: CFPB renter resources.","category":"Routing","key":"routing_example_external_rent_help"}
+{"summary":"When user asks 'What are my rights as a renter?', route to wealth_agent. Rationale: CFPB renter rights.","category":"Routing","key":"routing_example_external_renter_rights"}
+{"summary":"When user asks 'How do I dispute a credit report error?', route to wealth_agent. Rationale: CFPB dispute process.","category":"Routing","key":"routing_example_external_credit_dispute"}
+{"summary":"When user asks 'How do I deal with debt collectors?', route to wealth_agent. Rationale: CFPB debt collector rights.","category":"Routing","key":"routing_example_external_debt_collectors"}
+{"summary":"When user asks 'What are my rights with debt collection?', route to wealth_agent. Rationale: Debt collector regulations.","category":"Routing","key":"routing_example_external_debt_rights"}
+{"summary":"When user asks 'How much should I save for emergencies?', route to wealth_agent. Rationale: CFPB emergency fund guide.","category":"Routing","key":"routing_example_external_emergency_fund"}
+{"summary":"When user asks 'How do I start an emergency fund?', route to wealth_agent. Rationale: Emergency savings guidance.","category":"Routing","key":"routing_example_external_emergency_savings"}
+{"summary":"When user asks 'How can I get out of debt?', route to wealth_agent. Rationale: FTC debt management guide.","category":"Routing","key":"routing_example_external_debt_help"}
+{"summary":"When user asks 'What is a debt management plan?', route to wealth_agent. Rationale: FTC DMP information.","category":"Routing","key":"routing_example_external_dmp"}
+{"summary":"When user asks 'How do I avoid scams?', route to wealth_agent. Rationale: FTC imposter scam prevention.","category":"Routing","key":"routing_example_external_scams"}
+{"summary":"When user asks 'What are common fraud red flags?', route to wealth_agent. Rationale: FTC fraud prevention.","category":"Routing","key":"routing_example_external_fraud_prevention"}
+{"summary":"When user asks 'How do I report fraud?', route to wealth_agent. Rationale: ReportFraud.ftc.gov portal.","category":"Routing","key":"routing_example_external_report_fraud"}
+{"summary":"When user asks 'Someone stole my identity', route to wealth_agent. Rationale: IdentityTheft.gov recovery.","category":"Routing","key":"routing_example_external_identity_theft"}
+{"summary":"When user asks 'What do I do about identity theft?', route to wealth_agent. Rationale: Identity theft recovery plan.","category":"Routing","key":"routing_example_external_identity_recovery"}
+{"summary":"When user asks 'What are overdraft fees?', route to wealth_agent. Rationale: CFPB overdraft regulations.","category":"Routing","key":"routing_example_external_overdraft"}
+{"summary":"When user asks 'How do I opt out of overdraft coverage?', route to wealth_agent. Rationale: Overdraft rights.","category":"Routing","key":"routing_example_external_overdraft_opt_out"}
+{"summary":"When user asks 'How do I send money internationally?', route to wealth_agent. Rationale: CFPB remittance transfer rights.","category":"Routing","key":"routing_example_external_remittance"}
+{"summary":"When user asks 'What are my rights with money transfers?', route to wealth_agent. Rationale: Money transfer protections.","category":"Routing","key":"routing_example_external_money_transfer_rights"}
+{"summary":"When user asks 'How do I complain about my bank?', route to wealth_agent. Rationale: CFPB complaint submission.","category":"Routing","key":"routing_example_external_cfpb_complaint"}
+{"summary":"When user asks 'Where do I report a problem with my lender?', route to wealth_agent. Rationale: CFPB complaint portal.","category":"Routing","key":"routing_example_external_lender_complaint"}
+{"summary":"When user asks 'What help is available for student loans?', route to wealth_agent. Rationale: CFPB student loan resources.","category":"Routing","key":"routing_example_external_student_loans"}
+{"summary":"When user asks 'How do I manage my student debt?', route to wealth_agent. Rationale: Student loan guidance.","category":"Routing","key":"routing_example_external_student_debt"}
+{"summary":"When user asks 'What is FINRA?', route to wealth_agent. Rationale: FINRA investor education.","category":"Routing","key":"routing_example_external_finra"}
+{"summary":"When user asks 'How do I check if my financial advisor is legitimate?', route to wealth_agent. Rationale: FINRA broker check.","category":"Routing","key":"routing_example_external_broker_check"}
+{"summary":"When user asks 'What investment calculators are available?', route to wealth_agent. Rationale: SEC investor.gov tools.","category":"Routing","key":"routing_example_external_sec_calculators"}
+{"summary":"When user asks 'How do I calculate compound interest?', route to wealth_agent. Rationale: SEC financial calculators.","category":"Routing","key":"routing_example_external_compound_interest"}
+{"summary":"When user asks 'What is required minimum distribution?', route to wealth_agent. Rationale: SEC RMD calculator.","category":"Routing","key":"routing_example_external_rmd"}
+{"summary":"When user asks 'Where can I find free financial education?', route to wealth_agent. Rationale: FDIC Money Smart program.","category":"Routing","key":"routing_example_external_money_smart"}
+{"summary":"When user asks 'Are there free budgeting tools?', route to wealth_agent. Rationale: CFPB Your Money Your Goals toolkit.","category":"Routing","key":"routing_example_external_budgeting_tools"}
+{"summary":"When user asks 'What is a bill calendar?', route to wealth_agent. Rationale: CFPB bill calendar tool.","category":"Routing","key":"routing_example_external_bill_calendar"}
+{"summary":"When user asks 'How do I find job training programs?', route to wealth_agent. Rationale: CareerOneStop portal.","category":"Routing","key":"routing_example_external_career_training"}
+{"summary":"When user asks 'Where can I find career resources?', route to wealth_agent. Rationale: CareerOneStop DOL portal.","category":"Routing","key":"routing_example_external_career_resources"}
+{"summary":"When user asks 'What state housing programs are available in [state]?', route to wealth_agent. Rationale: State housing finance agency.","category":"Routing","key":"routing_example_external_state_housing"}
+{"summary":"When user asks 'How do I apply for housing assistance in my state?', route to wealth_agent. Rationale: State-specific housing programs.","category":"Routing","key":"routing_example_external_state_housing_assistance"}
+{"summary":"When user asks 'What social services are available in [state]?', route to wealth_agent. Rationale: State human services department.","category":"Routing","key":"routing_example_external_state_services"}
+{"summary":"When user asks 'How do I apply for SNAP in my state?', route to wealth_agent. Rationale: State-specific benefit programs.","category":"Routing","key":"routing_example_external_state_snap"}
+{"summary":"When user asks 'Where is my state's DHHS?', route to wealth_agent. Rationale: State health and human services.","category":"Routing","key":"routing_example_external_state_dhhs"}
+{"summary":"When user asks 'What mental health resources exist?', route to wealth_agent. Rationale: NAMI, NIMH, NCCIH resources.","category":"Routing","key":"routing_example_external_mental_health_resources"}
+{"summary":"When user asks 'Where can I learn about anxiety and depression?', route to wealth_agent. Rationale: ADAA mental health information.","category":"Routing","key":"routing_example_external_anxiety_depression"}
+{"summary":"When user asks 'What meditation resources are available?', route to wealth_agent. Rationale: NIH NCCIH mindfulness.","category":"Routing","key":"routing_example_external_meditation"}

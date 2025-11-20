@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, HTTPException
 
 from app.api.schemas.test_schemas import AgentTestRequest, AgentTestResponse
 from app.services.test.agent_tester import AgentTester
@@ -35,24 +35,22 @@ router = APIRouter(prefix="/test", tags=["Testing"])
         504: {"description": "Request timeout"}
     }
 )
-async def test_agent_endpoint(request: AgentTestRequest, response: Response):
+async def test_agent_endpoint(request: AgentTestRequest):
     logger.info(f"Testing agent: {request.agent} with query: {request.query[:50] if request.query else 'default'}")
 
     tester = AgentTester()
     result = await tester.test_agent(request.agent.value, request.query)
 
-    if result["success"]:
-        response.status_code = 200
-    else:
+    if not result["success"]:
         error_msg = result.get("error", "").lower()
         if "not found" in error_msg or "not supported" in error_msg:
-            response.status_code = 404
+            raise HTTPException(status_code=404, detail=result["error"])
         elif "timeout" in error_msg:
-            response.status_code = 504
+            raise HTTPException(status_code=504, detail=result["error"])
         elif "config" in error_msg or "not set" in error_msg or "missing" in error_msg:
-            response.status_code = 503
+            raise HTTPException(status_code=503, detail=result["error"])
         else:
-            response.status_code = 500
+            raise HTTPException(status_code=500, detail=result["error"])
 
-    logger.info(f"Agent test completed: {request.agent} - status {response.status_code} - {result['execution_time_seconds']:.3f}s")
+    logger.info(f"Agent test completed: {request.agent} - status 200 - {result['execution_time_seconds']:.3f}s")
     return AgentTestResponse(**result)

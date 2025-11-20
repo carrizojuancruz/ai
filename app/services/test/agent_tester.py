@@ -3,7 +3,11 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
+from langchain_aws import ChatBedrockConverse
+
+from app.core.app_state import get_bedrock_runtime_client
 from app.core.config import config
+from app.services.llm.bedrock import BedrockLLM
 
 logger = logging.getLogger(__name__)
 
@@ -75,71 +79,61 @@ class AgentTester:
         }
         return config_map.get(agent, (None, None))
 
-    async def _test_guest(self, query: str, model_id: Optional[str], region: Optional[str]) -> str:
-        from langchain_aws import ChatBedrock
-
-        if not model_id or not region:
-            raise ValueError("Guest agent configuration missing: model_id or region not set")
-
-        llm = ChatBedrock(model_id=model_id, region_name=region)
-        response = await llm.ainvoke(query)
+    def _parse_content(self, response) -> str:
         content = response.content
         if isinstance(content, list):
             return " ".join(str(item) for item in content)
         return str(content)
 
-    async def _test_onboarding(self, query: str, model_id: Optional[str], region: Optional[str]) -> str:
-        from app.services.llm.bedrock import BedrockLLM
+    def _get_guardrail_config(self, guardrail_id: Optional[str], guardrail_version: Optional[str]) -> Optional[Dict[str, str]]:
+        if guardrail_id and guardrail_version:
+            return {
+                "guardrailIdentifier": guardrail_id,
+                "guardrailVersion": guardrail_version,
+            }
+        return None
 
+    async def _test_guest(self, query: str, model_id: Optional[str], region: Optional[str]) -> str:
+        if not model_id or not region:
+            raise ValueError("Guest agent configuration missing: model_id or region not set")
+
+        llm = ChatBedrockConverse(model_id=model_id, region_name=region)
+        response = await llm.ainvoke(query)
+        return self._parse_content(response)
+
+    async def _test_onboarding(self, query: str, model_id: Optional[str], region: Optional[str]) -> str:
         if not model_id or not region:
             raise ValueError("Onboarding agent configuration missing: model_id or region not set")
 
         llm = BedrockLLM()
-        response = llm.generate(query)
+        response = await llm.agenerate(query)
         return response
 
     async def _test_supervisor(self, query: str, model_id: Optional[str], region: Optional[str]) -> str:
-        from app.services.llm.chat_bedrock import ChatBedrock
-
         if not model_id or not region:
             raise ValueError("Supervisor agent configuration missing: model_id or region not set")
 
-        guardrail_config = None
-        if config.SUPERVISOR_AGENT_GUARDRAIL_ID and config.SUPERVISOR_AGENT_GUARDRAIL_VERSION:
-            guardrail_config = {
-                "guardrailIdentifier": config.SUPERVISOR_AGENT_GUARDRAIL_ID,
-                "guardrailVersion": config.SUPERVISOR_AGENT_GUARDRAIL_VERSION,
-            }
+        guardrail_config = self._get_guardrail_config(
+            config.SUPERVISOR_AGENT_GUARDRAIL_ID, config.SUPERVISOR_AGENT_GUARDRAIL_VERSION
+        )
 
-        llm = ChatBedrock(model_id=model_id, region_name=region, guardrail_config=guardrail_config)
+        llm = ChatBedrockConverse(model_id=model_id, region_name=region, guardrail_config=guardrail_config)
         response = await llm.ainvoke(query)
-        content = response.content
-        if isinstance(content, list):
-            return " ".join(str(item) for item in content)
-        return str(content)
+        return self._parse_content(response)
 
     async def _test_wealth(self, query: str, model_id: Optional[str], region: Optional[str]) -> str:
-        from app.services.llm.chat_bedrock import ChatBedrock
-
         if not model_id or not region:
             raise ValueError("Wealth agent configuration missing: model_id or region not set")
 
-        guardrail_config = None
-        if config.WEALTH_AGENT_GUARDRAIL_ID and config.WEALTH_AGENT_GUARDRAIL_VERSION:
-            guardrail_config = {
-                "guardrailIdentifier": config.WEALTH_AGENT_GUARDRAIL_ID,
-                "guardrailVersion": config.WEALTH_AGENT_GUARDRAIL_VERSION,
-            }
+        guardrail_config = self._get_guardrail_config(
+            config.WEALTH_AGENT_GUARDRAIL_ID, config.WEALTH_AGENT_GUARDRAIL_VERSION
+        )
 
-        llm = ChatBedrock(model_id=model_id, region_name=region, guardrail_config=guardrail_config)
+        llm = ChatBedrockConverse(model_id=model_id, region_name=region, guardrail_config=guardrail_config)
         response = await llm.ainvoke(query)
-        content = response.content
-        if isinstance(content, list):
-            return " ".join(str(item) for item in content)
-        return str(content)
+        return self._parse_content(response)
 
     async def _test_goal(self, query: str, model_id: Optional[str], region: Optional[str]) -> str:
-        from langchain_aws import ChatBedrockConverse
 
         if not model_id or not region:
             raise ValueError("Goal agent configuration missing: model_id or region not set")
@@ -147,38 +141,25 @@ class AgentTester:
         llm_params = {"model_id": model_id, "region_name": region, "provider": config.GOAL_AGENT_PROVIDER}
         llm = ChatBedrockConverse(**llm_params)
         response = await llm.ainvoke(query)
-        content = response.content
-        if isinstance(content, list):
-            return " ".join(str(item) for item in content)
-        return str(content)
+        return self._parse_content(response)
 
     async def _test_finance(self, query: str, model_id: Optional[str], region: Optional[str]) -> str:
-        from app.services.llm.chat_bedrock import ChatBedrock
-
         if not model_id or not region:
             raise ValueError("Finance agent configuration missing: model_id or region not set")
 
-        guardrail_config = None
-        if config.FINANCIAL_AGENT_GUARDRAIL_ID and config.FINANCIAL_AGENT_GUARDRAIL_VERSION:
-            guardrail_config = {
-                "guardrailIdentifier": config.FINANCIAL_AGENT_GUARDRAIL_ID,
-                "guardrailVersion": config.FINANCIAL_AGENT_GUARDRAIL_VERSION,
-            }
+        guardrail_config = self._get_guardrail_config(
+            config.FINANCIAL_AGENT_GUARDRAIL_ID, config.FINANCIAL_AGENT_GUARDRAIL_VERSION
+        )
 
-        llm = ChatBedrock(model_id=model_id, region_name=region, guardrail_config=guardrail_config)
+        llm = ChatBedrockConverse(model_id=model_id, region_name=region, guardrail_config=guardrail_config)
         response = await llm.ainvoke(query)
-        content = response.content
-        if isinstance(content, list):
-            return " ".join(str(item) for item in content)
-        return str(content)
+        return self._parse_content(response)
 
     async def _test_finance_capture(self, query: str, model_id: Optional[str], region: Optional[str]) -> str:
-        import boto3
-
         if not model_id or not region:
             raise ValueError("Finance capture agent configuration missing: model_id or region not set")
 
-        bedrock_runtime = boto3.client("bedrock-runtime", region_name=region)
+        bedrock_runtime = get_bedrock_runtime_client()
         response = bedrock_runtime.converse(
             modelId=model_id,
             messages=[{"role": "user", "content": [{"text": query}]}],

@@ -49,7 +49,8 @@
     "loader": "app.services.llm.agent_prompts:build_wealth_system_prompt_local",
     "type": "builder_function",
     "parameters": [
-      {"name": "user_context", "type": "dict", "required": false, "default": null}
+      {"name": "user_context", "type": "dict", "required": false, "default": null},
+      {"name": "max_tool_calls", "type": "int", "required": false, "default": 3}
     ],
     "prompt_preview": "You are Verde Money's Wealth Specialist Agent, an expert AI assistant focused on providing accurate, evidence-based...",
     "description": "Wealth agent system prompt for educational finance content and knowledge base searches. Enforces mandatory search-first workflow",

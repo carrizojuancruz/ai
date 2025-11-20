@@ -138,7 +138,6 @@ def wealth_state_with_messages():
         messages=[
             HumanMessage(content="What is an emergency fund?"),
         ],
-        tool_call_count=0,
         retrieved_sources=[],
         used_sources=[],
         filtered_sources=[],
@@ -159,23 +158,10 @@ def wealth_state_with_tool_calls():
             HumanMessage(content="What is an emergency fund?"),
             mock_msg,
         ],
-        tool_call_count=1,
         retrieved_sources=[],
         used_sources=[],
         filtered_sources=[],
     )
 
 
-@pytest.fixture
-def wealth_state_max_tools():
-    """WealthState at max tool call limit."""
-    from app.agents.supervisor.wealth_agent.subgraph import WealthState
-    from app.core.config import config
 
-    return WealthState(
-        messages=[HumanMessage(content="Test query")],
-        tool_call_count=config.WEALTH_AGENT_MAX_TOOL_CALLS,
-        retrieved_sources=[],
-        used_sources=[],
-        filtered_sources=[],
-    )

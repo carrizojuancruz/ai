@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+import operator
 import re
-from typing import Any, Callable, Dict, List
+from typing import Annotated, Any, Callable, Dict, List
 
 from langchain_core.language_models import BaseChatModel
 from langgraph.graph import START, MessagesState, StateGraph
@@ -10,38 +11,20 @@ from langgraph.prebuilt import ToolNode
 
 from app.core.config import config
 
-MAX_TOOL_CALLS = config.WEALTH_AGENT_MAX_TOOL_CALLS
+MAX_TOOL_CALLS: int = config.WEALTH_AGENT_MAX_TOOL_CALLS
+RECURSION_LIMIT: int = 15
+DEFAULT_TEMPERATURE: float = 0.4
 
 class WealthState(MessagesState):
-    tool_call_count: int = 0
-    retrieved_sources: List[Dict[str, Any]] = []
-    used_sources: List[str] = []
-    filtered_sources: List[Dict[str, Any]] = []
-    navigation_events: List[Dict[str, Any]] | None = None
+    retrieved_sources: List[Dict[str, Any]]
+    used_sources: List[str]
+    filtered_sources: List[Dict[str, Any]]
+    navigation_events: List[Dict[str, Any]] | None
+    search_count: Annotated[int, operator.add]
 
 
-def _clean_response(response, tool_call_count: int, state: dict, logger):
+def _clean_response(response, state, logger):
     if hasattr(response, "tool_calls") and response.tool_calls:
-        current_calls = len(response.tool_calls)
-        total_calls = tool_call_count + current_calls
-
-        if total_calls > MAX_TOOL_CALLS:
-            logger.error(f"BLOCKED: Would exceed limit - {current_calls} new calls + {tool_call_count} existing = {total_calls}")
-            if tool_call_count > 0:
-                return {"role": "assistant", "content": "Based on my knowledge base searches, I have gathered sufficient information to provide a comprehensive response.", "name": "wealth_agent"}
-            else:
-                limited_tool_calls = response.tool_calls[:MAX_TOOL_CALLS]
-                clean_response = {
-                    "role": "assistant",
-                    "content": "",
-                    "name": "wealth_agent",
-                    "tool_calls": limited_tool_calls
-                }
-                logger.warning(f"Truncated tool calls from {current_calls} to {len(limited_tool_calls)}")
-                return clean_response
-
-        logger.warning("BLOCKED: Agent attempting to provide content while making tool calls - this is hallucination")
-
         clean_response = {
             "role": "assistant",
             "content": "",
@@ -62,10 +45,8 @@ def _clean_response(response, tool_call_count: int, state: dict, logger):
             )
 
             if not has_tool_results:
-                logger.error("BLOCKED: Response with reasoning content but no tool results - agent should search first")
                 return {"role": "assistant", "content": "I need to search my knowledge base to provide accurate information about this topic.", "name": "wealth_agent"}
             else:
-                logger.info("Cleaning reasoning content from final response after tool usage")
                 cleaned_content = []
                 for block in response.content:
                     if isinstance(block, dict) and block.get("type") == "reasoning_content":
@@ -92,26 +73,18 @@ def create_wealth_subgraph(
     model_with_tools = llm.bind_tools(tools)
 
     async def agent_node(state: WealthState):
-        if hasattr(state, 'tool_call_count'):
-            tool_call_count = state.tool_call_count
-        else:
-            tool_call_count = state.get('tool_call_count', 0)
-
-        if tool_call_count >= MAX_TOOL_CALLS:
-            logger.warning(f"Tool call limit reached ({tool_call_count}). Forcing completion.")
-            return {"messages": [{"role": "assistant", "content": "Based on my knowledge base searches, I have gathered sufficient information to provide a comprehensive response.", "name": "wealth_agent"}]}
+        current_search_count = state.get("search_count", 0)
 
         system_prompt = prompt_builder()
+
+        if current_search_count >= MAX_TOOL_CALLS:
+            system_prompt += "\n\nWARNING: You have reached the maximum allowed searches. Do NOT call search_kb again. Provide your final answer now based on what you found, or state that you could not find the information in the knowledge base."
+
         messages = [{"role": "system", "content": system_prompt}] + state["messages"]
 
-        logger.info(f"Agent processing with {tool_call_count} previous tool calls")
         response = await model_with_tools.ainvoke(messages)
 
-        cleaned_response = _clean_response(response, tool_call_count, state, logger)
-
-        new_tool_call_count = tool_call_count
-        if hasattr(cleaned_response, "tool_calls") and cleaned_response.tool_calls:
-            new_tool_call_count += len(cleaned_response.tool_calls)
+        cleaned_response = _clean_response(response, state, logger)
 
 
         used_sources = getattr(state, 'used_sources', state.get('used_sources', []))
@@ -121,7 +94,7 @@ def create_wealth_subgraph(
         seen_navigation_events = {event.get("event") for event in navigation_events if isinstance(event, dict)}
 
         for msg in state["messages"]:
-            if getattr(msg, '__class__', None).__name__ == 'ToolMessage' and getattr(msg, 'name', None) == 'search_kb':
+            if getattr(getattr(msg, '__class__', None), '__name__', None) == 'ToolMessage' and getattr(msg, 'name', None) == 'search_kb':
                 try:
                     if isinstance(msg.content, str):
                         search_results = json.loads(msg.content)
@@ -155,7 +128,6 @@ def create_wealth_subgraph(
                                             },
                                         })
                                         seen_navigation_events.add("navigation.reports")
-                                        logger.info("[WEALTH_AGENT] Detected reports subcategory, adding navigation event")
 
                                     if subcategory == 'profile' and "navigation.profile" not in seen_navigation_events:
                                         navigation_events.append({
@@ -166,7 +138,6 @@ def create_wealth_subgraph(
                                             },
                                         })
                                         seen_navigation_events.add("navigation.profile")
-                                        logger.info("[WEALTH_AGENT] Detected profile subcategory, adding navigation event")
 
                                     if subcategory == 'connect-account' and "navigation.connected-accounts" not in seen_navigation_events:
                                         navigation_events.append({
@@ -185,7 +156,6 @@ def create_wealth_subgraph(
 
         return {
             "messages": [cleaned_response],
-            "tool_call_count": new_tool_call_count,
             "retrieved_sources": retrieved_sources,
             "used_sources": used_sources,
             "navigation_events": navigation_events if navigation_events else None
@@ -249,13 +219,11 @@ def create_wealth_subgraph(
             if url and url not in seen_urls:
                 seen_urls.add(url)
                 unique_filtered_sources.append(source)
-                logger.info(f"Added unique source: {url}")
-            else:
-                logger.info(f"Skipped duplicate source: {url}")
-
-        logger.info(f"Filtered to {len(unique_filtered_sources)} unique sources from {len(filtered_sources)} total")
 
         final_sources = [s for s in unique_filtered_sources if s.get('content_source') != 'internal']
+
+        search_count = state.get("search_count", 0)
+        logger.info(f"[WEALTH_AGENT] Completed with {search_count} search_kb calls")
 
         formatted_response = f"""===== WEALTH AGENT TASK COMPLETED =====
 
@@ -277,19 +245,50 @@ This wealth agent analysis is provided to the supervisor for final user response
             "navigation_events": navigation_events if navigation_events else None
         }
 
+    async def tools_wrapper_node(state: WealthState):
+        """Wrap tool node to increment search count."""
+        result = await tool_node.ainvoke(state)
+
+        result["search_count"] = 1
+
+        current_count = state.get("search_count", 0)
+        logger.info(f"[WEALTH_AGENT] Search count: {current_count + 1}/{MAX_TOOL_CALLS}")
+
+        return result
+
     def should_continue(state: WealthState):
+        """Decide next step: tools, supervisor, or stop."""
         last_message = state["messages"][-1]
-        if last_message.tool_calls:
+
+        if getattr(last_message, "tool_calls", None):
+            current_search_count = state.get("search_count", 0)
+
+            if current_search_count >= MAX_TOOL_CALLS:
+                logger.warning(
+                    f"[WEALTH_AGENT] Max searches ({MAX_TOOL_CALLS}) reached. "
+                    f"Preventing further tool calls. Agent must respond now."
+                )
+                return "agent_forced_response"
+
             return "tools"
+
         return "supervisor"
 
     workflow = StateGraph(WealthState)
     workflow.add_node("agent", agent_node)
-    workflow.add_node("tools", tool_node)
+    workflow.add_node("tools", tools_wrapper_node)
     workflow.add_node("supervisor", supervisor_node)
 
     workflow.add_edge(START, "agent")
-    workflow.add_conditional_edges("agent", should_continue)
+    workflow.add_conditional_edges(
+        "agent",
+        should_continue,
+        {
+            "tools": "tools",
+            "agent_forced_response": "supervisor",
+            "supervisor": "supervisor"
+        }
+    )
     workflow.add_edge("tools", "agent")
 
     return workflow.compile()

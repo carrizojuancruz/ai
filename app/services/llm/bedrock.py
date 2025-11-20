@@ -46,6 +46,19 @@ class BedrockLLM(LLM):
         response = self.chat_model.invoke(messages, config={"callbacks": self._callbacks} if self._callbacks else None)
         return _content_to_text(getattr(response, "content", ""))
 
+    async def agenerate(
+        self,
+        prompt: str,
+        system: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> str:
+        messages = []
+        if system:
+            messages.append(SystemMessage(content=system))
+        messages.append(HumanMessage(content=prompt))
+        response = await self.chat_model.ainvoke(messages, config={"callbacks": self._callbacks} if self._callbacks else None)
+        return _content_to_text(getattr(response, "content", ""))
+
     async def generate_stream(
         self,
         prompt: str,

@@ -29,18 +29,15 @@ class TestWealthState:
         """Test WealthState supports dict access."""
         state = WealthState(
             messages=[],
-            tool_call_count=3,
             retrieved_sources=[{"url": "test.com"}],
         )
 
-        assert state["tool_call_count"] == 3
         assert len(state["retrieved_sources"]) == 1
 
     def test_wealth_state_default_values(self):
         """Test WealthState initializes with defaults."""
         state = WealthState(messages=[])
 
-        assert state.get("tool_call_count", 0) == 0
         assert state.get("retrieved_sources", []) == []
         assert state.get("used_sources", []) == []
         assert state.get("filtered_sources", []) == []
@@ -50,32 +47,7 @@ class TestWealthState:
 class TestCleanResponse:
     """Test suite for _clean_response function."""
 
-    def test_clean_response_exceeds_limit_with_existing_calls(self):
-        """Test _clean_response blocks when limit exceeded with existing calls."""
-        logger = logging.getLogger(__name__)
-        mock_response = MagicMock()
-        mock_response.tool_calls = [{"name": "search_kb", "args": {}}]
 
-        result = _clean_response(mock_response, 10, {}, logger)
-
-        assert isinstance(result, dict)
-        assert "sufficient information" in result["content"]
-        assert result["name"] == "wealth_agent"
-
-    def test_clean_response_truncates_excess_tool_calls(self):
-        """Test _clean_response truncates when at limit."""
-        from app.core.config import config
-        logger = logging.getLogger(__name__)
-
-        mock_response = MagicMock()
-        mock_response.tool_calls = [
-            {"name": f"tool_{i}", "args": {}, "id": str(i)} for i in range(20)
-        ]
-
-        result = _clean_response(mock_response, 0, {}, logger)
-
-        assert isinstance(result, dict)
-        assert len(result["tool_calls"]) <= config.WEALTH_AGENT_MAX_TOOL_CALLS
 
     def test_clean_response_with_tool_calls_removes_content(self):
         """Test _clean_response removes content when tool calls present."""
@@ -84,7 +56,7 @@ class TestCleanResponse:
         mock_response.tool_calls = [{"name": "search_kb"}]
         mock_response.content = "This should be removed"
 
-        result = _clean_response(mock_response, 2, {}, logger)
+        result = _clean_response(mock_response, {}, logger)
 
         assert result["content"] == ""
         assert result["tool_calls"] == mock_response.tool_calls
@@ -101,7 +73,7 @@ class TestCleanResponse:
 
         state = {"messages": [HumanMessage(content="Question")]}
 
-        result = _clean_response(mock_response, 0, state, logger)
+        result = _clean_response(mock_response, state, logger)
 
         assert isinstance(result, dict)
         assert "search" in result["content"].lower()
@@ -123,7 +95,7 @@ class TestCleanResponse:
             ]
         }
 
-        result = _clean_response(mock_response, 0, state, logger)
+        result = _clean_response(mock_response, state, logger)
 
         assert isinstance(result, dict)
         assert len(result["content"]) == 1
@@ -140,7 +112,7 @@ class TestCleanResponse:
 
         state = {"messages": [ToolMessage(content="Result", tool_call_id="123")]}
 
-        result = _clean_response(mock_response, 0, state, logger)
+        result = _clean_response(mock_response, state, logger)
 
         assert isinstance(result, dict)
         assert "unable to find" in result["content"].lower()
@@ -152,7 +124,7 @@ class TestCleanResponse:
         mock_response.tool_calls = []
         mock_response.content = "Valid final response"
 
-        result = _clean_response(mock_response, 0, {}, logger)
+        result = _clean_response(mock_response, {}, logger)
 
         assert result == mock_response
 
@@ -310,43 +282,7 @@ class TestWealthSubgraphExecution:
 
         assert result is not None
 
-    async def test_subgraph_handles_tool_call_count(self):
-        """Test subgraph tracks tool call count."""
-        mock_llm = AsyncMock()
-        mock_llm.bind_tools = MagicMock(return_value=mock_llm)
-        mock_ai_msg = AIMessage(content="Final response")
-        mock_llm.ainvoke.return_value = mock_ai_msg
 
-        def prompt_builder():
-            return "System"
-
-        graph = create_wealth_subgraph(mock_llm, [], prompt_builder)
-
-        state = {"messages": [HumanMessage(content="Query")], "tool_call_count": 2}
-        result = await graph.ainvoke(state)
-
-        assert result is not None
-
-    async def test_subgraph_max_tool_call_limit_enforcement(self):
-        """Test subgraph enforces maximum tool call limit."""
-        mock_llm = AsyncMock()
-        mock_llm.bind_tools = MagicMock(return_value=mock_llm)
-
-        # First call exceeds limit, second is final response
-        mock_llm.ainvoke.side_effect = [
-            AIMessage(content="Forcing completion due to limit"),
-        ]
-
-        def prompt_builder():
-            return "System"
-
-        graph = create_wealth_subgraph(mock_llm, [], prompt_builder)
-
-        # Set tool_call_count to exactly the max (5)
-        state = {"messages": [HumanMessage(content="Query")], "tool_call_count": 5}
-        result = await graph.ainvoke(state)
-
-        assert "messages" in result
 
     async def test_subgraph_ai_message_with_dict_content(self):
         """Test subgraph handles AI messages with dict content."""
@@ -524,8 +460,7 @@ class TestWealthSubgraphExecution:
 
         graph = create_wealth_subgraph(mock_llm, [], prompt_builder)
 
-        # Set count to exactly the limit (5)
-        state = {"messages": [HumanMessage(content="Query")], "tool_call_count": 5}
+        state = {"messages": [HumanMessage(content="Query")]}
         result = await graph.ainvoke(state)
 
         assert "messages" in result
@@ -681,8 +616,8 @@ class TestWealthSubgraphExecution:
         assert result is not None
         assert "messages" in result
 
-    async def test_subgraph_exceeds_max_tool_calls_exactly(self):
-        """Test that exactly MAX_TOOL_CALLS triggers early completion."""
+    async def test_subgraph_basic_invocation(self):
+        """Test basic subgraph invocation."""
         mock_llm = AsyncMock()
         mock_llm.bind_tools = MagicMock(return_value=mock_llm)
 
@@ -691,8 +626,7 @@ class TestWealthSubgraphExecution:
 
         graph = create_wealth_subgraph(mock_llm, [], prompt_builder)
 
-        # Exactly at the limit (5)
-        state = {"messages": [HumanMessage(content="Query")], "tool_call_count": 5}
+        state = {"messages": [HumanMessage(content="Query")]}
         result = await graph.ainvoke(state)
 
         assert result is not None
