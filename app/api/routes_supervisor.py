@@ -63,7 +63,7 @@ async def supervisor_sse(thread_id: str, request: Request) -> StreamingResponse:
                     break
                 try:
                     item = await asyncio.wait_for(queue.get(), timeout=10.0)
-                except TimeoutError:
+                except asyncio.TimeoutError:
                     continue
 
                 if isinstance(item, dict) and "event" in item:

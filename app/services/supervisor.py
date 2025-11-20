@@ -722,6 +722,36 @@ class SupervisorService:
                 except Exception as e:
                     logger.info(f"[TRACE] chain_end.handoff_close.error err={e}")
 
+                # If supervisor produced text but a handoff remains open (missing back signal), close it conservatively
+                if name == "supervisor" and supervisor_latest_response_text and active_handoffs:
+                    try:
+                        for tool_name in list(active_handoffs):
+                            description = "Returned from source"
+                            if tool_name == "transfer_to_finance_agent":
+                                description = _get_random_finance_completed()
+                            elif tool_name == "transfer_to_goal_agent":
+                                description = _get_random_budget_completed()
+                            elif tool_name == "transfer_to_wealth_agent":
+                                description = _get_random_wealth_completed()
+                            elif tool_name == "transfer_to_finance_capture_agent":
+                                description = _get_random_finance_capture_completed()
+
+                            await q.put(
+                                {
+                                    "event": "source.search.end",
+                                    "data": {
+                                        "tool": "transfer_back_to_supervisor",
+                                        "source": "Supervisor",
+                                        "description": description,
+                                    },
+                                }
+                            )
+                            active_handoffs.discard(tool_name)
+                        current_agent_tool = None
+                        logger.info("[TRACE] supervisor.handoff.conservative_close active_handoffs_cleared")
+                    except Exception as e:
+                        logger.info(f"[TRACE] handoff.conservative_close.error err={e}")
+
                 # Stream only when supervisor has authored text and no active handoff is open
                 if name == "supervisor" and supervisor_latest_response_text and not active_handoffs:
                     text_to_stream = supervisor_latest_response_text or ""
