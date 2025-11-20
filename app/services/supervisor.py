@@ -654,6 +654,7 @@ class SupervisorService:
             data = {} if isinstance(raw_data, Command) else raw_data if isinstance(raw_data, dict) else {}
 
             response_text = ""
+            response_author: str | None = None
             try:
                 if isinstance(data, dict) and data:
                     output_payload = data.get("output")
@@ -669,13 +670,37 @@ class SupervisorService:
 
                                 candidate = self._content_to_text(raw_content)
                                 if candidate and candidate.strip():
+                                    msg_name = msg.get("name") if isinstance(msg, dict) else getattr(msg, "name", None)
+
+                                    msg_meta = {}
+                                    try:
+                                        if isinstance(msg, dict):
+                                            msg_meta = msg.get("response_metadata", {}) or {}
+                                        else:
+                                            msg_meta = getattr(msg, "response_metadata", {}) or {}
+                                    except Exception:
+                                        msg_meta = {}
+
+                                    if msg_meta.get("is_handoff_back"):
+                                        continue
+
+                                    if msg_name and msg_name != "supervisor":
+                                        continue
+
                                     response_text = candidate.strip()
+                                    response_author = msg_name
                                     break
 
                 if response_text:
                     prev_latest = (latest_response_text[:80] + "...") if latest_response_text else None
                     latest_response_text = response_text
                     if name == "supervisor":
+                        if response_author not in (None, "supervisor"):
+                            logger.info(
+                                "[TRACE] supervisor.buffer.skip reason=non_supervisor_message author=%s",
+                                response_author,
+                            )
+                            continue
                         prev_super = (
                             (supervisor_latest_response_text[:80] + "...") if supervisor_latest_response_text else None
                         )

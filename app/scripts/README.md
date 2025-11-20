@@ -147,6 +147,33 @@ aws_secret_access_key = YOUR_SECRET_ACCESS_KEY
 region = us-east-1
 ```
 
+#### Production Environment
+
+For production operations, you need to provide AWS credentials and S3 Vectors configuration via environment variables:
+
+**Required Environment Variables:**
+- `AWS_ACCESS_KEY_ID`: AWS access key
+- `AWS_SECRET_ACCESS_KEY`: AWS secret key
+- `AWS_DEFAULT_REGION`: AWS region (e.g., `us-east-1`)
+- `S3V_DIMS`: Vector dimensions (default: `1024`)
+- `S3V_DISTANCE`: Distance metric (default: `cosine`)
+- `BEDROCK_EMBED_MODEL_ID`: Embedding model ID (e.g., `amazon.titan-embed-text-v1`)
+
+**Production Bucket:** `s3-vera-agent-general`  
+**Production Index:** `memory-search`  
+**Production Region:** `us-east-1`
+
+```powershell
+# List all finance procedural templates
+docker compose exec -e AWS_ACCESS_KEY_ID=<YOUR_KEY> -e AWS_SECRET_ACCESS_KEY=<YOUR_SECRET> -e AWS_DEFAULT_REGION=us-east-1 -e S3V_DIMS=1024 -e S3V_DISTANCE=cosine -e BEDROCK_EMBED_MODEL_ID=amazon.titan-embed-text-v1 app poetry run python -m app.scripts.dump_memories --bucket s3-vera-agent-general --index memory-search --region us-east-1 --user-id system --type finance_procedural_templates --list-all
+
+# Count finance procedural templates (PowerShell)
+docker compose exec -e AWS_ACCESS_KEY_ID=<YOUR_KEY> -e AWS_SECRET_ACCESS_KEY=<YOUR_SECRET> -e AWS_DEFAULT_REGION=us-east-1 -e S3V_DIMS=1024 -e S3V_DISTANCE=cosine -e BEDROCK_EMBED_MODEL_ID=amazon.titan-embed-text-v1 app poetry run python -m app.scripts.dump_memories --bucket s3-vera-agent-general --index memory-search --region us-east-1 --user-id system --type finance_procedural_templates --list-all 2>$null | ConvertFrom-Json | Select-Object -ExpandProperty count
+
+# Count supervisor procedural (routing) memories (PowerShell)
+docker compose exec -e AWS_ACCESS_KEY_ID=<YOUR_KEY> -e AWS_SECRET_ACCESS_KEY=<YOUR_SECRET> -e AWS_DEFAULT_REGION=us-east-1 -e S3V_DIMS=1024 -e S3V_DISTANCE=cosine -e BEDROCK_EMBED_MODEL_ID=amazon.titan-embed-text-v1 app poetry run python -m app.scripts.dump_memories --bucket s3-vera-agent-general --index memory-search --region us-east-1 --user-id system --type supervisor_procedural --list-all 2>$null | ConvertFrom-Json | Select-Object -ExpandProperty count
+```
+
 ### Notes
 
 - Namespace structure: `(user_id, type)` where:
