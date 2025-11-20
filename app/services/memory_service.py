@@ -470,7 +470,6 @@ class MemoryService:
             items = self._store.list_by_namespace(
                 namespace,
                 return_metadata=True,
-                limit=100,
             )
             results = []
             for item in items:

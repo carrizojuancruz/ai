@@ -12,7 +12,7 @@ from langgraph.prebuilt import ToolNode
 from app.core.config import config
 
 MAX_TOOL_CALLS: int = config.WEALTH_AGENT_MAX_TOOL_CALLS
-RECURSION_LIMIT: int = 15
+RECURSION_LIMIT: int = max(25, (MAX_TOOL_CALLS * 2) + 5)
 DEFAULT_TEMPERATURE: float = 0.4
 
 class WealthState(MessagesState):
@@ -78,11 +78,15 @@ def create_wealth_subgraph(
         system_prompt = prompt_builder()
 
         if current_search_count >= MAX_TOOL_CALLS:
-            system_prompt += "\n\nWARNING: You have reached the maximum allowed searches. Do NOT call search_kb again. Provide your final answer now based on what you found, or state that you could not find the information in the knowledge base."
+            system_prompt += "\n\nIMPORTANT: You have reached the maximum allowed searches. Provide your final answer NOW based on what you found. Do not attempt to call any tools."
+            logger.warning(f"[WEALTH_AGENT] Max tool calls ({MAX_TOOL_CALLS}) reached. Removing tools from model.")
+            model_to_use = llm
+        else:
+            model_to_use = model_with_tools
 
         messages = [{"role": "system", "content": system_prompt}] + state["messages"]
 
-        response = await model_with_tools.ainvoke(messages)
+        response = await model_to_use.ainvoke(messages)
 
         cleaned_response = _clean_response(response, state, logger)
 
@@ -257,18 +261,16 @@ This wealth agent analysis is provided to the supervisor for final user response
         return result
 
     def should_continue(state: WealthState):
-        """Decide next step: tools, supervisor, or stop."""
+        """Decide next step: tools or supervisor."""
         last_message = state["messages"][-1]
+        current_search_count = state.get("search_count", 0)
 
         if getattr(last_message, "tool_calls", None):
-            current_search_count = state.get("search_count", 0)
-
             if current_search_count >= MAX_TOOL_CALLS:
-                logger.warning(
-                    f"[WEALTH_AGENT] Max searches ({MAX_TOOL_CALLS}) reached. "
-                    f"Preventing further tool calls. Agent must respond now."
+                logger.error(
+                    "[WEALTH_AGENT] Agent tried to call tools after limit! This shouldn't happen. Going to supervisor."
                 )
-                return "agent_forced_response"
+                return "supervisor"
 
             return "tools"
 
@@ -285,7 +287,6 @@ This wealth agent analysis is provided to the supervisor for final user response
         should_continue,
         {
             "tools": "tools",
-            "agent_forced_response": "supervisor",
             "supervisor": "supervisor"
         }
     )
