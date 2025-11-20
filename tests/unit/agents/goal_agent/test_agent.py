@@ -65,7 +65,7 @@ class TestGoalAgent:
         # Assert
         assert isinstance(prompt, str)
         assert len(prompt) > 0
-        assert "GOAL AGENT" in prompt
+        assert "GOAL MANAGEMENT AGENT" in prompt
 
     @patch('app.agents.supervisor.goal_agent.agent.ChatCerebras')
     @patch('app.agents.supervisor.goal_agent.agent.configure_logging')

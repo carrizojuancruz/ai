@@ -44,8 +44,7 @@ def create_task_description_handoff_tool(
             instruction_block = "\n".join([f"- {line}" for line in guidelines.split("\n")])
 
         delegation_prompt = f"""
-        Please analyze and complete the following task as a specialized agent.
-        You are providing analysis to your supervisor - they will format the final response to the user.
+        Complete the following task as a specialized agent and report back the results.
 
         Task: {task_description}
 
