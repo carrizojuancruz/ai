@@ -102,30 +102,6 @@ jobs:
 
     
   ## -----------------------------------------
-  ## Validate computed release_type
-  ## -----------------------------------------
-  validate-release:
-    needs: prepare
-    runs-on: ubuntu-latest
-  
-    steps:
-      - name: Validate release_type from prepare step
-      - id: validate
-        run: |
-          echo "Validating release_type..."
-          echo "RELEASE_TYPE = '${{ needs.prepare.outputs.release_type }}'"
-  
-          case "${{ needs.prepare.outputs.release_type }}" in
-            patch|minor|major)
-              echo "✔ release_type is valid."
-              ;;
-            *)
-              echo "❌ INVALID release_type value: '${{ needs.prepare.outputs.release_type }}'"
-              echo "Value must be: patch | minor | major"
-              exit 1
-              ;;
-          esac
-  ## -----------------------------------------
   ## Create Release (Versioning)
   ## -----------------------------------------
   create-release:
@@ -135,8 +111,8 @@ jobs:
       pull-requests: write
     uses: verde-money/reusable-workflows/.github/workflows/create-release.yml@main
     with:
-      release_type: ${{ needs.prepare.outputs.release_type }}
-      release_notes: ${{ needs.prepare.outputs.release_notes }}
+      release_type: ${{ steps.prepare.outputs.release_type }}
+      release_notes: ${{ steps.prepare.outputs.release_notes }}
     secrets:
       inherit
 
