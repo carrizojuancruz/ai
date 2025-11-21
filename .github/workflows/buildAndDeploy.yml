@@ -1,6 +1,9 @@
 name: Build and Push to ECR
 
 on:
+  push:
+    branches:
+      - develop
   workflow_dispatch:
     inputs:
       environment:
@@ -27,25 +30,45 @@ permissions:
 jobs:
 
   ## -----------------------------------------
-  ## Deploy using selected environment
+  ## Prepare environment value
+  ## -----------------------------------------
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+
+    steps:
+      - name: Set environment value
+        id: set-env
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "environment=develop" >> "$GITHUB_OUTPUT"
+          else
+            echo "environment=${{ github.event.inputs.environment }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  ## -----------------------------------------
+  ## Deploy job (reusable workflow)
   ## -----------------------------------------
   deploy:
+    needs: prepare
     uses: verde-money/reusable-workflows/.github/workflows/deploy-ecs.yml@main
     with:
-      environment: ${{ github.event.inputs.environment }}
+      environment: ${{ needs.prepare.outputs.environment }}
     secrets:
       inherit
 
+
   ## -----------------------------------------
-  ## Slack Notification
+  ## Slack notification
   ## -----------------------------------------
   notify-slack:
+    needs: [deploy, prepare]
     uses: verde-money/reusable-workflows/.github/workflows/slack-notification.yml@main
-    needs: [deploy]
     with:
-      environment: ${{ github.event.inputs.environment }}
+      environment: ${{ needs.prepare.outputs.environment }}
       version_file_path: "version.json"
       deploy_result: ${{ needs.deploy.result }}
-      title: "FOS: ${{ github.repository }} - ${{ github.event.inputs.environment }} Deployment"
+      title: "FOS: ${{ github.repository }} - ${{ needs.prepare.outputs.environment }} Deployment"
     secrets:
       SLACK_WEBHOOK_URL: ${{ vars.DEPLOY_SLACK_WEBHOOK_URL }}
