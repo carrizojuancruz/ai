@@ -5,10 +5,12 @@ load_dotenv(".env.local", override=True)
 
 from collections.abc import Callable
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .api.admin.memories import router as memories_router
 from .api.routes import router as api_router
@@ -302,3 +304,10 @@ app.include_router(tts_router)
 app.include_router(stt_router)
 app.include_router(audio_router)
 app.include_router(test_router)
+
+static_path = Path(__file__).parent / "static"
+if static_path.exists():
+    app.mount("/admin/kb", StaticFiles(directory=str(static_path / "admin" / "kb"), html=True), name="kb_admin")
+    logger.info(f"Mounted Knowledge Base Admin at /admin/kb from {static_path / 'admin' / 'kb'}")
+else:
+    logger.warning(f"Static files directory not found: {static_path}")

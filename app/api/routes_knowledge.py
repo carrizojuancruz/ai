@@ -79,6 +79,78 @@ async def search_knowledge_base(request: SearchRequest) -> SearchResponse:
         ) from e
 
 
+@router.get("/sources/comparison")
+async def get_sources_comparison():
+    """Compare knowledge base sources with external database sources."""
+    try:
+        from app.services.external_context.sources.repository import ExternalSourcesRepository
+
+        knowledge_service = KnowledgeService()
+        external_repo = ExternalSourcesRepository()
+
+        # Get sources from vector store
+        kb_sources = knowledge_service.get_sources()
+
+        # Get sources from external database
+        try:
+            external_sources = await external_repo.get_all()
+        except Exception as e:
+            logger.error(f"Failed to fetch external sources: {str(e)}")
+            external_sources = []
+
+        # Build comparison metrics
+        kb_urls = {s.url for s in kb_sources}
+        external_urls = {s.url for s in external_sources}
+        enabled_external_urls = {s.url for s in external_sources if s.enabled}
+
+        in_both = kb_urls & external_urls
+        only_in_kb = kb_urls - external_urls
+        only_in_db = external_urls - kb_urls
+        missing_from_kb = enabled_external_urls - kb_urls
+
+        # Categorize sources
+        kb_sources_categorized = {
+            "internal": [s for s in kb_sources if s.content_source == "internal"],
+            "external": [s for s in kb_sources if s.content_source == "external"]
+        }
+
+        external_sources_categorized = {
+            "enabled": [s for s in external_sources if s.enabled],
+            "disabled": [s for s in external_sources if not s.enabled]
+        }
+
+        return {
+            "kb_sources": {
+                "total": len(kb_sources),
+                "internal": len(kb_sources_categorized["internal"]),
+                "external": len(kb_sources_categorized["external"]),
+                "total_chunks": sum(s.total_chunks for s in kb_sources)
+            },
+            "db_sources": {
+                "total": len(external_sources),
+                "enabled": len(external_sources_categorized["enabled"]),
+                "disabled": len(external_sources_categorized["disabled"])
+            },
+            "comparison": {
+                "in_both": len(in_both),
+                "only_in_kb": len(only_in_kb),
+                "only_in_db": len(only_in_db),
+                "missing_from_kb_but_enabled": len(missing_from_kb)
+            },
+            "details": {
+                "only_in_kb": [{"url": url, "name": next((s.name for s in kb_sources if s.url == url), None)} for url in sorted(only_in_kb)],
+                "only_in_db": [{"url": url, "name": next((s.name for s in external_sources if s.url == url), None)} for url in sorted(only_in_db)],
+                "missing_from_kb_but_enabled": [{"url": url, "name": next((s.name for s in external_sources if s.url == url), None)} for url in sorted(missing_from_kb)]
+            }
+        }
+    except Exception as e:
+        logger.error(f"Failed to compare sources: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to compare sources: {str(e)}"
+        ) from e
+
+
 @router.get("/sources", response_model=SourcesResponse)
 async def get_sources() -> SourcesResponse:
     """Get all knowledge base sources."""
@@ -99,7 +171,9 @@ async def get_sources() -> SourcesResponse:
                 total_max_pages=source.total_max_pages,
                 recursion_depth=source.recursion_depth,
                 last_sync=source.last_sync,
-                section_urls=source.section_urls or []
+                section_urls=source.section_urls or [],
+                total_chunks=source.total_chunks,
+                content_source=source.content_source
             )
             for source in sources
         ]

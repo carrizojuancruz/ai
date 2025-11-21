@@ -69,6 +69,8 @@ class SourceResponse(BaseModel):
     recursion_depth: Optional[int] = None
     last_sync: Optional[datetime] = None
     section_urls: Optional[List[str]] = None
+    total_chunks: int = 0
+    content_source: str = "external"
 
 
 class SourcesResponse(BaseModel):

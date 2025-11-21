@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Source Details - Knowledge Base Admin</title>
+    <link rel="stylesheet" href="source-detail.css">
+</head>
+<body>
+    <div class="container">
+        
+        <header class="page-header">
+            <div class="header-content">
+                <button id="back-btn" class="btn btn-secondary">
+                    ← Back to Sources
+                </button>
+                <h1>Source Details</h1>
+            </div>
+        </header>
+
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading source details...</p>
+        </div>
+
+        
+        <div id="error-message" class="error-message" style="display: none;"></div>
+
+        
+        <div id="content" style="display: none;">
+            
+            
+            <section class="metadata-section">
+                <div class="section-header">
+                    <h2>Source Information</h2>
+                    <div class="action-buttons">
+                        <button id="resync-btn" class="btn btn-resync">
+                            🔄 Resync Source
+                        </button>
+                        <button id="delete-btn" class="btn btn-delete">
+                            🗑️ Delete Vectors
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="metadata-grid">
+                    <div class="metadata-item">
+                        <span class="label">Name:</span>
+                        <span class="value" id="source-name">-</span>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="label">URL:</span>
+                        <a class="value link" id="source-url" href="#" target="_blank">-</a>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="label">Type:</span>
+                        <span class="value" id="source-type">-</span>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="label">Category:</span>
+                        <span class="value" id="source-category">-</span>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="label">Content Source:</span>
+                        <span class="value badge" id="source-content-source">-</span>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="label">Total Chunks:</span>
+                        <span class="value badge" id="source-total-chunks">0</span>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="label">Last Sync:</span>
+                        <span class="value" id="source-last-sync">-</span>
+                    </div>
+                    <div class="metadata-item full-width">
+                        <span class="label">Description:</span>
+                        <p class="value description" id="source-description">-</p>
+                    </div>
+                </div>
+            </section>
+
+            
+            <section class="chunks-section">
+                <div class="section-header">
+                    <h2>Chunks (<span id="chunks-count">0</span>)</h2>
+                    <div class="filter-controls">
+                        <input type="text" id="chunk-search" class="search-input" placeholder="Search in chunks...">
+                        <select id="chunk-sort" class="sort-select">
+                            <option value="index-asc">Index (Ascending)</option>
+                            <option value="index-desc">Index (Descending)</option>
+                            <option value="length-desc">Length (Longest first)</option>
+                            <option value="length-asc">Length (Shortest first)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="chunks-container" class="chunks-container">
+                    
+                </div>
+
+                <div id="no-chunks" class="empty-state" style="display: none;">
+                    No chunks found for this source.
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="source-detail.js"></script>
+</body>
+</html>

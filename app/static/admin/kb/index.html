@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Base Admin</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        
+        <header>
+            <h1>📚 Knowledge Base Admin</h1>
+            <p class="subtitle">Manage sources, view chunks, and monitor statistics</p>
+        </header>
+
+        
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+
+        
+        <div id="message-container"></div>
+
+        
+        <section class="statistics-section">
+            <h2>📊 Statistics</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-total-sources">-</div>
+                    <div class="stat-label">Total Sources</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-total-chunks">-</div>
+                    <div class="stat-label">Total Chunks</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-internal-sources">-</div>
+                    <div class="stat-label">Internal Sources</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-external-sources">-</div>
+                    <div class="stat-label">External Sources</div>
+                </div>
+            </div>
+        </section>
+
+        
+        <section class="comparison-section">
+            <h2>📊 Source Comparison (KB vs Database)</h2>
+            <div class="comparison-grid">
+                <div class="comparison-card">
+                    <h3>Knowledge Base</h3>
+                    <div class="comparison-stats">
+                        <div class="comparison-stat">
+                            <span class="label">Total Sources:</span>
+                            <span class="value" id="comp-kb-total">-</span>
+                        </div>
+                        <div class="comparison-stat">
+                            <span class="label">Internal:</span>
+                            <span class="value" id="comp-kb-internal">-</span>
+                        </div>
+                        <div class="comparison-stat">
+                            <span class="label">External:</span>
+                            <span class="value" id="comp-kb-external">-</span>
+                        </div>
+                        <div class="comparison-stat">
+                            <span class="label">Total Chunks:</span>
+                            <span class="value" id="comp-kb-chunks">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="comparison-card">
+                    <h3>Database Sources</h3>
+                    <div class="comparison-stats">
+                        <div class="comparison-stat">
+                            <span class="label">Total Sources:</span>
+                            <span class="value" id="comp-db-total">-</span>
+                        </div>
+                        <div class="comparison-stat">
+                            <span class="label">Enabled:</span>
+                            <span class="value" id="comp-db-enabled">-</span>
+                        </div>
+                        <div class="comparison-stat">
+                            <span class="label">Disabled:</span>
+                            <span class="value" id="comp-db-disabled">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="comparison-card highlight">
+                    <h3>⚠️ Sync Status</h3>
+                    <div class="comparison-stats">
+                        <div class="comparison-stat">
+                            <span class="label">In Both:</span>
+                            <span class="value badge-success" id="comp-in-both">-</span>
+                        </div>
+                        <div class="comparison-stat">
+                            <span class="label">Only in KB:</span>
+                            <span class="value badge-info" id="comp-only-kb">-</span>
+                        </div>
+                        <div class="comparison-stat">
+                            <span class="label">Only in DB:</span>
+                            <span class="value badge-warning" id="comp-only-db">-</span>
+                        </div>
+                        <div class="comparison-stat">
+                            <span class="label">Missing (Enabled):</span>
+                            <span class="value badge-danger" id="comp-missing">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="comparison-details">
+                <details id="missing-sources-details" style="display: none;">
+                    <summary>Missing Sources (Enabled in DB but not in KB)</summary>
+                    <ul id="missing-sources-list"></ul>
+                </details>
+                <details id="only-kb-details" style="display: none;">
+                    <summary>Sources Only in KB</summary>
+                    <ul id="only-kb-list"></ul>
+                </details>
+                <details id="only-db-details" style="display: none;">
+                    <summary>Sources Only in DB</summary>
+                    <ul id="only-db-list"></ul>
+                </details>
+            </div>
+        </section>
+
+        
+        <section class="sources-section">
+            <div class="sources-header">
+                <h2>🗂️ Sources</h2>
+                <div class="search-container">
+                    <input type="text" id="search-input" placeholder="Search by URL..." />
+                    <button id="clear-search-btn" class="btn btn-secondary" style="display: none;">Clear</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table id="sources-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>URL</th>
+                            <th>Type</th>
+                            <th>Category</th>
+                            <th>Description</th>
+                            <th>Chunks</th>
+                            <th>Last Sync</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sources-tbody">
+                        <tr>
+                            <td colspan="8" class="empty-state">Loading sources...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination-container">
+                <div class="pagination-info">
+                    Showing <span id="showing-start">0</span>-<span id="showing-end">0</span> of <span id="total-filtered">0</span> sources
+                </div>
+                <div class="pagination-controls">
+                    <button id="prev-page-btn" class="btn btn-secondary" disabled>← Previous</button>
+                    <span id="page-info">Page <span id="current-page">1</span> of <span id="total-pages">1</span></span>
+                    <button id="next-page-btn" class="btn btn-secondary" disabled>Next →</button>
+                </div>
+            </div>
+        </section>
+
+        
+        <section class="statistics-section">
+            
+            <div class="breakdown-section">
+                <h3>By Category</h3>
+                <div id="category-breakdown" class="breakdown-list">
+                    <p class="empty-state">Loading...</p>
+                </div>
+            </div>
+
+            
+            <div class="breakdown-section">
+                <h3>By Type</h3>
+                <div id="type-breakdown" class="breakdown-list">
+                    <p class="empty-state">Loading...</p>
+                </div>
+            </div>
+
+            
+            <div class="breakdown-section">
+                <h3>Last Sync Activity</h3>
+                <div id="last-sync-info" class="breakdown-list">
+                    <p class="empty-state">Loading...</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
