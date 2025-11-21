@@ -81,6 +81,9 @@ jobs:
   ## -----------------------------------------
   create-release:
     needs: prepare
+    permissions:
+      contents: write
+      pull-requests: write
     uses: verde-money/reusable-workflows/.github/workflows/create-release.yml@main
     with:
       release_type: ${{ needs.prepare.outputs.release_type }}
