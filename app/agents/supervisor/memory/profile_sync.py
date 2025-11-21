@@ -55,7 +55,8 @@ async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], valu
                 parsed = json.loads(out_text[i : j + 1]) if i != -1 and j != -1 and j > i else {}
             logger.info("profile_sync.proposed: %s", json.dumps(parsed)[:600])
             if isinstance(parsed, dict):
-                about_user = bool(parsed.get("about_user") is True)
+                raw_about = parsed.get("about_user")
+                about_user = True if raw_about is None else bool(raw_about)
                 if about_user:
                     for k in ("tone", "language", "city", "preferred_name", "income_band", "money_feelings"):
                         v = parsed.get(k)
@@ -88,13 +89,7 @@ async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], valu
             apply_patch: dict[str, Any] = {}
             changed: dict[str, Any] = {}
 
-            # Only allow identity/profile sync when the extractor marked this memory as about the user
-            # and the category is clearly identity-like.
-            identity_allowed = about_user and category in {
-                "Personal_Identity",
-                "Communication_Preferences",
-                "Conversation_Style",
-            }
+            identity_allowed = about_user
 
             if identity_allowed and patch.get("tone"):
                 apply_patch["tone_preference"] = patch["tone"]
