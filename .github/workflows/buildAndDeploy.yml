@@ -100,28 +100,12 @@ jobs:
           echo "--------------------------------"
 
 
-    
-  ## -----------------------------------------
-  ## Create Release (Versioning)
-  ## -----------------------------------------
-  create-release:
-    needs: prepare
-    permissions:
-      contents: write
-      pull-requests: write
-    uses: verde-money/reusable-workflows/.github/workflows/create-release.yml@main
-    with:
-      release_type: ${{ steps.prepare.outputs.release_type }}
-      release_notes: ${{ steps.prepare.outputs.release_notes }}
-    secrets:
-      inherit
-
 
   ## -----------------------------------------
   ## Deploy ECS
   ## -----------------------------------------
   deploy:
-    needs: [prepare, create-release]
+    needs: [prepare]
     uses: verde-money/reusable-workflows/.github/workflows/deploy-ecs.yml@main
     with:
       environment: ${{ needs.prepare.outputs.environment }}
