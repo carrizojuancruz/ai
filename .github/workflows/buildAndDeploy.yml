@@ -1,4 +1,4 @@
-name: Build and Push to ECR
+name: Build, Release and Deploy to ECS
 
 on:
   push:
@@ -16,6 +16,10 @@ on:
           - develop
           - uat
           - prod
+      release_notes:
+        description: "Release notes"
+        required: false
+        default: ""
 
 env:
   ECR_REPOSITORY:  ${{ vars.ECR_REGISTRY_NAME }}
@@ -32,28 +36,64 @@ permissions:
 jobs:
 
   ## -----------------------------------------
-  ## Prepare environment value
+  ## Prepare: detect environment + release type
   ## -----------------------------------------
   prepare:
     runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.set-env.outputs.environment }}
+      release_type: ${{ steps.set-env.outputs.release_type }}
+      release_notes: ${{ steps.set-env.outputs.release_notes }}
 
     steps:
-      - name: Set environment value
+      - name: Set environment + release type
         id: set-env
         run: |
+          # Determine environment
           if [ "${{ github.event_name }}" = "push" ]; then
-            echo "environment=develop" >> "$GITHUB_OUTPUT"
+            ENVIRONMENT="${{ github.ref_name }}"
           else
-            echo "environment=${{ github.event.inputs.environment }}" >> "$GITHUB_OUTPUT"
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
           fi
 
+          echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
+
+          # Determine release type based on environment
+          if [ "$ENVIRONMENT" = "develop" ]; then
+            RELEASE_TYPE="minor"
+          elif [ "$ENVIRONMENT" = "uat" ]; then
+            RELEASE_TYPE="patch"
+          elif [ "$ENVIRONMENT" = "prod" ]; then
+            RELEASE_TYPE="major"
+          else
+            echo "Invalid environment"
+            exit 1
+          fi
+
+          echo "release_type=$RELEASE_TYPE" >> "$GITHUB_OUTPUT"
+
+          # Release notes (only for workflow_dispatch)
+          echo "release_notes=${{ github.event.inputs.release_notes }}" >> "$GITHUB_OUTPUT"
+
+
   ## -----------------------------------------
-  ## Deploy job (reusable workflow)
+  ## Create Release (Versioning)
+  ## -----------------------------------------
+  create-release:
+    needs: prepare
+    uses: verde-money/reusable-workflows/.github/workflows/create-release.yml@main
+    with:
+      release_type: ${{ needs.prepare.outputs.release_type }}
+      release_notes: ${{ needs.prepare.outputs.release_notes }}
+    secrets:
+      inherit
+
+
+  ## -----------------------------------------
+  ## Deploy ECS
   ## -----------------------------------------
   deploy:
-    needs: prepare
+    needs: [prepare, create-release]
     uses: verde-money/reusable-workflows/.github/workflows/deploy-ecs.yml@main
     with:
       environment: ${{ needs.prepare.outputs.environment }}
@@ -62,7 +102,7 @@ jobs:
 
 
   ## -----------------------------------------
-  ## Slack notification
+  ## Slack Notification
   ## -----------------------------------------
   notify-slack:
     needs: [deploy, prepare]
