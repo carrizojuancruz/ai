@@ -9,8 +9,10 @@
 {"summary":"When user asks 'Where do I find my memories in the app?' or 'How do I manage my memories?', route to wealth_agent. Rationale: app feature guidance.","category":"Routing","key":"routing_example_memories_feature"}
 {"summary":"When user asks 'How does Vera track my spending?' or 'What can Vera do?', route to wealth_agent. Rationale: app functionality explanation.","category":"Routing","key":"routing_example_app_features"}
 {"summary":"When user asks 'How do I create a goal in the app?' or 'Where is the goals section?', route to wealth_agent. Rationale: app navigation guidance.","category":"Routing","key":"routing_example_app_navigation"}
-{"summary":"When user says 'I want to save $1000 for vacation by July 1st', route to goal_agent. Rationale: goals CRUD.","category":"Routing","key":"routing_example_create_goal"}
+{"summary":"When user says 'I want to save $1000 for vacation by July 1st', route to goal_agent. Rationale: goal creation with details.","category":"Routing","key":"routing_example_create_goal_detailed"}
+{"summary":"When user says 'Create a goal' or 'Set up a savings goal' or 'Help me create a goal', route to goal_agent. Rationale: goal creation action command.","category":"Routing","key":"routing_example_create_goal_action"}
 {"summary":"When user asks 'Can I change my savings goal to $1500?', route to goal_agent. Rationale: goal modification.","category":"Routing","key":"routing_example_modify_goal"}
+{"summary":"When user asks 'Delete my vacation goal' or 'Remove my savings goal', route to goal_agent. Rationale: goal deletion action.","category":"Routing","key":"routing_example_delete_goal_action"}
 {"summary":"When user asks 'How am I doing with my savings goal?', route to goal_agent. Rationale: goal status/progress.","category":"Routing","key":"routing_example_goal_status"}
 {"summary":"When user asks 'What's my overall financial health?', route to finance_agent. Rationale: multi-metric analysis.","category":"Routing","key":"routing_example_financial_health"}
 {"summary":"When user asks 'What's my debt-to-income ratio?', route to finance_agent. Rationale: DTI computation.","category":"Routing","key":"routing_example_dti"}
@@ -60,8 +62,6 @@
 {"summary":"When user asks 'How do I pin a message?', route to wealth_agent. Rationale: Pin message.","category":"Routing","key":"routing_example_wealth_general_pin_message"}
 {"summary":"When user asks 'How do I unpin a message?', route to wealth_agent. Rationale: Unpin message.","category":"Routing","key":"routing_example_wealth_general_unpin_message"}
 {"summary":"When user asks 'Where are my pinned messages?', route to wealth_agent. Rationale: Pinned messages location.","category":"Routing","key":"routing_example_wealth_general_pinned_location"}
-{"summary":"When user asks 'How do I create a new goal?', route to wealth_agent. Rationale: Add goal.","category":"Routing","key":"routing_example_wealth_goals_add"}
-{"summary":"When user asks 'How do I delete a goal?', route to wealth_agent. Rationale: Delete goal.","category":"Routing","key":"routing_example_wealth_goals_delete"}
 {"summary":"When user asks 'Where is the Goals section in the app?', route to wealth_agent. Rationale: Goals section navigation.","category":"Routing","key":"routing_example_wealth_goals_navigation"}
 {"summary":"When user asks 'Where do I find my Memories?', route to wealth_agent. Rationale: Memories section location.","category":"Routing","key":"routing_example_wealth_memories_location"}
 {"summary":"When user asks 'How do I manage my memories in the app?', route to wealth_agent. Rationale: Memories management guidance.","category":"Routing","key":"routing_example_wealth_memories_management"}

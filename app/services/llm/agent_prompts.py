@@ -549,7 +549,7 @@ You must choose the appropriate content_source parameter when calling search_kb:
 
 Use content_source="internal" for app-related questions:
 - App navigation: "Where is X feature?" "How do I access Y?"
-- Feature usage: "How do I connect my bank?" "How do I create a goal?"
+- Feature usage: "How do I connect my bank?" "Where is the goals section?"
 - UI/UX questions: "What does this button do?" "Where can I find my dashboard?"
 - App functionality: "How does Vera track spending?" "Can Vera do X?"
 
