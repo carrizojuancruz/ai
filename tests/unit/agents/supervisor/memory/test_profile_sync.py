@@ -130,7 +130,7 @@ class TestProfileSyncFromMemory:
         mock_client = MagicMock()
         mock_bedrock.return_value = mock_client
 
-        response_text = 'Here is the JSON: {"city": "Boston", "age": 25} and some extra text'
+        response_text = 'Here is the JSON: {"city": "Boston", "age": 25, "about_user": true} and some extra text'
         mock_client.invoke_model.return_value = {
             "body": MagicMock(
                 read=lambda: json.dumps({"output": {"message": {"content": [{"text": response_text}]}}}).encode("utf-8")
