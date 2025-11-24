@@ -20,6 +20,9 @@ def mock_thread_id():
 @pytest.fixture
 def mock_bedrock_response():
     def _create_response(extracted_data):
+        if "about_user" not in extracted_data:
+            extracted_data = dict(extracted_data)
+            extracted_data["about_user"] = True
         return {
             "body": MagicMock(
                 read=lambda: json.dumps(
