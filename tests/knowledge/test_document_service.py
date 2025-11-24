@@ -167,16 +167,16 @@ class TestDocumentServiceSubcategory:
         return Source(
             id="int123",
             name="Internal",
-            url="Profile/file.md",
+            url="https://example.com/12770905-profile",
             enabled=True,
-            type="markdown"
+            type="article"
         )
 
-    def test_s3_subcategory_assignment(self, document_service, mock_text_splitter, internal_source):
+    def test_url_subcategory_assignment(self, document_service, mock_text_splitter, internal_source):
         docs = [
             Document(
                 page_content="Test " * 50,
-                metadata={"s3_key": "Profile/file.md"}
+                metadata={"section_url": "https://example.com/12770905-profile"}
             )
         ]
 
@@ -205,7 +205,7 @@ class TestDocumentServiceSubcategory:
 
         source = Source(id="other", name="Other", url="https://example.com", enabled=True)
 
-        docs = [Document(page_content="Test " * 50, metadata={"s3_key": "Other/file.md"})]
+        docs = [Document(page_content="Test " * 50, metadata={"section_url": "https://example.com/other-article"})]
 
         chunks = document_service.split_documents(docs, source, content_source="internal")
 
@@ -226,7 +226,8 @@ class TestDocumentServiceSubcategory:
 
         assert all(chunk.metadata.get('subcategory') == 'profile' for chunk in chunks)
 
-    def test_s3_priority(self, document_service, mock_text_splitter):
+    def test_url_fallback_when_s3_no_match(self, document_service, mock_text_splitter):
+        """Test that URL subcategory is used when S3 key doesn't match any section."""
         from app.knowledge.models import Source
 
         source = Source(id="mix", name="Mixed", url="https://example.com", enabled=True)
@@ -235,8 +236,8 @@ class TestDocumentServiceSubcategory:
             Document(
                 page_content="Test " * 50,
                 metadata={
-                    "s3_key": "Profile/file.md",
-                    "section_url": "https://example.com/12634022-see-how-you-re-doing-reports-made-simple"
+                    "s3_key": "SomeOther/file.md",
+                    "section_url": "https://example.com/12770905-profile"
                 }
             )
         ]

@@ -39,12 +39,13 @@ class DocumentService:
 
             doc.metadata["source_url"] = source.url
 
-            if "source" in doc.metadata:
-                doc.metadata["section_url"] = doc.metadata["source"]
-            elif "url" not in doc.metadata:
-                doc.metadata["section_url"] = source.url
-            else:
-                doc.metadata["section_url"] = doc.metadata.get("url", source.url)
+            if "section_url" not in doc.metadata:
+                if "source" in doc.metadata:
+                    doc.metadata["section_url"] = doc.metadata["source"]
+                elif "url" in doc.metadata:
+                    doc.metadata["section_url"] = doc.metadata["url"]
+                else:
+                    doc.metadata["section_url"] = source.url
 
             doc.metadata["name"] = source.name
             doc.metadata["type"] = source.type

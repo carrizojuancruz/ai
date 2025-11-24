@@ -6,8 +6,6 @@ from typing import Any, Dict
 
 from app.core.config import config
 from app.knowledge.constants import (
-    PROFILE_S3_KEY,
-    PROFILE_SOURCE_PATH,
     VERA_GUIDANCE_CATEGORY,
     VERA_GUIDANCE_CONTENT_SOURCE,
     VERA_GUIDANCE_DESCRIPTION,
@@ -38,8 +36,6 @@ class UnifiedSyncService:
 
         logger.info("Starting unified sync")
 
-        profile_uploaded = await self._ensure_profile_exists()
-
         for sync_fn, op_type in [
             (self._sync_s3, "s3"),
             (self._sync_guidance, "guidance"),
@@ -68,31 +64,8 @@ class UnifiedSyncService:
             "success": success,
             "total_time_seconds": round(time.time() - start_time, 2),
             "operations": operations,
-            "summary": summary,
-            "profile_uploaded": profile_uploaded
+            "summary": summary
         }
-
-    async def _ensure_profile_exists(self) -> bool:
-        """Upload Profile.md to S3 if missing."""
-        try:
-            if self.s3_sync.file_exists(PROFILE_S3_KEY):
-                return False
-
-            if not PROFILE_SOURCE_PATH.exists():
-                logger.warning(f"Profile.md not found at {PROFILE_SOURCE_PATH}")
-                return False
-
-            result = self.s3_sync.upload_file(str(PROFILE_SOURCE_PATH), PROFILE_S3_KEY)
-            if result["success"]:
-                logger.info(f"Uploaded Profile.md to {PROFILE_S3_KEY}")
-                return True
-
-            logger.error(f"Failed to upload Profile.md: {result.get('error')}")
-            return False
-
-        except Exception as e:
-            logger.error(f"Error uploading Profile.md: {e}", exc_info=True)
-            return False
 
     async def _sync_external(self) -> Dict[str, Any]:
         """Sync external sources from FOS API."""

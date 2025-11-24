@@ -7,8 +7,10 @@ INTERNAL_URL_SECTIONS = {
     ],
     "connect-account": [
         "12461218-how-can-i-connect-my-accounts"
+    ],
+    "profile": [
+        "12770905-profile"
     ]
 }
 INTERNAL_S3_SECTIONS = {
-    "profile": ["Profile/"],
 }
