@@ -46,6 +46,7 @@ async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], valu
         except Exception:
             out_text = data.get("outputText") or data.get("generation") or ""
         patch: dict[str, Any] = {}
+        about_user: bool = False
         if out_text:
             try:
                 parsed = json.loads(out_text)
@@ -54,14 +55,22 @@ async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], valu
                 parsed = json.loads(out_text[i : j + 1]) if i != -1 and j != -1 and j > i else {}
             logger.info("profile_sync.proposed: %s", json.dumps(parsed)[:600])
             if isinstance(parsed, dict):
-                for k in ("tone", "language", "city", "preferred_name", "income_band", "money_feelings"):
-                    v = parsed.get(k)
-                    if isinstance(v, str) and v.strip():
-                        patch[k] = v.strip()
+                raw_about = parsed.get("about_user")
+                if isinstance(raw_about, bool):
+                    about_user = raw_about
+                elif isinstance(raw_about, str):
+                    about_user = raw_about.strip().lower() == "true"
+                else:
+                    about_user = False
+                if about_user:
+                    for k in ("tone", "language", "city", "preferred_name", "income_band", "money_feelings"):
+                        v = parsed.get(k)
+                        if isinstance(v, str) and v.strip():
+                            patch[k] = v.strip()
 
-                age = parsed.get("age")
-                if isinstance(age, (int, float)) and age > 0:
-                    patch["age"] = int(age)
+                    age = parsed.get("age")
+                    if isinstance(age, (int, float)) and age > 0:
+                        patch["age"] = int(age)
 
                 goals_add = parsed.get("goals_add")
                 if isinstance(goals_add, list):
@@ -85,7 +94,9 @@ async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], valu
             apply_patch: dict[str, Any] = {}
             changed: dict[str, Any] = {}
 
-            if patch.get("tone"):
+            identity_allowed = about_user
+
+            if identity_allowed and patch.get("tone"):
                 apply_patch["tone_preference"] = patch["tone"]
                 changed["tone_preference"] = patch["tone"]
 
@@ -97,24 +108,25 @@ async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], valu
                     apply_patch["personal_goals"] = merged
                     changed["goals"] = [g for g in merged if g not in (ctx.goals or [])]
 
-            for k_src, k_dst in (
-                ("preferred_name", "preferred_name"),
-                ("city", "city"),
-                ("language", "language"),
-                ("income_band", "income_band"),
-            ):
-                v = patch.get(k_src)
-                if isinstance(v, str) and v.strip():
-                    apply_patch[k_dst] = v.strip()
-                    changed[k_dst] = v.strip()
+            if identity_allowed:
+                for k_src, k_dst in (
+                    ("preferred_name", "preferred_name"),
+                    ("city", "city"),
+                    ("language", "language"),
+                    ("income_band", "income_band"),
+                ):
+                    v = patch.get(k_src)
+                    if isinstance(v, str) and v.strip():
+                        apply_patch[k_dst] = v.strip()
+                        changed[k_dst] = v.strip()
 
-            if patch.get("age"):
-                apply_patch["age"] = patch["age"]
-                changed["age"] = patch["age"]
+                if patch.get("age"):
+                    apply_patch["age"] = patch["age"]
+                    changed["age"] = patch["age"]
 
-            if patch.get("money_feelings"):
-                apply_patch["money_feelings"] = [patch["money_feelings"]]
-                changed["money_feelings"] = [patch["money_feelings"]]
+                if patch.get("money_feelings"):
+                    apply_patch["money_feelings"] = [patch["money_feelings"]]
+                    changed["money_feelings"] = [patch["money_feelings"]]
 
             if apply_patch:
                 state = OnboardingState(user_id=uid, user_context=ctx)

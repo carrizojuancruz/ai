@@ -70,9 +70,9 @@ async def supervisor_sse(thread_id: str, request: Request) -> StreamingResponse:
                     event_name = item.get("event")
                     payload = item.get("data", {})
                     yield f"event: {event_name}\n"
-                    yield f"data: {json.dumps(payload)}\n\n"
+                    yield f"data: {json.dumps(payload, default=str)}\n\n"
                 else:
-                    yield f"data: {json.dumps(item)}\n\n"
+                    yield f"data: {json.dumps(item, default=str)}\n\n"
         finally:
             from app.core.app_state import drop_sse_queue
 
