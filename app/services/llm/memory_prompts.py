@@ -32,6 +32,8 @@ Rules:
 - When birthdays, ages, or dates are mentioned ONLY as part of a goal, plan, or event for someone else (for example, saving for another person's birthday), treat them as GOAL CONTEXT, not as the user's own identity attributes.
 - NEVER rephrase another person's age or birthday as if it were the user's age or birthday.
 - When the content is primarily about a financial goal or target (amounts, deadlines, goal progress), prefer {{"should_create": false}} and let the specialized goal/finance systems own those details.
+- Do NOT create semantic memories when the message is primarily a greeting or conversation opener (for example, "hi", "hello", "hey Vera", "good morning") where no durable user fact is clearly stated.
+- Only create name-related memories when the user explicitly states their own name (for example, "my name is Ana", "call me Ana", "I am Ana") instead of inferring from greetings that simply address the assistant.
 - Choose category from: [{categories}].
 - summary must be 1–2 sentences, concise and neutral (third person).
 - Also produce display_summary for UI in second person (address the user as "you"). Keep the meaning identical to summary, without time words.
@@ -180,6 +182,8 @@ Rules:
 - If the summary is primarily about someone else (family member, friend, colleague, pet, etc.) or about a shared event (for example, saving for another person's birthday), set "about_user" to false.
 - When "about_user" is false, you MUST NOT output identity fields for the user ("preferred_name", "language", "city", "tone", "age", "income_band", "money_feelings"); only "goals_add" is allowed in that case.
 - Only extract age when it unambiguously refers to the user's own age. Do NOT treat another person's age or birthday as the user's age.
+- Names that appear only as part of a greeting or direct address to someone else (for example, "hey Ana") MUST NOT be treated as the user's "preferred_name". Only set "preferred_name" when the summary clearly states the user's own name (for example, "User's preferred name is Ana.", "my name is Ana").
+- If the summary mentions an assistant or product name (for example, "Vera") without explicitly stating that it is the user's name, you MUST NOT set "preferred_name" to that value.
 - Use "goals_add" for goal descriptions (for example, "save for father's birthday") without turning other people's attributes into user identity.
 
 Category: {category}

@@ -56,7 +56,12 @@ async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], valu
             logger.info("profile_sync.proposed: %s", json.dumps(parsed)[:600])
             if isinstance(parsed, dict):
                 raw_about = parsed.get("about_user")
-                about_user = True if raw_about is None else bool(raw_about)
+                if isinstance(raw_about, bool):
+                    about_user = raw_about
+                elif isinstance(raw_about, str):
+                    about_user = raw_about.strip().lower() == "true"
+                else:
+                    about_user = False
                 if about_user:
                     for k in ("tone", "language", "city", "preferred_name", "income_band", "money_feelings"):
                         v = parsed.get(k)
