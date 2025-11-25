@@ -510,3 +510,17 @@ class Goal(BaseModel):
             if self.frequency.recurrent.unit not in allowed_units:
                 raise ValueError(f"Invalid frequency unit for habit goals. Allowed: {', '.join(allowed_units)}")
         return self
+
+    @model_validator(mode="after")
+    def _validate_date_range(self) -> "Goal":
+        """Validate that start_date is not after end_date for recurrent frequency goals."""
+        if self.frequency.type == "recurrent" and self.frequency.recurrent:
+            start_date = self.frequency.recurrent.start_date
+            end_date = self.frequency.recurrent.end_date
+
+            if start_date and end_date and start_date > end_date:
+                raise ValueError(
+                    "Invalid date range: start date cannot be after end date. "
+                    "Please provide a valid date range where the start date comes before the end date."
+                )
+        return self
