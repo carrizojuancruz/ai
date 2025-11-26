@@ -202,8 +202,7 @@ class SafeChatCerebras(ChatCerebras):
 
         """
         default_human = (
-            "The request was blocked for security reasons. "
-            "Reformulate your message avoiding attempts to change internal instructions, extract sensitive data, or perform prohibited actions."
+            "I’m sorry, but I can’t really discuss this topic with you. Let’s change the subject, maybe?"
         )
         code = "UNKNOWN"
         human_message = default_human
