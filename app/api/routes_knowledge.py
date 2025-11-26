@@ -24,6 +24,8 @@ from .schemas.knowledge import (
     SearchRequest,
     SearchResponse,
     SearchResultItem,
+    SourceComparisonDetail,
+    SourceComparisonResponse,
     SourceDetailsResponse,
     SourceResponse,
     SourcesResponse,
@@ -79,8 +81,8 @@ async def search_knowledge_base(request: SearchRequest) -> SearchResponse:
         ) from e
 
 
-@router.get("/sources/comparison")
-async def get_sources_comparison():
+@router.get("/sources/comparison", response_model=SourceComparisonResponse)
+async def get_sources_comparison() -> SourceComparisonResponse:
     """Compare knowledge base sources with external database sources."""
     try:
         from app.services.external_context.sources.repository import ExternalSourcesRepository
@@ -119,30 +121,30 @@ async def get_sources_comparison():
             "disabled": [s for s in external_sources if not s.enabled]
         }
 
-        return {
-            "kb_sources": {
+        return SourceComparisonResponse(
+            kb_sources={
                 "total": len(kb_sources),
                 "internal": len(kb_sources_categorized["internal"]),
                 "external": len(kb_sources_categorized["external"]),
                 "total_chunks": sum(s.total_chunks for s in kb_sources)
             },
-            "db_sources": {
+            db_sources={
                 "total": len(external_sources),
                 "enabled": len(external_sources_categorized["enabled"]),
                 "disabled": len(external_sources_categorized["disabled"])
             },
-            "comparison": {
+            comparison={
                 "in_both": len(in_both),
                 "only_in_kb": len(only_in_kb),
                 "only_in_db": len(only_in_db),
                 "missing_from_kb_but_enabled": len(missing_from_kb)
             },
-            "details": {
-                "only_in_kb": [{"url": url, "name": next((s.name for s in kb_sources if s.url == url), None)} for url in sorted(only_in_kb)],
-                "only_in_db": [{"url": url, "name": next((s.name for s in external_sources if s.url == url), None)} for url in sorted(only_in_db)],
-                "missing_from_kb_but_enabled": [{"url": url, "name": next((s.name for s in external_sources if s.url == url), None)} for url in sorted(missing_from_kb)]
+            details={
+                "only_in_kb": [SourceComparisonDetail(url=url, name=next((s.name for s in kb_sources if s.url == url), None)) for url in sorted(only_in_kb)],
+                "only_in_db": [SourceComparisonDetail(url=url, name=next((s.name for s in external_sources if s.url == url), None)) for url in sorted(only_in_db)],
+                "missing_from_kb_but_enabled": [SourceComparisonDetail(url=url, name=next((s.name for s in external_sources if s.url == url), None)) for url in sorted(missing_from_kb)]
             }
-        }
+        )
     except Exception as e:
         logger.error(f"Failed to compare sources: {str(e)}", exc_info=True)
         raise HTTPException(

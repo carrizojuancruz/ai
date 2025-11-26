@@ -354,7 +354,7 @@ function renderSourcesTable(sources) {
             <td>${escapeHtml(source.category || '-')}</td>
             <td>
                 <span class="truncate" title="${escapeHtml(source.description || '')}">
-                    ${truncate(source.description, 50)}
+                    ${escapeHtml(truncate(source.description, 50))}
                 </span>
             </td>
             <td>

@@ -162,4 +162,93 @@ class SyncSourceResponse(BaseModel):
     crawl_error: Optional[str] = None
 
 
+class SourceComparisonDetail(BaseModel):
+    """Detail item for source comparison lists."""
+
+    url: str
+    name: Optional[str] = None
+
+
+class KnowledgeBaseSourceStats(BaseModel):
+    """Statistics for knowledge base sources."""
+
+    total: int = Field(..., description="Total number of sources in knowledge base")
+    internal: int = Field(..., description="Number of internal S3 sources")
+    external: int = Field(..., description="Number of external crawled sources")
+    total_chunks: int = Field(..., description="Total number of vector chunks")
+
+
+class DatabaseSourceStats(BaseModel):
+    """Statistics for database sources."""
+
+    total: int = Field(..., description="Total number of sources in database")
+    enabled: int = Field(..., description="Number of enabled sources")
+    disabled: int = Field(..., description="Number of disabled sources")
+
+
+class SourceComparisonMetrics(BaseModel):
+    """Comparison metrics between knowledge base and database sources."""
+
+    in_both: int = Field(..., description="Sources present in both KB and DB")
+    only_in_kb: int = Field(..., description="Sources only in knowledge base")
+    only_in_db: int = Field(..., description="Sources only in database")
+    missing_from_kb_but_enabled: int = Field(
+        ..., description="Enabled DB sources missing from knowledge base"
+    )
+
+
+class SourceComparisonDetails(BaseModel):
+    """Detailed lists of sources in various comparison categories."""
+
+    only_in_kb: List[SourceComparisonDetail] = Field(
+        ..., description="Sources that exist only in knowledge base"
+    )
+    only_in_db: List[SourceComparisonDetail] = Field(
+        ..., description="Sources that exist only in database"
+    )
+    missing_from_kb_but_enabled: List[SourceComparisonDetail] = Field(
+        ..., description="Enabled database sources not found in knowledge base"
+    )
+
+
+class SourceComparisonResponse(BaseModel):
+    """Complete response for source comparison endpoint."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "kb_sources": {
+                    "total": 25,
+                    "internal": 10,
+                    "external": 15,
+                    "total_chunks": 1250
+                },
+                "db_sources": {"total": 30, "enabled": 28, "disabled": 2},
+                "comparison": {
+                    "in_both": 20,
+                    "only_in_kb": 5,
+                    "only_in_db": 10,
+                    "missing_from_kb_but_enabled": 8
+                },
+                "details": {
+                    "only_in_kb": [
+                        {"url": "https://example.com/doc1", "name": "Doc 1"}
+                    ],
+                    "only_in_db": [
+                        {"url": "https://example.com/doc2", "name": "Doc 2"}
+                    ],
+                    "missing_from_kb_but_enabled": [
+                        {"url": "https://example.com/doc3", "name": "Doc 3"}
+                    ],
+                },
+            }
+        }
+    )
+
+    kb_sources: KnowledgeBaseSourceStats
+    db_sources: DatabaseSourceStats
+    comparison: SourceComparisonMetrics
+    details: SourceComparisonDetails
+
+
 
