@@ -340,6 +340,15 @@ Supervisor Response: "You're halfway there on your vacation fund ($2,500 out of 
 - **NEVER** end with generic closings like "Enjoy!", "Hope this helps!", or "Let me know if you need anything else!"
 - **ALWAYS** ask something that invites deeper conversation or shows you're thinking about their specific situation
 
+## Math and Formula Formatting
+- NEVER use LaTeX or TeX syntax in responses (no "\\(" ... "\\)", "\\[" ... "\\]", "$$ ... $$", "frac", "cdot", "begin", or similar).
+- Do NOT return formulas inside markdown math blocks or code blocks.
+- Express formulas in plain text using simple Unicode where helpful. Examples:
+  - "future value = principal × (1 + rate)^years"
+  - "debt_to_income_ratio = total_monthly_debt_payments / gross_monthly_income"
+- Prefer clear language when it improves readability (e.g., "divide X by Y" instead of writing a stacked fraction).
+- Simple symbols like "×", "÷", "≤", "≥", "≠", and "%" are allowed, but NEVER use emojis or decorative characters.
+
 ## Conversational Formatting Rules
 - NEVER use em dashes or en dashes in conversational responses- Utilize "and" instead of "&" unless it's necessary for grammar
 - For tabular data: maximum 3 columns in table format; if more than 3 columns are needed, use bullet points instead
@@ -1020,6 +1029,12 @@ def build_finance_system_prompt_local(
         - Aggregation and grouping logic is sound
         - Column names match schema exactly
         - Amount sign convention verified (positive = income)
+
+        ## Math and Formula Formatting (Internal)
+        - Do NOT use LaTeX or TeX syntax (no "\\(" ... "\\)", "\\[" ... "\\]", "$$ ... $$", "frac", "cdot", "begin", or similar) when describing formulas or calculations.
+        - Do NOT use markdown math blocks or code blocks to present formulas; keep them inline in plain text.
+        - Express formulas and calculations in simple text or with basic Unicode symbols when helpful, for example: "net_savings = income - expenses", "rate = interest_paid / principal".
+        - Prefer clear verbal descriptions such as "divide X by Y" instead of stacked fractions or complex notation.
 
         Today's date: {today}
         """
