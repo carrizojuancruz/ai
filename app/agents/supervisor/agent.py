@@ -183,11 +183,11 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
         input_config={
             "use_llm_classifier": True,
             "llm_confidence_threshold": 0.7,
-            "enabled_checks": ["injection", "pii", "blocked_topics"],
+            "enabled_checks": ["injection", "pii", "blocked_topics", "internal_exposure"],
         },
         output_config={
             "use_llm_classifier": False,
-            "enabled_checks": ["pii_leakage", "context_exposure"],
+            "enabled_checks": ["pii_leakage", "context_exposure", "internal_exposure"],
         },
         user_context={
             "blocked_topics": [],
@@ -207,7 +207,6 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
         )
     else:
         summarize_model = chat_bedrock
-    # Enforce summary length if supported by the model
     try:
         summarize_model = summarize_model.bind(max_tokens=SUMMARY_MAX_SUMMARY_TOKENS_DEFAULT)
         logger.info("summary.model.bind max_tokens=%d", SUMMARY_MAX_SUMMARY_TOKENS_DEFAULT)

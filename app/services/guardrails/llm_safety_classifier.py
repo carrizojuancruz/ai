@@ -38,6 +38,7 @@ class SafetyCategory(Enum):
     PII_EXPOSURE = "pii_exposure"
     PROMPT_INJECTION = "prompt_injection"
     MISINFORMATION = "misinformation"
+    INTERNAL_EXPOSURE = "internal_exposure"
 
 
 class SafetyClassification:
