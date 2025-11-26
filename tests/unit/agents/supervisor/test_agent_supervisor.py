@@ -330,7 +330,7 @@ class TestCompileSupervisorGraph:
 
     @patch("app.agents.supervisor.agent.create_s3_vectors_store_from_env")
     @patch("app.agents.supervisor.agent.MemorySaver")
-    @patch("app.agents.supervisor.agent.ChatCerebras")
+    @patch("app.agents.supervisor.agent.SafeChatCerebras")
     @patch("app.agents.supervisor.agent.app_config")
     def test_compile_supervisor_graph_creates_graph(
         self, mock_config, mock_cerebras, mock_saver, mock_store
@@ -361,7 +361,7 @@ class TestCompileSupervisorGraph:
 
     @patch("app.agents.supervisor.agent.create_s3_vectors_store_from_env")
     @patch("app.agents.supervisor.agent.MemorySaver")
-    @patch("app.agents.supervisor.agent.ChatCerebras")
+    @patch("app.agents.supervisor.agent.SafeChatCerebras")
     @patch("app.agents.supervisor.agent.app_config")
     def test_compile_supervisor_graph_no_summary_model(
         self, mock_config, mock_cerebras, mock_saver, mock_store
@@ -384,12 +384,12 @@ class TestCompileSupervisorGraph:
         graph = compile_supervisor_graph()
 
         assert graph is not None
-        # Should only create one ChatCerebras instance
+        # Should only create one SafeChatCerebras instance
         assert mock_cerebras.call_count >= 1
 
     @patch("app.agents.supervisor.agent.create_s3_vectors_store_from_env")
     @patch("app.agents.supervisor.agent.MemorySaver")
-    @patch("app.agents.supervisor.agent.ChatCerebras")
+    @patch("app.agents.supervisor.agent.SafeChatCerebras")
     @patch("app.agents.supervisor.agent.app_config")
     @patch("app.agents.supervisor.agent.logger")
     def test_compile_supervisor_graph_bind_exception(
@@ -422,7 +422,7 @@ class TestTokenCountingAndGating:
 
     @patch("app.agents.supervisor.agent.create_s3_vectors_store_from_env")
     @patch("app.agents.supervisor.agent.MemorySaver")
-    @patch("app.agents.supervisor.agent.ChatCerebras")
+    @patch("app.agents.supervisor.agent.SafeChatCerebras")
     @patch("app.agents.supervisor.agent.app_config")
     def test_token_counter_uses_llm_method(
         self, mock_config, mock_cerebras, mock_saver, mock_store
@@ -448,7 +448,7 @@ class TestTokenCountingAndGating:
 
     @patch("app.agents.supervisor.agent.create_s3_vectors_store_from_env")
     @patch("app.agents.supervisor.agent.MemorySaver")
-    @patch("app.agents.supervisor.agent.ChatCerebras")
+    @patch("app.agents.supervisor.agent.SafeChatCerebras")
     @patch("app.agents.supervisor.agent.app_config")
     @patch("app.agents.supervisor.agent.count_tokens_approximately")
     def test_token_counter_fallback_on_exception(

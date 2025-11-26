@@ -46,7 +46,7 @@ def get_guest_graph() -> CompiledStateGraph:
     if guest_pk and guest_sk and guest_host:
         try:
             Langfuse(public_key=guest_pk, secret_key=guest_sk, host=guest_host)
-            callbacks = [CallbackHandler(public_key=guest_pk)]
+            callbacks = [CallbackHandler(public_key=guest_pk)]  # noqa: F841
         except Exception as e:
             logger.warning(
                 "[Langfuse][guest] Failed to init callback handler: %s: %s",

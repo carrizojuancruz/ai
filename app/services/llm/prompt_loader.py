@@ -123,6 +123,7 @@ class PromptLoader:
             "finance_capture_nova_intent_prompt": self._get_finance_capture_nova_intent_prompt,
             "finance_capture_completion_prompt": self._get_finance_capture_completion_prompt,
             "memory_merge_summaries": self._get_memory_merge_summaries_local,
+            "safety_system_prompt": self._get_safety_system_prompt_local,
         })
 
 
@@ -316,6 +317,12 @@ class PromptLoader:
             summaries_text=summaries_text,
             importances_text=importances_text
         )
+
+    def _get_safety_system_prompt_local(self, **kwargs) -> str:
+        agent_prompts = sys.modules.get('app.services.llm.agent_prompts')
+        if agent_prompts is None:
+            from . import agent_prompts
+        return agent_prompts.SAFETY_SYSTEM_PROMPT_LOCAL
 
 
     def _validate_prompt_format(self, text: str, name: str) -> None:

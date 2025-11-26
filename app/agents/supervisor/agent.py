@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
 
-from langchain_cerebras import ChatCerebras
 from langchain_core.messages import BaseMessage
 from langchain_core.messages.utils import count_tokens_approximately
 from langfuse.langchain import CallbackHandler
@@ -18,6 +17,7 @@ from langmem.short_term import RunningSummary
 from app.agents.supervisor.memory import episodic_capture, memory_context, memory_hotpath
 from app.agents.supervisor.summarizer import ConversationSummarizer
 from app.core.config import config as app_config
+from app.services.llm.safe_cerebras import SafeChatCerebras
 from app.services.memory.checkpointer import get_supervisor_checkpointer
 from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
@@ -176,17 +176,34 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
     if checkpointer is None:
         checkpointer = get_supervisor_checkpointer()
 
-    chat_bedrock = ChatCerebras(
+    chat_bedrock = SafeChatCerebras(
         model="gpt-oss-120b",
         api_key=app_config.CEREBRAS_API_KEY,
-        temperature=app_config.SUPERVISOR_AGENT_TEMPERATURE or 0.4
+        temperature=app_config.SUPERVISOR_AGENT_TEMPERATURE or 0.4,
+        input_config={
+            "use_llm_classifier": True,
+            "llm_confidence_threshold": 0.7,
+            "enabled_checks": ["injection", "pii", "blocked_topics"],
+        },
+        output_config={
+            "use_llm_classifier": False,
+            "enabled_checks": ["pii_leakage", "context_exposure"],
+        },
+        user_context={
+            "blocked_topics": [],
+        },
+        fail_open=True,
     )
 
     if app_config.SUMMARY_MODEL_ID:
-        summarize_model = ChatCerebras(
+        summarize_model = SafeChatCerebras(
             model="gpt-oss-120b",
             api_key=app_config.CEREBRAS_API_KEY,
-            temperature=0.0
+            temperature=0.0,
+            input_config={"use_llm_classifier": False, "enabled_checks": ["injection"]},
+            output_config={"use_llm_classifier": False, "enabled_checks": []},
+            user_context={"blocked_topics": []},
+            fail_open=True,
         )
     else:
         summarize_model = chat_bedrock
