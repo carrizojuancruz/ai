@@ -23,8 +23,8 @@ HARDCODED_GUEST_WELCOME = "So tell me, what's on your mind today?"
 GUARDRAIL_INTERVENED_MARKER = "[GUARDRAIL_INTERVENED]"
 GUARDRAIL_USER_PLACEHOLDER = "THIS MESSAGE HIT THE BEDROCK GUARDRAIL"
 LAST_MESSAGE_NUDGE_TEXT = (
-    "Hey, by the way, our chat here is a bit limited...\n\n"
-    "If you sign up or log in, I can remember everything we talk about and help you reach your goals. Sounds good?"
+    "Hey, our chat here is coming to an end, but how about keeping it going?\n\n"
+    "If you sign up or log in, I can start remembering our chats and guide you better. It's free for 30 days. Sounds good?"
 )
 SAFE_FALLBACK_ASSISTANT_REPLY = "Could you rephrase that a bit so I can help better?"
 
