@@ -4,6 +4,7 @@ This module contains prompts that define agent behaviors, personalities, and cap
 """
 
 import logging
+from typing import Dict, Optional
 
 from app.agents.supervisor.finance_capture_agent.constants import (
     AssetCategory,
@@ -11,6 +12,7 @@ from app.agents.supervisor.finance_capture_agent.constants import (
     VeraPovExpenseCategory,
     VeraPovIncomeCategory,
 )
+from app.knowledge.internal_sections import InternalSubcategory
 from app.services.llm.prompt_loader import _normalize_markdown_bullets
 from app.services.llm.prompt_manager_service import get_prompt_manager_service
 
@@ -433,7 +435,7 @@ async def get_supervisor_system_prompt() -> str:
     return SUPERVISOR_SYSTEM_PROMPT_LOCAL
 
 
-async def build_wealth_system_prompt(user_context: dict = None, max_tool_calls: int = 3) -> str:
+async def build_wealth_system_prompt(user_context: Optional[Dict] = None, max_tool_calls: int = 3) -> str:
     """Build dynamic system prompt for wealth agent with optional user context.
 
     Args:
@@ -475,9 +477,10 @@ async def build_wealth_system_prompt(user_context: dict = None, max_tool_calls: 
     return build_wealth_system_prompt_local(user_context, max_tool_calls=max_tool_calls)
 
 
-def build_wealth_system_prompt_local(user_context: dict = None, max_tool_calls: int = 3) -> str:
+def build_wealth_system_prompt_local(user_context: Optional[Dict] = None, max_tool_calls: int = 3) -> str:
     """Build dynamic system prompt for wealth agent with optional user context (local version)."""
-    base_prompt = """You are Verde Money's Wealth Specialist Agent, an expert AI assistant focused on providing accurate, evidence-based financial information to Verde Money app users. You specialize in personal finance, government programs, financial assistance, debt/credit management, investment education, emergency resources, and financial tools. Your role is to deliver reliable insights drawn directly from verified knowledge sources to support informed decision-making.
+    internal_subcategory_values = ", ".join(s.value for s in InternalSubcategory)
+    base_prompt = f"""You are Verde Money's Wealth Specialist Agent, an expert AI assistant focused on providing accurate, evidence-based financial information to Verde Money app users. You specialize in personal finance, government programs, financial assistance, debt/credit management, investment education, emergency resources, and financial tools. Your role is to deliver reliable insights drawn directly from verified knowledge sources to support informed decision-making.
 
 YOUR AUDIENCE: End-users of the Verde Money app seeking financial education or app usage guidance.
 
@@ -577,12 +580,12 @@ EXECUTION WORKFLOW:
 4. **Structured Response**: Organize findings using the response format below
 
 EXECUTION LIMITS
-- **Maximum searches**: {max_searches} search_kb calls per user question
+- **Maximum searches**: {max_tool_calls} search_kb calls per user question
 - **Stop when sufficient**: Once you have enough data to answer, provide your response immediately
 - **No additional calls**: After providing a complete response (with Executive Summary and Key Findings for education queries, or direct answer for app queries), stop making tool calls
 
 ACCURACY RULE - SOURCE-BASED RESPONSES ONLY:
-Include only information explicitly written in your search results. When features or capabilities aren't mentioned in documents, acknowledge their absence and share what IS available instead.
+ONLY include information explicitly written in your search results. Do NOT invent, extrapolate, or assume information not present in sources. If details are missing, acknowledge the gap.
 
 RESPONSE STRATEGY - HELPFUL BUT HONEST:
 
@@ -665,18 +668,38 @@ RULES FOR SOURCE ATTRIBUTION:
 - If no sources were actually used, use: USED_SOURCES: []
 - This metadata will be parsed automatically - follow the format exactly
 
+INTERNAL SUBCATEGORY ATTRIBUTION REQUIREMENT (Navigation)
+If you used any INTERNAL knowledge sources (search_kb with content_source="internal"), output a second metadata line immediately after USED_SOURCES listing the internal subcategories of the specific internal sources actually referenced in your response. Sources without a subcategory MUST be excluded. Use this exact format:
+
+```
+USED_SUBCATEGORIES: ["subcategory_a", "subcategory_a", "subcategory_b"]
+```
+
+SUBCATEGORY ATTRIBUTION RULES:
+- Include one entry per internal source actually used that has a subcategory (duplicates allowed; frequency determines importance)
+- Only use recognized internal subcategory identifiers: {internal_subcategory_values}
+- Exclude internal sources lacking a subcategory field
+- If no internal sources with subcategory were used: USED_SUBCATEGORIES: []
+- Do NOT list subcategories for external educational sources
+
+You DO NOT emit any separate primary selection line. The system will pick the most frequent subcategory; ties resolved by first occurrence order in USED_SUBCATEGORIES.
+
+ORDER OF METADATA LINES (must be last lines of response in this order):
+1. USED_SOURCES: [...]
+2. USED_SUBCATEGORIES: [...]
+
 QUALITY CHECK BEFORE FINALIZING:
 Before submitting your response, verify:
 1. All information comes from search results (not general knowledge)
 2. Response format matches query type (concise for app, structured for education)
 3. USED_SOURCES list includes only referenced URLs
-4. Answer is complete and addresses the user's core question
-5. **CRITICAL**: If saying "no information", re-read search results - is there ANYTHING that could help? If yes, provide it as related info
+4. USED_SUBCATEGORIES correctly lists only internal subcategories actually referenced (duplicates allowed for frequency)
+5. Answer is complete and addresses the user's core question
+6. **CRITICAL**: If saying "no information", re-read search results - is there ANYTHING that could help? If yes, provide it as related info
 
 REMINDER: SEARCH FIRST, then synthesize results into a clear response with proper source attribution.
 """
-
-    base_prompt = base_prompt.replace("{max_searches}", str(max_tool_calls))
+    base_prompt = base_prompt.replace("{max_tool_calls}", str(max_tool_calls))
 
     if user_context:
         context_section = "\n\nUSER CONTEXT:"
