@@ -49,57 +49,15 @@ jobs:
       release_notes: ${{ steps.set-env.outputs.release_notes }}
   
     steps:
-      - name: Set environment + release type
-        id: set-env
-        run: |
-          echo "---- DEBUG: EVENT + REF ----"
-          echo "github.event_name = ${{ github.event_name }}"
-          echo "github.ref_name    = ${{ github.ref_name }}"
-          echo "github.event.inputs.environment = '${{ github.event.inputs.environment }}'"
-          echo "github.event.inputs.release_type = '${{ github.event.inputs.release_type }}'"
-          echo "github.event.inputs.release_notes = '${{ github.event.inputs.release_notes }}'"
-          echo "--------------------------------"
-  
-          # Determine environment
-          if [ "${{ github.event_name }}" = "push" ]; then
-            ENVIRONMENT="${{ github.ref_name }}"
-          else
-            ENVIRONMENT="${{ github.event.inputs.environment }}"
-          fi
-  
-          echo "---- DEBUG: ENVIRONMENT DETECTED ----"
-          echo "ENVIRONMENT = $ENVIRONMENT"
-          echo "-------------------------------------"
-  
-          echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
-  
-          # Determine release type based on environment
-          if [ "$ENVIRONMENT" = "develop" ]; then
-            RELEASE_TYPE="minor"
-          elif [ "$ENVIRONMENT" = "uat" ]; then
-            RELEASE_TYPE="patch"
-          elif [ "$ENVIRONMENT" = "prod" ]; then
-            RELEASE_TYPE="major"
-          else
-            echo "::error::Invalid environment detected: '$ENVIRONMENT'"
-            exit 1
-          fi
-  
-          echo "---- DEBUG: RELEASE TYPE ----"
-          echo "RELEASE_TYPE = $RELEASE_TYPE"
-          echo "------------------------------"
-  
-          echo "release_type=$RELEASE_TYPE" >> "$GITHUB_OUTPUT"
-  
-          # Release notes (only for workflow_dispatch)
-          RELEASE_NOTES="${{ github.event.inputs.release_notes }}"
-          echo "release_notes=$RELEASE_NOTES" >> "$GITHUB_OUTPUT"
-  
-          echo "---- DEBUG: RELEASE NOTES ----"
-          echo "RELEASE_NOTES = $RELEASE_NOTES"
-          echo "--------------------------------"
-
-
+       - uses: verde-money/action-release-and-tag@main
+         with:
+            github_token: ${{ secrets.GITHUB_TOKEN }}
+            environment: ${{ inputs.environment }}
+            release_type: ${{ steps.env.outputs.release_type }}
+            release_notes: ${{ inputs.release_notes }}
+            python_version: "3.12"
+            version_file_path: "version.json"
+            push_branch: ${{ github.ref_name }}
 
   ## -----------------------------------------
   ## Deploy ECS
