@@ -6,11 +6,13 @@ on:
       - develop
     paths-ignore:
       - ".github/workflows/**"
+      - "version.json"
   workflow_dispatch:
     inputs:
       environment:
         description: "Select deployment environment"
-        required: true
+        required: false
+        default: develop
         type: choice
         options:
           - develop
@@ -63,7 +65,7 @@ jobs:
     needs: [prepare]
     uses: verde-money/reusable-workflows/.github/workflows/deploy-ecs.yml@main
     with:
-      environment: ${{ needs.prepare.outputs.environment }}
+      environment: ${{ inputs.environment }}
     secrets:
       inherit
 
