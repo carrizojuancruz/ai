@@ -35,11 +35,7 @@ permissions:
   pull-requests: write
 
 jobs:
-
-  ## -----------------------------------------
-  ## Prepare: detect environment + release type
-  ## -----------------------------------------
-  ## -----------------------------------------
+## -----------------------------------------
 ## Prepare: detect environment + release type
 ## -----------------------------------------
   prepare:
