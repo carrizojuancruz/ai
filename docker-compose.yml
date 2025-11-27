@@ -14,5 +14,6 @@ services:
       # Exclude .venv to avoid host OS dependency conflicts
       - /app/.venv
 
+
 volumes:
   postgres_data:
