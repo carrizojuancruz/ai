@@ -50,16 +50,16 @@ jobs:
       release_notes: ${{ steps.set-env.outputs.release_notes }}
   
     steps:
-       - uses: verde-money/action-release-and-tag@main
-         with:
-            github_token: ${{ secrets.GITHUB_TOKEN }}
-            environment: ${{ inputs.environment }}
-            release_type: ${{ steps.env.outputs.release_type }}
-            release_notes: ${{ inputs.release_notes }}
-            python_version: "3.12"
-            version_file_path: "version.json"
-            push_branch: ${{ github.ref_name }}
-
+      - name: Call composite release action
+        uses: verde-money/action-release-and-tag@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          python_version: "3.12"
+          environment: ${{ inputs.environment }}
+          release_notes: ${{ inputs.release_notes }}
+          version_file_path: "version.json"
+          push_branch: ${{ inputs.environment }}
+          deploy_key: ${{ secrets.DEPLOY_KEY }}
   ## -----------------------------------------
   ## Deploy ECS
   ## -----------------------------------------
