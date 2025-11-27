@@ -15,7 +15,7 @@
         </header>
 
         
-        <div id="loading" class="loading hidden">
+        <div id="loading" class="loading hidden" role="status" aria-live="polite" aria-label="Loading content">
             <div class="spinner"></div>
             <p>Loading...</p>
         </div>
@@ -134,7 +134,7 @@
             <div class="sources-header">
                 <h2>🗂️ Sources</h2>
                 <div class="search-container">
-                    <input type="text" id="search-input" placeholder="Search by URL..." />
+                    <input type="text" id="search-input" placeholder="Search by URL..." aria-label="Search sources by URL" />
                     <button id="clear-search-btn" class="btn btn-secondary" style="display: none;">Clear</button>
                 </div>
             </div>

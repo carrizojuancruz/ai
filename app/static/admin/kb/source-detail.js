@@ -201,17 +201,17 @@ function renderChunks(chunks) {
             <div class="chunk-card">
                 <div class="chunk-header">
                     <div class="chunk-title">
-                        Chunk #${chunk.chunk_index ?? index + 1}
+                        Chunk #${escapeHtml(String(chunk.chunk_index ?? index + 1))}
                     </div>
                     <div class="chunk-meta">
                         <span class="chunk-meta-item">
                             <span class="icon">📄</span>
-                            ${chunk.content?.length || 0} characters
+                            ${escapeHtml(String(chunk.content?.length || 0))} characters
                         </span>
                         ${chunk.chunk_index !== undefined ? `
                             <span class="chunk-meta-item">
                                 <span class="icon">#</span>
-                                Index: ${chunk.chunk_index}
+                                Index: ${escapeHtml(String(chunk.chunk_index))}
                             </span>
                         ` : ''}
                     </div>

@@ -23,8 +23,9 @@ function escapeHtml(text) {
 
 function truncate(text, maxLength) {
     if (!text) return '-';
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
+    const escaped = escapeHtml(text);
+    if (escaped.length <= maxLength) return escaped;
+    return escaped.substring(0, maxLength) + '...';
 }
 
 function formatDate(dateString) {
@@ -354,7 +355,7 @@ function renderSourcesTable(sources) {
             <td>${escapeHtml(source.category || '-')}</td>
             <td>
                 <span class="truncate" title="${escapeHtml(source.description || '')}">
-                    ${escapeHtml(truncate(source.description, 50))}
+                    ${truncate(source.description, 50)}
                 </span>
             </td>
             <td>
@@ -362,13 +363,13 @@ function renderSourcesTable(sources) {
             </td>
             <td>${formatDate(source.last_sync)}</td>
             <td class="actions">
-                <button class="btn btn-view" onclick="viewChunks('${escapeHtml(source.id)}', '${escapeHtml(source.name)}')">
+                <button class="btn btn-view" data-action="view" data-source-id="${escapeHtml(source.id)}" data-source-name="${escapeHtml(source.name)}">
                     🔍 View
                 </button>
-                <button class="btn btn-delete" onclick="deleteSourceVectors('${escapeHtml(source.id)}', '${escapeHtml(source.name)}')">
+                <button class="btn btn-delete" data-action="delete" data-source-id="${escapeHtml(source.id)}" data-source-name="${escapeHtml(source.name)}">
                     🗑️ Delete
                 </button>
-                <button class="btn btn-resync" onclick="resyncSource('${escapeHtml(source.id)}', '${escapeHtml(source.url)}', '${escapeHtml(source.name)}', '${escapeHtml(source.type || '')}', '${escapeHtml(source.category || '')}', '${escapeHtml(source.description || '')}')">
+                <button class="btn btn-resync" data-action="resync" data-source-id="${escapeHtml(source.id)}" data-source-url="${escapeHtml(source.url)}" data-source-name="${escapeHtml(source.name)}" data-source-type="${escapeHtml(source.type || '')}" data-source-category="${escapeHtml(source.category || '')}" data-source-description="${escapeHtml(source.description || '')}">
                     🔄 Resync
                 </button>
             </td>
@@ -388,6 +389,32 @@ function renderCurrentPage() {
     
     renderSourcesTable(pageItems);
     updatePaginationInfo();
+}
+
+function handleSourceAction(event) {
+    const button = event.target.closest('button[data-action]');
+    if (!button) return;
+    
+    const action = button.dataset.action;
+    const sourceId = button.dataset.sourceId;
+    const sourceName = button.dataset.sourceName;
+    
+    switch (action) {
+        case 'view':
+            viewChunks(sourceId, sourceName);
+            break;
+        case 'delete':
+            deleteSourceVectors(sourceId, sourceName);
+            break;
+        case 'resync': {
+            const sourceUrl = button.dataset.sourceUrl;
+            const sourceType = button.dataset.sourceType;
+            const sourceCategory = button.dataset.sourceCategory;
+            const sourceDescription = button.dataset.sourceDescription;
+            resyncSource(sourceId, sourceUrl, sourceName, sourceType, sourceCategory, sourceDescription);
+            break;
+        }
+    }
 }
 
 function updatePaginationInfo() {
@@ -470,12 +497,6 @@ async function deleteSourceVectors(sourceId, sourceName) {
         
         if (result.success) {
             showSuccess(`Successfully deleted ${result.vectors_deleted} vectors for "${sourceName}"`);
-            
-            
-            const chunkSection = document.getElementById('chunk-details-section');
-            if (!chunkSection.classList.contains('hidden')) {
-                closeChunkDetails();
-            }
             
             
             await loadSources();
@@ -563,6 +584,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     document.getElementById('prev-page-btn').addEventListener('click', goToPreviousPage);
     document.getElementById('next-page-btn').addEventListener('click', goToNextPage);
+    
+    
+    document.getElementById('sources-tbody').addEventListener('click', handleSourceAction);
     
     
     await loadSources();

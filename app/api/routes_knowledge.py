@@ -121,6 +121,9 @@ async def get_sources_comparison() -> SourceComparisonResponse:
             "disabled": [s for s in external_sources if not s.enabled]
         }
 
+        kb_url_to_name = {s.url: s.name for s in kb_sources}
+        external_url_to_name = {s.url: s.name for s in external_sources}
+
         return SourceComparisonResponse(
             kb_sources={
                 "total": len(kb_sources),
@@ -140,9 +143,9 @@ async def get_sources_comparison() -> SourceComparisonResponse:
                 "missing_from_kb_but_enabled": len(missing_from_kb)
             },
             details={
-                "only_in_kb": [SourceComparisonDetail(url=url, name=next((s.name for s in kb_sources if s.url == url), None)) for url in sorted(only_in_kb)],
-                "only_in_db": [SourceComparisonDetail(url=url, name=next((s.name for s in external_sources if s.url == url), None)) for url in sorted(only_in_db)],
-                "missing_from_kb_but_enabled": [SourceComparisonDetail(url=url, name=next((s.name for s in external_sources if s.url == url), None)) for url in sorted(missing_from_kb)]
+                "only_in_kb": [SourceComparisonDetail(url=url, name=kb_url_to_name.get(url)) for url in sorted(only_in_kb)],
+                "only_in_db": [SourceComparisonDetail(url=url, name=external_url_to_name.get(url)) for url in sorted(only_in_db)],
+                "missing_from_kb_but_enabled": [SourceComparisonDetail(url=url, name=external_url_to_name.get(url)) for url in sorted(missing_from_kb)]
             }
         )
     except Exception as e:
