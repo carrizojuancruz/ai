@@ -15,12 +15,16 @@ from app.observability.logging_config import configure_logging
 from .subgraph import create_goal_subgraph
 from .tools import (
     create_goal,
+    create_history_record,
     delete_goal,
+    delete_history_record,
     get_goal_by_id,
+    get_goal_history,
     get_in_progress_goal,
     list_goals,
     switch_goal_status,
     update_goal,
+    update_history_record,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,6 +83,7 @@ class GoalAgent:
         tools = [
             create_goal, update_goal, get_in_progress_goal,
             list_goals, delete_goal, switch_goal_status, get_goal_by_id,
+            get_goal_history, create_history_record, update_history_record, delete_history_record,
             calculate
         ]
 

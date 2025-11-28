@@ -324,3 +324,94 @@ class ToolDescriptions:
     ```
     """
 
+    GET_GOAL_HISTORY_TOOL = """Get all progress history records for a specific goal.
+
+    Retrieves complete history for a goal, ordered by most recent period first.
+    Returns all historical snapshots showing how the goal progressed over time.
+
+    USE CASES:
+    - Show user their progress timeline
+    - Compare current vs past performance
+    - Audit historical goal data
+
+    Example:
+    ```
+    get_goal_history(goal_id="123e4567-e89b-12d3-a456-426614174000")
+    ```
+    """
+
+    CREATE_HISTORY_RECORD_TOOL = """Create a new progress history record for a goal.
+
+    Creates a historical snapshot for a specific time period.
+    Automatically calculates percent_complete and was_completed based on values provided.
+
+    REQUIRED FIELDS:
+    - goal_id: The goal this record belongs to
+    - period_start: When this period started (datetime)
+    - period_end: When this period ended (datetime, must be after period_start)
+    - period_type: Type of period (day, week, month, quarter, year)
+
+    OPTIONAL FIELDS:
+    - final_value: Final accumulated value for the period
+    - target_value: Target value for the period
+
+    AUTO-CALCULATED:
+    - percent_complete: Calculated from final_value/target_value
+    - was_completed: True if percent_complete >= 100
+    - Timestamps and counters
+
+    Example:
+    ```
+    create_history_record({
+        "goal_id": "123e4567-e89b-12d3-a456-426614174000",
+        "period_start": "2025-11-01T00:00:00Z",
+        "period_end": "2025-11-30T23:59:59Z",
+        "period_type": "month",
+        "final_value": 750,
+        "target_value": 1000
+    })
+    ```
+    """
+
+    UPDATE_HISTORY_RECORD_TOOL = """Update an existing progress history record.
+
+    Modifies the progress values of a historical record.
+    Automatically recalculates percent_complete when values change.
+
+    UPDATABLE FIELDS:
+    - final_value: Update the accumulated value
+    - target_value: Update the target
+    - was_completed: Mark as completed/incomplete
+
+    AUTO-RECALCULATED:
+    - percent_complete: Recalculated if final_value or target_value changes
+    - last_updated: Set to current time
+    - update_count: Incremented by 1
+
+    IMPORTANT: Cannot update goal_id, period dates, or period_type (these define the record identity).
+
+    Example:
+    ```
+    update_history_record(
+        record_id="987e6543-e21b-12d3-a456-426614174999",
+        final_value=850.50
+    )
+    ```
+    """
+
+    DELETE_HISTORY_RECORD_TOOL = """Delete a progress history record.
+
+    Permanently removes a historical record from the database.
+    Use with caution - this action cannot be undone.
+
+    USE CASES:
+    - Remove incorrect historical data
+    - Clean up test records
+    - Delete duplicate entries
+
+    Example:
+    ```
+    delete_history_record(record_id="987e6543-e21b-12d3-a456-426614174999")
+    ```
+    """
+

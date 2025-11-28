@@ -221,3 +221,27 @@ async def switch_goal_status_api(goal_id: str, status: str, user_id: str):
     }
     response = await fos_client.post(endpoint=f"/internal/goals/{goal_id}/status", data=data)
     return response
+
+async def get_goal_history_api(goal_id: str):
+    """Get all progress history records for a goal (KISS version)."""
+    fos_client = FOSHttpClient()
+    response = await fos_client.get(endpoint=f"/internal/goal-progress-history/{goal_id}")
+    return response
+
+async def create_history_api(data: dict):
+    """Create a new goal progress history record (KISS version)."""
+    fos_client = FOSHttpClient()
+    response = await fos_client.post(endpoint="/internal/goal-progress-history/", data=data)
+    return response
+
+async def update_history_api(record_id: str, data: dict):
+    """Update an existing goal progress history record (KISS version)."""
+    fos_client = FOSHttpClient()
+    response = await fos_client.patch(endpoint=f"/internal/goal-progress-history/{record_id}", data=data)
+    return response
+
+async def delete_history_api(record_id: str):
+    """Delete a goal progress history record (KISS version)."""
+    fos_client = FOSHttpClient()
+    response = await fos_client.delete(endpoint=f"/internal/goal-progress-history/{record_id}")
+    return response
