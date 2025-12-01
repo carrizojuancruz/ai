@@ -94,15 +94,14 @@ async def lifespan(app: FastAPI):
         seeder = get_procedural_seeder()
         result = await seeder.seed_supervisor_procedurals(force=False)
 
-        if result.get("ok"):
+        if result.ok:
+            s = result.to_dict()["summary"]
             logger.info(
-                "Supervisor procedural memories seeded: created=%d skipped=%d errors=%d",
-                result.get("created", 0),
-                result.get("skipped", 0),
-                result.get("errors", 0),
+                "Supervisor procedural memories seeded: created=%d updated=%d deleted=%d skipped=%d total=%d",
+                s["created"], s["updated"], s["deleted"], s["skipped"], s["total"]
             )
         else:
-            logger.warning("Failed to seed supervisor procedural memories: %s", result.get("message", "unknown error"))
+            logger.warning("Failed to seed supervisor procedural memories: %s", result.error)
     except Exception as e:
         logger.error(f"Error seeding supervisor procedural memories: {e}")
         # Continue startup even if seeding fails (routing examples are optional)
@@ -114,15 +113,14 @@ async def lifespan(app: FastAPI):
         seeder = get_procedural_seeder()
         result = await seeder.seed_finance_templates(force=False)
 
-        if result.get("ok"):
+        if result.ok:
+            s = result.to_dict()["summary"]
             logger.info(
-                "Finance procedural templates seeded: created=%d skipped=%d errors=%d",
-                result.get("created", 0),
-                result.get("skipped", 0),
-                result.get("errors", 0),
+                "Finance procedural templates seeded: created=%d updated=%d deleted=%d skipped=%d total=%d",
+                s["created"], s["updated"], s["deleted"], s["skipped"], s["total"]
             )
         else:
-            logger.warning("Failed to seed finance procedural templates: %s", result.get("message", "unknown error"))
+            logger.warning("Failed to seed finance procedural templates: %s", result.error)
     except Exception as e:
         logger.error(f"Error seeding finance procedural templates: {e}")
 
