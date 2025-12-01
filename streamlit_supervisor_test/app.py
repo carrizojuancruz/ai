@@ -33,7 +33,7 @@ if "thread_id" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "user_id" not in st.session_state:
-    st.session_state.user_id = "44f5552b-1042-4f8b-8339-d918677394e1"
+    st.session_state.user_id = "719b24bb-c9c5-41b4-9c91-9b6231b36bbc"
 if "base_url" not in st.session_state:
     st.session_state.base_url = "http://localhost:8001"
 

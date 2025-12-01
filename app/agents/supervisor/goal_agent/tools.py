@@ -489,13 +489,15 @@ async def get_goal_history(goal_id: str, config: RunnableConfig) -> str:
                 user_id=user_key
             )
 
-        # Response is a list of records ordered by most recent first
-        records = response if isinstance(response, list) else []
+        # Extract records from response object
+        records = response.get('records', []) if isinstance(response, dict) else []
+        total = response.get('total', len(records)) if isinstance(response, dict) else len(records)
 
         return json.dumps({
             "message": f"Found {len(records)} history records for goal",
             "goal_id": goal_id,
             "records": records,
+            "total": total,
             "user_id": user_key
         })
 
