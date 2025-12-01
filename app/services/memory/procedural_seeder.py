@@ -23,6 +23,90 @@ FINANCE_PROCEDURAL_INDEX_FIELDS = ["name", "description", "tags"]
 
 
 @dataclass
+class SupervisorProcedural:
+    """Supervisor routing procedural memory structure."""
+
+    key: str
+    summary: str
+    category: str
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> SupervisorProcedural | None:
+        """Create from dictionary, return None if invalid."""
+        if not data.get("key"):
+            return None
+        return cls(
+            key=data["key"],
+            summary=data.get("summary", ""),
+            category=data.get("category", ""),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for storage."""
+        return {
+            "key": self.key,
+            "summary": self.summary,
+            "category": self.category,
+        }
+
+    def has_changed(self, other: dict[str, Any]) -> bool:
+        """Check if this procedural differs from stored version."""
+        return self.summary != other.get("summary")
+
+
+@dataclass
+class FinanceProcedural:
+    """Finance procedural template structure."""
+
+    id: str
+    name: str
+    description: str
+    tags: list[str]
+    sql_hint: str
+    examples: list[str]
+    version: str
+    deprecated: bool
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> FinanceProcedural | None:
+        """Create from dictionary, return None if invalid."""
+        if not data.get("id"):
+            return None
+        return cls(
+            id=data["id"],
+            name=data.get("name", ""),
+            description=data.get("description", ""),
+            tags=data.get("tags", []),
+            sql_hint=data.get("sql_hint", ""),
+            examples=data.get("examples", []),
+            version=data.get("version", "1.0"),
+            deprecated=data.get("deprecated", False),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for storage."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "tags": self.tags,
+            "sql_hint": self.sql_hint,
+            "examples": self.examples,
+            "version": self.version,
+            "deprecated": self.deprecated,
+        }
+
+    def has_changed(self, other: dict[str, Any]) -> bool:
+        """Check if this template differs from stored version."""
+        return (
+            self.name != other.get("name")
+            or self.description != other.get("description")
+            or self.sql_hint != other.get("sql_hint")
+            or self.tags != other.get("tags", [])
+        )
+
+
+@dataclass
 class SyncResult:
     """Result of a sync operation with detailed breakdown."""
 
@@ -32,10 +116,11 @@ class SyncResult:
     updated: list[str] = field(default_factory=list)
     deleted: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
+    failed: list[tuple[str, str]] = field(default_factory=list)  # (key, error_message)
 
     @property
     def total_processed(self) -> int:
-        return len(self.created) + len(self.updated) + len(self.deleted) + len(self.skipped)
+        return len(self.created) + len(self.updated) + len(self.deleted) + len(self.skipped) + len(self.failed)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -45,11 +130,16 @@ class SyncResult:
             "updated": self.updated,
             "deleted": self.deleted,
             "skipped": self.skipped,
+            "failed": [{
+                "key": key,
+                "error": error
+            } for key, error in self.failed],
             "summary": {
                 "created": len(self.created),
                 "updated": len(self.updated),
                 "deleted": len(self.deleted),
                 "skipped": len(self.skipped),
+                "failed": len(self.failed),
                 "total": self.total_processed,
             },
         }
@@ -68,7 +158,7 @@ class ProceduralMemorySeeder:
         ]
         self.finance_template_file = "app/scripts/procedural memory examples/finance_procedural_templates.jsonl"
 
-    async def seed_supervisor_procedurals(self, force: bool = False) -> SyncResult:
+    async def seed_supervisor_procedurals(self) -> SyncResult:
         """Sync supervisor procedural memories: S3 = JSONL."""
         logger.info("Syncing supervisor procedural memories")
         result = SyncResult()
@@ -87,8 +177,7 @@ class ProceduralMemorySeeder:
         except Exception as e:
             logger.warning("Failed to list existing procedurals: %s", e)
 
-        # Load from JSONL
-        json_items: dict[str, dict] = {}
+        json_items: dict[str, SupervisorProcedural] = {}
         for jsonl_path in self.procedural_files:
             file_path = self.base_path / jsonl_path
             if not file_path.exists():
@@ -99,34 +188,44 @@ class ProceduralMemorySeeder:
                     if not line:
                         continue
                     try:
-                        item = json.loads(line)
-                        if key := item.get("key"):
-                            json_items[key] = item
+                        data = json.loads(line)
+                        procedural = SupervisorProcedural.from_dict(data)
+                        if procedural:
+                            json_items[procedural.key] = procedural
                     except json.JSONDecodeError:
                         continue
 
-        # Sync
-        for key, item in json_items.items():
-            if key not in existing:
-                store.put(SUPERVISOR_PROCEDURAL_NAMESPACE, key, item, index=SUPERVISOR_PROCEDURAL_INDEX_FIELDS)
-                result.created.append(key)
-            elif existing[key].get("summary") != item.get("summary"):
-                store.put(SUPERVISOR_PROCEDURAL_NAMESPACE, key, item, index=SUPERVISOR_PROCEDURAL_INDEX_FIELDS)
-                result.updated.append(key)
-            else:
-                result.skipped.append(key)
+        for key, procedural in json_items.items():
+            try:
+                if key not in existing:
+                    store.put(SUPERVISOR_PROCEDURAL_NAMESPACE, key, procedural.to_dict(), index=SUPERVISOR_PROCEDURAL_INDEX_FIELDS)
+                    result.created.append(key)
+                elif procedural.has_changed(existing[key]):
+                    store.put(SUPERVISOR_PROCEDURAL_NAMESPACE, key, procedural.to_dict(), index=SUPERVISOR_PROCEDURAL_INDEX_FIELDS)
+                    result.updated.append(key)
+                else:
+                    result.skipped.append(key)
+            except Exception as e:
+                logger.error("Failed to sync supervisor procedural '%s': %s", key, e)
+                result.failed.append((key, str(e)))
 
         for key in existing:
             if key not in json_items:
-                store.delete(SUPERVISOR_PROCEDURAL_NAMESPACE, key)
-                result.deleted.append(key)
+                try:
+                    store.delete(SUPERVISOR_PROCEDURAL_NAMESPACE, key)
+                    result.deleted.append(key)
+                except Exception as e:
+                    logger.error("Failed to delete supervisor procedural '%s': %s", key, e)
+                    result.failed.append((key, str(e)))
 
         summary = result.to_dict()["summary"]
-        logger.info("Supervisor procedurals synced: created=%d updated=%d deleted=%d skipped=%d total=%d",
-                    summary["created"], summary["updated"], summary["deleted"], summary["skipped"], summary["total"])
+        logger.info(
+            "Supervisor procedurals synced: created=%d updated=%d deleted=%d skipped=%d failed=%d total=%d",
+            summary["created"], summary["updated"], summary["deleted"], summary["skipped"], summary["failed"], summary["total"]
+        )
         return result
 
-    async def seed_finance_templates(self, force: bool = False) -> SyncResult:
+    async def seed_finance_templates(self) -> SyncResult:
         """Sync finance templates: S3 = JSONL."""
         logger.info("Syncing finance procedural templates")
         result = SyncResult()
@@ -150,38 +249,48 @@ class ProceduralMemorySeeder:
             logger.warning("Failed to list existing finance templates: %s", e)
 
         # Load from JSONL
-        json_items: dict[str, dict] = {}
+        json_items: dict[str, FinanceProcedural] = {}
         with file_path.open("r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
                     continue
                 try:
-                    item = json.loads(line)
-                    if key := item.get("id"):
-                        json_items[key] = item
+                    data = json.loads(line)
+                    procedural = FinanceProcedural.from_dict(data)
+                    if procedural:
+                        json_items[procedural.id] = procedural
                 except json.JSONDecodeError:
                     continue
 
-        # Sync
-        for key, item in json_items.items():
-            if key not in existing:
-                store.put(FINANCE_PROCEDURAL_NAMESPACE, key, item, index=FINANCE_PROCEDURAL_INDEX_FIELDS)
-                result.created.append(key)
-            elif existing[key].get("name") != item.get("name"):
-                store.put(FINANCE_PROCEDURAL_NAMESPACE, key, item, index=FINANCE_PROCEDURAL_INDEX_FIELDS)
-                result.updated.append(key)
-            else:
-                result.skipped.append(key)
+        for key, procedural in json_items.items():
+            try:
+                if key not in existing:
+                    store.put(FINANCE_PROCEDURAL_NAMESPACE, key, procedural.to_dict(), index=FINANCE_PROCEDURAL_INDEX_FIELDS)
+                    result.created.append(key)
+                elif procedural.has_changed(existing[key]):
+                    store.put(FINANCE_PROCEDURAL_NAMESPACE, key, procedural.to_dict(), index=FINANCE_PROCEDURAL_INDEX_FIELDS)
+                    result.updated.append(key)
+                else:
+                    result.skipped.append(key)
+            except Exception as e:
+                logger.error("Failed to sync finance procedural '%s': %s", key, e)
+                result.failed.append((key, str(e)))
 
         for key in existing:
             if key not in json_items:
-                store.delete(FINANCE_PROCEDURAL_NAMESPACE, key)
-                result.deleted.append(key)
+                try:
+                    store.delete(FINANCE_PROCEDURAL_NAMESPACE, key)
+                    result.deleted.append(key)
+                except Exception as e:
+                    logger.error("Failed to delete finance procedural '%s': %s", key, e)
+                    result.failed.append((key, str(e)))
 
         summary = result.to_dict()["summary"]
-        logger.info("Finance templates synced: created=%d updated=%d deleted=%d skipped=%d total=%d",
-                    summary["created"], summary["updated"], summary["deleted"], summary["skipped"], summary["total"])
+        logger.info(
+            "Finance procedurals synced: created=%d updated=%d deleted=%d skipped=%d failed=%d total=%d",
+            summary["created"], summary["updated"], summary["deleted"], summary["skipped"], summary["failed"], summary["total"]
+        )
         return result
 
     async def verify_procedurals_exist(self) -> dict[str, Any]:

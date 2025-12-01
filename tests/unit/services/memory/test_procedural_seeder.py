@@ -68,7 +68,7 @@ class TestProceduralMemorySeeder:
         seeder = ProceduralMemorySeeder(base_path=tmp_path)
         seeder.procedural_files = ["test_routing.jsonl"]
 
-        result = await seeder.seed_supervisor_procedurals(force=False)
+        result = await seeder.seed_supervisor_procedurals()
 
         assert result.ok is True
         assert result.total_processed == 2
@@ -87,7 +87,7 @@ class TestProceduralMemorySeeder:
     @pytest.mark.asyncio
     @patch("app.services.memory.procedural_seeder.create_s3_vectors_store_from_env")
     async def test_seed_supervisor_procedurals_skip_existing(self, mock_store_factory, tmp_path):
-        """Test that existing items are skipped when force=False."""
+        """Test that existing items with identical summaries are skipped."""
         # Create mock store with existing item
         mock_store = MagicMock()
         mock_store.list_by_namespace.return_value = [
@@ -109,7 +109,7 @@ class TestProceduralMemorySeeder:
         seeder = ProceduralMemorySeeder(base_path=tmp_path)
         seeder.procedural_files = ["test_routing.jsonl"]
 
-        result = await seeder.seed_supervisor_procedurals(force=False)
+        result = await seeder.seed_supervisor_procedurals()
 
         assert result.ok is True
         assert len(result.created) == 1  # Only test_2 created
@@ -118,7 +118,7 @@ class TestProceduralMemorySeeder:
     @pytest.mark.asyncio
     @patch("app.services.memory.procedural_seeder.create_s3_vectors_store_from_env")
     async def test_seed_supervisor_procedurals_force_update(self, mock_store_factory, tmp_path):
-        """Test that existing items are updated when force=True."""
+        """Test that existing items with different summaries are updated."""
         # Create mock store with existing item
         mock_store = MagicMock()
         mock_store.list_by_namespace.return_value = [
@@ -139,7 +139,7 @@ class TestProceduralMemorySeeder:
         seeder = ProceduralMemorySeeder(base_path=tmp_path)
         seeder.procedural_files = ["test_routing.jsonl"]
 
-        result = await seeder.seed_supervisor_procedurals(force=True)
+        result = await seeder.seed_supervisor_procedurals()
 
         assert result.ok is True
         assert len(result.updated) == 1  # Item was updated, not created
@@ -243,6 +243,77 @@ class TestProceduralMemorySeeder:
         assert result["ok"] is False
         assert "Connection failed" in result["error"]
         assert result["count"] == 0
+
+    @pytest.mark.asyncio
+    @patch("app.services.memory.procedural_seeder.create_s3_vectors_store_from_env")
+    async def test_seed_supervisor_procedurals_partial_failure(self, mock_store_factory, tmp_path):
+        """Test that partial failures are tracked and don't stop the sync."""
+        mock_store = MagicMock()
+        mock_store.list_by_namespace.return_value = []
+
+        def put_side_effect(namespace, key, data, index):
+            if key == "test_2":
+                raise Exception("S3 write error")
+
+        mock_store.put.side_effect = put_side_effect
+        mock_store_factory.return_value = mock_store
+
+        test_file = tmp_path / "test_routing.jsonl"
+        test_data = [
+            {"key": "test_1", "summary": "Valid item 1", "category": "Routing"},
+            {"key": "test_2", "summary": "Will fail", "category": "Routing"},
+            {"key": "test_3", "summary": "Valid item 3", "category": "Routing"},
+        ]
+
+        with test_file.open("w", encoding="utf-8") as f:
+            for item in test_data:
+                f.write(json.dumps(item) + "\n")
+
+        seeder = ProceduralMemorySeeder(base_path=tmp_path)
+        seeder.procedural_files = ["test_routing.jsonl"]
+
+        result = await seeder.seed_supervisor_procedurals()
+
+        assert result.ok is True
+        assert len(result.created) == 2
+        assert len(result.failed) == 1
+
+        failed_keys = [key for key, _ in result.failed]
+        assert "test_2" in failed_keys
+        assert any("S3 write error" in error for _, error in result.failed)
+
+    @pytest.mark.asyncio
+    @patch("app.services.memory.procedural_seeder.create_s3_vectors_store_from_env")
+    async def test_seed_supervisor_procedurals_delete_failure(self, mock_store_factory, tmp_path):
+        """Test that delete failures are tracked."""
+        mock_store = MagicMock()
+        mock_store.list_by_namespace.return_value = [
+            Mock(key="orphan_1", value={"summary": "Should be deleted"}),
+            Mock(key="orphan_2", value={"summary": "Should be deleted"}),
+        ]
+
+        def delete_side_effect(namespace, key):
+            if key == "orphan_2":
+                raise Exception("S3 delete error")
+
+        mock_store.delete.side_effect = delete_side_effect
+        mock_store_factory.return_value = mock_store
+
+        test_file = tmp_path / "test_routing.jsonl"
+        test_file.write_text("")
+
+        seeder = ProceduralMemorySeeder(base_path=tmp_path)
+        seeder.procedural_files = ["test_routing.jsonl"]
+
+        result = await seeder.seed_supervisor_procedurals()
+
+        assert result.ok is True
+        assert len(result.deleted) == 1
+        assert len(result.failed) == 1
+
+        failed_keys = [key for key, _ in result.failed]
+        assert "orphan_2" in failed_keys
+        assert any("S3 delete error" in error for _, error in result.failed)
 
     def test_get_procedural_seeder_singleton(self):
         """Test that get_procedural_seeder returns same instance."""

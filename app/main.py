@@ -92,14 +92,16 @@ async def lifespan(app: FastAPI):
         from app.services.memory.procedural_seeder import get_procedural_seeder
 
         seeder = get_procedural_seeder()
-        result = await seeder.seed_supervisor_procedurals(force=False)
+        result = await seeder.seed_supervisor_procedurals()
 
         if result.ok:
             s = result.to_dict()["summary"]
             logger.info(
-                "Supervisor procedural memories seeded: created=%d updated=%d deleted=%d skipped=%d total=%d",
-                s["created"], s["updated"], s["deleted"], s["skipped"], s["total"]
+                "Supervisor procedural memories seeded: created=%d updated=%d deleted=%d skipped=%d failed=%d total=%d",
+                s["created"], s["updated"], s["deleted"], s["skipped"], s["failed"], s["total"]
             )
+            if s["failed"] > 0:
+                logger.warning("Some supervisor procedural memories failed to sync: %d items", s["failed"])
         else:
             logger.warning("Failed to seed supervisor procedural memories: %s", result.error)
     except Exception as e:
@@ -111,14 +113,16 @@ async def lifespan(app: FastAPI):
         from app.services.memory.procedural_seeder import get_procedural_seeder
 
         seeder = get_procedural_seeder()
-        result = await seeder.seed_finance_templates(force=False)
+        result = await seeder.seed_finance_templates()
 
         if result.ok:
             s = result.to_dict()["summary"]
             logger.info(
-                "Finance procedural templates seeded: created=%d updated=%d deleted=%d skipped=%d total=%d",
-                s["created"], s["updated"], s["deleted"], s["skipped"], s["total"]
+                "Finance procedural templates seeded: created=%d updated=%d deleted=%d skipped=%d failed=%d total=%d",
+                s["created"], s["updated"], s["deleted"], s["skipped"], s["failed"], s["total"]
             )
+            if s["failed"] > 0:
+                logger.warning("Some finance procedural templates failed to sync: %d items", s["failed"])
         else:
             logger.warning("Failed to seed finance procedural templates: %s", result.error)
     except Exception as e:
