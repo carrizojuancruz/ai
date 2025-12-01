@@ -100,7 +100,7 @@ class InMemorySessionStore:
         counters = ctx.get("memory_counters") or {}
         mt = counters.get(memory_type) or {}
         count = mt.get("count")
-        return int(count) if isinstance(count, int) else None
+        return count if isinstance(count, int) else None
 
     async def set_memory_counter(self, session_id: str | None, memory_type: str, count: int) -> None:
         if not session_id:
@@ -130,8 +130,7 @@ class InMemorySessionStore:
         ctx = await self.get_session(session_id) or {}
         counters = dict(ctx.get("memory_counters") or {})
         if memory_type:
-            if memory_type in counters:
-                counters.pop(memory_type, None)
+            counters.pop(memory_type, None)
         else:
             counters = {}
         ctx["memory_counters"] = counters

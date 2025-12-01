@@ -491,19 +491,18 @@ class MemoryService:
         namespace = self._get_namespace(user_id, memory_type)
         index_fields = index or ["summary"]
         try:
+            oldest: tuple[str, dict[str, Any]] | None = None
             if thread_id:
                 current = await self.get_memory_count_cached(user_id, memory_type, thread_id)
-                limit = self._get_limit(memory_type)
-                if current >= limit:
-                    is_at_limit, oldest = self._check_limit_and_get_oldest(user_id, memory_type)
-                    if is_at_limit and oldest:
-                        old_key, _ = oldest
-                        self._store.delete(namespace, old_key)
+                if current >= self._get_limit(memory_type):
+                    oldest = self.find_oldest_memory(user_id, memory_type)
             else:
                 is_at_limit, oldest = self._check_limit_and_get_oldest(user_id, memory_type)
-                if is_at_limit and oldest:
-                    old_key, _ = oldest
-                    self._store.delete(namespace, old_key)
+                if not is_at_limit:
+                    oldest = None
+            if oldest:
+                old_key, _ = oldest
+                self._store.delete(namespace, old_key)
         except Exception:
             logger.exception("memory.create.limit_check.error: user_id=%s type=%s", user_id, memory_type)
 

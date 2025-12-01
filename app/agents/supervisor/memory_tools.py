@@ -186,7 +186,7 @@ async def semantic_memory_put(
     if display_summary is not None and display_summary.strip():
         value["display_summary"] = display_summary.strip()
 
-    create_result = memory_service.create_memory(
+    create_result = await memory_service.create_memory(
         user_id=user_id,
         memory_type="semantic",
         key=eff_key,
@@ -194,8 +194,6 @@ async def semantic_memory_put(
         index=["summary"],
         thread_id=get_config_value(config, "thread_id"),
     )
-    if hasattr(create_result, "__await__"):
-        create_result = await create_result
     return create_result
 
 
@@ -252,7 +250,7 @@ async def episodic_memory_put(
         "last_accessed": None,
     }
 
-    create_result = memory_service.create_memory(
+    create_result = await memory_service.create_memory(
         user_id=user_id,
         memory_type="episodic",
         key=eff_key,
@@ -260,8 +258,6 @@ async def episodic_memory_put(
         index=["summary"],
         thread_id=get_config_value(config, "thread_id"),
     )
-    if hasattr(create_result, "__await__"):
-        create_result = await create_result
     return create_result
 
 
