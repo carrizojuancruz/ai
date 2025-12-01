@@ -93,6 +93,50 @@ class InMemorySessionStore:
         if session_id in self.sessions:
             self.sessions[session_id]["last_accessed"] = datetime.now()
 
+    async def get_memory_counter(self, session_id: str | None, memory_type: str) -> int | None:
+        if not session_id:
+            return None
+        ctx = await self.get_session(session_id) or {}
+        counters = ctx.get("memory_counters") or {}
+        mt = counters.get(memory_type) or {}
+        count = mt.get("count")
+        return int(count) if isinstance(count, int) else None
+
+    async def set_memory_counter(self, session_id: str | None, memory_type: str, count: int) -> None:
+        if not session_id:
+            return
+        ctx = await self.get_session(session_id) or {}
+        counters = dict(ctx.get("memory_counters") or {})
+        mt = dict(counters.get(memory_type) or {})
+        mt["count"] = int(count)
+        mt["last_synced_at"] = datetime.now().isoformat()
+        counters[memory_type] = mt
+        ctx["memory_counters"] = counters
+        await self.set_session(session_id, ctx)
+
+    async def increment_memory_counter(self, session_id: str | None, memory_type: str, delta: int = 1) -> int | None:
+        if not session_id:
+            return None
+        current = await self.get_memory_counter(session_id, memory_type)
+        if current is None:
+            return None
+        new_val = max(0, int(current) + int(delta))
+        await self.set_memory_counter(session_id, memory_type, new_val)
+        return new_val
+
+    async def invalidate_memory_counter(self, session_id: str | None, memory_type: str | None = None) -> None:
+        if not session_id:
+            return
+        ctx = await self.get_session(session_id) or {}
+        counters = dict(ctx.get("memory_counters") or {})
+        if memory_type:
+            if memory_type in counters:
+                counters.pop(memory_type, None)
+        else:
+            counters = {}
+        ctx["memory_counters"] = counters
+        await self.set_session(session_id, ctx)
+
 
 _session_store = InMemorySessionStore()
 

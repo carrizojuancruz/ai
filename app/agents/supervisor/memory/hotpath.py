@@ -363,12 +363,13 @@ async def _write_semantic_memory(
             if int(candidate_value.get("importance") or 1) < SEMANTIC_MIN_IMPORTANCE:
                 logger.info("memory.skip: below_min_importance=%s", SEMANTIC_MIN_IMPORTANCE)
             else:
-                memory_service.create_memory(
+                await memory_service.create_memory(
                     user_id=user_id,
                     memory_type="semantic",
                     key=candidate_value["id"],
                     value=candidate_value,
                     index=["summary"],
+                    thread_id=thread_id,
                 )
 
                 logger.info("memory.create: id=%s type=%s category=%s", candidate_value["id"], "semantic", category)

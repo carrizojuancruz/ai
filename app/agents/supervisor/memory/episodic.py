@@ -335,12 +335,13 @@ async def episodic_capture(state: MessagesState, config: RunnableConfig) -> dict
             now_iso=now_iso,
         )
 
-        memory_service.create_memory(
+        await memory_service.create_memory(
             user_id=user_id,
             memory_type="episodic",
             key=candidate_id,
             value=value,
-            index=["summary"]
+            index=["summary"],
+            thread_id=thread_id,
         )
 
         logger.info("episodic.create: id=%s", candidate_id)

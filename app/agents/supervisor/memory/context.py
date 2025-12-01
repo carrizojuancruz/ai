@@ -13,6 +13,7 @@ from langgraph.config import get_store
 from langgraph.graph import MessagesState
 
 from app.core.config import config
+from app.services.memory_service import memory_service
 from app.utils.tools import get_config_value
 
 from .usage_tracking import update_memory_usage_tracking
@@ -236,8 +237,14 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
     messages = state["messages"]
     user_text = _extract_user_text(messages)
     user_id = get_config_value(config, "user_id")
+    thread_id = get_config_value(config, "thread_id")
     if not user_id:
         return {}
+    try:
+        if thread_id:
+            await memory_service.initialize_memory_counters(user_id, thread_id)
+    except Exception:
+        pass
 
     w = _parse_weights(RERANK_WEIGHTS_RAW or "")
     try:

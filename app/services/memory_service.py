@@ -7,6 +7,7 @@ from botocore.exceptions import ClientError
 
 from app.core.config import config
 from app.services.memory.store_factory import create_s3_vectors_store_from_env
+from app.repositories.session_store import get_session_store
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,77 @@ class MemoryService:
         count = self.count_memories(user_id, memory_type)
         limit = self._get_limit(memory_type)
         return count >= limit
+
+    async def initialize_memory_counters(
+        self,
+        user_id: str,
+        thread_id: str | None = None,
+    ) -> dict[str, int]:
+        """Initialize cached memory counters for a conversation session."""
+        try:
+            sem = self.count_memories(user_id, "semantic")
+            epi = self.count_memories(user_id, "episodic")
+            store = get_session_store()
+            await store.set_memory_counter(thread_id, "semantic", sem)
+            await store.set_memory_counter(thread_id, "episodic", epi)
+            return {"semantic": sem, "episodic": epi}
+        except Exception:
+            logger.exception("memory_counters.init.error: user_id=%s", user_id)
+            return {"semantic": 0, "episodic": 0}
+
+    async def get_memory_count_cached(
+        self,
+        user_id: str,
+        memory_type: str,
+        thread_id: str | None = None,
+    ) -> int:
+        """Get memory count using session cache; fallback to S3 when missing."""
+        self._validate_memory_type(memory_type)
+        try:
+            store = get_session_store()
+            cached = await store.get_memory_counter(thread_id, memory_type)
+            if isinstance(cached, int):
+                return cached
+            actual = self.count_memories(user_id, memory_type)
+            await store.set_memory_counter(thread_id, memory_type, actual)
+            return actual
+        except Exception:
+            logger.exception("memory_counters.get.error: user_id=%s type=%s", user_id, memory_type)
+            return self.count_memories(user_id, memory_type)
+
+    async def increment_memory_counter(
+        self,
+        user_id: str,
+        memory_type: str,
+        thread_id: str | None = None,
+        delta: int = 1,
+    ) -> int:
+        """Increment/decrement cached counter; no-op if cache missing."""
+        self._validate_memory_type(memory_type)
+        try:
+            store = get_session_store()
+            new_val = await store.increment_memory_counter(thread_id, memory_type, delta)
+            if new_val is None:
+                actual = self.count_memories(user_id, memory_type)
+                await store.set_memory_counter(thread_id, memory_type, max(0, actual + delta))
+                return max(0, actual + delta)
+            return new_val
+        except Exception:
+            logger.exception("memory_counters.inc.error: user_id=%s type=%s", user_id, memory_type)
+            return await self.get_memory_count_cached(user_id, memory_type, thread_id)
+
+    async def invalidate_memory_counter(
+        self,
+        user_id: str,
+        memory_type: str,
+        thread_id: str | None = None,
+    ) -> None:
+        """Invalidate cached counter in session."""
+        try:
+            store = get_session_store()
+            await store.invalidate_memory_counter(thread_id, memory_type)
+        except Exception:
+            logger.exception("memory_counters.invalidate.error: user_id=%s type=%s", user_id, memory_type)
 
     def _map_value_fields(self, item: Any) -> dict[str, Any]:
         """Map Item fields to value DTO format while preserving last_used_at.
@@ -404,26 +476,43 @@ class MemoryService:
             )
             return False
 
-    def create_memory(
+    async def create_memory(
         self,
         user_id: str,
         memory_type: str,
         key: str,
         value: dict[str, Any],
         *,
-        index: list[str] | None = None
+        index: list[str] | None = None,
+        thread_id: str | None = None,
     ) -> dict[str, Any]:
-        """Create a new memory with automatic limit enforcement."""
+        """Create a new memory with cached limit enforcement when available."""
         self._validate_memory_type(memory_type)
         namespace = self._get_namespace(user_id, memory_type)
         index_fields = index or ["summary"]
-
-        is_at_limit, oldest = self._check_limit_and_get_oldest(user_id, memory_type)
-        if is_at_limit and oldest:
-            old_key, _ = oldest
-            self._store.delete(namespace, old_key)
+        try:
+            if thread_id:
+                current = await self.get_memory_count_cached(user_id, memory_type, thread_id)
+                limit = self._get_limit(memory_type)
+                if current >= limit:
+                    is_at_limit, oldest = self._check_limit_and_get_oldest(user_id, memory_type)
+                    if is_at_limit and oldest:
+                        old_key, _ = oldest
+                        self._store.delete(namespace, old_key)
+            else:
+                is_at_limit, oldest = self._check_limit_and_get_oldest(user_id, memory_type)
+                if is_at_limit and oldest:
+                    old_key, _ = oldest
+                    self._store.delete(namespace, old_key)
+        except Exception:
+            logger.exception("memory.create.limit_check.error: user_id=%s type=%s", user_id, memory_type)
 
         self._store.put(namespace, key, value, index=index_fields)
+        try:
+            if thread_id:
+                await self.increment_memory_counter(user_id, memory_type, thread_id, delta=1)
+        except Exception:
+            logger.debug("memory.create.counter_inc.skip: user_id=%s type=%s", user_id, memory_type)
         return {"ok": True, "key": key, "value": value}
 
     def get_all_memories(
