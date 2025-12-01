@@ -243,8 +243,8 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
     try:
         if thread_id:
             await memory_service.initialize_memory_counters(user_id, thread_id)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to initialize memory counters for user_id=%s thread_id=%s: %s", user_id, thread_id, e)
 
     w = _parse_weights(RERANK_WEIGHTS_RAW or "")
     try:
@@ -295,8 +295,9 @@ async def memory_context(state: MessagesState, config: RunnableConfig) -> dict:
         logger.info("memory_context.bullets.epi: %d sem: %d", len(epi_bullets), len(sem_bullets))
 
         routing_examples = _extract_routing_examples(proc)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("Failed to retrieve memory context for user_id=%s: %s", user_id, e, exc_info=True)
+        routing_examples = []
 
     if not locals().get("epi_bullets") and not locals().get("sem_bullets") and not locals().get("routing_examples"):
         return {}
