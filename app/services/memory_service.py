@@ -6,8 +6,8 @@ from typing import Any
 from botocore.exceptions import ClientError
 
 from app.core.config import config
-from app.services.memory.store_factory import create_s3_vectors_store_from_env
 from app.repositories.session_store import get_session_store
+from app.services.memory.store_factory import create_s3_vectors_store_from_env
 
 logger = logging.getLogger(__name__)
 
