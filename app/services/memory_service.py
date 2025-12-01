@@ -76,6 +76,10 @@ class MemoryService:
             store = get_session_store()
             await store.set_memory_counter(thread_id, "semantic", sem)
             await store.set_memory_counter(thread_id, "episodic", epi)
+            logger.info(
+                "memory_counters.init: user_id=%s thread_id=%s semantic=%d episodic=%d",
+                user_id, thread_id, sem, epi
+            )
             return {"semantic": sem, "episodic": epi}
         except Exception:
             logger.exception("memory_counters.init.error: user_id=%s", user_id)
@@ -492,16 +496,26 @@ class MemoryService:
         index_fields = index or ["summary"]
         try:
             oldest: tuple[str, dict[str, Any]] | None = None
+            limit = self._get_limit(memory_type)
             if thread_id:
                 current = await self.get_memory_count_cached(user_id, memory_type, thread_id)
-                if current >= self._get_limit(memory_type):
+                logger.info(
+                    "memory.create.limit_check: user_id=%s type=%s current=%d limit=%d",
+                    user_id, memory_type, current, limit
+                )
+                if current >= limit:
                     oldest = self.find_oldest_memory(user_id, memory_type)
+                    logger.info(
+                        "memory.create.at_limit: oldest_key=%s",
+                        oldest[0] if oldest else None
+                    )
             else:
                 is_at_limit, oldest = self._check_limit_and_get_oldest(user_id, memory_type)
                 if not is_at_limit:
                     oldest = None
             if oldest:
                 old_key, _ = oldest
+                logger.info("memory.create.deleting_oldest: key=%s", old_key)
                 self._store.delete(namespace, old_key)
         except Exception:
             logger.exception("memory.create.limit_check.error: user_id=%s type=%s", user_id, memory_type)
