@@ -71,7 +71,7 @@ class TestProceduralMemorySeeder:
         result = await seeder.seed_supervisor_procedurals()
 
         assert result.ok is True
-        assert result.total_processed == 2
+        assert result.total_items == 2
         assert len(result.created) == 2
         assert len(result.skipped) == 0
 
@@ -91,7 +91,7 @@ class TestProceduralMemorySeeder:
         # Create mock store with existing item
         mock_store = MagicMock()
         mock_store.list_by_namespace.return_value = [
-            Mock(key="test_1", value={"summary": "Existing item"})
+            Mock(key="test_1", value={"summary": "Existing item", "category": "Routing"})
         ]
         mock_store_factory.return_value = mock_store
 
@@ -122,7 +122,7 @@ class TestProceduralMemorySeeder:
         # Create mock store with existing item
         mock_store = MagicMock()
         mock_store.list_by_namespace.return_value = [
-            Mock(key="test_1", value={"summary": "Old summary"})
+            Mock(key="test_1", value={"summary": "Old summary", "category": "Routing"})
         ]
         mock_store_factory.return_value = mock_store
 
@@ -143,6 +143,36 @@ class TestProceduralMemorySeeder:
 
         assert result.ok is True
         assert len(result.updated) == 1  # Item was updated, not created
+        assert len(result.created) == 0
+        assert len(result.skipped) == 0
+        assert mock_store.put.call_count == 1
+
+    @pytest.mark.asyncio
+    @patch("app.services.memory.procedural_seeder.create_s3_vectors_store_from_env")
+    async def test_seed_supervisor_procedurals_category_change(self, mock_store_factory, tmp_path):
+        """Test that category changes are detected and trigger updates."""
+        mock_store = MagicMock()
+        mock_store.list_by_namespace.return_value = [
+            Mock(key="test_1", value={"summary": "Same summary", "category": "OldCategory"})
+        ]
+        mock_store_factory.return_value = mock_store
+
+        test_file = tmp_path / "test_routing.jsonl"
+        test_data = [
+            {"key": "test_1", "summary": "Same summary", "category": "NewCategory"},
+        ]
+
+        with test_file.open("w", encoding="utf-8") as f:
+            for item in test_data:
+                f.write(json.dumps(item) + "\n")
+
+        seeder = ProceduralMemorySeeder(base_path=tmp_path)
+        seeder.procedural_files = ["test_routing.jsonl"]
+
+        result = await seeder.seed_supervisor_procedurals()
+
+        assert result.ok is True
+        assert len(result.updated) == 1
         assert len(result.created) == 0
         assert len(result.skipped) == 0
         assert mock_store.put.call_count == 1

@@ -51,7 +51,10 @@ class SupervisorProcedural:
 
     def has_changed(self, other: dict[str, Any]) -> bool:
         """Check if this procedural differs from stored version."""
-        return self.summary != other.get("summary")
+        return (
+            self.summary != other.get("summary")
+            or self.category != other.get("category")
+        )
 
 
 @dataclass
@@ -103,6 +106,9 @@ class FinanceProcedural:
             or self.description != other.get("description")
             or self.sql_hint != other.get("sql_hint")
             or self.tags != other.get("tags", [])
+            or self.examples != other.get("examples", [])
+            or self.version != other.get("version")
+            or self.deprecated != other.get("deprecated")
         )
 
 
@@ -119,7 +125,8 @@ class SyncResult:
     failed: list[tuple[str, str]] = field(default_factory=list)  # (key, error_message)
 
     @property
-    def total_processed(self) -> int:
+    def total_items(self) -> int:
+        """Total number of items encountered (successful + failed)."""
         return len(self.created) + len(self.updated) + len(self.deleted) + len(self.skipped) + len(self.failed)
 
     def to_dict(self) -> dict[str, Any]:
@@ -140,7 +147,7 @@ class SyncResult:
                 "deleted": len(self.deleted),
                 "skipped": len(self.skipped),
                 "failed": len(self.failed),
-                "total": self.total_processed,
+                "total": self.total_items,
             },
         }
 
