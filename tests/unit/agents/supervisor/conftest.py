@@ -300,7 +300,7 @@ def mock_memory_service(mocker):
     """Mock memory_service for testing memory operations."""
     mock_service = MagicMock()
 
-    def create_memory_side_effect(user_id, memory_type, key, value, **kwargs):
+    async def create_memory_side_effect(user_id, memory_type, key, value, **kwargs):
         return {
             "ok": True,
             "key": key,
