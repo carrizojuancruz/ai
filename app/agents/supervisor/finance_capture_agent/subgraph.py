@@ -298,25 +298,45 @@ def create_finance_capture_graph(
         if not any(key in patch for key in ("vera_income_category", "vera_expense_category", "kind")):
             return draft
 
-        kind = str(draft.get("kind") or "").strip().lower()
-        if kind not in ("income", "expense"):
-            if draft.get("vera_income_category"):
-                kind = "income"
+        effective_kind: str | None = None
+
+        patch_kind_raw = patch.get("kind")
+        if isinstance(patch_kind_raw, str):
+            patch_kind = patch_kind_raw.strip().lower()
+            if patch_kind in ("income", "expense"):
+                effective_kind = patch_kind
+
+        if effective_kind is None:
+            if "vera_income_category" in patch and patch.get("vera_income_category") is not None:
+                effective_kind = "income"
+            elif "vera_expense_category" in patch and patch.get("vera_expense_category") is not None:
+                effective_kind = "expense"
+
+        if effective_kind is None:
+            kind_existing = str(draft.get("kind") or "").strip().lower()
+            if kind_existing in ("income", "expense"):
+                effective_kind = kind_existing
+            elif draft.get("vera_income_category"):
+                effective_kind = "income"
                 draft["kind"] = "income"
             elif draft.get("vera_expense_category"):
-                kind = "expense"
+                effective_kind = "expense"
                 draft["kind"] = "expense"
             else:
                 return draft
+
+        kind = effective_kind
+        if isinstance(patch_kind_raw, str):
+            draft["kind"] = kind
 
         scope: Literal["income", "expenses"] = "income" if kind == "income" else "expenses"
 
         vera_value: Any
         if kind == "income":
-            vera_value = draft.get("vera_income_category")
+            vera_value = patch.get("vera_income_category", draft.get("vera_income_category"))
             plaid_category, plaid_subcategory = match_vera_income_to_plaid(vera_value)
         else:
-            vera_value = draft.get("vera_expense_category")
+            vera_value = patch.get("vera_expense_category", draft.get("vera_expense_category"))
             plaid_category, plaid_subcategory = match_vera_expense_to_plaid(vera_value)
 
         if not plaid_category:
