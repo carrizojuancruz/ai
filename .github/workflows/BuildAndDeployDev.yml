@@ -1,4 +1,4 @@
-name: Build, Release and Deploy to ECS
+name: Deploy To Dev
 
 on:
   push:
