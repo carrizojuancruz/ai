@@ -116,7 +116,9 @@ def seed_draft_from_intent(intent: NovaMicroIntentResult) -> dict[str, Any]:
     return draft
 
 
-def choose_from_taxonomy(categories: list[dict[str, Any]], cat: str | None, subcat: str | None) -> tuple[str | None, str | None, str | None]:
+def choose_from_taxonomy(
+    categories: list[dict[str, Any]], cat: str | None, subcat: str | None
+) -> tuple[str | None, str | None, str | None]:
     """Choose category/subcategory from taxonomy and return taxonomy_id if available.
 
     The taxonomy comes in flat format from FOS API:
@@ -174,7 +176,9 @@ def derive_vera_income(category: str, subcategory: str | None) -> VeraPovIncomeC
         for plaid_cat, subcats in plaid_map.items():
             plaid_cat_normalized = str(plaid_cat).strip().lower()
             subcats_normalized = [str(s).strip().lower() for s in subcats]
-            if plaid_cat_normalized == category_normalized and ((subcategory_normalized in subcats_normalized) if subcategory_normalized else True):
+            if plaid_cat_normalized == category_normalized and (
+                (subcategory_normalized in subcats_normalized) if subcategory_normalized else True
+            ):
                 return vera
     return None
 
@@ -188,10 +192,52 @@ def derive_vera_expense(category: str, subcategory: str | None) -> VeraPovExpens
         for plaid_cat, subcats in plaid_map.items():
             plaid_cat_normalized = str(plaid_cat).strip().lower()
             subcats_normalized = [str(s).strip().lower() for s in subcats]
-            if plaid_cat_normalized == category_normalized and ((subcategory_normalized in subcats_normalized) if subcategory_normalized else True):
+            if plaid_cat_normalized == category_normalized and (
+                (subcategory_normalized in subcats_normalized) if subcategory_normalized else True
+            ):
                 return vera
     logger.warning("[derive_vera_expense] no match found for category=%r subcategory=%r", category, subcategory)
     return None
+
+
+def _match_vera_to_plaid(
+    vera_value: VeraPovIncomeCategory | VeraPovExpenseCategory | str | None,
+    mapping: dict[VeraPovIncomeCategory | VeraPovExpenseCategory, dict[str, tuple[str, ...]]],
+) -> tuple[str | None, str | None]:
+    if vera_value is None:
+        return None, None
+
+    if isinstance(vera_value, (VeraPovIncomeCategory, VeraPovExpenseCategory)):
+        target = vera_value.value.strip().lower()
+    else:
+        target = str(vera_value).strip().lower()
+
+    if not target:
+        return None, None
+
+    for vera_category, plaid_map in mapping.items():
+        if vera_category.value.strip().lower() != target:
+            continue
+        for plaid_category, subcats in plaid_map.items():
+            if subcats:
+                return plaid_category, subcats[0]
+            return plaid_category, None
+
+    return None, None
+
+
+def match_vera_income_to_plaid(
+    vera_income: VeraPovIncomeCategory | str | None,
+) -> tuple[str | None, str | None]:
+    """Map a Vera income POV category back to a Plaid category/subcategory pair."""
+    return _match_vera_to_plaid(vera_income, VERA_INCOME_TO_PLAID_SUBCATEGORIES)
+
+
+def match_vera_expense_to_plaid(
+    vera_expense: VeraPovExpenseCategory | str | None,
+) -> tuple[str | None, str | None]:
+    """Map a Vera expense POV category back to a Plaid category/subcategory pair."""
+    return _match_vera_to_plaid(vera_expense, VERA_EXPENSE_TO_PLAID_SUBCATEGORIES)
 
 
 def normalize_basic_fields(draft: dict[str, Any]) -> None:
@@ -223,7 +269,11 @@ def liability_payload_from_draft(draft: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": draft.get("name") or "",
         "principal_balance": float(Decimal(str(draft.get("principal_balance") or "0"))),
-        "minimum_payment_amount": (float(Decimal(str(draft.get("minimum_payment_amount")))) if draft.get("minimum_payment_amount") is not None else None),
+        "minimum_payment_amount": (
+            float(Decimal(str(draft.get("minimum_payment_amount"))))
+            if draft.get("minimum_payment_amount") is not None
+            else None
+        ),
         "next_payment_due_date": draft.get("next_payment_due_date"),
         "currency_code": draft.get("currency_code") or "USD",
         "vera_category": vera_category,
@@ -264,7 +314,8 @@ def manual_tx_payload_from_draft(draft: dict[str, Any]) -> dict[str, Any]:
         "currency_code": draft.get("currency_code") or "USD",
         "name": name_value,
         "merchant_or_payee": merchant,
-        "taxonomy_category": draft.get("taxonomy_category") or ("Income" if kind == ManualTransactionKind.INCOME else "Food & Dining"),
+        "taxonomy_category": draft.get("taxonomy_category")
+        or ("Income" if kind == ManualTransactionKind.INCOME else "Food & Dining"),
         "taxonomy_subcategory": draft.get("taxonomy_subcategory") or "Other",
         "vera_income_category": vera_income,
         "vera_expense_category": vera_expense,

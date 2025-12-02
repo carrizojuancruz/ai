@@ -28,6 +28,8 @@ from .helpers import (
     liability_payload_to_fos,
     manual_tx_payload_from_draft,
     manual_tx_payload_to_fos,
+    match_vera_expense_to_plaid,
+    match_vera_income_to_plaid,
     normalize_basic_fields,
     seed_draft_from_intent,
 )
@@ -283,6 +285,81 @@ def create_finance_capture_graph(
 ):
     logger = logging.getLogger(__name__)
 
+    async def _maybe_recompute_manual_tx_taxonomy(
+        *,
+        draft: dict[str, Any],
+        patch: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        base_kind = str(draft.get("entity_kind") or draft.get("kind") or "").strip().lower()
+        if base_kind not in ("manual_tx", "income", "expense"):
+            return draft
+
+        patch = patch or {}
+        if not any(key in patch for key in ("vera_income_category", "vera_expense_category", "kind")):
+            return draft
+
+        kind = str(draft.get("kind") or "").strip().lower()
+        if kind not in ("income", "expense"):
+            if draft.get("vera_income_category"):
+                kind = "income"
+                draft["kind"] = "income"
+            elif draft.get("vera_expense_category"):
+                kind = "expense"
+                draft["kind"] = "expense"
+            else:
+                return draft
+
+        scope: Literal["income", "expenses"] = "income" if kind == "income" else "expenses"
+
+        vera_value: Any
+        if kind == "income":
+            vera_value = draft.get("vera_income_category")
+            plaid_category, plaid_subcategory = match_vera_income_to_plaid(vera_value)
+        else:
+            vera_value = draft.get("vera_expense_category")
+            plaid_category, plaid_subcategory = match_vera_expense_to_plaid(vera_value)
+
+        if not plaid_category:
+            logger.warning(
+                "[finance_capture] manual_tx.recompute_taxonomy.no_plaid_match vera=%r kind=%s",
+                vera_value,
+                kind,
+            )
+            return draft
+
+        try:
+            taxonomy_result = await get_taxonomy(scope)
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "[finance_capture] manual_tx.recompute_taxonomy.taxonomy_fetch_failed scope=%s error=%s",
+                scope,
+                exc,
+            )
+            return draft
+
+        taxonomy = taxonomy_result.model_dump()
+        categories = taxonomy.get("categories") or []
+        chosen_category, chosen_subcategory, taxonomy_id = choose_from_taxonomy(
+            categories,
+            plaid_category,
+            plaid_subcategory,
+        )
+
+        if not taxonomy_id:
+            logger.warning(
+                "[finance_capture] manual_tx.recompute_taxonomy.no_taxonomy_id vera=%r kind=%s plaid_cat=%r subcat=%r",
+                vera_value,
+                kind,
+                plaid_category,
+                plaid_subcategory,
+            )
+            return draft
+
+        draft["taxonomy_category"] = chosen_category or plaid_category
+        draft["taxonomy_subcategory"] = chosen_subcategory or plaid_subcategory
+        draft["taxonomy_id"] = taxonomy_id
+        return draft
+
     async def parse_and_normalize(state: FinanceCaptureState, config: RunnableConfig) -> dict[str, Any]:
         user_message = ""
         for message in reversed(state.get("messages", [])):
@@ -325,7 +402,12 @@ def create_finance_capture_graph(
         suggested_category = draft.get("taxonomy_category") or intent_dict.get("suggested_plaid_category")
 
         scope = "expenses"
-        if draft.get("kind") == "income" or isinstance(suggested_category, str) and suggested_category.strip().lower() == "income" or draft.get("vera_income_category"):
+        if (
+            draft.get("kind") == "income"
+            or isinstance(suggested_category, str)
+            and suggested_category.strip().lower() == "income"
+            or draft.get("vera_income_category")
+        ):
             scope = "income"
 
         try:
@@ -363,10 +445,49 @@ def create_finance_capture_graph(
             suggested_category = draft.get("taxonomy_category") or intent_dict.get("suggested_plaid_category")
             suggested_subcat = draft.get("taxonomy_subcategory") or intent_dict.get("suggested_plaid_subcategory")
 
-            chosen_category, chosen_subcategory, taxonomy_id = choose_from_taxonomy(categories, suggested_category, suggested_subcat)
+            chosen_category, chosen_subcategory, taxonomy_id = choose_from_taxonomy(
+                categories,
+                suggested_category,
+                suggested_subcat,
+            )
+
+            if not chosen_category or not chosen_subcategory or not taxonomy_id:
+                logger.warning(
+                    "[finance_capture] taxonomy lookup failed for Nova suggestion, attempting Vera-based fallback: "
+                    "category=%r subcategory=%r",
+                    suggested_category,
+                    suggested_subcat,
+                )
+
+                vera_income = intent_dict.get("suggested_vera_income_category") or draft.get("vera_income_category")
+                vera_expense = intent_dict.get("suggested_vera_expense_category") or draft.get("vera_expense_category")
+
+                plaid_cat_fallback: str | None = None
+                plaid_subcat_fallback: str | None = None
+
+                if vera_income is not None:
+                    plaid_cat_fallback, plaid_subcat_fallback = match_vera_income_to_plaid(vera_income)
+                elif vera_expense is not None:
+                    plaid_cat_fallback, plaid_subcat_fallback = match_vera_expense_to_plaid(vera_expense)
+
+                if plaid_cat_fallback:
+                    fb_category, fb_subcategory, fb_taxonomy_id = choose_from_taxonomy(
+                        categories,
+                        plaid_cat_fallback,
+                        plaid_subcat_fallback,
+                    )
+                    if fb_taxonomy_id:
+                        chosen_category = fb_category or plaid_cat_fallback
+                        chosen_subcategory = fb_subcategory or plaid_subcat_fallback
+                        taxonomy_id = fb_taxonomy_id
 
             if not chosen_category or not chosen_subcategory:
-                logger.warning("[finance_capture] taxonomy lookup failed, using Nova's suggestion: category=%r subcategory=%r", suggested_category, suggested_subcat)
+                logger.warning(
+                    "[finance_capture] taxonomy lookup ultimately failed, using Nova's suggestion without taxonomy_id: "
+                    "category=%r subcategory=%r",
+                    suggested_category,
+                    suggested_subcat,
+                )
                 chosen_category = suggested_category or ""
                 chosen_subcategory = suggested_subcat or ""
                 taxonomy_id = None
@@ -504,7 +625,15 @@ def create_finance_capture_graph(
 
         if not isinstance(user_id, str) or not user_id:
             logger.error("[finance_capture] missing_user_id_for_persist")
-            return {"messages": [{"role": "assistant", "content": "Cannot save right now. Missing user id.", "name": "finance_capture_agent"}]}
+            return {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": "Cannot save right now. Missing user id.",
+                        "name": "finance_capture_agent",
+                    }
+                ]
+            }
 
         completion_contexts: list[dict[str, Any]] = []
 
@@ -516,6 +645,8 @@ def create_finance_capture_graph(
             patch = decision_payload.get("draft")
             if isinstance(patch, dict) and patch:
                 draft = {**draft, **patch}
+
+            draft = await _maybe_recompute_manual_tx_taxonomy(draft=draft, patch=patch)
 
             if decision == "cancel":
                 completion_contexts.append(
@@ -663,7 +794,9 @@ def create_finance_capture_graph(
             completion_contexts = [fallback_context]
 
         messages = []
-        summary_lines = [ctx.get("completion_message", "Finance data capture task completed.") for ctx in completion_contexts]
+        summary_lines = [
+            ctx.get("completion_message", "Finance data capture task completed.") for ctx in completion_contexts
+        ]
         if len(summary_lines) == 1:
             completion_msg = summary_lines[0]
         else:
@@ -748,5 +881,3 @@ def create_finance_capture_graph(
     workflow.add_edge("persist", "handoff_back")
 
     return workflow.compile(checkpointer=checkpointer)
-
-
