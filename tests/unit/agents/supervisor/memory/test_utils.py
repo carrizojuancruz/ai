@@ -183,7 +183,6 @@ class TestBuildProfileLine:
         assert "casual communication tone" in result
         assert "$50k-$75k" in result
         assert "$2000" in result
-        assert "premium subscription tier" in result
         assert "anxious, optimistic, confused" in result
         assert "satisfied" in result
         assert "employer-provided" in result
@@ -211,9 +210,7 @@ class TestBuildProfileLine:
 
     def test_build_with_name_and_age(self):
         """Test building profile with name and age."""
-        ctx = {
-            "identity": {"preferred_name": "Bob", "age": 35}
-        }
+        ctx = {"identity": {"preferred_name": "Bob", "age": 35}}
 
         result = _build_profile_line(ctx)
 
@@ -223,10 +220,7 @@ class TestBuildProfileLine:
 
     def test_build_with_age_range_when_no_age(self):
         """Test age_range is used when age is not present."""
-        ctx = {
-            "preferred_name": "Charlie",
-            "age_range": "25-34"
-        }
+        ctx = {"preferred_name": "Charlie", "age_range": "25-34"}
 
         result = _build_profile_line(ctx)
 
@@ -235,10 +229,7 @@ class TestBuildProfileLine:
 
     def test_age_range_ignored_when_age_present(self):
         """Test age_range is ignored when age is present."""
-        ctx = {
-            "identity": {"preferred_name": "David", "age": 30},
-            "age_range": "25-34"
-        }
+        ctx = {"identity": {"preferred_name": "David", "age": 30}, "age_range": "25-34"}
 
         result = _build_profile_line(ctx)
 
@@ -253,7 +244,7 @@ class TestBuildProfileLine:
             "age": 28,
             "city": "Austin",
             "language": "es-MX",
-            "tone_preference": "professional"
+            "tone_preference": "professional",
         }
 
         result = _build_profile_line(ctx)
@@ -267,10 +258,7 @@ class TestBuildProfileLine:
 
     def test_build_with_nested_location(self):
         """Test building profile with nested location structure."""
-        ctx = {
-            "preferred_name": "Frank",
-            "location": {"city": "Boston"}
-        }
+        ctx = {"preferred_name": "Frank", "location": {"city": "Boston"}}
 
         result = _build_profile_line(ctx)
 
@@ -279,10 +267,7 @@ class TestBuildProfileLine:
 
     def test_build_with_nested_style(self):
         """Test building profile with nested style structure."""
-        ctx = {
-            "preferred_name": "Grace",
-            "style": {"tone": "friendly"}
-        }
+        ctx = {"preferred_name": "Grace", "style": {"tone": "friendly"}}
 
         result = _build_profile_line(ctx)
 
@@ -291,10 +276,7 @@ class TestBuildProfileLine:
 
     def test_build_with_nested_locale_info(self):
         """Test building profile with nested locale_info structure."""
-        ctx = {
-            "preferred_name": "Henry",
-            "locale_info": {"language": "en-GB"}
-        }
+        ctx = {"preferred_name": "Henry", "locale_info": {"language": "en-GB"}}
 
         result = _build_profile_line(ctx)
 
@@ -320,8 +302,8 @@ class TestBuildProfileLine:
         ctx = {
             "preferred_name": "Ivy",
             "income": "$100k+",  # Alternative to income_band
-            "housing": "1500",   # Alternative to rent_mortgage
-            "tier": "basic"      # Alternative to subscription_tier
+            "housing": "1500",  # Alternative to rent_mortgage
+            "tier": "basic",  # Alternative to subscription_tier
         }
 
         result = _build_profile_line(ctx)
@@ -329,14 +311,10 @@ class TestBuildProfileLine:
         assert result is not None
         assert "$100k+" in result
         assert "$1500" in result
-        assert "basic subscription tier" in result
 
     def test_build_with_limited_money_feelings(self):
         """Test that only first 3 money feelings are included."""
-        ctx = {
-            "preferred_name": "Jack",
-            "money_feelings": ["anxious", "hopeful", "stressed", "optimistic", "confused"]
-        }
+        ctx = {"preferred_name": "Jack", "money_feelings": ["anxious", "hopeful", "stressed", "optimistic", "confused"]}
 
         result = _build_profile_line(ctx)
 
@@ -347,10 +325,7 @@ class TestBuildProfileLine:
 
     def test_build_with_limited_goals(self):
         """Test that only first 3 goals are included."""
-        ctx = {
-            "preferred_name": "Karen",
-            "goals": ["goal1", "goal2", "goal3", "goal4", "goal5"]
-        }
+        ctx = {"preferred_name": "Karen", "goals": ["goal1", "goal2", "goal3", "goal4", "goal5"]}
 
         result = _build_profile_line(ctx)
 
@@ -360,9 +335,7 @@ class TestBuildProfileLine:
 
     def test_build_with_limited_blocked_topics(self):
         """Test that only first 5 blocked topics are included."""
-        ctx = {
-            "preferred_name": "Leo"
-        }
+        ctx = {"preferred_name": "Leo"}
 
         result = _build_profile_line(ctx)
 
@@ -374,7 +347,7 @@ class TestBuildProfileLine:
         ctx = {
             "preferred_name": "Mia",
             "goals": ["valid_goal", 123, None, "another_goal"],
-            "money_feelings": [456, "anxious", None]
+            "money_feelings": [456, "anxious", None],
         }
 
         result = _build_profile_line(ctx)
@@ -389,10 +362,7 @@ class TestBuildProfileLine:
 
     def test_build_with_non_list_goals(self):
         """Test handling when goals is not a list."""
-        ctx = {
-            "preferred_name": "Nina",
-            "goals": "not a list"
-        }
+        ctx = {"preferred_name": "Nina", "goals": "not a list"}
 
         result = _build_profile_line(ctx)
 
@@ -429,14 +399,9 @@ class TestBuildProfileLine:
         assert "prefer the latest user message" in result
         assert "Respect blocked topics" in result
 
-
     def test_preference_order_for_nested_vs_flat(self):
         """Test that nested fields take precedence over flat fields."""
-        ctx = {
-            "preferred_name": "flat_name",
-            "identity": {"preferred_name": "nested_name", "age": 30},
-            "age": 25
-        }
+        ctx = {"preferred_name": "flat_name", "identity": {"preferred_name": "nested_name", "age": 30}, "age": 25}
 
         result = _build_profile_line(ctx)
 

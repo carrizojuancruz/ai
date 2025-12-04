@@ -55,7 +55,6 @@ def _build_profile_line(ctx: dict[str, Any]) -> Optional[str]:
     city = ctx.get("city") or (ctx.get("location", {}) or {}).get("city") or None
     income_band = ctx.get("income_band") or ctx.get("income") or None
     rent_mortgage = ctx.get("rent_mortgage") or ctx.get("housing") or None
-    subscription_tier = ctx.get("subscription_tier") or ctx.get("tier") or None
     money_feelings = ctx.get("money_feelings", [])
     money_feelings_str = (
         ", ".join([str(f) for f in money_feelings[:3] if isinstance(f, str)])
@@ -94,9 +93,6 @@ def _build_profile_line(ctx: dict[str, Any]) -> Optional[str]:
 
     if rent_mortgage:
         sentences.append(f"Their monthly housing cost is ${rent_mortgage}")
-
-    if subscription_tier:
-        sentences.append(f"They are on the {subscription_tier} subscription tier")
 
     if money_feelings_str:
         sentences.append(f"They feel {money_feelings_str} about money")
