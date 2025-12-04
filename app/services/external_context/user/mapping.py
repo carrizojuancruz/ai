@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.models.user import SubscriptionTier, UserContext
+from app.models.user import UserContext
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,6 @@ def _merge_summary_into_context(summary: dict[str, Any], user_ctx: UserContext) 
         "income_band",
         "rent_mortgage",
         "primary_financial_goal",
-        "subscription_tier",
         "social_signals_consent",
         "ready_for_orchestrator",
         "age",
@@ -40,19 +39,12 @@ def _merge_summary_into_context(summary: dict[str, Any], user_ctx: UserContext) 
         "health_cost",
         "income",
         "housing",
-        "tier",
     ]
 
     for field in flat_fields:
         value = summary.get(field)
         if value is not None:
             try:
-                if field == "subscription_tier" and isinstance(value, str):
-                    try:
-                        value = SubscriptionTier(value)
-                    except ValueError:
-                        logger.warning("[CONTEXT_LOAD] Invalid subscription_tier value: %s, using default", value)
-                        value = SubscriptionTier.FREE
                 setattr(user_ctx, field, value)
             except Exception as e:
                 logger.warning("[CONTEXT_LOAD] Could not set field %s: %s", field, e)

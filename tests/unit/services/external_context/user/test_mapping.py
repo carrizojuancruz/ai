@@ -107,24 +107,23 @@ class TestMergeSummaryIntoContext:
         assert user_ctx.style.tone == "casual"
         assert user_ctx.style.verbosity == "detailed"
 
-    def test_handles_subscription_tier_string(self, test_user_id):
-        """Should convert subscription_tier string to enum."""
+    def test_ignores_subscription_tier_field(self, test_user_id):
+        """Should leave subscription tier unchanged when summary includes it."""
         user_ctx = UserContext(user_id=test_user_id)
         summary = {"subscription_tier": "paid"}
 
         _merge_summary_into_context(summary, user_ctx)
 
-        assert user_ctx.subscription_tier == SubscriptionTier.PAID
+        assert user_ctx.subscription_tier == SubscriptionTier.FREE
 
-    def test_handles_invalid_subscription_tier(self, test_user_id, caplog):
-        """Should default to FREE and log warning for invalid tier."""
+    def test_ignores_tier_string_field(self, test_user_id):
+        """Should leave tier unset when summary includes legacy tier."""
         user_ctx = UserContext(user_id=test_user_id)
-        summary = {"subscription_tier": "INVALID_TIER"}
+        summary = {"tier": "premium"}
 
         _merge_summary_into_context(summary, user_ctx)
 
-        assert user_ctx.subscription_tier == SubscriptionTier.FREE
-        assert "Invalid subscription_tier value" in caplog.text
+        assert user_ctx.tier is None
 
     def test_skips_none_values(self, test_user_id):
         """Should not overwrite with None values."""
@@ -141,9 +140,7 @@ class TestMapAIContextToUserContext:
 
     def test_maps_user_context_summary(self, test_user_id):
         """Should extract and merge user_context_summary."""
-        ai_context = {
-            "user_context_summary": {"preferred_name": "Alice", "age": 25, "city": "Boston"}
-        }
+        ai_context = {"user_context_summary": {"preferred_name": "Alice", "age": 25, "city": "Boston"}}
         user_ctx = UserContext(user_id=test_user_id)
 
         result = map_ai_context_to_user_context(ai_context, user_ctx)
