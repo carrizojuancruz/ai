@@ -124,6 +124,8 @@ class PromptLoader:
             "finance_capture_completion_prompt": self._get_finance_capture_completion_prompt,
             "memory_merge_summaries": self._get_memory_merge_summaries_local,
             "safety_system_prompt": self._get_safety_system_prompt_local,
+            "timeline_extended_start_prompt": self._get_timeline_extended_start_prompt_local,
+            "timeline_extended_end_prompt": self._get_timeline_extended_end_prompt_local,
         })
 
 
@@ -323,6 +325,23 @@ class PromptLoader:
         if agent_prompts is None:
             from . import agent_prompts
         return agent_prompts.SAFETY_SYSTEM_PROMPT_LOCAL
+
+    def _get_timeline_extended_start_prompt_local(self, **kwargs) -> str:
+        util_prompts = sys.modules.get('app.services.llm.utility_prompts')
+        if util_prompts is None:
+            from . import utility_prompts as util_prompts
+        task = kwargs.get("task", "")
+        prompt = util_prompts.TIMELINE_EXTENDED_START_PROMPT_LOCAL.format(task=task)
+        return prompt.strip()
+
+    def _get_timeline_extended_end_prompt_local(self, **kwargs) -> str:
+        util_prompts = sys.modules.get('app.services.llm.utility_prompts')
+        if util_prompts is None:
+            from . import utility_prompts as util_prompts
+        task = kwargs.get("task", "")
+        outcome = kwargs.get("outcome", "")
+        prompt = util_prompts.TIMELINE_EXTENDED_END_PROMPT_LOCAL.format(task=task, outcome=outcome)
+        return prompt.strip()
 
 
     def _validate_prompt_format(self, text: str, name: str) -> None:

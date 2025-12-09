@@ -43,6 +43,10 @@ from app.services.external_context.user.mapping import (
 from app.services.external_context.user.personal_information import PersonalInformationService
 from app.services.external_context.user.profile_metadata import build_profile_metadata_payload
 from app.services.external_context.user.repository import ExternalUserRepository
+from app.services.llm.extended_description import (
+    extract_agent_result_text,
+    schedule_extended_description_update,
+)
 from app.services.location.normalizer import location_normalizer
 from app.utils.mapping import get_source_name
 from app.utils.tools import check_repeated_sources
@@ -576,7 +580,15 @@ class SupervisorService:
 
         q = get_sse_queue(thread_id)
         current_description = _get_random_step_planning_current()
-        await q.put({"event": "step.update", "data": {"status": "processing", "description": current_description}})
+        await q.put(
+            {
+                "event": "step.update",
+                "data": {
+                    "status": "processing",
+                    "description": current_description,
+                },
+            }
+        )
 
         graph: CompiledStateGraph = get_supervisor_graph()
         session_store: InMemorySessionStore = get_session_store()
@@ -608,6 +620,7 @@ class SupervisorService:
         emitted_handoff_back_keys: set[str] = set()
         current_agent_tool: Optional[str] = None
         active_handoffs: set[str] = set()
+        handoff_timeline_ids: dict[str, str] = {}
 
         latest_response_text: Optional[str] = None
         supervisor_latest_response_text: Optional[str] = None
@@ -734,6 +747,23 @@ class SupervisorService:
                     elif tool_name == "transfer_to_finance_capture_agent":
                         description = _get_random_finance_capture_current()
 
+                    task_text = ""
+                    try:
+                        input_payload = data.get("input") if isinstance(data, dict) else None
+                        if isinstance(input_payload, dict):
+                            task_text = (
+                                input_payload.get("task_description")
+                                or input_payload.get("task")
+                                or input_payload.get("content")
+                                or ""
+                            )
+                        elif isinstance(input_payload, str):
+                            task_text = input_payload
+                    except Exception:
+                        task_text = ""
+
+                    timeline_item_id = str(uuid4())
+                    handoff_timeline_ids[tool_name] = timeline_item_id
                     await q.put(
                         {
                             "event": "source.search.start",
@@ -741,8 +771,17 @@ class SupervisorService:
                                 "tool": tool_name,
                                 "source": tool_name.replace("transfer_to_", "").replace("_", " ").title(),
                                 "description": description,
+                                "timeline_item_id": timeline_item_id,
                             },
                         }
+                    )
+                    schedule_extended_description_update(
+                        queue=q,
+                        tool=tool_name,
+                        source=tool_name.replace("transfer_to_", "").replace("_", " ").title(),
+                        description=task_text or description,
+                        timeline_item_id=timeline_item_id,
+                        phase="start",
                     )
                     continue
 
@@ -816,6 +855,8 @@ class SupervisorService:
                                         description = _get_random_finance_capture_completed()
 
                                     supervisor_name = "Supervisor"
+                                    timeline_item_id = handoff_timeline_ids.get(current_agent_tool or "")
+                                    agent_result_text = extract_agent_result_text(messages)
                                     await q.put(
                                         {
                                             "event": "source.search.end",
@@ -823,9 +864,20 @@ class SupervisorService:
                                                 "tool": back_tool,
                                                 "source": supervisor_name,
                                                 "description": description,
+                                                "timeline_item_id": timeline_item_id,
                                             },
                                         }
                                     )
+                                    schedule_extended_description_update(
+                                        queue=q,
+                                        tool=back_tool,
+                                        source=supervisor_name,
+                                        description=description,
+                                        timeline_item_id=timeline_item_id,
+                                        phase="end",
+                                        result_text=agent_result_text or supervisor_latest_response_text,
+                                    )
+                                    handoff_timeline_ids.pop(current_agent_tool or "", None)
                                     current_agent_tool = None
                 except Exception as e:
                     logger.info(f"[TRACE] chain_end.handoff_close.error err={e}")
@@ -844,6 +896,7 @@ class SupervisorService:
                             elif tool_name == "transfer_to_finance_capture_agent":
                                 description = _get_random_finance_capture_completed()
 
+                            timeline_item_id = handoff_timeline_ids.get(tool_name)
                             await q.put(
                                 {
                                     "event": "source.search.end",
@@ -851,10 +904,21 @@ class SupervisorService:
                                         "tool": "transfer_back_to_supervisor",
                                         "source": "Supervisor",
                                         "description": description,
+                                        "timeline_item_id": timeline_item_id,
                                     },
                                 }
                             )
+                            schedule_extended_description_update(
+                                queue=q,
+                                tool="transfer_back_to_supervisor",
+                                source="Supervisor",
+                                description=description,
+                                timeline_item_id=timeline_item_id,
+                                phase="end",
+                                result_text=supervisor_latest_response_text,
+                            )
                             active_handoffs.discard(tool_name)
+                            handoff_timeline_ids.pop(tool_name, None)
                         current_agent_tool = None
                         logger.info("[TRACE] supervisor.handoff.conservative_close active_handoffs_cleared")
                     except Exception as e:
@@ -930,7 +994,15 @@ class SupervisorService:
             logger.error(f"[DEBUG] Error sending message.completed: {e}")
 
         completed_description = _get_random_step_planning_completed()
-        await q.put({"event": "step.update", "data": {"status": "presented", "description": completed_description}})
+        await q.put(
+            {
+                "event": "step.update",
+                "data": {
+                    "status": "presented",
+                    "description": completed_description,
+                },
+            }
+        )
 
         try:
             final_text = supervisor_latest_response_text
@@ -973,7 +1045,15 @@ class SupervisorService:
         The decision value becomes the return value of interrupt() inside the node.
         """
         q = get_sse_queue(thread_id)
-        await q.put({"event": "step.update", "data": {"status": "processing", "description": "Resuming approval"}})
+        await q.put(
+            {
+                "event": "step.update",
+                "data": {
+                    "status": "processing",
+                    "description": "Resuming approval",
+                },
+            }
+        )
         await q.put({"event": "confirm.response", "data": {"decision": decision}})
 
         graph: CompiledStateGraph = get_supervisor_graph()
