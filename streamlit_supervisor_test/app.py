@@ -187,10 +187,12 @@ if st.session_state.benchmark_mode:
         }
 
         completed = 0
-        for future in as_completed(futures):
+        for completed, future in enumerate(as_completed(futures), start=1):
+
             result = future.result()
+
             st.session_state.benchmark_results.append(result)
-            completed += 1
+
             progress_bar.progress(completed / 5)
 
     st.session_state.benchmark_results.sort(key=lambda x: x['id'])
