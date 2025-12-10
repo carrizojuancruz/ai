@@ -869,17 +869,31 @@ class TestProcessMessage:
             mock_store.set_session = AsyncMock()
             mock_store_getter.return_value = mock_store
 
-            # Mock graph with guardrail response
+            # Mock graph with guardrail response via streaming
             mock_compiled = AsyncMock()
 
             async def mock_stream(*args, **kwargs):
+                class MockChunk:
+                    content = "I cannot help with that. [GUARDRAIL_INTERVENED]"
+
+                yield {
+                    "event": "on_chat_model_stream",
+                    "name": "SafeChatCerebras",
+                    "data": {"chunk": MockChunk()},
+                }
+
+                # Final on_chain_end sets supervisor_latest_response_text
                 class MockMessage:
                     def __init__(self):
-                        # Guardrail marker appears after assistant content
-                        # Strip will remove everything from marker onwards, leaving "I cannot help with that."
                         self.content = [{"type": "text", "text": "I cannot help with that. [GUARDRAIL_INTERVENED]"}]
+                        self.name = "supervisor"
+                        self.response_metadata = {}
 
-                yield {"event": "on_chain_end", "name": "supervisor", "data": {"output": {"messages": [MockMessage()]}}}
+                yield {
+                    "event": "on_chain_end",
+                    "name": "supervisor",
+                    "data": {"output": {"messages": [MockMessage()]}},
+                }
 
             mock_compiled.astream_events = mock_stream
             mock_graph.return_value = mock_compiled

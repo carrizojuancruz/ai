@@ -19,7 +19,7 @@ class TestCreateTaskDescriptionHandoffTool:
         )
 
         assert tool is not None
-        assert callable(tool)
+        assert hasattr(tool, "invoke")
         assert tool.name == "transfer_to_test_agent"
 
     def test_create_handoff_tool_with_custom_tool_name(self):
@@ -62,7 +62,7 @@ class TestCreateTaskDescriptionHandoffTool:
         )
 
         assert tool is not None
-        assert callable(tool)
+        assert hasattr(tool, "invoke")
 
     def test_handoff_tool_invocation_returns_command(self):
         tool = create_task_description_handoff_tool(
