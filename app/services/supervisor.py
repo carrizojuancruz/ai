@@ -625,8 +625,6 @@ class SupervisorService:
         latest_response_text: Optional[str] = None
         supervisor_latest_response_text: Optional[str] = None
         response_event_count = 0
-        seen_responses: set[int] = set()
-        streamed_responses: set[str] = set()
         hit_guardrail: bool = False
 
         navigation_events_to_emit: list[dict[str, Any]] = []
@@ -728,6 +726,18 @@ class SupervisorService:
 
             except Exception as e:
                 logger.exception("Error processing supervisor event: %s", e)
+
+            if etype == "on_chat_model_stream" and name == "SafeChatCerebras" and not active_handoffs:
+                try:
+                    chunk = data.get("chunk") if isinstance(data, dict) else None
+                    chunk_text = self._content_to_text(getattr(chunk, "content", "")) if chunk else ""
+                    if chunk_text:
+                        hit_guardrail = hit_guardrail or self._has_guardrail_intervention(chunk_text)
+                        cleaned_chunk = _strip_emojis(self._strip_guardrail_marker(chunk_text))
+                        if cleaned_chunk.strip():
+                            await q.put({"event": "token.delta", "data": {"text": cleaned_chunk, "sources": sources}})
+                except Exception as stream_exc:
+                    logger.debug(f"[TRACE] supervisor.stream.chunk.error err={stream_exc}")
 
             if etype == "on_tool_start":
                 tool_name = name
@@ -923,38 +933,6 @@ class SupervisorService:
                         logger.info("[TRACE] supervisor.handoff.conservative_close active_handoffs_cleared")
                     except Exception as e:
                         logger.info(f"[TRACE] handoff.conservative_close.error err={e}")
-
-                # Stream only when supervisor has authored text and no active handoff is open
-                if name == "supervisor" and supervisor_latest_response_text and not active_handoffs:
-                    text_to_stream = supervisor_latest_response_text or ""
-                    # Detect and clean guardrail marker for streaming
-                    hit_guardrail = hit_guardrail or self._has_guardrail_intervention(text_to_stream)
-                    text_to_stream_cleaned = _strip_emojis(self._strip_guardrail_marker(text_to_stream))
-                    # Check if we've already streamed this exact response text (prevents duplicate streaming after handoffs)
-                    response_text_normalized = text_to_stream_cleaned.strip()
-                    if response_text_normalized in streamed_responses:
-                        logger.info("[TRACE] supervisor.stream.skip reason=exact_text_duplicate")
-                        continue
-
-                    response_hash = hash(response_text_normalized)
-                    if response_hash in seen_responses:
-                        logger.info("[TRACE] supervisor.stream.skip reason=hash_duplicate")
-                        continue
-
-                    logger.info("[TRACE] supervisor.stream.start")
-                    seen_responses.add(response_hash)
-                    streamed_responses.add(response_text_normalized)
-                    words = text_to_stream_cleaned.split(" ")
-                    chunks_emitted = 0
-                    for i in range(0, len(words), STREAM_WORD_GROUP_SIZE):
-                        word_group = " ".join(words[i : i + STREAM_WORD_GROUP_SIZE])
-                        if word_group.strip():
-                            await q.put(
-                                {"event": "token.delta", "data": {"text": word_group + " ", "sources": sources}}
-                            )
-                            chunks_emitted += 1
-                            await asyncio.sleep(0)
-                    logger.info(f"[TRACE] supervisor.stream.end chunks={chunks_emitted}")
 
         try:
             final_text = supervisor_latest_response_text
