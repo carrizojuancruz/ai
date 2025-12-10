@@ -1,0 +1,22 @@
+---
+alwaysApply: true
+---
+# Project Structure — Supervisor, Agents, Memory
+
+- Supervisor graph entrypoint: [app/agents/supervisor/agent.py](mdc:app/agents/supervisor/agent.py)
+  - Compiles the supervisor graph, registers delegation tools, wires memory nodes, and routes to `finance_agent`, `finance_capture_agent`, `wealth_agent`, and `goal_agent`.
+- Delegation tools (handoff): [app/agents/supervisor/handoff.py](mdc:app/agents/supervisor/handoff.py)
+  - Shared tool factory with per‑agent guideline support.
+- Prompts (supervisor/finance/wealth/goal/utility/onboarding): [app/services/llm/agent_prompts.py](mdc:app/services/llm/agent_prompts.py) and related prompt modules loaded via `PromptLoader`.
+- Finance agent runtime:
+  - Agent wrapper: [app/agents/supervisor/finance_agent/agent.py](mdc:app/agents/supervisor/finance_agent/agent.py)
+  - Subgraph wiring: [app/agents/supervisor/finance_agent/subgraph.py](mdc:app/agents/supervisor/finance_agent/subgraph.py)
+  - Tools & SQL enforcement: [app/agents/supervisor/finance_agent/tools.py](mdc:app/agents/supervisor/finance_agent/tools.py)
+  - Procedural templates store: [finance_procedural_templates.jsonl](mdc:finance_procedural_templates.jsonl)
+  - Procedural manager: [app/agents/supervisor/finance_agent/procedural_memory/sql_hints/procedural_templates.py](mdc:app/agents/supervisor/finance_agent/procedural_memory/sql_hints/procedural_templates.py)
+- Finance capture subgraph: [app/agents/supervisor/finance_capture_agent/subgraph.py](mdc:app/agents/supervisor/finance_capture_agent/subgraph.py)
+- Wealth agent subgraph: [app/agents/supervisor/wealth_agent/subgraph.py](mdc:app/agents/supervisor/wealth_agent/subgraph.py)
+- Goal agent: [app/agents/supervisor/goal_agent/agent.py](mdc:app/agents/supervisor/goal_agent/agent.py)
+- DB table constants: [app/repositories/postgres/finance_repository.py](mdc:app/repositories/postgres/finance_repository.py)
+- Supervisor service (SSE, streaming, persistence, navigation events): [app/services/supervisor.py](mdc:app/services/supervisor.py)
+- Memory pipeline (hotpath, context, episodic, profile sync): [app/agents/supervisor/memory](mdc:app/agents/supervisor/memory)

@@ -33,11 +33,12 @@ Input: Current user query
 ### Stage 3: Supervisor Agent (Routing & Orchestration)
 ```
 Input: User query + memory context
-├── Analyze query intent and complexity
+├── Analyze intent and complexity
 ├── Route to specialized agent:
-│   ├── Finance Agent (SQL queries, financial analysis)
-│   ├── Onboarding Agent (user setup, profile building)
-│   └── General Chat (fallback conversational responses)
+│   ├── finance_agent (SQL analysis over Plaid-mirrored data)
+│   ├── finance_capture_agent (asset/liability/manual transaction capture)
+│   ├── wealth_agent (KB-backed education + app guidance)
+│   └── goal_agent (goal tracking and management)
 ├── Execute agent workflow
 └── Format final response
 ```
@@ -47,21 +48,36 @@ Input: User query + memory context
 #### Finance Agent Pipeline:
 ```
 Input: Financial query
-├── Parse query intent (spending, income, categories)
-├── Generate SQL using normalization patterns
-├── Execute against user-isolated database
-├── Format results with insights
-└── Return direct answer (no exploration)
+├── Parse intent
+├── Generate SQL or call canonical tools (net worth, income/expense)
+├── Execute against user-isolated database (max 5 queries)
+├── Interpret results with insights
+└── Return analysis to supervisor
 ```
 
-#### Onboarding Agent Pipeline:
+#### Finance Capture Agent Pipeline:
 ```
-Input: User onboarding request
-├── Check current onboarding state
-├── Execute next onboarding step
-├── Update user profile and preferences
-├── Store progress in session state
-└── Guide user through setup flow
+Input: User-provided asset/liability/manual transaction intent
+├── Collect structured fields (Nova micro)
+├── Validate mappings and categories
+├── Persist via internal endpoint
+└── Return confirmation summary
+```
+
+#### Wealth Agent Pipeline:
+```
+Input: Education/app-use query
+├── Mandatory search_kb calls (<= max tool calls)
+├── Synthesize from KB sources
+└── Return structured findings + USED_SOURCES metadata
+```
+
+#### Goal Agent Pipeline:
+```
+Input: Goal request
+├── Duplicate check via list_goals
+├── Create/update/switch status with validation
+└── Return goal outcome to supervisor
 ```
 
 ### Stage 5: Episodic Memory (Conversation Capture)
@@ -86,34 +102,15 @@ Input: New semantic memories
 ## 🔄 Data Flow Architecture
 
 ### Memory System Layers:
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  Episodic       │    │  Semantic       │    │  Profile        │
-│  Memories       │    │  Memories       │    │  Context        │
-│                 │    │                 │    │                 │
-│ • Conversation  │    │ • User facts    │    │ • Preferences   │
-│   summaries     │    │ • Preferences   │    │ • Goals         │
-│ • Recent events │    │ • Stable data   │    │ • Settings      │
-│ • Time-bound    │    │ • Durable       │    │ • Cached state  │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-        ▲                        ▲                        ▲
-        │                        │                        │
-        └─────────── Memory Context Retrieval ───────────┘
-```
+- Episodic memories: conversation summaries, recent events, time-bound context
+- Semantic memories: durable user facts and preferences
+- Profile context: cached profile/settings derived from semantic sync
+All flow into memory context retrieval before supervisor routing.
 
 ### Agent Orchestration:
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  Supervisor     │───▶│  Specialized    │───▶│  Response       │
-│  Router         │    │  Agents         │    │  Generation     │
-│                 │    │                 │    │                 │
-│ • Intent        │    │ • Finance       │    │ • Formatted      │
-│   analysis      │    │ • Onboarding    │    │ • Contextual     │
-│ • Agent         │    │ • General       │    │ • Memory-        │
-│   selection     │    │   Chat          │    │   augmented     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
+- Supervisor ingests messages + memory context and routes to `finance_agent`, `finance_capture_agent`, `wealth_agent`, or `goal_agent`.
+- Specialized agent returns analysis/results to supervisor; navigation events (if any) are emitted before `message.completed`.
+- Final response is formatted by supervisor (streamed + SSE).
 ## 🎯 Key Architectural Patterns
 
 ### 1. Memory-First Design
@@ -123,9 +120,11 @@ Input: New semantic memories
 - **Profile sync** maintains user model accuracy
 
 ### 2. Agent Specialization
-- **Finance Agent**: SQL generation with user isolation
-- **Onboarding Agent**: Guided user setup flow
-- **Supervisor**: Intelligent routing and orchestration
+- **Finance Agent**: SQL generation + tool routing with user isolation (max 5 queries)
+- **Finance Capture Agent**: Structured capture and persistence of assets/liabilities/manual transactions
+- **Wealth Agent**: KB-backed education and app guidance with enforced search-first flow
+- **Goal Agent**: Goal CRUD/status with duplicate prevention
+- **Supervisor**: Intelligent routing, formatting, and navigation event emission
 
 ### 3. Async Pipeline
 - **Non-blocking**: All operations use async/await
@@ -157,10 +156,8 @@ await episodic_capture.process(messages)
 ### Agent Integration:
 ```python
 # Supervisor routes to appropriate agent
-if finance_query:
-    result = await finance_agent.process(query, user_id)
-elif onboarding_needed:
-    result = await onboarding_agent.process(query, user_id)
+# finance_agent / finance_capture_agent / wealth_agent / goal_agent
+result = await graph.ainvoke(payload, config={"configurable": {"user_id": user_id, ...}})
 ```
 
 ### External Service Integration:
@@ -176,7 +173,7 @@ if new_memory:
 - **User-Isolated**: Complete data isolation between users
 - **Performance-First**: Optimized for low-latency responses
 - **Learning System**: Continuous profile improvement through interactions
-- **Modular Architecture**: Independent components with clear interfaces
+- **Modular Architecture**: Independent components with clear interfaces; navigation events emitted before `message.completed`
 - **Async-Native**: Designed for concurrent, non-blocking operations
 
 This pipeline creates a **contextually aware, continuously learning AI system** that provides personalized responses while maintaining strict user isolation and high performance standards.

@@ -1,0 +1,12 @@
+---
+description: Finance agent prompting and tool usage rules
+globs: app/agents/supervisor/finance_agent/*.py
+---
+# Finance Agent Rules
+
+- Always scope queries to the user (`WHERE user_id = '{user_id}'`) and use the typed schemas from `FinanceTables` (transactions, assets, liabilities, accounts).
+- Enforce the hard query guardrails from the finance prompt: no connectivity probes (`SELECT 1`, `SELECT now()`, `SELECT version()`), no COUNT/EXISTS pre-checks unless explicitly requested, and no schema discovery.
+- Keep total database queries per task ≤ **5**; prefer one comprehensive SQL statement (CTEs/joins) per metric and avoid duplicate queries.
+- For net worth requests, call `net_worth_summary`; for income/expense or cash-flow style requests, call `income_expense_summary` instead of writing SQL. If these tools return `FINANCE_STATUS: PLAID_DATA_REQUIRED`, surface that status and stop.
+- Default timeframe is the most recent 30 days on `transaction_date` when the user does not specify; state the timeframe used in results.
+- Exclude `pending` items unless the user asks; follow business rules in the finance prompt for categorization/deduplication. Stop after the requested metric is computed; do not add supplemental queries.
