@@ -16,49 +16,82 @@ from langgraph.checkpoint.base import (
 )
 
 from app.core.config import config as app_config
+from app.services.memory.redis_client import (
+    get_redis_client_singleton,
+    is_dev_env,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def _str_to_bool(value: Optional[str]) -> bool:
-    if not value:
-        return False
-    return str(value).lower() in {"1", "true", "yes", "on"}
+class NoopCheckpointer(BaseCheckpointSaver[str]):
+    """No-op checkpointer for development that skips Redis entirely."""
 
+    @staticmethod
+    def _get_thread_id(config: RunnableConfig) -> str:
+        configurable = cast(Dict[str, Any], config.get("configurable") or {})
+        thread_id = configurable.get("thread_id")
+        if thread_id is None:
+            raise ValueError("NoopCheckpointer requires thread_id in config.configurable")
+        return str(thread_id)
 
-def _build_async_redis_client():
-    import redis.asyncio as aioredis
-    from redis.backoff import ExponentialBackoff
-    from redis.retry import Retry
+    @staticmethod
+    def _get_checkpoint_ns(config: RunnableConfig) -> str:
+        configurable = cast(Dict[str, Any], config.get("configurable") or {})
+        checkpoint_ns = configurable.get("checkpoint_ns")
+        return str(checkpoint_ns) if checkpoint_ns is not None else ""
 
-    host = app_config.REDIS_HOST
-    port_raw = app_config.REDIS_PORT
-    password = app_config.REDIS_PASSWORD
-    username = getattr(app_config, "REDIS_USERNAME", None)
-    use_tls = _str_to_bool(app_config.REDIS_TLS)
-    try:
-        port = int(port_raw)
-    except Exception:
-        port = 6379
+    async def aget_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
+        _ = config
+        return None
 
-    if not host:
-        raise RuntimeError("REDIS_HOST not configured")
+    async def aput(
+        self,
+        config: RunnableConfig,
+        checkpoint: Checkpoint,
+        metadata: CheckpointMetadata,
+        new_versions: ChannelVersions,
+    ) -> RunnableConfig:
+        _ = metadata
+        _ = new_versions
+        thread_id = self._get_thread_id(config)
+        checkpoint_ns = self._get_checkpoint_ns(config)
+        checkpoint_id = checkpoint.get("id")
+        return {
+            "configurable": {
+                "thread_id": thread_id,
+                "checkpoint_ns": checkpoint_ns,
+                "checkpoint_id": checkpoint_id,
+            }
+        }
 
-    return aioredis.Redis(
-        host=host,
-        port=port,
-        password=password,
-        username=username,
-        ssl=use_tls or False,
-        decode_responses=False,
-        retry=Retry(ExponentialBackoff(), 3),
-        retry_on_timeout=True,
-        socket_connect_timeout=3,
-        socket_timeout=5,
-        health_check_interval=30,
-        socket_keepalive=True,
-        max_connections=64,
-    )
+    async def aput_writes(
+        self,
+        config: RunnableConfig,
+        writes: Sequence[tuple[str, Any]],
+        task_id: str,
+        task_path: str = "",
+    ) -> None:
+        _ = config
+        _ = writes
+        _ = task_id
+        _ = task_path
+        return None
+
+    async def alist(
+        self,
+        config: RunnableConfig | None,
+        *,
+        filter: Dict[str, Any] | None = None,
+        before: RunnableConfig | None = None,
+        limit: int | None = None,
+    ) -> AsyncIterator[CheckpointTuple]:
+        _ = config
+        _ = filter
+        _ = before
+        _ = limit
+        if False:
+            yield None  # pragma: no cover
 
 
 class KVRedisCheckpointer(BaseCheckpointSaver[str]):
@@ -259,7 +292,7 @@ class KVRedisCheckpointer(BaseCheckpointSaver[str]):
 
     async def _ensure_client(self):
         if self._client is None:
-            self._client = _build_async_redis_client()
+            self._client = await get_redis_client_singleton()
         return self._client
 
     @staticmethod
@@ -517,11 +550,14 @@ def get_supervisor_checkpointer():
 
     namespace = "langgraph:supervisor"
 
+    if is_dev_env() or not app_config.REDIS_HOST:
+        logger.info("Supervisor checkpointer: using NoopCheckpointer (env=%s)", app_config.ENVIRONMENT)
+        return NoopCheckpointer()
+
     try:
-        client = _build_async_redis_client()
-        return KVRedisCheckpointer(client=client, namespace=namespace, default_ttl=ttl_value)
+        return KVRedisCheckpointer(client=None, namespace=namespace, default_ttl=ttl_value)
     except Exception as exc:
-        logger.warning("Redis checkpointer unavailable err=%s", exc)
+        logger.warning("Supervisor checkpointer initialization failed err=%s", exc)
         return None
 
 
@@ -536,24 +572,13 @@ def get_guest_checkpointer() -> Optional[KVRedisCheckpointer]:
 
     namespace = "langgraph:guest"
 
+    if is_dev_env() or not app_config.REDIS_HOST:
+        logger.info("Guest checkpointer: using NoopCheckpointer (env=%s)", app_config.ENVIRONMENT)
+        return NoopCheckpointer()
+
     try:
-        client = _build_async_redis_client()
         logger.info("Guest checkpointer: using KVRedisCheckpointer (SET/GET, TTL=%s)", ttl_value)
-        return KVRedisCheckpointer(client=client, namespace=namespace, default_ttl=ttl_value)
+        return KVRedisCheckpointer(client=None, namespace=namespace, default_ttl=ttl_value)
     except Exception as exc:
         logger.warning("Guest checkpointer unavailable err=%s", exc)
         return None
-
-
-async def redis_healthcheck() -> bool:
-    try:
-        client = _build_async_redis_client()
-    except Exception as exc:
-        logger.warning("Redis healthcheck skipped err=%s", exc)
-        return False
-    try:
-        await client.ping()
-        return True
-    except Exception as exc:
-        logger.error("Redis healthcheck failed err=%s", exc)
-        return False

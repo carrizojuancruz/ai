@@ -13,6 +13,8 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app.services.memory.redis_client import redis_healthcheck
+
 from .api.admin.memories import router as memories_router
 from .api.routes import router as api_router
 from .api.routes_admin import router as admin_router
@@ -77,7 +79,6 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to initialize Supervisor graph (Redis checkpointer): {e}")
 
     try:
-        from app.services.memory.checkpointer import redis_healthcheck
 
         ok = await redis_healthcheck()
         if ok:
@@ -241,8 +242,6 @@ async def database_health_check() -> dict:
 async def redis_health_check() -> dict:
     """Check Redis checkpointer health by pinging Redis."""
     try:
-        from app.services.memory.checkpointer import redis_healthcheck
-
         ok = await redis_healthcheck()
         if ok:
             return {"status": "healthy"}

@@ -92,6 +92,7 @@ class Config:
 
     # Application Environment
     ENVIRONMENT: str = os.getenv("ENVIRONMENT")
+    REDIS_ENVIRONMENT: str = os.getenv("REDIS_ENVIRONMENT")
     DEBUG: Optional[bool] = get_optional_value("DEBUG", bool)
 
     # AI Models Configuration
