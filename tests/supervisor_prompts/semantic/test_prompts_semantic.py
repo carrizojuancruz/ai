@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 import pytest
-from langchain.evaluation import load_evaluator
+from langchain_classic.evaluation import load_evaluator
 from langchain_aws import ChatBedrock
 
 from app.core.config import config

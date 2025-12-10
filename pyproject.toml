@@ -37,6 +37,7 @@ langchain-community = "^0.4.1"
 langchain-cerebras = "^0.8.2"
 langchain-text-splitters = "^1.0.0"
 langmem = "^0.0.30"
+langchain-classic = "^1.0.0"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.11.12"
