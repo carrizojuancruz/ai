@@ -314,7 +314,6 @@ def mock_memory_service(mocker):
     mock_service.find_oldest_memory.return_value = None
 
     mocker.patch("app.agents.supervisor.memory_tools.memory_service", mock_service)
-    mocker.patch("app.agents.supervisor.memory.hotpath.memory_service", mock_service)
     mocker.patch("app.agents.supervisor.memory.episodic.memory_service", mock_service)
 
     return mock_service

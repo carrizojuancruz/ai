@@ -87,7 +87,7 @@ def test_display_summary_updates_on_fallback_merge(monkeypatch: pytest.MonkeyPat
     """
     user_id = "u123"
     thread_id = None
-    category = "Personal"
+    category = "Personal_Other"
     existing_key = "mem_dog"
     existing_summary = "the user has a dog"
     existing_display = "you have a dog"
@@ -160,7 +160,7 @@ def test_display_summary_updates_on_recreate_merge() -> None:
     """
     user_id = "u999"
     thread_id = None
-    category = "Personal"
+    category = "Personal_Other"
     existing_key = "mem_pet"
     existing_display = "you have a dog"
 
