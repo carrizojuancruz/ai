@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.agents.supervisor.memory.utils import _utc_now_iso
 from app.agents.supervisor.memory.cold_path import run_semantic_memory_job
+from app.agents.supervisor.memory.utils import _utc_now_iso
 
 
 @dataclass

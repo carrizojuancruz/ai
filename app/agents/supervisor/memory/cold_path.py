@@ -5,7 +5,11 @@ import json
 import logging
 import re
 import unicodedata
-from datetime import datetime, timezone, tzinfo
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from datetime import tzinfo
 from json import JSONDecodeError
 from typing import Any
 from uuid import uuid4
@@ -273,7 +277,7 @@ def _do_recreate(
                 {*(t for t in prev_tags if isinstance(t, str)), *(t for t in cand_tags if isinstance(t, str))}
             )
     except Exception:
-        pass
+        logger.debug("memory.cold_path.tag_merge.error: failed to merge tags, continuing without merged tags")
     new_val["summary"] = composed
 
     try:
@@ -768,10 +772,12 @@ def run_semantic_memory_job(
 
     except Exception:
         logger.exception("memory.cold_path.semantic.error: user_id=%s thread_id=%s", user_id, thread_id)
+        candidate_id_for_error = None
         try:
-            candidate_id_for_error = candidate_value.get("id") if "candidate_value" in locals() else None
+            if "candidate_value" in locals() and isinstance(candidate_value, dict):
+                candidate_id_for_error = candidate_value.get("id")
         except Exception:
-            candidate_id_for_error = None
+            pass
         _emit_sse_safe(event_loop, thread_id, "memory.error", {"id": candidate_id_for_error})
         raise
 
@@ -791,6 +797,7 @@ def _profile_sync_from_memory_sync(
             event_loop,
         )
         future.result(timeout=30.0)
+        logger.debug("memory.cold_path.profile_sync.success: user_id=%s thread_id=%s", user_id, thread_id)
     except Exception as e:
         logger.warning("memory.cold_path.profile_sync.error: user_id=%s thread_id=%s error=%s", user_id, thread_id, str(e))
 

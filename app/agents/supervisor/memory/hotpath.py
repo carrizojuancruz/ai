@@ -69,6 +69,12 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
                 import logging
 
                 logger = logging.getLogger(__name__)
-                logger.warning("memory.hotpath.submit.error: thread_id=%s error=%s", thread_id, str(e))
+                logger.error(
+                    "memory.hotpath.submit.error: thread_id=%s user_id=%s error=%s",
+                    thread_id,
+                    user_id,
+                    str(e),
+                    exc_info=True,
+                )
 
     return {"messages": [AIMessage(content=prof)]} if prof else {}

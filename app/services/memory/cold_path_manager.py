@@ -71,13 +71,12 @@ class MemoryColdPathManager:
                 continue
             if thread_id in self._runners:
                 continue
-            if thread_id in self._latest_payload:
-                continue
             stale_thread_ids.append(thread_id)
 
         for thread_id in stale_thread_ids:
             self._locks.pop(thread_id, None)
             self._last_seen_at.pop(thread_id, None)
+            self._latest_payload.pop(thread_id, None)
 
     def submit_turn(
         self,
@@ -162,6 +161,11 @@ class MemoryColdPathManager:
         finally:
             with self._lock:
                 self._runners.pop(thread_id, None)
+                # Check if a new payload arrived while runner was finishing
+                if thread_id in self._latest_payload:
+                    # New payload arrived; start a new runner
+                    runner = self._executor.submit(self._run_thread_runner, thread_id)
+                    self._runners[thread_id] = runner
 
     def _run_payload_with_retries(self, payload: _TurnPayload) -> None:
         thread_id = payload["thread_id"]

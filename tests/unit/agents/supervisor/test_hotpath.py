@@ -7,7 +7,6 @@ from unittest.mock import Mock
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from app.agents.supervisor.memory.hotpath import _collect_recent_user_texts
 from app.agents.supervisor.memory.cold_path import (
     _derive_nudge_metadata,
     _has_min_token_overlap,
@@ -15,6 +14,7 @@ from app.agents.supervisor.memory.cold_path import (
     _numeric_overlap_or_step,
     _sanitize_semantic_time_phrases,
 )
+from app.agents.supervisor.memory.hotpath import _collect_recent_user_texts
 
 
 class TestCollectRecentUserTexts:
