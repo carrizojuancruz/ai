@@ -43,7 +43,7 @@ class TestGoalSubgraph:
         mock_llm = MagicMock()
         mock_cerebras.return_value = mock_llm
         mock_tools = [create_mock_tool()]
-        mock_prompt_builder = MagicMock(return_value="test prompt")
+        mock_prompt_builder = AsyncMock(return_value="test prompt")
 
         # Act
         subgraph = GoalSubgraph(mock_llm, mock_tools, mock_prompt_builder)
@@ -60,7 +60,7 @@ class TestGoalSubgraph:
         mock_llm = MagicMock()
         mock_cerebras.return_value = mock_llm
         mock_tools = [create_mock_tool()]
-        mock_prompt_builder = MagicMock(return_value="test prompt")
+        mock_prompt_builder = AsyncMock(return_value="test prompt")
 
         # Act
         result = create_goal_subgraph(mock_llm, mock_tools, mock_prompt_builder)
@@ -78,7 +78,7 @@ class TestGoalSubgraph:
         mock_llm = MagicMock()
         mock_cerebras.return_value = mock_llm
         mock_tools = [create_mock_tool()]
-        mock_prompt_builder = MagicMock(return_value="test prompt")
+        mock_prompt_builder = AsyncMock(return_value="test prompt")
 
         subgraph = GoalSubgraph(mock_llm, mock_tools, mock_prompt_builder)
 
@@ -113,7 +113,7 @@ class TestGoalSubgraph:
         mock_llm.bind_tools = MagicMock(return_value=mock_model_with_tools)
         mock_cerebras.return_value = mock_llm
         mock_tools = [create_mock_tool()]
-        mock_prompt_builder = MagicMock(return_value="test prompt")
+        mock_prompt_builder = AsyncMock(return_value="test prompt")
 
         subgraph = GoalSubgraph(mock_llm, mock_tools, mock_prompt_builder)
 
@@ -146,7 +146,7 @@ class TestGoalSubgraph:
         mock_llm = MagicMock()
         mock_cerebras.return_value = mock_llm
         mock_tools = [create_mock_tool()]
-        mock_prompt_builder = MagicMock(return_value="test prompt")
+        mock_prompt_builder = AsyncMock(return_value="test prompt")
 
         subgraph = GoalSubgraph(mock_llm, mock_tools, mock_prompt_builder)
 

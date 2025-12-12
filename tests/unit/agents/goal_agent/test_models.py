@@ -195,7 +195,8 @@ class TestEvaluationConfig:
         assert config.aggregation == AggregationMethod.AVERAGE
         assert config.direction == EvaluationDirection.GREATER_EQUAL
         assert config.source == DataSource.LINKED_ACCOUNTS
-        assert config.affected_categories == ["food_drink", "entertainment"]
+        # Categories are normalized to uppercase slugs in the model
+        assert config.affected_categories == ["FOOD_AND_DRINK", "ENTERTAINMENT"]
 
 
 class TestGoal:
