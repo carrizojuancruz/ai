@@ -4,8 +4,8 @@ import os
 from pathlib import Path
 
 import pytest
+from langchain.evaluation import load_evaluator
 from langchain_aws import ChatBedrock
-from langchain_classic.evaluation import load_evaluator
 
 from app.core.config import config
 from tests.supervisor_prompts.loader import PromptSpec, load_prompt, load_specs
