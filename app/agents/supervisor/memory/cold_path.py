@@ -777,6 +777,7 @@ def run_semantic_memory_job(
             if "candidate_value" in locals() and isinstance(candidate_value, dict):
                 candidate_id_for_error = candidate_value.get("id")
         except Exception:
+            # Ignore any errors while extracting the candidate's id; outer handler will report the real error
             pass
         _emit_sse_safe(event_loop, thread_id, "memory.error", {"id": candidate_id_for_error})
         raise
