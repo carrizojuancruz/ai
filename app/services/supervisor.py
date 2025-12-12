@@ -253,7 +253,10 @@ class SupervisorService:
             data: Tool output data
             current_agent: Currently active agent (e.g., 'transfer_to_finance_agent')
 
-        """
+        """        
+        if isinstance(data, Command):
+            return sources
+            
         if current_agent in ["transfer_to_finance_agent", "transfer_to_goal_agent"]:
             return sources
 

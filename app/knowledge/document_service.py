@@ -87,4 +87,6 @@ class DocumentService:
 
     def generate_query_embedding(self, query: str) -> List[float]:
         """Generate embedding for a single query."""
+        if not query or not query.strip():
+            raise ValueError("Query string cannot be empty")
         return self.embeddings.embed_query(query)
