@@ -112,6 +112,10 @@ class NudgeEvaluator:
     async def _queue_nudge(self, candidate: NudgeCandidate) -> str:
         channel = NudgeChannel.APP if candidate.nudge_type == "memory_icebreaker" else NudgeChannel.PUSH
 
+        deduplication_key = None
+        if candidate.nudge_type == "memory_icebreaker" and candidate.metadata and "memory_id" in candidate.metadata:
+            deduplication_key = f"{candidate.user_id}:{candidate.nudge_type}:{candidate.metadata['memory_id']}"
+
         message = NudgeMessage(
             user_id=candidate.user_id,
             nudge_type=candidate.nudge_type,
@@ -121,7 +125,8 @@ class NudgeEvaluator:
                 "preview_text": candidate.preview_text,
                 "metadata": candidate.metadata,
             },
-            channel=channel
+            channel=channel,
+            deduplication_key=deduplication_key,
         )
 
         logger.debug(

@@ -15,6 +15,7 @@ class NudgeMessage:
         payload: Dict[str, Any],
         channel: str = "app",
         expires_at: Optional[datetime] = None,
+        deduplication_key: Optional[str] = None,
     ):
         self.message_id = str(uuid4())
         self.user_id = str(user_id)
@@ -24,7 +25,7 @@ class NudgeMessage:
         self.channel = channel
         self.timestamp = datetime.now(timezone.utc)
         self.expires_at = expires_at or (self.timestamp + timedelta(hours=12))
-        self.deduplication_key = f"{user_id}:{nudge_type}"
+        self.deduplication_key = deduplication_key or f"{user_id}:{nudge_type}"
 
     def to_dict(self) -> Dict[str, Any]:
         return {
