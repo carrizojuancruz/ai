@@ -19,4 +19,10 @@ alwaysApply: true
 - Goal agent: [app/agents/supervisor/goal_agent/agent.py](mdc:app/agents/supervisor/goal_agent/agent.py)
 - DB table constants: [app/repositories/postgres/finance_repository.py](mdc:app/repositories/postgres/finance_repository.py)
 - Supervisor service (SSE, streaming, persistence, navigation events): [app/services/supervisor.py](mdc:app/services/supervisor.py)
-- Memory pipeline (hotpath, context, episodic, profile sync): [app/agents/supervisor/memory](mdc:app/agents/supervisor/memory)
+- Memory pipeline:
+  - Hot path (fast, non-blocking): [app/agents/supervisor/memory/hotpath.py](mdc:app/agents/supervisor/memory/hotpath.py)
+  - Cold path (background processing): [app/agents/supervisor/memory/cold_path.py](mdc:app/agents/supervisor/memory/cold_path.py)
+  - Context retrieval: [app/agents/supervisor/memory/context.py](mdc:app/agents/supervisor/memory/context.py)
+  - Cold path manager: [app/services/memory/cold_path_manager.py](mdc:app/services/memory/cold_path_manager.py)
+  - Episodic helpers: [app/agents/supervisor/memory/episodic.py](mdc:app/agents/supervisor/memory/episodic.py)
+  - Profile sync: [app/agents/supervisor/memory/profile_sync.py](mdc:app/agents/supervisor/memory/profile_sync.py)

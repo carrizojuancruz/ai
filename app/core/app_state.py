@@ -437,6 +437,12 @@ def get_fos_nudge_manager():
     return _fos_nudge_manager
 
 
+def get_memory_cold_path_manager():
+    """Get memory cold-path manager instance (singleton pattern)."""
+    from app.services.memory.cold_path_manager import get_memory_cold_path_manager as _get_manager
+    return _get_manager()
+
+
 async def warmup_aws_clients() -> None:
     """Warm up AWS clients during app startup to avoid first-request latency."""
     try:

@@ -62,6 +62,13 @@ class Config:
     MEMORY_SEMANTIC_MAX_LIMIT: Optional[int] = get_optional_value("MEMORY_SEMANTIC_MAX_LIMIT", int)
     MEMORY_EPISODIC_MAX_LIMIT: Optional[int] = get_optional_value("MEMORY_EPISODIC_MAX_LIMIT", int)
 
+    # Cold Path Memory Configuration
+    MEMORY_COLD_PATH_MAX_WORKERS: Optional[int] = get_optional_value("MEMORY_COLD_PATH_MAX_WORKERS", int) or 4
+    MEMORY_COLD_PATH_MAX_RETRIES: Optional[int] = get_optional_value("MEMORY_COLD_PATH_MAX_RETRIES", int) or 3
+    MEMORY_COLD_PATH_RETRY_BACKOFF_SECONDS: Optional[float] = get_optional_value("MEMORY_COLD_PATH_RETRY_BACKOFF_SECONDS", float) or 1.0
+    MEMORY_COLD_PATH_THREAD_STATE_TTL_SECONDS: Optional[int] = get_optional_value("MEMORY_COLD_PATH_THREAD_STATE_TTL_SECONDS", int) or 3600
+    MEMORY_COLD_PATH_THREAD_STATE_CLEANUP_INTERVAL_SECONDS: Optional[int] = get_optional_value("MEMORY_COLD_PATH_THREAD_STATE_CLEANUP_INTERVAL_SECONDS", int) or 300
+
     # Memory Context Configuration
     MEMORY_CONTEXT_TOPK: Optional[int] = get_optional_value("MEMORY_CONTEXT_TOPK", int)
     MEMORY_CONTEXT_TOPN: Optional[int] = get_optional_value("MEMORY_CONTEXT_TOPN", int)

@@ -134,6 +134,15 @@ async def lifespan(app: FastAPI):
     finally:
         logger.info("Application shutdown - cleaning up resources")
 
+        # Stop background cold-path memory jobs first, while DB/AWS clients still exist.
+        try:
+            from app.services.memory.cold_path_manager import get_memory_cold_path_manager
+
+            get_memory_cold_path_manager().shutdown(wait=True)
+            logger.info("Memory cold path manager shut down successfully")
+        except Exception as e:
+            logger.error(f"Error shutting down memory cold path manager: {e}")
+
         try:
             from app.db.session import dispose_engine
 

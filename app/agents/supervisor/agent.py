@@ -14,7 +14,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import RunnableConfig
 from langmem.short_term import RunningSummary
 
-from app.agents.supervisor.memory import episodic_capture, memory_context, memory_hotpath
+from app.agents.supervisor.memory import memory_context, memory_hotpath
 from app.agents.supervisor.summarizer import ConversationSummarizer
 from app.core.config import config as app_config
 from app.services.llm.safe_cerebras import SafeChatCerebras
@@ -326,11 +326,10 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
     builder.add_node(
         "supervisor",
         supervisor_agent_with_description,
-        destinations=("finance_agent", "finance_capture_agent", "goal_agent", "episodic_capture"),
+        destinations=("finance_agent", "finance_capture_agent", "goal_agent"),
     )
 
     # --- Specialist agent nodes ---
-    builder.add_node("episodic_capture", episodic_capture)
     builder.add_node("finance_router", finance_router)
     from .finance_agent.agent import finance_agent as finance_worker
     from .finance_capture_agent.subgraph import create_finance_capture_graph

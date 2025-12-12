@@ -10,14 +10,14 @@ globs: app/agents/**/*.py,app/services/**/*.py
 
 ## 🚀 Complete Request Flow
 
-### Stage 1: Memory Hotpath (Semantic Memory Creation)
+### Stage 1: Memory Hotpath (Fast, Non-Blocking Submission)
 ```
 Input: User message + conversation context
-├── Classify if message contains durable user facts
-├── Generate semantic memory (category, summary, importance)
-├── Search for similar existing memories
-├── Deduplicate/merge using similarity thresholds
-└── Store new semantic memory + trigger profile sync
+├── Inject profile line into conversation
+├── Collect recent user texts (last 3 messages)
+├── Capture LangGraph store instance (for cold path)
+├── Submit turn to cold path manager (non-blocking)
+└── Return immediately (~0.06s, no LLM calls)
 ```
 
 ### Stage 2: Memory Context (Retrieval & Injection)
@@ -80,24 +80,33 @@ Input: Goal request
 └── Return goal outcome to supervisor
 ```
 
-### Stage 5: Episodic Memory (Conversation Capture)
+### Stage 5: Memory Cold Path (Background Processing)
 ```
-Input: Complete conversation turn
-├── Check cooldown timers (turns + minutes)
-├── Generate conversation summary via LLM
-├── Search for similar recent episodes
-├── Merge if similarity > threshold and within time window
-└── Store episodic memory for future context
+Input: Turn payload (user_id, thread_id, conversation_window, store)
+├── Serialized per thread_id (one active job per thread)
+├── Semantic Memory Job:
+│   ├── Trigger decision (LLM: should_create, type, category, summary, importance)
+│   ├── If should_create:
+│   │   ├── Search for similar existing memories
+│   │   ├── Deduplicate/merge using similarity thresholds
+│   │   ├── Store new/updated semantic memory
+│   │   ├── Trigger profile sync (background)
+│   │   └── Emit SSE event (memory.created/updated)
+├── Episodic Memory Job:
+│   ├── Check cooldown timers (turns + minutes)
+│   ├── Generate conversation summary via LLM
+│   ├── Search for similar recent episodes
+│   ├── Merge if similarity > threshold and within time window
+│   └── Store episodic memory + emit SSE event
+└── Retry logic: bounded retries with exponential backoff on failures
 ```
 
-### Stage 6: Profile Sync (Background Learning)
-```
-Input: New semantic memories
-├── Extract profile updates (tone, language, goals, etc.)
-├── Update user context in database
-├── Sync with external profile services
-└── Update cached profile data
-```
+**Cold Path Characteristics:**
+- Runs in worker threads (ThreadPoolExecutor)
+- Per-thread serialization ensures ordered processing
+- Fire-and-forget SSE emission (non-blocking)
+- TTL cleanup of stale thread state
+- Graceful shutdown waits for in-flight jobs
 
 ## 🔄 Data Flow Architecture
 
@@ -126,10 +135,18 @@ All flow into memory context retrieval before supervisor routing.
 - **Goal Agent**: Goal CRUD/status with duplicate prevention
 - **Supervisor**: Intelligent routing, formatting, and navigation event emission
 
-### 3. Async Pipeline
-- **Non-blocking**: All operations use async/await
-- **Concurrent**: Multiple memory operations in parallel
-- **Resource pooling**: Centralized connection management
+### 3. Hot Path / Cold Path Separation
+- **Hot Path**: Fast, non-blocking memory injection (~0.06s)
+  - Profile line injection
+  - Cold path job submission
+  - No LLM calls or heavy I/O
+- **Cold Path**: Background worker threads for memory creation
+  - Trigger decision (LLM)
+  - Semantic/episodic memory creation/merging
+  - Profile sync
+  - SSE emission (fire-and-forget)
+  - Per-thread serialization for ordered processing
+- **Performance**: Hot path releases main event loop immediately
 
 ### 4. Error Resilience
 - **User isolation**: Every operation scoped to user_id
@@ -145,12 +162,21 @@ All flow into memory context retrieval before supervisor routing.
 
 ### Memory System Integration:
 ```python
-# Memory injected into every conversation
+# Memory injected into every conversation (hot path)
 messages = [memory_context_message] + user_messages
 
-# Memory updated after every turn
-await memory_hotpath.process(messages)
-await episodic_capture.process(messages)
+# Hot path: fast submission (non-blocking)
+# - Injects profile line
+# - Submits turn to cold path manager
+await memory_hotpath.process(messages)  # ~0.06s, returns immediately
+
+# Cold path: background processing (worker threads)
+# - Trigger decision (LLM)
+# - Semantic memory creation/merging
+# - Episodic memory capture
+# - Profile sync
+# - SSE events emitted asynchronously
+# Managed by MemoryColdPathManager (per-thread serialization)
 ```
 
 ### Agent Integration:
@@ -171,7 +197,7 @@ if new_memory:
 
 - **Memory-Augmented**: Every response enhanced with relevant context
 - **User-Isolated**: Complete data isolation between users
-- **Performance-First**: Optimized for low-latency responses
+- **Performance-First**: Hot path optimized for low-latency (~0.06s), cold path processes asynchronously
 - **Learning System**: Continuous profile improvement through interactions
 - **Modular Architecture**: Independent components with clear interfaces; navigation events emitted before `message.completed`
 - **Async-Native**: Designed for concurrent, non-blocking operations
