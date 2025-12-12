@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Annotated, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 # Goal Categories for intelligent routing to specialized agents
@@ -196,6 +196,46 @@ class EvaluationConfig(BaseModel):
     rounding: Decimal = Field(default=Decimal("0.01"), description="Quantize unit for rounding (e.g., Decimal('0.01') for 2 decimal places)")
     source: DataSource = Field(default=DataSource.MIXED)
     affected_categories: Optional[List[str]] = Field(default=None, description="Specific categories to consider")
+
+    @field_validator('affected_categories', mode='before')
+    @classmethod
+    def normalize_categories(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, list):
+            normalized = []
+            for cat in v:
+                if isinstance(cat, str):
+                    cat_upper = cat.upper()
+
+                    # If already valid, use directly
+                    if cat_upper in ALLOWED_CATEGORIES:
+                        normalized.append(cat_upper)
+                        continue
+
+                    # Split into words (by _ or space)
+                    input_words = set(cat_upper.replace('_', ' ').split())
+
+                    # Find best match by number of matching words
+                    best_match = None
+                    best_score = 0
+
+                    for allowed_cat in ALLOWED_CATEGORIES:
+                        allowed_words = set(allowed_cat.replace('_', ' ').split())
+
+                        # Count words from input that are in the category
+                        score = len(input_words & allowed_words)
+
+                        if score > best_score:
+                            best_score = score
+                            best_match = allowed_cat
+
+                    # If we find a match, use it; otherwise, keep upper
+                    normalized.append(best_match if best_match else cat_upper)
+                else:
+                    normalized.append(cat)
+            return normalized
+        return v
 
     # Note: validation of affected_categories against PlaidCategory is conditional
     # and performed at the Goal model level (only for financial goals). We intentionally

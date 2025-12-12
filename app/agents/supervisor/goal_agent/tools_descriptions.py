@@ -10,7 +10,7 @@ class ToolDescriptions:
     - Auto-completed if not provided: kind, category ("other"), nature, frequency
 
     Financial Goals (4 critical fields - same as above PLUS):
-    - evaluation: {affected_categories: [...]} - MUST include valid Plaid categories for tracking
+    - evaluation: {affected_categories: [...]} - MUST include valid Plaid categories for tracking. This must be assigned by the agent.
     - Auto-completed if not provided: kind, category (inferred), nature, frequency
 
     STATUS ON CREATION:
@@ -62,7 +62,7 @@ class ToolDescriptions:
     - source: "linked_accounts" (default), "manual_input", "mixed"
 
     NOTIFICATIONS:
-    - enabled: bool - Set ONLY when the user explicitly asks to change notifications for the goal. Do NOT assume they are OFF by default. When available, read the current value from the goal using get_goal_by_id/list_goals and reflect it accurately.
+    - enabled: bool - Set ONLY when the user explicitly asks to change notifications for the goal. Do NOT assume they are OFF by default. When available, read the current value from the goal using get_goal_by_id and reflect it accurately.
     - min_gap_hours: int - Minimum hours between notifications (default behavior is 24 if configured)
     - If enabled=false, no notifications will be sent regardless of reminders configuration
     - App-level/device notification status is not visible to this agent. Do NOT assert that app/device notifications are on/off. Prefer a neutral phrasing: "Push notifications depend on your device/app settings; I can configure goal reminders here."
@@ -202,41 +202,6 @@ class ToolDescriptions:
         "goal_id": "123e4567-e89b-12d3-a456-426614174000",
         "evaluation": {"affected_categories": ["food_drink", "entertainment", "general_merchandise"]}
     })
-    ```
-    """
-
-    LIST_GOALS_TOOL = """List all active goals for a user with optional filtering.
-
-    Returns only non-deleted goals with their complete configuration including:
-    - Goal definition (title, description, kind)
-    - Current progress and status
-    - Target amount and frequency
-    - Notification settings (enabled status, last notification time)
-    - Reminder schedules (if configured)
-    - Thresholds and cadence configuration
-    - For financial goals: affected_categories with Plaid categories
-    - For non-financial goals: nonfin_category taxonomy
-
-    FILTER OPTIONS:
-    - kind: Filter by goal kind (financial_habit, financial_punctual, nonfin_habit, nonfin_punctual)
-    - status: Filter by status (pending, in_progress, completed, off_track)
-
-    Results show:
-    - notifications.enabled: Whether user has enabled notifications for this goal
-    - reminders.items: List of configured reminder schedules
-    - state.current_accomplished: Whether current window is accomplished (for habits)
-    - state.streak_count: Current streak of accomplished windows
-
-    Example usage:
-    ```
-    # List all active goals
-    list_goals()
-
-    # List only financial habits
-    list_goals(kind="financial_habit")
-
-    # List only in-progress goals
-    list_goals(status="in_progress")
     ```
     """
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import logging
 from typing import Optional
 
@@ -11,6 +12,7 @@ from langgraph.types import Command
 
 from app.core.config import config
 from app.observability.logging_config import configure_logging
+from app.services.llm.prompt_loader import prompt_loader
 
 from .subgraph import create_goal_subgraph
 from .tools import (
@@ -21,7 +23,6 @@ from .tools import (
     get_goal_by_id,
     get_goal_history,
     get_in_progress_goal,
-    list_goals,
     switch_goal_status,
     update_goal,
     update_history_record,
@@ -82,19 +83,37 @@ class GoalAgent:
 
         tools = [
             create_goal, update_goal, get_in_progress_goal,
-            list_goals, delete_goal, switch_goal_status, get_goal_by_id,
+            delete_goal, switch_goal_status, get_goal_by_id,
             get_goal_history, create_history_record, update_history_record, delete_history_record,
             calculate
         ]
 
-        def prompt_builder():
-            return self._create_system_prompt()
+        def prompt_builder(user_id: str = None):
+            return self._create_system_prompt(user_id)
 
         return create_goal_subgraph(self.llm, tools, prompt_builder, self.callbacks)
 
-    def _create_system_prompt(self) -> str:
-        from app.services.llm.prompt_loader import prompt_loader
-        return prompt_loader.load("goal_agent_system_prompt")
+    async def _create_system_prompt(self, user_id: str = None) -> str:
+
+        base_prompt = prompt_loader.load("goal_agent_system_prompt")
+        today = datetime.datetime.now().strftime("%B %d, %Y")
+        base_prompt = f"TODAY: {today}\n\n{base_prompt}"
+
+        # Inject user's goals into context
+        if user_id:
+            from .utils import get_goals_for_user
+            try:
+                user_goals_response = await get_goals_for_user(user_id)
+                if user_goals_response and user_goals_response.get('goals'):
+                    import json
+
+                    goals_context = "\n\n## USER'S CURRENT GOALS (RAW)\n\n"
+                    goals_context += json.dumps(user_goals_response, ensure_ascii=False, indent=2)
+                    return base_prompt + goals_context
+            except Exception as e:
+                logger.warning(f"Failed to inject goals context: {e}")
+
+        return base_prompt
 
     async def process_query_with_agent(self, query: str, user_id) -> Command:
         agent = self._create_agent_with_tools()
@@ -123,9 +142,9 @@ def compile_goal_agent_graph() -> CompiledStateGraph:
 _goal_agent: Optional[GoalAgent] = None
 
 
-def get_goal_agent() -> GoalAgent:
-    """Get goal agent instance."""
+def get_goal_agent(callbacks: list | None = None) -> GoalAgent:
+    """Get goal agent instance, allowing optional callback refresh."""
     global _goal_agent
-    if _goal_agent is None:
-        _goal_agent = GoalAgent()
+    if _goal_agent is None or callbacks is not None:
+        _goal_agent = GoalAgent(callbacks=callbacks)
     return _goal_agent

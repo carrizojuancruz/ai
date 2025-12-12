@@ -23,7 +23,6 @@ from .utils import (
     edit_goal,
     fetch_goal_by_id,
     get_goal_history_api,
-    get_goals_for_user,
     get_in_progress_goals_for_user,
     preprocess_goal_data,
     save_goal,
@@ -209,47 +208,6 @@ async def update_goal(data, config: RunnableConfig) -> str:
             error_code=ErrorCodes.UPDATE_FAILED,
             message=f"Failed to update goal: {str(e)}",
             user_id=user_key
-        )
-
-@tool(
-    name_or_callable="list_goals",
-    description="List all goals for a user",
-)
-async def list_goals(config: RunnableConfig) -> str:
-    """List all goals for a user."""
-    try:
-        user_id = str(get_config_value(config, "user_id"))
-        if not user_id:
-            return ResponseBuilder.missing_user_id()
-
-        user_goals_response = await get_goals_for_user(user_id)
-
-        if not user_goals_response or not user_goals_response.get('goals'):
-            return ResponseBuilder.success(
-                message="No goals found for user",
-                user_id=user_id,
-                goals=[],
-                count=0
-            )
-
-        goals_data = user_goals_response.get('goals', [])
-        active_goals = [g for g in goals_data if g.get('status', {}).get('value') != 'deleted']
-
-        return ResponseBuilder.success(
-            message=f"Found {len(active_goals)} active goals",
-            user_id=user_id,
-            goals=active_goals,
-            count=len(active_goals)
-        )
-
-
-    except Exception as e:
-        logger.error(f"Error listing goals: {e}", exc_info=True)
-        return ResponseBuilder.error(
-            error_code=ErrorCodes.READ_FAILED,
-            message=f"Failed to get goals: {str(e)}",
-            user_id="",
-            goals=[]
         )
 
 @tool(

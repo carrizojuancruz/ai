@@ -21,7 +21,7 @@ Analysis Results:
 STATUS: GOAL AGENT ANALYSIS COMPLETE
 This goal agent analysis is provided to the supervisor for final user response formatting."""
 
-    def __init__(self, llm: ChatCerebras, tools: List[BaseTool], prompt_builder: Callable[[], str], callbacks: list = None):
+    def __init__(self, llm: ChatCerebras, tools: List[BaseTool], prompt_builder: Callable[[str], str], callbacks: list = None):
         self.llm = llm
         self.tools = tools
         self.prompt_builder = prompt_builder
@@ -34,7 +34,9 @@ This goal agent analysis is provided to the supervisor for final user response f
 
         async def agent_node(state: MessagesState, config) -> dict:
             """Agent node that processes messages with tools."""
-            system_prompt = self.prompt_builder()
+            # Get user_id from config
+            user_id = config.get("configurable", {}).get("user_id") if config else None
+            system_prompt = await self.prompt_builder(user_id)
 
             # Filter messages to only include valid roles for Cerebras
             valid_messages = []
@@ -103,7 +105,7 @@ This goal agent analysis is provided to the supervisor for final user response f
         return workflow.compile(checkpointer=None)
 
 
-def create_goal_subgraph(llm: ChatCerebras, tools: List[BaseTool], prompt_builder: Callable[[], str], callbacks: list = None):
+def create_goal_subgraph(llm: ChatCerebras, tools: List[BaseTool], prompt_builder: Callable[[str], str], callbacks: list = None):
     """Create the goal subgraph."""
     subgraph = GoalSubgraph(llm, tools, prompt_builder, callbacks)
     return subgraph.create()

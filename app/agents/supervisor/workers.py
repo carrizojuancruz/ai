@@ -83,10 +83,10 @@ async def goal_agent(state: MessagesState, config: RunnableConfig) -> dict[str, 
         callbacks_list = [langfuse_callback] if langfuse_callback else []
 
         # Import here to avoid circular dependencies
-        from app.agents.supervisor.goal_agent.agent import GoalAgent
+        from app.agents.supervisor.goal_agent.agent import get_goal_agent
 
-        # Create GoalAgent instance with supervisor's callback
-        goal_agent_instance = GoalAgent(callbacks=callbacks_list if callbacks_list else None)
+        # Use singleton GoalAgent instance (refresh with callbacks when provided)
+        goal_agent_instance = get_goal_agent(callbacks=callbacks_list if callbacks_list else None)
         goal_graph = goal_agent_instance._create_agent_with_tools()
 
         user_id = get_config_value(config, "user_id")

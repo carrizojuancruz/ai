@@ -50,11 +50,11 @@ with st.sidebar:
     st.header("⚡ Benchmark Mode")
 
     benchmark_prompts = [
-        "What's my current investment portfolio?",
-        "How can I reduce my taxes this year?",
-        "Should I refinance my mortgage?",
-        "What's a good retirement savings strategy?",
-        "How much emergency fund should I have?",
+        "Can you create a new goal to save 500 every month?",
+        "Set up  a goal to save 5000 for a toyota corolla to the next month",
+        "Sup my G, create a new goal to stop spending on coffee",
+        "Just create a goal to go to the gym 3 times a week",
+        "I like to travel, can you set up a goal to save 2000USD for my next trip to bolivia to september 2026? Just create it",
     ]
 
     if st.button("🚀 Run 5 Prompts Parallel"):
@@ -167,11 +167,11 @@ if st.session_state.benchmark_mode:
     st.session_state.benchmark_mode = False
 
     benchmark_prompts = [
-        "What's my current investment portfolio?",
-        "How can I reduce my taxes this year?",
-        "Should I refinance my mortgage?",
-        "What's a good retirement savings strategy?",
-        "How much emergency fund should I have?",
+        "Can you create a new goal to save 500 every month?",
+        "Set up  a goal to save 5000 for a toyota corolla to the next month, transportation category",
+        "Sup my G, create a new goal to stop spending on coffee",
+        "Just create a goal to go to the gym 3 times a week",
+        "I like to travel, can you set up a goal to save 2000USD for my next trip to bolivia to september 2026? Just create it",
     ]
 
     st.info("🚀 Running 5 prompts in parallel...")
