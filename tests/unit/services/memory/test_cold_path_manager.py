@@ -13,8 +13,6 @@ Tests cover:
 import threading
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from app.services.memory.cold_path_manager import MemoryColdPathManager, get_memory_cold_path_manager
 
 

@@ -42,8 +42,9 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
 
         if thread_id and user_id:
             try:
-                from app.services.memory.cold_path_manager import get_memory_cold_path_manager
                 from langgraph.config import get_store
+
+                from app.services.memory.cold_path_manager import get_memory_cold_path_manager
 
                 # Build conversation window from messages
                 conversation_window: list[dict[str, Any]] = []

@@ -157,7 +157,7 @@ class TestDoUpdate:
 
         with patch("app.agents.supervisor.memory.cold_path._utc_now_iso") as mock_utc_now:
             mock_utc_now.return_value = "2024-01-01T00:00:00Z"
-            
+
             _do_update(
                 mock_store,
                 ("user", "semantic"),
@@ -274,7 +274,7 @@ class TestSameFactClassify:
     def test_same_fact_classify_exception(self, mock_logger, mock_prompt_loader, mock_get_client):
         """Test classification handles exceptions."""
         from botocore.exceptions import BotoCoreError
-        
+
         mock_get_client.side_effect = BotoCoreError()
         mock_prompt_loader.load.return_value = "Test prompt"
 
@@ -308,7 +308,7 @@ class TestComposeSummaries:
     def test_compose_summaries_fallback(self, mock_logger, mock_prompt_loader, mock_get_client):
         """Test fallback when LLM fails."""
         from botocore.exceptions import BotoCoreError
-        
+
         mock_get_client.side_effect = BotoCoreError()
         mock_prompt_loader.load.return_value = "Test prompt"
 
@@ -516,7 +516,7 @@ class TestRunSemanticMemoryJob:
         thread_id = "thread-123"
 
         with patch("app.agents.supervisor.memory.cold_path._trigger_decide") as mock_decide, \
-             patch("app.agents.supervisor.memory.cold_path.memory_service") as mock_memory_service, \
+             patch("app.agents.supervisor.memory.cold_path.memory_service"), \
              patch("app.agents.supervisor.memory.cold_path._emit_sse_safe") as mock_emit_sse, \
              patch("app.agents.supervisor.memory.cold_path._profile_sync_from_memory_sync"), \
              patch("asyncio.run_coroutine_threadsafe") as mock_run_coro:
@@ -614,7 +614,7 @@ class TestRunEpisodicMemoryJob:
             mock_get_neighbors.return_value = []
             mock_create_value.return_value = {"id": "mem-123", "summary": "Summary text"}
             mock_reset_ctrl.return_value = mock_ctrl
-            
+
             mock_store = MagicMock()
             store = mock_store
 
