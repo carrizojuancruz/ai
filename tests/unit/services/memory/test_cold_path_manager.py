@@ -10,6 +10,7 @@ Tests cover:
 - Shutdown behavior
 """
 
+import sys
 import threading
 from unittest.mock import MagicMock, patch
 
@@ -269,8 +270,7 @@ class TestGetMemoryColdPathManager:
     def test_get_memory_cold_path_manager_singleton(self):
         """Test that get_memory_cold_path_manager returns singleton."""
         # Clear the singleton
-        import app.services.memory.cold_path_manager as manager_module
-        manager_module._memory_cold_path_manager = None
+        sys.modules['app.services.memory.cold_path_manager']._memory_cold_path_manager = None
 
         manager1 = get_memory_cold_path_manager()
         manager2 = get_memory_cold_path_manager()
@@ -282,8 +282,7 @@ class TestGetMemoryColdPathManager:
 
     def test_get_memory_cold_path_manager_thread_safe(self):
         """Test that singleton creation is thread-safe."""
-        import app.services.memory.cold_path_manager as manager_module
-        manager_module._memory_cold_path_manager = None
+        sys.modules['app.services.memory.cold_path_manager']._memory_cold_path_manager = None
 
         managers = []
         lock = threading.Lock()
