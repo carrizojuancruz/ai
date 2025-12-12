@@ -35,7 +35,7 @@ class MemoryNudgeStrategy(NudgeStrategy):
             selected_memory = await self.s3_vectors.aget_random_recent_high_importance(str(user_id))
 
             if not selected_memory:
-                logger.info(f"memory_strategy.no_memories_found: user_id={str(user_id)}, source=recent_high_importance")
+                logger.debug(f"memory_strategy.no_memories_found: user_id={str(user_id)}, source=recent_high_importance")
                 return None
 
             logger.debug(

@@ -113,7 +113,7 @@ class NudgeEvaluator:
         channel = NudgeChannel.APP if candidate.nudge_type == "memory_icebreaker" else NudgeChannel.PUSH
 
         deduplication_key = None
-        if candidate.nudge_type == "memory_icebreaker" and candidate.metadata and "memory_id" in candidate.metadata:
+        if candidate.nudge_type == "memory_icebreaker" and "memory_id" in candidate.metadata:
             deduplication_key = f"{candidate.user_id}:{candidate.nudge_type}:{candidate.metadata['memory_id']}"
 
         message = NudgeMessage(
