@@ -92,7 +92,7 @@ class TestMemoryNudgeStrategyEvaluate:
 
         assert result is None
         mock_store.aget_random_recent_high_importance.assert_called_once_with(str(user_id))
-        mock_logger.info.assert_called_once()
+        mock_logger.debug.assert_called()
 
     @pytest.mark.asyncio
     @patch("app.services.nudges.strategies.memory_strategy.get_s3_vectors_store")
