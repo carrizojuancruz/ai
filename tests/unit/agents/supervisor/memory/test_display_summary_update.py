@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Optional
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.agents.supervisor.memory.hotpath import _utc_now_iso, _write_semantic_memory
+from app.agents.supervisor.memory.utils import _utc_now_iso
+from app.agents.supervisor.memory.cold_path import run_semantic_memory_job
 
 
 @dataclass
@@ -77,8 +78,7 @@ class FakeStore:
         self._updated.pop(key, None)
 
 
-@pytest.mark.asyncio
-async def test_display_summary_updates_on_fallback_merge(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_display_summary_updates_on_fallback_merge(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     Fallback merge should update display_summary using candidate_value.
       - Neighbor exists with score [FALLBACK_LOW, CHECK_LOW)
@@ -109,43 +109,44 @@ async def test_display_summary_updates_on_fallback_merge(monkeypatch: pytest.Mon
         }
     )
 
+    candidate_summary = "the user has a dog and two cats"
+    candidate_display = "you have a dog and two cats"
+    conversation_window = [
+        {"role": "user", "content": candidate_summary},
+    ]
+
     with (
-        patch("app.agents.supervisor.memory.hotpath.get_store", return_value=store),
-        patch("app.agents.supervisor.memory.hotpath.memory_service.create_memory", return_value=None),
-        patch("app.agents.supervisor.memory.hotpath._has_min_token_overlap", return_value=True),
-        patch("app.agents.supervisor.memory.hotpath._same_fact_classify", return_value=True),
-        patch("app.agents.supervisor.memory.hotpath.AUTO_UPDATE", 0.95),
-        patch("app.agents.supervisor.memory.hotpath.CHECK_LOW", 0.8),
-        patch("app.agents.supervisor.memory.hotpath.FALLBACK_ENABLED", True),
-        patch("app.agents.supervisor.memory.hotpath.FALLBACK_LOW", 0.4),
-        patch("app.agents.supervisor.memory.hotpath.FALLBACK_TOPK", 3),
-        patch("app.agents.supervisor.memory.hotpath.FALLBACK_RECENCY_DAYS", 365),
-        patch("app.agents.supervisor.memory.hotpath.FALLBACK_CATEGORIES", None),
+        patch("app.agents.supervisor.memory.cold_path._trigger_decide") as mock_trigger,
+        patch("app.agents.supervisor.memory.cold_path._create_memory_sync", return_value=None),
+        patch("app.agents.supervisor.memory.cold_path._has_min_token_overlap", return_value=True),
+        patch("app.agents.supervisor.memory.cold_path._same_fact_classify", return_value=True),
+        patch("app.agents.supervisor.memory.cold_path.AUTO_UPDATE", 0.95),
+        patch("app.agents.supervisor.memory.cold_path.CHECK_LOW", 0.8),
+        patch("app.agents.supervisor.memory.cold_path.FALLBACK_ENABLED", True),
+        patch("app.agents.supervisor.memory.cold_path.FALLBACK_LOW", 0.4),
+        patch("app.agents.supervisor.memory.cold_path.FALLBACK_TOPK", 3),
+        patch("app.agents.supervisor.memory.cold_path.FALLBACK_RECENCY_DAYS", 365),
+        patch("app.agents.supervisor.memory.cold_path.FALLBACK_CATEGORIES", None),
+        patch("app.agents.supervisor.memory.cold_path._emit_sse_safe"),
+        patch("app.agents.supervisor.memory.cold_path._profile_sync_from_memory_sync"),
     ):
-        candidate_summary = "the user has a dog and two cats"
-        candidate_display = "you have a dog and two cats"
-        candidate_value = {
-            "id": "new_id",
-            "user_id": user_id,
+        mock_trigger.return_value = {
+            "should_create": True,
             "type": "semantic",
+            "category": category,
             "summary": candidate_summary,
             "display_summary": candidate_display,
-            "category": category,
-            "source": "chat",
             "importance": 3,
-            "created_at": _utc_now_iso(),
-            "last_accessed": None,
-            "last_used_at": None,
         }
 
-        await _write_semantic_memory(
+        event_loop = MagicMock()
+        run_semantic_memory_job(
             user_id=user_id,
             thread_id=thread_id,
-            category=category,
-            summary=candidate_summary,
-            candidate_value=candidate_value,
-            mem_type="semantic",
-            candidate_id="candidate123",
+            user_context={},
+            conversation_window=conversation_window,
+            event_loop=event_loop,
+            store=store,
         )
 
     updated = store.get((user_id, "semantic"), existing_key)
@@ -153,8 +154,7 @@ async def test_display_summary_updates_on_fallback_merge(monkeypatch: pytest.Mon
     assert updated.value.get("display_summary") == candidate_display
 
 
-@pytest.mark.asyncio
-async def test_display_summary_updates_on_recreate_merge() -> None:
+def test_display_summary_updates_on_recreate_merge() -> None:
     """
     Recreate merge should compose display_summary and prefer the more informative candidate.
     """
@@ -183,33 +183,35 @@ async def test_display_summary_updates_on_recreate_merge() -> None:
 
     candidate_summary = "the user has a dog and two cats"
     candidate_display = "you have a dog and two cats"
-    candidate_value = {
-        "id": "new_id",
-        "user_id": user_id,
-        "type": "semantic",
-        "summary": candidate_summary,
-        "display_summary": candidate_display,
-        "category": category,
-        "source": "chat",
-        "importance": 3,
-        "created_at": _utc_now_iso(),
-        "last_accessed": None,
-        "last_used_at": None,
-    }
+    conversation_window = [
+        {"role": "user", "content": candidate_summary},
+    ]
 
     with (
-        patch("app.agents.supervisor.memory.hotpath.get_store", return_value=store),
-        patch("app.agents.supervisor.memory.hotpath.MERGE_MODE", "recreate"),
-        patch("app.agents.supervisor.memory.hotpath.AUTO_UPDATE", 0.5),
+        patch("app.agents.supervisor.memory.cold_path._trigger_decide") as mock_trigger,
+        patch("app.agents.supervisor.memory.cold_path.MERGE_MODE", "recreate"),
+        patch("app.agents.supervisor.memory.cold_path.AUTO_UPDATE", 0.5),
+        patch("app.agents.supervisor.memory.cold_path._emit_sse_safe"),
+        patch("app.agents.supervisor.memory.cold_path._profile_sync_from_memory_sync"),
+        patch("app.agents.supervisor.memory.cold_path._create_memory_sync", return_value=None),
     ):
-        await _write_semantic_memory(
+        mock_trigger.return_value = {
+            "should_create": True,
+            "type": "semantic",
+            "category": category,
+            "summary": candidate_summary,
+            "display_summary": candidate_display,
+            "importance": 3,
+        }
+
+        event_loop = MagicMock()
+        run_semantic_memory_job(
             user_id=user_id,
             thread_id=thread_id,
-            category=category,
-            summary=candidate_summary,
-            candidate_value=candidate_value,
-            mem_type="semantic",
-            candidate_id="cand-xyz",
+            user_context={},
+            conversation_window=conversation_window,
+            event_loop=event_loop,
+            store=store,
         )
 
     keys = list(store._items.keys())

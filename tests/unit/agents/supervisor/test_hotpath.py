@@ -7,8 +7,8 @@ from unittest.mock import Mock
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from app.agents.supervisor.memory.hotpath import (
-    _collect_recent_user_texts,
+from app.agents.supervisor.memory.hotpath import _collect_recent_user_texts
+from app.agents.supervisor.memory.cold_path import (
     _derive_nudge_metadata,
     _has_min_token_overlap,
     _normalize_summary_text,
