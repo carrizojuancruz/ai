@@ -169,10 +169,10 @@ class FOSNudgeManager:
         try:
             endpoint = f"/internal/nudges/check-by-memory/{memory_id}"
             response = await self.fos_client.get(endpoint)
-            
+
             if response and isinstance(response, dict) and "exists" in response:
                 return response["exists"]
-                
+
             return False
         except Exception as e:
             logger.error(f"fos_manager.check_exists_error: user_id={user_id}, memory_id={memory_id}, error={str(e)}")
@@ -186,6 +186,7 @@ class FOSNudgeManager:
 
         Returns:
             List of memory IDs that already have active nudges
+
         """
         if not memory_ids:
             return []
@@ -193,7 +194,7 @@ class FOSNudgeManager:
         try:
             payload = {"memory_ids": memory_ids}
             response = await self.fos_client.post("/internal/nudges/check-batch-by-memory", payload)
-            
+
             if isinstance(response, list):
                 return response
             return []

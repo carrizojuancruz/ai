@@ -136,7 +136,8 @@ class TestNudgeEvaluator:
 
         assert result["evaluated"] == 1
         assert result["queued"] == 0
-        assert result["skipped"] == 1
+        assert result["skipped"] == 0
+        assert result["errors"] == 1
         assert result["results"][0]["status"] == "error"
 
     @pytest.mark.asyncio

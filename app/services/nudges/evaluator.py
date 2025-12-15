@@ -170,25 +170,23 @@ class NudgeEvaluator:
     ) -> Dict[str, Any]:
         evaluated = len(results)
         queued = sum(1 for r in results if r["status"] == "queued")
-        skipped = sum(1 for r in results if r["status"] != "queued")
+        skipped = sum(1 for r in results if r["status"] == "skipped")
+        errors = sum(1 for r in results if r["status"] == "error")
 
         logger.info(
             f"evaluator.batch_complete: nudge_type={nudge_type}, strategy={strategy.__class__.__name__}, "
-            f"evaluated={evaluated}, queued={queued}, skipped={skipped}"
+            f"evaluated={evaluated}, queued={queued}, skipped={skipped}, errors={errors}"
         )
 
-        return {"evaluated": evaluated, "queued": queued, "skipped": skipped, "results": results}
+        return {
+            "evaluated": evaluated,
+            "queued": queued,
+            "skipped": skipped,
+            "errors": errors,
+            "results": results,
+        }
 
     async def _queue_nudge(self, candidate: NudgeCandidate) -> str:
-        if candidate.nudge_type == "memory_icebreaker":
-            target_memory_id = candidate.metadata.get("memory_id") if candidate.metadata else None
-            
-            if target_memory_id:
-                exists = await self.fos_manager.check_memory_nudge_exists(candidate.user_id, target_memory_id)
-                if exists:
-                    logger.info(f"evaluator.duplicate_nudge_found: user_id={candidate.user_id}, memory_id={target_memory_id}")
-                    return "duplicate"
-
         channel = NudgeChannel.APP if candidate.nudge_type == "memory_icebreaker" else NudgeChannel.PUSH
 
         deduplication_key = None
