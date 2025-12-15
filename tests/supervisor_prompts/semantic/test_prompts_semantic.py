@@ -5,9 +5,16 @@ from pathlib import Path
 
 import pytest
 from langchain_aws import ChatBedrock
-from langchain_community.evaluation import load_evaluator
 
 from app.core.config import config
+
+try:
+    from langchain.evaluation import load_evaluator
+except ImportError:
+    try:
+        from langchain_community.evaluation import load_evaluator
+    except ImportError:
+        load_evaluator = None
 from tests.supervisor_prompts.loader import PromptSpec, load_prompt, load_specs
 
 SPEC_PATH = Path(__file__).parent.parent / "prompt_specs.json"
@@ -32,7 +39,20 @@ def _build_bedrock_model() -> ChatBedrock:
 
 @pytest.fixture(scope="session")
 def bedrock_evaluator():
-    llm = _build_bedrock_model()
+    if load_evaluator is None:
+        pytest.skip("load_evaluator not available in current langchain version")
+
+    model_id = os.getenv("PROMPT_EVAL_MODEL_ID") or config.SUPERVISOR_AGENT_MODEL_ID
+    region = (
+        os.getenv("PROMPT_EVAL_MODEL_REGION")
+        or config.SUPERVISOR_AGENT_MODEL_REGION
+        or config.AWS_REGION
+    )
+    if not model_id or not region:
+        pytest.skip("Bedrock model id or region not configured for prompt evaluation")
+
+    temperature = float(os.getenv("PROMPT_EVAL_TEMPERATURE", "0.0"))
+    llm = ChatBedrock(model_id=model_id, region_name=region, temperature=temperature)
     return load_evaluator("criteria", llm=llm)
 
 
