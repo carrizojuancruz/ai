@@ -164,6 +164,43 @@ class FOSNudgeManager:
             logger.error(f"fos_manager.get_pending_error: user_id={user_id}, error={str(e)}")
             raise
 
+    async def check_memory_nudge_exists(self, user_id: UUID, memory_id: str) -> bool:
+        """Check if a memory icebreaker nudge already exists for a specific memory."""
+        try:
+            endpoint = f"/internal/nudges/check-by-memory/{memory_id}"
+            response = await self.fos_client.get(endpoint)
+            
+            if response and isinstance(response, dict) and "exists" in response:
+                return response["exists"]
+                
+            return False
+        except Exception as e:
+            logger.error(f"fos_manager.check_exists_error: user_id={user_id}, memory_id={memory_id}, error={str(e)}")
+            return False
+
+    async def check_batch_memory_nudges_existence(self, memory_ids: List[str]) -> List[str]:
+        """Check which memory IDs already have associated nudges in batch.
+
+        Args:
+            memory_ids: List of memory IDs to check
+
+        Returns:
+            List of memory IDs that already have active nudges
+        """
+        if not memory_ids:
+            return []
+
+        try:
+            payload = {"memory_ids": memory_ids}
+            response = await self.fos_client.post("/internal/nudges/check-batch-by-memory", payload)
+            
+            if isinstance(response, list):
+                return response
+            return []
+        except Exception as e:
+            logger.error(f"fos_manager.check_batch_exists_error: count={len(memory_ids)}, error={str(e)}")
+            return []
+
     async def mark_processing(self, nudge_ids: List[UUID]) -> List[NudgeRecord]:
         """Mark nudges as processing via FOS service.
 
