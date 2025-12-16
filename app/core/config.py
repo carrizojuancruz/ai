@@ -13,6 +13,17 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar('T', int, float, bool)
 
+LEGACY_SUMMARY_ENV_KEYS: tuple[str, ...] = (
+    "SUMMARY_MAX_TOKENS",
+    "SUMMARY_MAX_TOKENS_BEFORE",
+)
+_legacy_summary_keys_present: list[str] = [k for k in LEGACY_SUMMARY_ENV_KEYS if os.getenv(k) is not None]
+if _legacy_summary_keys_present:
+    logger.warning(
+        "Legacy summarization env vars detected and ignored: %s",
+        sorted(_legacy_summary_keys_present),
+    )
+
 
 def get_optional_value(env_var: str, cast_type: type[T]) -> Optional[T]:
     value = os.getenv(env_var)
@@ -79,9 +90,12 @@ class Config:
     MEMORY_PROCEDURAL_MIN_SCORE: Optional[float] = get_optional_value("MEMORY_PROCEDURAL_MIN_SCORE", float)
 
     # Conversation Summarization system
-    SUMMARY_MAX_TOKENS_BEFORE: Optional[int] = get_optional_value("SUMMARY_MAX_TOKENS_BEFORE", int)
     SUMMARY_MAX_SUMMARY_TOKENS: Optional[int] = get_optional_value("SUMMARY_MAX_SUMMARY_TOKENS", int)
-    SUMMARY_MAX_TOKENS: Optional[int] = get_optional_value("SUMMARY_MAX_TOKENS", int)
+    SUMMARY_TRIGGER_PROMPT_TOKEN_COUNT: Optional[int] = get_optional_value("SUMMARY_TRIGGER_PROMPT_TOKEN_COUNT", int)
+    SUMMARY_TRIGGER_USER_MESSAGE_COUNT_FALLBACK: Optional[int] = get_optional_value(
+        "SUMMARY_TRIGGER_USER_MESSAGE_COUNT_FALLBACK",
+        int,
+    )
     SUMMARY_TAIL_TOKEN_BUDGET: Optional[int] = get_optional_value("SUMMARY_TAIL_TOKEN_BUDGET", int)
     SUMMARY_MODEL_ID: Optional[str] = os.getenv("SUMMARY_MODEL_ID")
     SUMMARY_MODEL_REGION: Optional[str] = os.getenv("SUMMARY_MODEL_REGION")

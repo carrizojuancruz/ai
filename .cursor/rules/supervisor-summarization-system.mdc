@@ -1,0 +1,92 @@
+---
+alwaysApply: false
+---
+
+# Supervisor Summarization System (Token-Based, Next-Turn)
+
+This project uses a **token-pressure based summarization system** to keep chat context lean and prevent long-thread degradation, while **never summarizing mid-turn**.
+
+## High-level behavior
+
+- **Token usage capture** happens during the streamed run (SupervisorService loop).
+- **Summarization decision** happens at the **start of the next user turn** (START gate).
+- **Summarizer** compresses only the **old head** of the conversation and preserves a recent **tail** verbatim.
+- **Memory still runs** on summarization turns: `START → summarize → memory_hotpath → memory_context → supervisor`.
+
+## Where it lives
+
+- **Graph + START gate**: `app/agents/supervisor/agent.py`
+- **Summarizer implementation**: `app/agents/supervisor/summarizer.py`
+- **Token capture + persistence**: `app/services/supervisor.py`
+- **Config knobs**: `app/core/config.py`
+
+## Token capture (streaming)
+
+During `graph.astream_events(..., version="v2", subgraphs=True)`, the supervisor service watches for:
+
+- `event == "on_chat_model_end"` and `name == "SafeChatCerebras"`
+
+It extracts token usage from the returned `AIMessage` (`usage_metadata` / `response_metadata["token_usage"]`) and updates **per-run maxima**:
+
+- `max_prompt_tokens_this_run`
+- `max_total_tokens_this_run`
+
+At the end of the run, these are persisted into the per-thread session context as:
+
+- `max_prompt_tokens_last_run`
+- `max_total_tokens_last_run`
+
+These values are then injected into the **next** call’s graph input context.
+
+## START gate (next-turn trigger)
+
+The START gate decides whether to run the summarizer **before** the rest of the pipeline.
+
+Decision rule (token-first, with fallback):
+
+- If `context["max_prompt_tokens_last_run"] >= SUMMARY_TRIGGER_PROMPT_TOKEN_COUNT` → summarize.
+- Else if user message count (excluding injected context) `>= SUMMARY_TRIGGER_USER_MESSAGE_COUNT_FALLBACK` → summarize.
+
+The system logs a single INFO line when summarization is triggered:
+
+- `summary.triggered reason=... last_prompt_tokens=... user_messages=...`
+
+## Summarizer behavior (head/tail)
+
+`ConversationSummarizer`:
+
+- Filters out injected context and internal orchestration noise (subagent messages, handoff scaffolding, etc.).
+- Splits into **dialogue turns**: one user message + following assistant messages.
+- Preserves the **tail** selected by `SUMMARY_TAIL_TOKEN_BUDGET` (estimated tokens).
+- Summarizes the **head** into a `SystemMessage("Summary of the conversation so far: ...")`.
+- Adds `RemoveMessage(REMOVE_ALL_MESSAGES)` to prune old messages.
+- Writes `context["running_summary"]` (a `RunningSummary`) for incremental summarization across future turns.
+
+Outcome logging is intentionally minimal:
+
+- One INFO line on success: `summary.completed head_turns=... head_messages=... preserved_turns=... preserved_tail_messages=...`
+
+## Supported environment variables (NEW SYSTEM)
+
+These are the only supported knobs for summarization behavior (all required in runtime environments):
+
+- `SUMMARY_MAX_SUMMARY_TOKENS` (int)
+- `SUMMARY_TRIGGER_PROMPT_TOKEN_COUNT` (int)
+- `SUMMARY_TRIGGER_USER_MESSAGE_COUNT_FALLBACK` (int)
+- `SUMMARY_TAIL_TOKEN_BUDGET` (int)
+
+Optional model selection for the summarizer:
+
+- `SUMMARY_MODEL_ID` (string) — when set, summarization uses **Bedrock** (`ChatBedrockConverse`)
+- `SUMMARY_MODEL_REGION` (string, optional; falls back to `AWS_REGION`)
+- `SUMMARY_GUARDRAIL_ID` / `SUMMARY_GUARDRAIL_VERSION` (optional; passed to Bedrock guardrails)
+
+## Legacy environment variables (DELETE)
+
+These are legacy keys and are **ignored** by the new summarization system:
+
+- `SUMMARY_MAX_TOKENS`
+- `SUMMARY_MAX_TOKENS_BEFORE`
+
+They should be removed from AWS Secrets / deployment envs to avoid confusion.
+

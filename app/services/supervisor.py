@@ -83,6 +83,8 @@ if config.LANGFUSE_PUBLIC_GOAL_KEY and config.LANGFUSE_SECRET_GOAL_KEY:
         logger.warning("[Langfuse][supervisor] Failed to create goal callback handler: %s: %s", type(e).__name__, e)
 
 STREAM_WORD_GROUP_SIZE = 3
+CONTEXT_KEY_MAX_PROMPT_TOKENS_LAST_RUN: str = "max_prompt_tokens_last_run"
+CONTEXT_KEY_MAX_TOTAL_TOKENS_LAST_RUN: str = "max_total_tokens_last_run"
 
 
 GUARDRAIL_INTERVENED_MARKER: str = "[GUARDRAIL_INTERVENED]"
@@ -110,6 +112,46 @@ class SupervisorService:
         if not isinstance(text, str):
             return False
         return GUARDRAIL_INTERVENED_MARKER in text
+
+    def _extract_token_usage_from_event(
+        self, data: dict[str, Any], max_prompt_tokens: int, max_total_tokens: int
+    ) -> tuple[int, int]:
+        """Extract token usage from chat model event data.
+
+        Args:
+            data: Event data dictionary containing output information
+            max_prompt_tokens: Current maximum prompt tokens seen in this run
+            max_total_tokens: Current maximum total tokens seen in this run
+
+        Returns:
+            Tuple of (updated_max_prompt_tokens, updated_max_total_tokens)
+
+        """
+        try:
+            output = data.get("output") if isinstance(data, dict) else None
+            usage = getattr(output, "usage_metadata", None) if output is not None else None
+            response_meta = getattr(output, "response_metadata", None) if output is not None else None
+
+            prompt_tokens = 0
+            total_tokens = 0
+
+            if isinstance(usage, dict):
+                prompt_tokens = int(usage.get("input_tokens") or 0)
+                total_tokens = int(usage.get("total_tokens") or 0)
+
+            if isinstance(response_meta, dict):
+                token_usage = response_meta.get("token_usage")
+                if isinstance(token_usage, dict):
+                    prompt_tokens = max(prompt_tokens, int(token_usage.get("prompt_tokens") or 0))
+                    total_tokens = max(total_tokens, int(token_usage.get("total_tokens") or 0))
+
+            updated_max_prompt_tokens = max(max_prompt_tokens, prompt_tokens)
+            updated_max_total_tokens = max(max_total_tokens, total_tokens)
+
+            return updated_max_prompt_tokens, updated_max_total_tokens
+        except (TypeError, ValueError, AttributeError, KeyError) as exc:
+            logger.debug("[SUPERVISOR] token_usage.extract.failed err=%s", exc)
+            return max_prompt_tokens, max_total_tokens
 
     async def _load_user_context_from_external(self, user_id: UUID) -> UserContext:
         """Load UserContext from external FOS service with fallback."""
@@ -629,6 +671,8 @@ class SupervisorService:
         supervisor_latest_response_text: Optional[str] = None
         response_event_count = 0
         hit_guardrail: bool = False
+        max_prompt_tokens_this_run: int = 0
+        max_total_tokens_this_run: int = 0
 
         navigation_events_to_emit: list[dict[str, Any]] = []
         seen_navigation_events: set[str] = set()
@@ -653,7 +697,11 @@ class SupervisorService:
             {
                 "messages": [{"role": "user", "content": text}],
                 "sources": sources,
-                "context": {"thread_id": thread_id},
+                "context": {
+                    "thread_id": thread_id,
+                    CONTEXT_KEY_MAX_PROMPT_TOKENS_LAST_RUN: session_ctx.get(CONTEXT_KEY_MAX_PROMPT_TOKENS_LAST_RUN),
+                    CONTEXT_KEY_MAX_TOTAL_TOKENS_LAST_RUN: session_ctx.get(CONTEXT_KEY_MAX_TOTAL_TOKENS_LAST_RUN),
+                },
                 "navigation_events": None,
             },
             version="v2",
@@ -665,6 +713,26 @@ class SupervisorService:
             etype = event.get("event")
             raw_data = event.get("data")
             data = {} if isinstance(raw_data, Command) else raw_data if isinstance(raw_data, dict) else {}
+
+            if etype == "on_chat_model_end" and name == "SafeChatCerebras":
+                prev_max_prompt_tokens_this_run = max_prompt_tokens_this_run
+                prev_max_total_tokens_this_run = max_total_tokens_this_run
+
+                max_prompt_tokens_this_run, max_total_tokens_this_run = self._extract_token_usage_from_event(
+                    data, max_prompt_tokens_this_run, max_total_tokens_this_run
+                )
+
+                if (
+                    max_prompt_tokens_this_run != prev_max_prompt_tokens_this_run
+                    or max_total_tokens_this_run != prev_max_total_tokens_this_run
+                ):
+                    logger.debug(
+                        "[SUPERVISOR] token_usage.update thread_id=%s "
+                        "max_prompt_tokens_this_run=%s max_total_tokens_this_run=%s",
+                        thread_id,
+                        max_prompt_tokens_this_run,
+                        max_total_tokens_this_run,
+                    )
 
             response_text = ""
             response_author: str | None = None
@@ -1003,6 +1071,8 @@ class SupervisorService:
                         {"role": "assistant", "content": assistant_response, "sources": sources}
                     )
 
+            session_ctx[CONTEXT_KEY_MAX_PROMPT_TOKENS_LAST_RUN] = int(max_prompt_tokens_this_run)
+            session_ctx[CONTEXT_KEY_MAX_TOTAL_TOKENS_LAST_RUN] = int(max_total_tokens_this_run)
             session_ctx["conversation_messages"] = conversation_messages
             await session_store.set_session(thread_id, session_ctx)
             logger.info(f"Stored conversation for thread {thread_id}: {len(conversation_messages)} messages")

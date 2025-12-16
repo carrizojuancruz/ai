@@ -57,7 +57,11 @@ Respond with the JSON format:
 {{"title": "title here", "summary": "summary here"}}"""
 
 # Conversation Summarizer Instruction
-CONVERSATION_SUMMARIZER_INSTRUCTION_LOCAL = """You are a summarizer. Summarize the following earlier conversation strictly as a concise, factual summary for internal memory. Do not answer user questions. Do not provide step-by-step instructions. Limit to roughly {summary_max_tokens} tokens. Use 3-7 bullet points, neutral tone."""
+CONVERSATION_SUMMARIZER_INSTRUCTION_LOCAL = """
+You are a helpful AI assistant tasked with summarizing conversations.
+
+Provide a detailed but concise summary of our conversation above. Focus on information that would be helpful for continuing the conversation, including what we did, what we're doing, which files we're working on, and what we're going to do next. Limit to 3-7 bullet points. Neutral, factual tone only. No chit-chat.
+"""
 
 # Timeline Extended Description (Start)
 TIMELINE_EXTENDED_START_PROMPT_LOCAL = """You are Vera. Write ONE short, colorful line about what you are starting to do.
