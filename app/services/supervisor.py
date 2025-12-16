@@ -775,7 +775,7 @@ class SupervisorService:
                 if response_text:
                     # Detect guardrail in response text
                     hit_guardrail = hit_guardrail or self._has_guardrail_intervention(response_text)
-                    
+
                     prev_latest = (latest_response_text[:80] + "...") if latest_response_text else None
                     latest_response_text = response_text
                     if name == "supervisor":
