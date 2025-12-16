@@ -773,6 +773,9 @@ class SupervisorService:
                                     break
 
                 if response_text:
+                    # Detect guardrail in response text
+                    hit_guardrail = hit_guardrail or self._has_guardrail_intervention(response_text)
+                    
                     prev_latest = (latest_response_text[:80] + "...") if latest_response_text else None
                     latest_response_text = response_text
                     if name == "supervisor":
@@ -1020,6 +1023,13 @@ class SupervisorService:
                         }
                     )
                     logger.info(f"[SUPERVISOR] Emitted navigation event: {nav_event.get('event')}")
+
+                # If guardrail was hit, emit tokens before message.completed so frontend receives text
+                if hit_guardrail and final_text_to_emit.strip():
+                    words = final_text_to_emit.split()
+                    for i in range(0, len(words), STREAM_WORD_GROUP_SIZE):
+                        word_group = " ".join(words[i : i + STREAM_WORD_GROUP_SIZE])
+                        await q.put({"event": "token.delta", "data": {"text": f"{word_group} ", "sources": sources}})
 
                 await q.put({"event": "message.completed", "data": {"content": final_text_to_emit}})
 

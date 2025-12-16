@@ -2,12 +2,19 @@ import json
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 import requests
 import streamlit as st
 from sseclient import SSEClient
 
 st.set_page_config(page_title="Supervisor Test UI", layout="wide")
+
+def load_benchmark_prompts() -> list[str]:
+    path = Path(__file__).parent / "benchmark_prompts.json"
+    with path.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+    return data if isinstance(data, list) else []
 
 def escape_currency_dollars(text: str) -> str:
     """Escape $ characters that are likely currency amounts, while preserving LaTeX math expressions.
@@ -42,22 +49,16 @@ if "benchmark_results" not in st.session_state:
     st.session_state.benchmark_results = []
 if "benchmark_mode" not in st.session_state:
     st.session_state.benchmark_mode = False
+if "events" not in st.session_state:
+    st.session_state.events = []
 
 st.title("Supervisor Test UI")
 
 # Sidebar for benchmark mode
 with st.sidebar:
     st.header("⚡ Benchmark Mode")
-
-    benchmark_prompts = [
-        "Can you create a new goal to save 500 every month?",
-        "Set up  a goal to save 5000 for a toyota corolla to the next month",
-        "Sup my G, create a new goal to stop spending on coffee",
-        "Just create a goal to go to the gym 3 times a week",
-        "I like to travel, can you set up a goal to save 2000USD for my next trip to bolivia to september 2026? Just create it",
-    ]
-
-    if st.button("🚀 Run 5 Prompts Parallel"):
+    prompt_count = len(load_benchmark_prompts())
+    if st.button(f"🚀 Run {prompt_count} Prompts Parallel"):
         st.session_state.benchmark_mode = True
         st.session_state.benchmark_results = []
         st.rerun()
@@ -75,6 +76,20 @@ with st.sidebar:
                 delta=f"TTFT: {result['ttft']:.2f}s"
             )
 
+    st.divider()
+
+    with st.expander("📡 Events Log", expanded=False):
+        if st.button("🗑️ Clear Events", key="clear_events"):
+            st.session_state.events = []
+            st.rerun()
+
+        if st.session_state.events:
+            st.markdown(f"**Total Events: {len(st.session_state.events)}**")
+            for _, event in enumerate(st.session_state.events, 1):
+                st.code(json.dumps(event, indent=2, ensure_ascii=False), language="json")
+        else:
+            st.info("No events yet. Start a conversation to see events.")
+
 def start_conversation():
     """Initialize a new conversation thread with the supervisor."""
     try:
@@ -86,6 +101,7 @@ def start_conversation():
         data = response.json()
         st.session_state.thread_id = data["thread_id"]
         st.session_state.messages = [{"role": "assistant", "content": data["welcome"]}]
+        st.session_state.events = []
     except requests.exceptions.RequestException as e:
         st.error(f"Failed to start conversation: {e}")
         st.session_state.thread_id = None
@@ -166,38 +182,33 @@ if st.session_state.thread_id is None:
 if st.session_state.benchmark_mode:
     st.session_state.benchmark_mode = False
 
-    benchmark_prompts = [
-        "Can you create a new goal to save 500 every month?",
-        "Set up  a goal to save 5000 for a toyota corolla to the next month, transportation category",
-        "Sup my G, create a new goal to stop spending on coffee",
-        "Just create a goal to go to the gym 3 times a week",
-        "I like to travel, can you set up a goal to save 2000USD for my next trip to bolivia to september 2026? Just create it",
-    ]
+    benchmark_prompts = load_benchmark_prompts()
+    total = len(benchmark_prompts)
 
-    st.info("🚀 Running 5 prompts in parallel...")
-    progress_bar = st.progress(0)
+    if total == 0:
+        st.error("No benchmark prompts found.")
+    else:
+        st.info(f"🚀 Running {total} prompts in parallel...")
+        progress_bar = st.progress(0)
 
     base_url = st.session_state.base_url
     user_id = st.session_state.user_id
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {
-            executor.submit(send_prompt_and_measure, prompt, i+1, base_url, user_id): i
-            for i, prompt in enumerate(benchmark_prompts)
-        }
+    if total > 0:
+        with ThreadPoolExecutor(max_workers=min(5, total)) as executor:
+            futures = {
+                executor.submit(send_prompt_and_measure, prompt, i+1, base_url, user_id): i
+                for i, prompt in enumerate(benchmark_prompts)
+            }
 
-        completed = 0
-        for completed, future in enumerate(as_completed(futures), start=1):
+            for completed, future in enumerate(as_completed(futures), start=1):
+                result = future.result()
+                st.session_state.benchmark_results.append(result)
+                progress_bar.progress(completed / total)
 
-            result = future.result()
-
-            st.session_state.benchmark_results.append(result)
-
-            progress_bar.progress(completed / 5)
-
-    st.session_state.benchmark_results.sort(key=lambda x: x['id'])
-    st.success("✅ Benchmark completed!")
-    st.rerun()
+        st.session_state.benchmark_results.sort(key=lambda x: x['id'])
+        st.success("✅ Benchmark completed!")
+        st.rerun()
 
 # Display benchmark results in tabs
 if st.session_state.benchmark_results:
@@ -267,6 +278,12 @@ if st.session_state.thread_id is not None:
                         text_delta = data.get("text", "")
                         sources = data.get("sources", [])
 
+                        st.session_state.events.append({
+                            "type": "token.delta",
+                            "timestamp": time.time(),
+                            "data": data
+                        })
+
                         if is_first_delta and text_delta.strip() == welcome_message.strip():
                             is_first_delta = False
                             continue
@@ -284,17 +301,37 @@ if st.session_state.thread_id is not None:
                             message_placeholder.markdown(escaped_response + "▌")
                     elif event.event == "source.search.start":
                         data = json.loads(event.data)
+                        st.session_state.events.append({
+                            "type": "source.search.start",
+                            "timestamp": time.time(),
+                            "data": data
+                        })
                         # Start suppressing tokens when agent tool starts
                         suppress_tokens = True
                         full_response = ""
                     elif event.event == "source.search.end":
                         data = json.loads(event.data)
+                        st.session_state.events.append({
+                            "type": "source.search.end",
+                            "timestamp": time.time(),
+                            "data": data
+                        })
                         suppress_tokens = False
                     elif event.event in ["tool.start", "tool.end"]:
                         data = json.loads(event.data)
+                        st.session_state.events.append({
+                            "type": event.event,
+                            "timestamp": time.time(),
+                            "data": data
+                        })
                         tool_name = data.get("tool")
                     elif event.event == "step.update":
                         data = json.loads(event.data)
+                        st.session_state.events.append({
+                            "type": "step.update",
+                            "timestamp": time.time(),
+                            "data": data
+                        })
                         if data.get("status") == "presented":
                             break
 

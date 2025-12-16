@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 import logging
 import re
@@ -11,7 +13,7 @@ from langchain_cerebras import ChatCerebras
 from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
 from pydantic import PrivateAttr
 
-from app.services.guardrails import InputGuardrailMiddleware, OutputGuardrailMiddleware
+from app.services.guardrails import InputGuardrailMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +42,12 @@ class SafeChatCerebras(ChatCerebras):
     """
 
     _input_guardrail: InputGuardrailMiddleware = PrivateAttr()
-    _output_guardrail: OutputGuardrailMiddleware = PrivateAttr()
     _user_context: dict = PrivateAttr(default_factory=dict)
 
     def __init__(
         self,
         *args,
         input_guardrail: InputGuardrailMiddleware = None,
-        output_guardrail: OutputGuardrailMiddleware = None,
         input_config: dict | None = None,
         output_config: dict | None = None,
         user_context: dict | None = None,
@@ -58,7 +58,6 @@ class SafeChatCerebras(ChatCerebras):
 
         Args:
             input_guardrail: Custom input validator (optional)
-            output_guardrail: Custom output validator (optional)
             input_config: Config for default input validator
             output_config: Config for default output validator
             user_context: User context for validation
@@ -78,16 +77,11 @@ class SafeChatCerebras(ChatCerebras):
             ocfg.setdefault("fail_open", fail_open)
 
         self._input_guardrail = input_guardrail or InputGuardrailMiddleware(config=icfg)
-        self._output_guardrail = output_guardrail or OutputGuardrailMiddleware(config=ocfg)
         self._user_context = user_context or {}
 
     @property
     def input_guardrail(self) -> InputGuardrailMiddleware:
         return self._input_guardrail
-
-    @property
-    def output_guardrail(self) -> OutputGuardrailMiddleware:
-        return self._output_guardrail
 
     @property
     def user_context(self) -> dict:
@@ -112,19 +106,33 @@ class SafeChatCerebras(ChatCerebras):
         # Convert to dict format for validation
         msg_dicts = self._messages_to_dicts(messages)
 
-        # Validate input
-        is_safe, violation_msg = await self.input_guardrail.validate(
-            msg_dicts,
-            self.user_context
+        # Run model call and input validation concurrently to reduce latency
+        validate_task = asyncio.create_task(
+            self.input_guardrail.validate(msg_dicts, self.user_context)
         )
+        model_task = asyncio.create_task(super().ainvoke(messages, config=config, **kwargs))
 
-        if not is_safe:
-            logger.warning(f"[SafeCerebras] Input blocked: {violation_msg}")
-            content, metadata = self._format_intervention(violation_msg)
-            return AIMessage(content=content, response_metadata=metadata)
+        done, _ = await asyncio.wait({validate_task, model_task}, return_when=asyncio.FIRST_COMPLETED)
 
-        # Call original if safe
-        return await super().ainvoke(messages, config=config, **kwargs)
+        if validate_task in done:
+            is_safe, violation_msg = await validate_task
+            if not is_safe:
+                with contextlib.suppress(Exception):
+                    model_task.cancel()
+                logger.warning(f"[SafeCerebras] Input blocked: {violation_msg}")
+                content, metadata = self._format_intervention(violation_msg)
+                return AIMessage(content=content, response_metadata=metadata)
+            # Safe → return model result
+            return await model_task
+        else:
+            # Model finished first; confirm validation before returning
+            model_result = await model_task
+            is_safe, violation_msg = await validate_task
+            if not is_safe:
+                logger.warning(f"[SafeCerebras] Input blocked (post-compute): {violation_msg}")
+                content, metadata = self._format_intervention(violation_msg)
+                return AIMessage(content=content, response_metadata=metadata)
+            return model_result
 
     async def astream(
         self,
@@ -132,7 +140,7 @@ class SafeChatCerebras(ChatCerebras):
         config: Any = None,
         **kwargs
     ) -> AsyncIterator[Any]:
-        """Stream with input validation and output filtering.
+        """Stream with input validation.
 
         Args:
             messages: List of messages
@@ -146,25 +154,86 @@ class SafeChatCerebras(ChatCerebras):
         # Convert to dict format for validation
         msg_dicts = self._messages_to_dicts(messages)
 
-        # Validate input
-        is_safe, violation_msg = await self.input_guardrail.validate(
-            msg_dicts,
-            self.user_context
+        # Start validation in background while we set up the model stream
+        validate_task = asyncio.create_task(
+            self.input_guardrail.validate(msg_dicts, self.user_context)
         )
 
-        if not is_safe:
-            logger.warning(f"[SafeCerebras] Input blocked in stream: {violation_msg}")
-            content, metadata = self._format_intervention(violation_msg)
-            yield AIMessageChunk(content=content, response_metadata=metadata)
-            return
-
-        # Stream with output validation
+        # Prepare original stream
         original_stream = super().astream(messages, config=config, **kwargs)
 
-        async for chunk in self.output_guardrail.validate_stream(
-            original_stream,
-            self.user_context
-        ):
+        # Buffer chunks until validation resolves to avoid leaking tokens if unsafe
+        buffer: list[Any] = []
+        validated_ok = False
+
+        async def _yield_buffered():
+            nonlocal buffer
+            for buffered_chunk in buffer:
+                yield buffered_chunk
+            buffer = []
+
+        # Check validation BEFORE starting to iterate stream
+        # This handles the case where validation fails so fast that model never emits chunks
+        is_safe_initial = None
+        violation_msg_initial = None
+        if validate_task.done():
+            is_safe_initial, violation_msg_initial = await validate_task
+            if not is_safe_initial:
+                logger.warning(f"[SafeCerebras] Input blocked before stream: {violation_msg_initial}")
+                content, metadata = self._format_intervention(violation_msg_initial)
+                yield AIMessageChunk(content=content, response_metadata=metadata)
+                return
+
+        # Pipe stream after validation check
+        async def _validated_stream() -> AsyncIterator[Any]:
+            nonlocal validated_ok, buffer
+            async for chunk in original_stream:
+                if not validate_task.done():
+                    buffer.append(chunk)
+                    # check if validation finished after buffering this chunk
+                    if validate_task.done():
+                        is_safe, violation_msg = await validate_task
+                        if not is_safe:
+                            logger.warning(f"[SafeCerebras] Input blocked in stream: {violation_msg}")
+                            content, metadata = self._format_intervention(violation_msg)
+                            yield AIMessageChunk(content=content, response_metadata=metadata)
+                            return
+                        validated_ok = True
+                        # flush buffer then continue with current chunk
+                        async for flushed in _yield_buffered():
+                            yield flushed
+                        yield chunk
+                    # keep buffering until validation resolves
+                    continue
+                else:
+                    # validation already resolved
+                    if not validated_ok:
+                        is_safe, violation_msg = await validate_task
+                        if not is_safe:
+                            logger.warning(f"[SafeCerebras] Input blocked in stream: {violation_msg}")
+                            content, metadata = self._format_intervention(violation_msg)
+                            yield AIMessageChunk(content=content, response_metadata=metadata)
+                            return
+                        validated_ok = True
+                        # flush any buffered chunks before yielding this one
+                        async for flushed in _yield_buffered():
+                            yield flushed
+                    yield chunk
+
+            # Stream ended; if validation still pending, resolve now
+            if not validate_task.done():
+                is_safe, violation_msg = await validate_task
+                if not is_safe:
+                    logger.warning(f"[SafeCerebras] Input blocked in stream (post-end): {violation_msg}")
+                    content, metadata = self._format_intervention(violation_msg)
+                    yield AIMessageChunk(content=content, response_metadata=metadata)
+                    return
+                # flush remaining buffer
+                async for flushed in _yield_buffered():
+                    yield flushed
+
+        # After input validation passes, yield validated chunks
+        async for chunk in _validated_stream():
             yield chunk
 
     def update_user_context(self, user_context: dict):
@@ -201,11 +270,10 @@ class SafeChatCerebras(ChatCerebras):
             Tuple of (content string, metadata dict).
 
         """
-        default_human = (
-            "I’m sorry, but I can’t really discuss this topic with you. Let’s change the subject, maybe?"
-        )
+        base_message = "I'm sorry, but I can't really discuss this topic with you."
+        suggestion = self._build_user_context_suggestion()
+        human_message = f"{base_message} {suggestion}".strip()
         code = "UNKNOWN"
-        human_message = default_human
 
         # Attempt to extract JSON after marker
         if violation_msg.startswith("[GUARDRAIL_INTERVENED]"):
@@ -218,7 +286,12 @@ class SafeChatCerebras(ChatCerebras):
                 except Exception:
                     pass
         # Build enriched JSON payload; marker placed at END so supervisor UI keeps human message
-        payload = {"code": code, "message": human_message, "original": violation_msg}
+        payload = {
+            "code": code,
+            "message": human_message,
+            "suggestion": suggestion,
+            "original": violation_msg,
+        }
         content = f"{human_message} [GUARDRAIL_INTERVENED] {json.dumps(payload, ensure_ascii=False)}"
         metadata = {
             "guardrail": True,
@@ -226,3 +299,38 @@ class SafeChatCerebras(ChatCerebras):
             "guardrail_message": human_message,
         }
         return content, metadata
+
+    def _build_user_context_suggestion(self) -> str:
+        """Generate a redirection hint using available user context."""
+        ctx = self.user_context or {}
+
+        def _ctx_get(container: Any, key: str, default: Any = None) -> Any:
+            if isinstance(container, dict):
+                return container.get(key, default)
+            return getattr(container, key, default)
+
+        identity = _ctx_get(ctx, "identity", {}) or {}
+        name = _ctx_get(identity, "preferred_name") or _ctx_get(ctx, "preferred_name")
+
+        goals_raw = _ctx_get(ctx, "goals", []) or []
+        goals = [str(g) for g in goals_raw if g]
+
+        primary_goal = _ctx_get(ctx, "primary_financial_goal")
+
+        location = _ctx_get(ctx, "location", {}) or {}
+        city = _ctx_get(ctx, "city") or _ctx_get(location, "city")
+
+        if goals:
+            listed_goals = ", ".join(goals[:2])
+            return f"Maybe we can refocus on your goals like {listed_goals}."
+
+        if primary_goal:
+            return f"Maybe we can refocus on your goal: {primary_goal}."
+
+        if city:
+            return f"Maybe we can talk about your finances in {city}."
+
+        if name:
+            return f"Happy to help with your finances, {name}."
+
+        return "Happy to help with your finances or set new goals together."
