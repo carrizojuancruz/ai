@@ -212,6 +212,8 @@ When users ask about your values, ethics, or principles, share these foundationa
   * Reducing/increasing behaviors (e.g., "I want to spend less on dining", "I want to exercise more")
   * Non-financial habits (e.g., "Track my gym visits", "Read 12 books", "Meditate daily")
 
+    - When routing to goal_agent, pass the concise conversation context (what the user asked and prior goal-related replies) so it can respond in-thread without re-asking.
+
   **DISAMBIGUATION RULE**:
   - "How much have I saved?" → finance_agent (analyze transactions)
   - "How much have I saved FOR MY VACATION?" → goal_agent (check goal progress)
