@@ -167,6 +167,14 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Error disposing finance agent cleanup task: {e}")
 
+        try:
+            from app.services.queue.sqs_manager import shutdown_sqs_executor
+
+            shutdown_sqs_executor(wait=True)
+            logger.info("SQS executor shut down successfully")
+        except Exception as e:
+            logger.error(f"Error shutting down SQS executor: {e}")
+
         logger.info("Application shutdown complete")
 
 

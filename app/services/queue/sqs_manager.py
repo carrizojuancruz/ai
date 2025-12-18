@@ -19,6 +19,9 @@ _SQS_EXECUTOR = ThreadPoolExecutor(
     thread_name_prefix="sqs-operations"
 )
 
+# Error message for when executor is shut down
+_SQS_EXECUTOR_SHUTDOWN_ERROR = "SQS executor has been shut down"
+
 
 class NudgeMessage:
     def __init__(
@@ -93,8 +96,12 @@ class SQSManager:
                 "NudgeType": {"DataType": "String", "StringValue": nudge.nudge_type},
             }
 
+            # Verify executor is available before use
+            if _SQS_EXECUTOR is None:
+                raise RuntimeError(_SQS_EXECUTOR_SHUTDOWN_ERROR)
+
             # Run synchronous boto3 operation in thread pool to avoid blocking the event loop
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             response = await loop.run_in_executor(
                 _SQS_EXECUTOR,
                 lambda: self.sqs_client.send_message(
@@ -134,8 +141,12 @@ class SQSManager:
         )
 
         try:
+            # Verify executor is available before use
+            if _SQS_EXECUTOR is None:
+                raise RuntimeError(_SQS_EXECUTOR_SHUTDOWN_ERROR)
+
             # Run synchronous boto3 operation in thread pool
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             response = await loop.run_in_executor(
                 _SQS_EXECUTOR,
                 lambda: self.sqs_client.receive_message(
@@ -197,8 +208,12 @@ class SQSManager:
         try:
             logger.debug(f"sqs.delete_attempt: receipt_handle={receipt_handle[:20]}...")
 
+            # Verify executor is available before use
+            if _SQS_EXECUTOR is None:
+                raise RuntimeError(_SQS_EXECUTOR_SHUTDOWN_ERROR)
+
             # Run synchronous boto3 operation in thread pool
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(
                 _SQS_EXECUTOR,
                 lambda: self.sqs_client.delete_message(QueueUrl=self.queue_url, ReceiptHandle=receipt_handle)
@@ -213,8 +228,12 @@ class SQSManager:
 
     async def get_queue_depth(self) -> int:
         try:
+            # Verify executor is available before use
+            if _SQS_EXECUTOR is None:
+                raise RuntimeError(_SQS_EXECUTOR_SHUTDOWN_ERROR)
+
             # Run synchronous boto3 operation in thread pool
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             response = await loop.run_in_executor(
                 _SQS_EXECUTOR,
                 lambda: self.sqs_client.get_queue_attributes(
@@ -256,3 +275,17 @@ def get_sqs_manager() -> SQSManager:
     if _sqs_manager is None:
         _sqs_manager = SQSManager()
     return _sqs_manager
+
+
+def shutdown_sqs_executor(wait: bool = True) -> None:
+    """Shutdown the SQS thread pool executor.
+
+    Args:
+        wait: If True, wait for running jobs to complete.
+
+    """
+    global _SQS_EXECUTOR
+    if _SQS_EXECUTOR is not None:
+        _SQS_EXECUTOR.shutdown(wait=wait)
+        _SQS_EXECUTOR = None
+        logger.info(f"sqs.executor_shutdown: wait={wait}")
