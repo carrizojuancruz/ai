@@ -184,10 +184,12 @@ class Config:
 
     # Fast Path Smalltalk Configuration
     FAST_PATH_ENABLED: bool = os.getenv("FAST_PATH_ENABLED", "true").lower() in {"true", "1", "yes", "on"}
-    FAST_PATH_MODEL_PROVIDER: str = os.getenv("FAST_PATH_MODEL_PROVIDER")
+    FAST_PATH_MODEL_PROVIDER: Optional[str] = os.getenv("FAST_PATH_MODEL_PROVIDER")
     FAST_PATH_MODEL_ID: Optional[str] = os.getenv("FAST_PATH_MODEL_ID")
-    FAST_PATH_TEMPERATURE: float = float(os.getenv("FAST_PATH_TEMPERATURE"))
-    INTENT_CLASSIFIER_CONFIDENCE_THRESHOLD: float = float(os.getenv("INTENT_CLASSIFIER_CONFIDENCE_THRESHOLD"))
+    FAST_PATH_TEMPERATURE: Optional[float] = get_optional_value("FAST_PATH_TEMPERATURE", float)
+    INTENT_CLASSIFIER_CONFIDENCE_THRESHOLD: Optional[float] = get_optional_value(
+        "INTENT_CLASSIFIER_CONFIDENCE_THRESHOLD", float
+    )
 
     # Title Generation Configuration
     TITLE_GENERATOR_MODEL_ID: str = os.getenv("TITLE_GENERATOR_MODEL_ID")
