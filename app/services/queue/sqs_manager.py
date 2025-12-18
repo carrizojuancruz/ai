@@ -1,4 +1,6 @@
+import asyncio
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
@@ -10,6 +12,12 @@ from app.core.config import config
 from app.observability.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+# Thread pool for synchronous boto3 operations - avoids blocking the event loop
+_SQS_EXECUTOR = ThreadPoolExecutor(
+    max_workers=5,
+    thread_name_prefix="sqs-operations"
+)
 
 
 class NudgeMessage:
@@ -84,9 +92,18 @@ class SQSManager:
                 "UserId": {"DataType": "String", "StringValue": nudge.user_id},
                 "NudgeType": {"DataType": "String", "StringValue": nudge.nudge_type},
             }
-            response = self.sqs_client.send_message(
-                QueueUrl=self.queue_url, MessageBody=json.dumps(nudge.to_dict()), MessageAttributes=message_attributes
+            
+            # Run synchronous boto3 operation in thread pool to avoid blocking the event loop
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                _SQS_EXECUTOR,
+                lambda: self.sqs_client.send_message(
+                    QueueUrl=self.queue_url,
+                    MessageBody=json.dumps(nudge.to_dict()),
+                    MessageAttributes=message_attributes
+                )
             )
+            
             message_id = response["MessageId"]
             self._in_flight_messages[dedup_key] = nudge.timestamp
             logger.info(
@@ -117,13 +134,19 @@ class SQSManager:
         )
 
         try:
-            response = self.sqs_client.receive_message(
-                QueueUrl=self.queue_url,
-                MaxNumberOfMessages=max_messages or config.SQS_MAX_MESSAGES,
-                MessageAttributeNames=["All"],
-                VisibilityTimeout=config.SQS_VISIBILITY_TIMEOUT,
-                WaitTimeSeconds=config.SQS_WAIT_TIME_SECONDS,
+            # Run synchronous boto3 operation in thread pool
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                _SQS_EXECUTOR,
+                lambda: self.sqs_client.receive_message(
+                    QueueUrl=self.queue_url,
+                    MaxNumberOfMessages=max_messages or config.SQS_MAX_MESSAGES,
+                    MessageAttributeNames=["All"],
+                    VisibilityTimeout=config.SQS_VISIBILITY_TIMEOUT,
+                    WaitTimeSeconds=config.SQS_WAIT_TIME_SECONDS,
+                )
             )
+            
             messages = response.get("Messages", [])
 
             if not messages:
@@ -174,7 +197,12 @@ class SQSManager:
         try:
             logger.debug(f"sqs.delete_attempt: receipt_handle={receipt_handle[:20]}...")
 
-            self.sqs_client.delete_message(QueueUrl=self.queue_url, ReceiptHandle=receipt_handle)
+            # Run synchronous boto3 operation in thread pool
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                _SQS_EXECUTOR,
+                lambda: self.sqs_client.delete_message(QueueUrl=self.queue_url, ReceiptHandle=receipt_handle)
+            )
 
             logger.info(f"sqs.message_deleted: receipt_handle={receipt_handle[:20]}...")
         except Exception as e:
@@ -185,8 +213,13 @@ class SQSManager:
 
     async def get_queue_depth(self) -> int:
         try:
-            response = self.sqs_client.get_queue_attributes(
-                QueueUrl=self.queue_url, AttributeNames=["ApproximateNumberOfMessages"]
+            # Run synchronous boto3 operation in thread pool
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                _SQS_EXECUTOR,
+                lambda: self.sqs_client.get_queue_attributes(
+                    QueueUrl=self.queue_url, AttributeNames=["ApproximateNumberOfMessages"]
+                )
             )
             depth = int(response["Attributes"].get("ApproximateNumberOfMessages", 0))
             logger.debug(f"sqs.queue_depth: {depth}")

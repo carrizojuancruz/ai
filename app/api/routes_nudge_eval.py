@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Dict, Optional
 from uuid import UUID
 
@@ -39,6 +40,31 @@ class ManualTriggerRequest(BaseModel):
     priority_override: Optional[int] = None
 
 
+def run_evaluate_all_users_non_async(
+    task_id: str,
+    nudge_type: str,
+    nudge_id: Optional[str],
+    notification_text: Optional[str],
+    preview_text: Optional[str],
+) -> None:
+    """Non-async wrapper - runs in separate thread with its own event loop."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    try:
+        loop.run_until_complete(
+            _evaluate_all_users(
+                task_id=task_id,
+                nudge_type=nudge_type,
+                nudge_id=nudge_id,
+                notification_text=notification_text,
+                preview_text=preview_text,
+            )
+        )
+    finally:
+        loop.close()
+
+
 @router.post("/evaluate", response_model=EvaluateResponse)
 async def evaluate_nudges(request: EvaluateRequest, background_tasks: BackgroundTasks) -> EvaluateResponse:
     try:
@@ -62,7 +88,7 @@ async def evaluate_nudges(request: EvaluateRequest, background_tasks: Background
         task_id = str(uuid.uuid4())
 
         background_tasks.add_task(
-            _evaluate_all_users,
+            run_evaluate_all_users_non_async,
             task_id,
             request.nudge_type,
             request.nudge_id,
