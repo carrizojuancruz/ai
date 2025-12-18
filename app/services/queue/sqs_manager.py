@@ -92,7 +92,7 @@ class SQSManager:
                 "UserId": {"DataType": "String", "StringValue": nudge.user_id},
                 "NudgeType": {"DataType": "String", "StringValue": nudge.nudge_type},
             }
-            
+
             # Run synchronous boto3 operation in thread pool to avoid blocking the event loop
             loop = asyncio.get_event_loop()
             response = await loop.run_in_executor(
@@ -103,7 +103,7 @@ class SQSManager:
                     MessageAttributes=message_attributes
                 )
             )
-            
+
             message_id = response["MessageId"]
             self._in_flight_messages[dedup_key] = nudge.timestamp
             logger.info(
@@ -146,7 +146,7 @@ class SQSManager:
                     WaitTimeSeconds=config.SQS_WAIT_TIME_SECONDS,
                 )
             )
-            
+
             messages = response.get("Messages", [])
 
             if not messages:
