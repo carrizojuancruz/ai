@@ -5,13 +5,13 @@ import json
 import logging
 from typing import Any
 
+from langchain_cerebras import ChatCerebras
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import MessagesState
 from langgraph.types import RunnableConfig
 
 from app.core.config import config
 from app.services.llm.prompt_loader import prompt_loader
-from app.services.llm.safe_cerebras import SafeChatCerebras
 
 logger = logging.getLogger(__name__)
 
@@ -276,21 +276,10 @@ def _is_message_too_complex(text: str) -> bool:
 
 
 async def _classify_with_llm(text: str) -> tuple[str, float]:
-    llm = SafeChatCerebras(
+    llm = ChatCerebras(
         model=config.FAST_PATH_MODEL_ID,
         api_key=config.CEREBRAS_API_KEY,
         temperature=0.0,
-        input_config={
-            "use_llm_classifier": True,
-            "llm_confidence_threshold": config.INTENT_CLASSIFIER_CONFIDENCE_THRESHOLD,
-            "enabled_checks": ["injection", "pii", "blocked_topics", "internal_exposure"],
-        },
-        output_config={
-            "use_llm_classifier": False,
-            "enabled_checks": ["pii_leakage", "context_exposure", "internal_exposure"],
-        },
-        user_context={"blocked_topics": []},
-        fail_open=True,
     )
     try:
         result = await llm.ainvoke(
