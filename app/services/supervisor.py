@@ -86,6 +86,7 @@ STREAM_WORD_GROUP_SIZE = 3
 CONTEXT_KEY_MAX_PROMPT_TOKENS_LAST_RUN: str = "max_prompt_tokens_last_run"
 CONTEXT_KEY_MAX_TOTAL_TOKENS_LAST_RUN: str = "max_total_tokens_last_run"
 
+USER_FACING_STREAM_NODES: set[str] = {"supervisor", "fast_response"}
 
 GUARDRAIL_INTERVENED_MARKER: str = "[GUARDRAIL_INTERVENED]"
 GUARDRAIL_USER_PLACEHOLDER: str = "THIS MESSAGE HIT THE BEDROCK GUARDRAIL, SO IT WAS REMOVED"
@@ -676,6 +677,7 @@ class SupervisorService:
 
         navigation_events_to_emit: list[dict[str, Any]] = []
         seen_navigation_events: set[str] = set()
+        current_graph_node: Optional[str] = None
 
         metadata: dict[str, str] = {"langfuse_session_id": thread_id}
         if user_id:
@@ -713,6 +715,11 @@ class SupervisorService:
             etype = event.get("event")
             raw_data = event.get("data")
             data = {} if isinstance(raw_data, Command) else raw_data if isinstance(raw_data, dict) else {}
+
+            if etype == "on_chain_start" and name:
+                current_graph_node = name
+            elif etype == "on_chain_end" and name == current_graph_node:
+                current_graph_node = None
 
             if etype == "on_chat_model_end" and name == "SafeChatCerebras":
                 prev_max_prompt_tokens_this_run = max_prompt_tokens_this_run
@@ -765,7 +772,7 @@ class SupervisorService:
                                     if msg_meta.get("is_handoff_back"):
                                         continue
 
-                                    if msg_name and msg_name != "supervisor":
+                                    if msg_name and msg_name not in ("supervisor", "fast_response"):
                                         continue
 
                                     response_text = candidate.strip()
@@ -778,8 +785,8 @@ class SupervisorService:
 
                     prev_latest = (latest_response_text[:80] + "...") if latest_response_text else None
                     latest_response_text = response_text
-                    if name == "supervisor":
-                        if response_author not in (None, "supervisor"):
+                    if name in ("supervisor", "fast_response"):
+                        if response_author not in (None, "supervisor", "fast_response"):
                             logger.info(
                                 "[TRACE] supervisor.buffer.skip reason=non_supervisor_message author=%s",
                                 response_author,
@@ -801,7 +808,12 @@ class SupervisorService:
             except Exception as e:
                 logger.exception("Error processing supervisor event: %s", e)
 
-            if etype == "on_chat_model_stream" and name == "SafeChatCerebras" and not active_handoffs:
+            if (
+                etype == "on_chat_model_stream"
+                and name == "SafeChatCerebras"
+                and not active_handoffs
+                and current_graph_node in USER_FACING_STREAM_NODES
+            ):
                 try:
                     chunk = data.get("chunk") if isinstance(data, dict) else None
                     chunk_text = self._content_to_text(getattr(chunk, "content", "")) if chunk else ""

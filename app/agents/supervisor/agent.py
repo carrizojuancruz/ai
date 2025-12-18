@@ -7,6 +7,8 @@ from langfuse.langchain import CallbackHandler
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
+from app.agents.supervisor.fast_response_agent import fast_response_agent
+from app.agents.supervisor.intent_classifier import intent_classifier
 from app.agents.supervisor.memory import memory_context, memory_hotpath
 from app.agents.supervisor.summarizer import ConversationSummarizer
 from app.core.config import config as app_config
@@ -235,6 +237,7 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
     class SupervisorState(MessagesState):
         context: dict[str, Any]
         navigation_events: list[dict[str, Any]] | None
+        intent_route: str | None
 
     builder = StateGraph(SupervisorState)
 
@@ -243,6 +246,11 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
         summary_max_tokens=summary_max_tokens_default,
         tail_token_budget=int(app_config.SUMMARY_TAIL_TOKEN_BUDGET),
     )
+
+    # --- Intent classification and fast path nodes ---
+    builder.add_node("intent_classifier", intent_classifier)
+    builder.add_node("fast_memory_hotpath", memory_hotpath)
+    builder.add_node("fast_response", fast_response_agent)
 
     # --- Routing and memory nodes ---
     builder.add_node("summarize", summarizer.as_node())
@@ -271,7 +279,17 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
 
     # --- Define edges between nodes ---
 
-    def _route_after_start(state: dict[str, Any]) -> str:
+    def _route_after_intent(state: dict[str, Any]) -> str:
+        """Route based on intent classifier result."""
+        intent_route = state.get("intent_route", "supervisor")
+        if intent_route == "fast":
+            context = state.get("context") or {}
+            logger.info("intent.route.fast thread_id=%s", context.get("thread_id"))
+            return "fast_memory_hotpath"
+        return "supervisor_route"
+
+    def _route_supervisor_path(state: dict[str, Any]) -> str:
+        """Route supervisor path through summarization if needed."""
         messages = state.get("messages") or []
         context = state.get("context") or {}
 
@@ -303,9 +321,26 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
             )
         return "summarize" if should_run_summary else "memory_hotpath"
 
+    builder.add_edge(START, "intent_classifier")
     builder.add_conditional_edges(
-        START,
-        _route_after_start,
+        "intent_classifier",
+        _route_after_intent,
+        {
+            "fast_memory_hotpath": "fast_memory_hotpath",
+            "supervisor_route": "supervisor_route",
+        },
+    )
+
+    builder.add_edge("fast_memory_hotpath", "fast_response")
+
+    def supervisor_route_passthrough(state: dict[str, Any]) -> dict[str, Any]:
+        """Passthrough node for supervisor path routing."""
+        return state
+
+    builder.add_node("supervisor_route", supervisor_route_passthrough)
+    builder.add_conditional_edges(
+        "supervisor_route",
+        _route_supervisor_path,
         {
             "summarize": "summarize",
             "memory_hotpath": "memory_hotpath",

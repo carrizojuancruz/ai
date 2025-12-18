@@ -11,7 +11,7 @@ from app.core.aws_config import AWSConfig
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T', int, float, bool)
+T = TypeVar("T", int, float, bool)
 
 LEGACY_SUMMARY_ENV_KEYS: tuple[str, ...] = (
     "SUMMARY_MAX_TOKENS",
@@ -39,8 +39,12 @@ def get_optional_value(env_var: str, cast_type: type[T]) -> Optional[T]:
     try:
         return cast_type(value)
     except (ValueError, TypeError) as e:
-        logger.warning(f"Invalid value for environment variable '{env_var}': '{value}' cannot be cast to {cast_type.__name__}")
-        raise ValueError(f"Configuration error: environment variable '{env_var}' has invalid value '{value}' for type {cast_type.__name__}") from e
+        logger.warning(
+            f"Invalid value for environment variable '{env_var}': '{value}' cannot be cast to {cast_type.__name__}"
+        )
+        raise ValueError(
+            f"Configuration error: environment variable '{env_var}' has invalid value '{value}' for type {cast_type.__name__}"
+        ) from e
 
 
 class Config:
@@ -76,9 +80,15 @@ class Config:
     # Cold Path Memory Configuration
     MEMORY_COLD_PATH_MAX_WORKERS: Optional[int] = get_optional_value("MEMORY_COLD_PATH_MAX_WORKERS", int)
     MEMORY_COLD_PATH_MAX_RETRIES: Optional[int] = get_optional_value("MEMORY_COLD_PATH_MAX_RETRIES", int)
-    MEMORY_COLD_PATH_RETRY_BACKOFF_SECONDS: Optional[int] = get_optional_value("MEMORY_COLD_PATH_RETRY_BACKOFF_SECONDS", int)
-    MEMORY_COLD_PATH_THREAD_STATE_TTL_SECONDS: Optional[int] = get_optional_value("MEMORY_COLD_PATH_THREAD_STATE_TTL_SECONDS", int)
-    MEMORY_COLD_PATH_THREAD_STATE_CLEANUP_INTERVAL_SECONDS: Optional[int] = get_optional_value("MEMORY_COLD_PATH_THREAD_STATE_CLEANUP_INTERVAL_SECONDS", int)
+    MEMORY_COLD_PATH_RETRY_BACKOFF_SECONDS: Optional[int] = get_optional_value(
+        "MEMORY_COLD_PATH_RETRY_BACKOFF_SECONDS", int
+    )
+    MEMORY_COLD_PATH_THREAD_STATE_TTL_SECONDS: Optional[int] = get_optional_value(
+        "MEMORY_COLD_PATH_THREAD_STATE_TTL_SECONDS", int
+    )
+    MEMORY_COLD_PATH_THREAD_STATE_CLEANUP_INTERVAL_SECONDS: Optional[int] = get_optional_value(
+        "MEMORY_COLD_PATH_THREAD_STATE_CLEANUP_INTERVAL_SECONDS", int
+    )
 
     # Memory Context Configuration
     MEMORY_CONTEXT_TOPK: Optional[int] = get_optional_value("MEMORY_CONTEXT_TOPK", int)
@@ -171,6 +181,13 @@ class Config:
     SUPERVISOR_AGENT_REASONING_EFFORT: str = os.getenv("SUPERVISOR_AGENT_REASONING_EFFORT")
     SUPERVISOR_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("SUPERVISOR_AGENT_GUARDRAIL_ID")
     SUPERVISOR_AGENT_GUARDRAIL_VERSION: Optional[str] = os.getenv("SUPERVISOR_AGENT_GUARDRAIL_VERSION")
+
+    # Fast Path Smalltalk Configuration
+    FAST_PATH_ENABLED: bool = os.getenv("FAST_PATH_ENABLED", "true").lower() in {"true", "1", "yes", "on"}
+    FAST_PATH_MODEL_PROVIDER: str = os.getenv("FAST_PATH_MODEL_PROVIDER")
+    FAST_PATH_MODEL_ID: Optional[str] = os.getenv("FAST_PATH_MODEL_ID")
+    FAST_PATH_TEMPERATURE: float = float(os.getenv("FAST_PATH_TEMPERATURE"))
+    INTENT_CLASSIFIER_CONFIDENCE_THRESHOLD: float = float(os.getenv("INTENT_CLASSIFIER_CONFIDENCE_THRESHOLD"))
 
     # Title Generation Configuration
     TITLE_GENERATOR_MODEL_ID: str = os.getenv("TITLE_GENERATOR_MODEL_ID")
@@ -294,7 +311,7 @@ class Config:
 
     # STT Configuration
     STT_PROVIDER: Optional[str] = os.getenv("STT_PROVIDER")
-    STT_MODEL_ID: Optional[str] = os.getenv("STT_MODEL_ID") # Bedrock
+    STT_MODEL_ID: Optional[str] = os.getenv("STT_MODEL_ID")  # Bedrock
 
     # OpenAI Configuration (TTS, STT)
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
@@ -390,9 +407,7 @@ class Config:
     @classmethod
     def is_langfuse_supervisor_enabled(cls) -> bool:
         """Check if Langfuse is properly configured for supervisor."""
-        return bool(
-            cls.LANGFUSE_PUBLIC_SUPERVISOR_KEY and cls.LANGFUSE_SECRET_SUPERVISOR_KEY and cls.LANGFUSE_HOST
-        )
+        return bool(cls.LANGFUSE_PUBLIC_SUPERVISOR_KEY and cls.LANGFUSE_SECRET_SUPERVISOR_KEY and cls.LANGFUSE_HOST)
 
     @classmethod
     def get_bedrock_config(cls) -> dict:

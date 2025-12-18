@@ -126,6 +126,8 @@ class PromptLoader:
             "safety_system_prompt": self._get_safety_system_prompt_local,
             "timeline_extended_start_prompt": self._get_timeline_extended_start_prompt_local,
             "timeline_extended_end_prompt": self._get_timeline_extended_end_prompt_local,
+            "fast_smalltalk_prompt": self._get_fast_smalltalk_prompt_local,
+            "intent_classifier_routing_prompt": self._get_intent_classifier_routing_prompt_local,
         })
 
 
@@ -343,6 +345,17 @@ class PromptLoader:
         prompt = util_prompts.TIMELINE_EXTENDED_END_PROMPT_LOCAL.format(task=task, outcome=outcome)
         return prompt.strip()
 
+    def _get_fast_smalltalk_prompt_local(self) -> str:
+        agent_prompts = sys.modules.get('app.services.llm.agent_prompts')
+        if agent_prompts is None:
+            from . import agent_prompts
+        return agent_prompts.build_fast_smalltalk_prompt()
+
+    def _get_intent_classifier_routing_prompt_local(self) -> str:
+        agent_prompts = sys.modules.get('app.services.llm.agent_prompts')
+        if agent_prompts is None:
+            from . import agent_prompts
+        return agent_prompts.build_intent_classifier_routing_prompt()
 
     def _validate_prompt_format(self, text: str, name: str) -> None:
         """Validate prompt formatting rules."""
