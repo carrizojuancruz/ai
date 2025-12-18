@@ -678,6 +678,8 @@ class SupervisorService:
         navigation_events_to_emit: list[dict[str, Any]] = []
         seen_navigation_events: set[str] = set()
         current_graph_node: Optional[str] = None
+        fast_path_event_emitted: bool = False
+        supervisor_path_event_emitted: bool = False
 
         metadata: dict[str, str] = {"langfuse_session_id": thread_id}
         if user_id:
@@ -718,6 +720,18 @@ class SupervisorService:
 
             if etype == "on_chain_start" and name:
                 current_graph_node = name
+                if name == "fast_response" and not fast_path_event_emitted:
+                    await q.put({
+                        "event": "response.path",
+                        "data": {"source": "fast_response", "type": "smalltalk"},
+                    })
+                    fast_path_event_emitted = True
+                elif name == "supervisor" and not supervisor_path_event_emitted:
+                    await q.put({
+                        "event": "response.path",
+                        "data": {"source": "supervisor", "type": "full"},
+                    })
+                    supervisor_path_event_emitted = True
             elif etype == "on_chain_end" and name == current_graph_node:
                 current_graph_node = None
 
