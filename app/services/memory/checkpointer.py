@@ -540,7 +540,7 @@ class KVRedisCheckpointer(BaseCheckpointSaver[str]):
 
 
 def get_supervisor_checkpointer():
-    ttl_default_raw = app_config.c or app_config.REDIS_TTL_SESSION
+    ttl_default_raw = app_config.REDIS_TTL_DEFAULT or app_config.REDIS_TTL_SESSION
     ttl_value: Optional[int] = None
     if ttl_default_raw not in (None, ""):
         try:
