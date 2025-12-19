@@ -187,9 +187,6 @@ class Config:
     FAST_PATH_MODEL_PROVIDER: Optional[str] = os.getenv("FAST_PATH_MODEL_PROVIDER")
     FAST_PATH_MODEL_ID: Optional[str] = os.getenv("FAST_PATH_MODEL_ID")
     FAST_PATH_TEMPERATURE: Optional[float] = get_optional_value("FAST_PATH_TEMPERATURE", float)
-    INTENT_CLASSIFIER_CONFIDENCE_THRESHOLD: Optional[float] = get_optional_value(
-        "INTENT_CLASSIFIER_CONFIDENCE_THRESHOLD", float
-    )
 
     # Title Generation Configuration
     TITLE_GENERATOR_MODEL_ID: str = os.getenv("TITLE_GENERATOR_MODEL_ID")
@@ -206,15 +203,12 @@ class Config:
 
     # Redis Configuration (populated exclusively via AWS Secrets -> aws_config)
     REDIS_HOST: Optional[str] = None
-    REDIS_ENDPOINT: Optional[str] = None
     REDIS_PORT: Optional[str] = None
     REDIS_PASSWORD: Optional[str] = None
     REDIS_USERNAME: Optional[str] = None
-    REDIS_ACCESS_STRING: Optional[str] = None
     REDIS_TLS: Optional[str] = None
     REDIS_TTL_DEFAULT: Optional[str] = None
     REDIS_TTL_SESSION: Optional[str] = None
-    REDIS_TTL_SSE: Optional[str] = None
 
     # Langfuse Configuration (Guest)
     LANGFUSE_PUBLIC_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY")

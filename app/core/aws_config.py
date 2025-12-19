@@ -73,13 +73,10 @@ class AWSConfig:
                     "REDIS_USERNAME",
                     "REDIS_PASSWORD",
                     "REDIS_HOST",
-                    "REDIS_ENDPOINT",
                     "REDIS_PORT",
-                    "REDIS_ACCESS_STRING",
                     "REDIS_TLS",
                     "REDIS_TTL_DEFAULT",
                     "REDIS_TTL_SESSION",
-                    "REDIS_TTL_SSE",
                 ]
                 mapped: dict[str, Any] = {}
                 for key in keys:
