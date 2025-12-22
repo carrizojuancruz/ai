@@ -397,7 +397,7 @@ class Config:
         """Generate database URL if not provided via environment."""
         if cls.DATABASE_URL:
             return cls.DATABASE_URL
-            
+
         password = quote_plus(cls.DATABASE_PASSWORD) if cls.DATABASE_PASSWORD else ""
         user = quote_plus(cls.DATABASE_USER) if cls.DATABASE_USER else ""
         return f"postgresql+asyncpg://{user}:{password}@{cls.DATABASE_HOST}:{cls.DATABASE_PORT}/{cls.DATABASE_NAME}"
