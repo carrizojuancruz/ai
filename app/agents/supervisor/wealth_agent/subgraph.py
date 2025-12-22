@@ -10,12 +10,7 @@ from langchain_core.language_models import BaseChatModel
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 
-from app.core.config import config
 from app.knowledge.internal_sections import InternalSubcategory
-
-MAX_TOOL_CALLS: int = config.WEALTH_AGENT_MAX_TOOL_CALLS
-RECURSION_LIMIT: int = max(25, (MAX_TOOL_CALLS * 2) + 5)
-DEFAULT_TEMPERATURE: float = 0.4
 
 USED_SOURCES_PATTERN = re.compile(r'(?:\*\*)?USED_SOURCES:(?:\*\*)?\s*\[(.*?)\]', re.DOTALL)
 USED_SUBCATEGORIES_PATTERN = re.compile(r'(?:\*\*)?USED_SUBCATEGORIES:(?:\*\*)?\s*\[(.*?)\]', re.DOTALL)
@@ -169,6 +164,7 @@ def create_wealth_subgraph(
     llm: BaseChatModel,
     tools,
     prompt_builder: Callable[[], str],
+    max_tool_calls: int,
 ):
     import logging
     logger = logging.getLogger(__name__)
@@ -181,9 +177,9 @@ def create_wealth_subgraph(
 
         system_prompt = prompt_builder()
 
-        if current_search_count >= MAX_TOOL_CALLS:
+        if current_search_count >= max_tool_calls:
             system_prompt += "\n\nIMPORTANT: You have reached the maximum allowed searches. Provide your final answer NOW based on what you found. Do not attempt to call any tools."
-            logger.warning(f"[WEALTH_AGENT] Max tool calls ({MAX_TOOL_CALLS}) reached. Removing tools from model.")
+            logger.warning(f"[WEALTH_AGENT] Max tool calls ({max_tool_calls}) reached. Removing tools from model.")
             model_to_use = llm
         else:
             model_to_use = model_with_tools
@@ -312,10 +308,14 @@ This wealth agent analysis is provided to the supervisor for final user response
         """Wrap tool node to increment search count."""
         result = await tool_node.ainvoke(state)
 
-        result["search_count"] = 1
+        last_message = state["messages"][-1]
+        increment = len(getattr(last_message, "tool_calls", []))
+
+        result["search_count"] = increment
 
         current_count = state.get("search_count", 0)
-        logger.info(f"[WEALTH_AGENT] Search count: {current_count + 1}/{MAX_TOOL_CALLS}")
+        new_count = current_count + increment
+        logger.info(f"[WEALTH_AGENT] Tool calls executed: {increment}, Total search count: {new_count}/{max_tool_calls}")
 
         return result
 
@@ -325,9 +325,10 @@ This wealth agent analysis is provided to the supervisor for final user response
         current_search_count = state.get("search_count", 0)
 
         if getattr(last_message, "tool_calls", None):
-            if current_search_count >= MAX_TOOL_CALLS:
-                logger.error(
-                    "[WEALTH_AGENT] Agent tried to call tools after limit! This shouldn't happen. Going to supervisor."
+            if current_search_count >= max_tool_calls:
+                logger.info(
+                    f"[WEALTH_AGENT] Max tool calls ({max_tool_calls}) reached. "
+                    f"Current count: {current_search_count}. Going to supervisor."
                 )
                 return "supervisor"
 

@@ -137,7 +137,6 @@ class Config:
     WEALTH_AGENT_MODEL_ID: str = os.getenv("WEALTH_AGENT_MODEL_ID")
     WEALTH_AGENT_MODEL_REGION: str = os.getenv("WEALTH_AGENT_MODEL_REGION")
     WEALTH_AGENT_TEMPERATURE: Optional[float] = get_optional_value("WEALTH_AGENT_TEMPERATURE", float)
-    WEALTH_AGENT_MAX_TOOL_CALLS: int = get_optional_value("WEALTH_AGENT_MAX_TOOL_CALLS", int) or 3
     WEALTH_AGENT_REASONING_EFFORT: str = os.getenv("WEALTH_AGENT_REASONING_EFFORT")
     WEALTH_AGENT_GUARDRAIL_ID: Optional[str] = os.getenv("WEALTH_AGENT_GUARDRAIL_ID")
     WEALTH_AGENT_GUARDRAIL_VERSION: Optional[str] = os.getenv("WEALTH_AGENT_GUARDRAIL_VERSION")
@@ -248,7 +247,6 @@ class Config:
     VERA_GUIDANCE_RECURSION_DEPTH: Optional[int] = get_optional_value("VERA_GUIDANCE_RECURSION_DEPTH", int)
 
     # Search Configuration
-    TOP_K_SEARCH: Optional[int] = get_optional_value("TOP_K_SEARCH", int)
     CHUNK_SIZE: Optional[int] = get_optional_value("CHUNK_SIZE", int)
     CHUNK_OVERLAP: Optional[int] = get_optional_value("CHUNK_OVERLAP", int)
 

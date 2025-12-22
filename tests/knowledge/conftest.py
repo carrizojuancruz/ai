@@ -173,7 +173,6 @@ def mock_config(mocker):
     mock.AWS_REGION = "us-east-1"
     mock.S3V_BUCKET = "test-bucket"
     mock.S3V_INDEX_KB = "test-index"
-    mock.TOP_K_SEARCH = 5
     mock.CRAWL_TYPE = "recursive"
     mock.CRAWL_TIMEOUT = 30
     return mock

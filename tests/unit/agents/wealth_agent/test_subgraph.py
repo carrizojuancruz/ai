@@ -144,7 +144,7 @@ class TestCreateWealthSubgraph:
         def prompt_builder():
             return "System prompt"
 
-        graph = create_wealth_subgraph(mock_llm, [], prompt_builder)
+        graph = create_wealth_subgraph(mock_llm, [], prompt_builder, max_tool_calls=1)
 
         assert graph is not None
         assert hasattr(graph, "ainvoke")
@@ -156,6 +156,6 @@ class TestCreateWealthSubgraph:
         def prompt_builder():
             return "Test"
 
-        graph = create_wealth_subgraph(mock_llm, [], prompt_builder)
+        graph = create_wealth_subgraph(mock_llm, [], prompt_builder, max_tool_calls=1)
 
         assert graph is not None

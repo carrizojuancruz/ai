@@ -2,7 +2,6 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List
 
-from app.core.config import config
 from app.knowledge.models import Source
 from app.knowledge.vector_store.service import S3VectorStoreService
 
@@ -14,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 class KnowledgeService:
 
+    TOP_K_SEARCH = 10
+    
     def __init__(self):
         self.vector_store_service = S3VectorStoreService()
         self.document_service = DocumentService()
@@ -171,7 +172,7 @@ class KnowledgeService:
             query_embedding = self.document_service.generate_query_embedding(query)
             results = self.vector_store_service.similarity_search(
                 query_embedding,
-                k=config.TOP_K_SEARCH,
+                k=self.TOP_K_SEARCH,
                 metadata_filter=filter
             )
             out = []

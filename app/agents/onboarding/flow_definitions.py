@@ -1,6 +1,7 @@
 import contextlib
 import logging
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Callable
 
 from app.services.llm.bedrock import BedrockLLM
@@ -119,13 +120,11 @@ def validate_name(response: str, state: "OnboardingState") -> tuple[bool, str | 
 
 def validate_dob(response: str, state: "OnboardingState") -> tuple[bool, str | None]:
     try:
-        import datetime as _dt
-
         txt = (response or "").strip()
-        parsed: _dt.date | None = None
+        parsed: date | None = None
         for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y"):
             try:
-                parsed = _dt.datetime.strptime(txt, fmt).date()
+                parsed = datetime.strptime(txt, fmt).date()
                 break
             except Exception:
                 continue
@@ -133,7 +132,7 @@ def validate_dob(response: str, state: "OnboardingState") -> tuple[bool, str | N
             logger.debug("[ONBOARDING] DOB validation failed: unrecognized format '%s'", txt)
             return False, "Please use a valid date format like YYYY-MM-DD or MM/DD/YYYY."
 
-        today = _dt.date.today()
+        today = date.today()
         state.user_context.identity.birth_date = parsed.isoformat()
         age_years = today.year - parsed.year - ((today.month, today.day) < (parsed.month, parsed.day))
         with contextlib.suppress(Exception):

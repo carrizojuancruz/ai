@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 async def wealth_agent(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
     """Wealth agent worker that handles wealth management and investment advice."""
     try:
-        from app.agents.supervisor.wealth_agent.subgraph import RECURSION_LIMIT
         from app.core.app_state import get_wealth_agent_graph
 
         wealth_graph = get_wealth_agent_graph()
@@ -32,7 +31,6 @@ async def wealth_agent(state: MessagesState, config: RunnableConfig) -> dict[str
         unique_thread_id = f"wealth-task-{uuid.uuid4()}"
 
         wealth_config = {
-            "recursion_limit": RECURSION_LIMIT,
             "configurable": {
                 "thread_id": unique_thread_id,
                 "user_id": user_id

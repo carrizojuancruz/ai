@@ -25,9 +25,9 @@ async def search_kb(query: str, content_source: str = "external") -> str:
             - "external": Search only external financial education content (default)
             - "all": Search across all content sources
 
-    Use "internal" for app-related questions (e.g., "How do I connect my bank?").
-    Use "external" for financial education (e.g., "What is debt-to-income ratio?").
-    Use "all" when the query spans both domains or when uncertain.
+    Use "internal" for app-related questions (e.g., "How do I connect my bank?", "Where is the goals section?").
+    Use "external" for financial education (e.g., "What is debt-to-income ratio?", "What is a 401k?").
+    Use "all" when the query spans both domains (e.g., "How do I track my 401k in Vera?") or when uncertain.
 
     Returns:
         JSON string containing search results with content and source information.

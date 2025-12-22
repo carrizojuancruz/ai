@@ -13,7 +13,6 @@ from app.core.config import config
 from app.observability.logging_config import configure_logging
 
 from .helpers import create_error_command
-from .subgraph import DEFAULT_TEMPERATURE, RECURSION_LIMIT
 from .tools import search_kb
 
 logger = logging.getLogger(__name__)
@@ -22,13 +21,15 @@ logger = logging.getLogger(__name__)
 class WealthAgent:
     """Wealth agent for searching knowledge base and providing financial information."""
 
+    MAX_TOOL_CALLS = 1
+
     def __init__(self):
         logger.info("Initializing WealthAgent with Cerebras models")
 
         self.llm = ChatCerebras(
             model="gpt-oss-120b",
             api_key=config.CEREBRAS_API_KEY,
-            temperature=config.WEALTH_AGENT_TEMPERATURE or DEFAULT_TEMPERATURE,
+            temperature=config.WEALTH_AGENT_TEMPERATURE,
         )
 
     async def process_query_with_agent(self, query: str, user_id: UUID) -> Command:
@@ -43,7 +44,7 @@ class WealthAgent:
 
             logger.info(f"Starting LangGraph agent execution for user {user_id}")
             initial_state = {"messages": messages, "search_count": 0}
-            agent_command = await agent.ainvoke(initial_state, config={"recursion_limit": RECURSION_LIMIT})
+            agent_command = await agent.ainvoke(initial_state)
             logger.info(f"Agent execution completed for user {user_id}")
 
             return agent_command
@@ -58,7 +59,7 @@ class WealthAgent:
         return prompt_loader.load(
             "wealth_agent_system_prompt",
             user_context=user_context,
-            max_tool_calls=config.WEALTH_AGENT_MAX_TOOL_CALLS
+            max_tool_calls=self.MAX_TOOL_CALLS
         )
 
     def _create_agent_with_tools(self):
@@ -71,7 +72,7 @@ class WealthAgent:
             return self._create_system_prompt()
 
         from .subgraph import create_wealth_subgraph
-        return create_wealth_subgraph(self.llm, tools, prompt_builder)
+        return create_wealth_subgraph(self.llm, tools, prompt_builder, max_tool_calls=self.MAX_TOOL_CALLS)
 
 
 def compile_wealth_agent_graph() -> CompiledStateGraph:

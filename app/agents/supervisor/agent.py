@@ -155,7 +155,7 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
     )
     assign_to_goal_agent_with_description = create_task_description_handoff_tool(
         agent_name="goal_agent",
-        description="Assign task to the goal agent for financial objectives.",
+        description="Assign task to the goal agent for managing user goals (create, read, update, delete) and tracking progress.",
         guidelines="""
             Focus on gathering and analyzing the requested data
             Provide comprehensive analysis with insights
@@ -165,7 +165,7 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
     )
     assign_to_wealth_agent_with_description = create_task_description_handoff_tool(
         agent_name="wealth_agent",
-        description="Assign task to a wealth agent for Vera app usage questions AND financial education topics.",
+        description="Assign task to a wealth agent for questions about Vera app features, capabilities, and financial knowledge.",
         destination_agent_name="wealth_router",
         tool_name="transfer_to_wealth_agent",
         guidelines="""
