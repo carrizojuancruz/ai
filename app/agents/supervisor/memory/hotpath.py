@@ -33,6 +33,10 @@ def _collect_recent_user_texts(messages: list[Any], max_messages: int = 3) -> li
 
 def _has_existing_context_profile(messages: list[Any]) -> bool:
     for m in messages:
+        msg_type = getattr(m, "type", getattr(m, "role", None))
+        if msg_type not in ("ai", "assistant", "AIMessage"):
+            continue
+
         content = getattr(m, "content", None)
         if isinstance(content, str) and content.startswith(CONTEXT_PROFILE_PREFIX):
             return True

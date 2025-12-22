@@ -1,4 +1,3 @@
-
 from dotenv import load_dotenv
 
 load_dotenv(".env", override=False)
@@ -79,7 +78,6 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to initialize Supervisor graph (Redis checkpointer): {e}")
 
     try:
-
         ok = await redis_healthcheck()
         if ok:
             logger.info("Redis checkpointer healthcheck passed on startup")
@@ -99,7 +97,12 @@ async def lifespan(app: FastAPI):
             s = result.to_dict()["summary"]
             logger.info(
                 "Supervisor procedural memories seeded: created=%d updated=%d deleted=%d skipped=%d failed=%d total=%d",
-                s["created"], s["updated"], s["deleted"], s["skipped"], s["failed"], s["total"]
+                s["created"],
+                s["updated"],
+                s["deleted"],
+                s["skipped"],
+                s["failed"],
+                s["total"],
             )
             if s["failed"] > 0:
                 logger.warning("Some supervisor procedural memories failed to sync: %d items", s["failed"])
@@ -120,7 +123,12 @@ async def lifespan(app: FastAPI):
             s = result.to_dict()["summary"]
             logger.info(
                 "Finance procedural templates seeded: created=%d updated=%d deleted=%d skipped=%d failed=%d total=%d",
-                s["created"], s["updated"], s["deleted"], s["skipped"], s["failed"], s["total"]
+                s["created"],
+                s["updated"],
+                s["deleted"],
+                s["skipped"],
+                s["failed"],
+                s["total"],
             )
             if s["failed"] > 0:
                 logger.warning("Some finance procedural templates failed to sync: %d items", s["failed"])
@@ -128,6 +136,14 @@ async def lifespan(app: FastAPI):
             logger.warning("Failed to seed finance procedural templates: %s", result.error)
     except Exception as e:
         logger.error(f"Error seeding finance procedural templates: {e}")
+
+    try:
+        from app.services.user_context_cache import start_user_context_cache
+
+        await start_user_context_cache()
+        logger.info("User context cache started successfully")
+    except Exception as e:
+        logger.error(f"Error starting user context cache: {e}")
 
     try:
         yield
@@ -174,6 +190,14 @@ async def lifespan(app: FastAPI):
             logger.info("SQS executor shut down successfully")
         except Exception as e:
             logger.error(f"Error shutting down SQS executor: {e}")
+
+        try:
+            from app.services.user_context_cache import stop_user_context_cache
+
+            await stop_user_context_cache()
+            logger.info("User context cache stopped successfully")
+        except Exception as e:
+            logger.error(f"Error stopping user context cache: {e}")
 
         logger.info("Application shutdown complete")
 
@@ -285,7 +309,9 @@ async def procedurals_health_check() -> dict:
                 "status": status,
                 "count": count,
                 "sample_keys": result.get("sample_keys", []),
-                "message": f"Found {count} supervisor procedural memories" if count > 0 else "No procedural memories found",
+                "message": f"Found {count} supervisor procedural memories"
+                if count > 0
+                else "No procedural memories found",
             }
         else:
             return {

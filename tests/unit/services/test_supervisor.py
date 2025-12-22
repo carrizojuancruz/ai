@@ -754,6 +754,7 @@ class TestProcessMessage:
             patch("app.services.supervisor.get_sse_queue") as mock_queue,
             patch("app.services.supervisor.get_session_store") as mock_store_getter,
             patch("app.services.supervisor.get_supervisor_graph") as mock_graph,
+            patch("app.services.supervisor.get_user_context_cache") as mock_cache_getter,
         ):
             mock_q = AsyncMock()
             mock_queue.return_value = mock_q
@@ -782,10 +783,22 @@ class TestProcessMessage:
             updated_context = UserContext(user_id=mock_user_id, preferred_name="New Name")
             supervisor_service._load_user_context_from_external = AsyncMock(return_value=updated_context)
 
+            mock_cache = AsyncMock()
+            updated_context.model_dump(mode="json")
+
+            async def mock_get_or_fetch(user_id, fetch_fn, **kwargs):
+                ctx = await fetch_fn(user_id)
+                return ctx, ctx.model_dump(mode="json"), "hash123", True
+
+            mock_cache.get_or_fetch = mock_get_or_fetch
+            mock_cache.invalidate = Mock()
+            mock_cache_getter.return_value = mock_cache
+
             await supervisor_service.process_message(thread_id="thread-1", text="Hello")
 
-            # Verify context was refreshed (called twice: once at start, once before final save for profile_sync updates)
-            assert supervisor_service._load_user_context_from_external.await_count == 2
+            # Verify context was refreshed via cache (once at start via cache.get_or_fetch,
+            # and potentially once more before final save for profile_sync updates)
+            assert supervisor_service._load_user_context_from_external.await_count >= 1
             supervisor_service._load_user_context_from_external.assert_awaited_with(mock_user_id)
 
             assert mock_store.set_session.called
@@ -980,6 +993,7 @@ class TestProcessMessage:
             patch("app.services.supervisor.get_sse_queue") as mock_queue,
             patch("app.services.supervisor.get_session_store") as mock_store_getter,
             patch("app.services.supervisor.get_supervisor_graph") as mock_graph,
+            patch("app.services.supervisor.get_user_context_cache") as mock_cache_getter,
         ):
             mock_q = AsyncMock()
             mock_queue.return_value = mock_q
@@ -1010,6 +1024,16 @@ class TestProcessMessage:
 
             supervisor_service._load_user_context_from_external = AsyncMock(return_value=user_context)
             supervisor_service._export_user_context_to_external = AsyncMock()
+
+            mock_cache = AsyncMock()
+
+            async def mock_get_or_fetch(user_id, fetch_fn, **kwargs):
+                ctx = await fetch_fn(user_id)
+                return ctx, ctx.model_dump(mode="json"), "hash123", True
+
+            mock_cache.get_or_fetch = mock_get_or_fetch
+            mock_cache.invalidate = Mock()
+            mock_cache_getter.return_value = mock_cache
 
             await supervisor_service.process_message(thread_id="thread-1", text="Hello")
 

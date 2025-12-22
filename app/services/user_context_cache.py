@@ -214,6 +214,7 @@ class UserContextCache:
     def invalidate(self, user_id: UUID | str) -> bool:
         cache_key = str(user_id)
         entry = self._cache.pop(cache_key, None)
+        self._locks.pop(cache_key, None)
         if entry is not None:
             logger.info("user_context_cache.invalidate user_id=%s", user_id)
             return True
@@ -222,6 +223,7 @@ class UserContextCache:
     def invalidate_all(self) -> int:
         count = len(self._cache)
         self._cache.clear()
+        self._locks.clear()
         logger.info("user_context_cache.invalidate_all count=%d", count)
         return count
 
