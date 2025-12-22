@@ -17,7 +17,7 @@ class InputGuardrailMiddleware:
     def __init__(self, config: dict = None):
         self.config = config or {}
         self.enabled_checks = self.config.get("enabled_checks", [
-            "pii", "injection", "blocked_topics"
+            "injection", "blocked_topics"
         ])
         self.use_llm_classifier = self.config.get("use_llm_classifier", False)
 

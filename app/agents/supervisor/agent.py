@@ -185,7 +185,7 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
         input_config={
             "use_llm_classifier": True,
             "llm_confidence_threshold": 0.7,
-            "enabled_checks": ["injection", "pii", "blocked_topics", "internal_exposure"],
+            "enabled_checks": ["injection", "blocked_topics", "internal_exposure"],
         },
         output_config={
             "use_llm_classifier": False,
