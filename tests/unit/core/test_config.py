@@ -121,7 +121,8 @@ class TestConfigHelperMethods:
              patch.object(Config, 'DATABASE_PASSWORD', 'test_password'), \
              patch.object(Config, 'DATABASE_HOST', 'localhost'), \
              patch.object(Config, 'DATABASE_PORT', '5432'), \
-             patch.object(Config, 'DATABASE_NAME', 'test_db'):
+             patch.object(Config, 'DATABASE_NAME', 'test_db'), \
+             patch.object(Config, 'DATABASE_URL', None):
 
             result = Config.get_database_url()
             expected = "postgresql+asyncpg://test_user:test_password@localhost:5432/test_db"
