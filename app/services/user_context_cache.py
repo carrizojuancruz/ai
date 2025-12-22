@@ -240,7 +240,6 @@ class UserContextCache:
 
 
 _user_context_cache: UserContextCache | None = None
-_cache_init_lock = asyncio.Lock()
 
 
 def get_user_context_cache() -> UserContextCache:
