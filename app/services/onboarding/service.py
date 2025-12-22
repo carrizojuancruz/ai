@@ -28,6 +28,7 @@ from app.services.external_context.user.mapping import (
 )
 from app.services.external_context.user.profile_metadata import build_profile_metadata_payload
 from app.services.external_context.user.repository import ExternalUserRepository
+from app.services.user_context_cache import get_user_context_cache
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,15 @@ class OnboardingService:
                             "[USER CONTEXT EXPORT] Profile metadata update returned no body for user %s",
                             state.user_id,
                         )
+
+            try:
+                cache = get_user_context_cache()
+                cache.invalidate(state.user_id)
+                logger.info("[USER CONTEXT EXPORT] Invalidated user context cache for user %s", state.user_id)
+            except Exception as cache_err:
+                logger.warning(
+                    "[USER CONTEXT EXPORT] Failed to invalidate cache for user %s: %s", state.user_id, cache_err
+                )
 
             session_ctx["fos_exported"] = True
             await session_store.set_session(thread_id, session_ctx)

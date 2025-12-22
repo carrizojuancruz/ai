@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from langchain_core.messages import AIMessage
@@ -10,6 +11,10 @@ from langgraph.graph import MessagesState
 from app.utils.tools import get_config_value
 
 from .utils import _build_profile_line
+
+logger = logging.getLogger(__name__)
+
+CONTEXT_PROFILE_PREFIX: str = "CONTEXT_PROFILE:"
 
 
 def _collect_recent_user_texts(messages: list[Any], max_messages: int = 3) -> list[str]:
@@ -26,14 +31,54 @@ def _collect_recent_user_texts(messages: list[Any], max_messages: int = 3) -> li
     return list(reversed(recent_user_texts))
 
 
+def _has_existing_context_profile(messages: list[Any]) -> bool:
+    for m in messages:
+        content = getattr(m, "content", None)
+        if isinstance(content, str) and content.startswith(CONTEXT_PROFILE_PREFIX):
+            return True
+    return False
+
+
+def _should_inject_profile(
+    messages: list[Any],
+    user_context_changed: bool,
+) -> bool:
+    has_existing = _has_existing_context_profile(messages)
+
+    return not has_existing or user_context_changed
+
+
 async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
-    """Inject profile line and trigger cold-path memory creation if needed."""
+    """Inject profile line and trigger cold-path memory creation if needed.
+
+    Profile injection is conditional:
+    - First request: always inject profile
+    - Subsequent requests: only inject if user context has changed
+    """
     ctx = get_config_value(config, "user_context") or {}
-    prof = _build_profile_line(ctx) if isinstance(ctx, dict) else None
+    user_context_changed = get_config_value(config, "user_context_changed") or False
+    messages = state.get("messages", [])
+
+    should_inject = _should_inject_profile(messages, user_context_changed)
+    prof = None
+
+    if should_inject:
+        prof = _build_profile_line(ctx) if isinstance(ctx, dict) else None
+        if prof:
+            logger.info(
+                "memory.hotpath.profile.inject thread_id=%s context_changed=%s",
+                get_config_value(config, "thread_id"),
+                user_context_changed,
+            )
+    else:
+        logger.debug(
+            "memory.hotpath.profile.skip thread_id=%s context_changed=%s",
+            get_config_value(config, "thread_id"),
+            user_context_changed,
+        )
 
     # Collect recent user texts and submit cold-path memory processing if needed.
     # All LLM decisions and memory write/merge operations happen in the cold path.
-    messages = state.get("messages", [])
     recent_user_texts = _collect_recent_user_texts(messages, max_messages=3)
 
     if recent_user_texts:
@@ -66,9 +111,6 @@ async def memory_hotpath(state: MessagesState, config: RunnableConfig) -> dict:
                     event_loop=event_loop,
                 )
             except Exception as e:
-                import logging
-
-                logger = logging.getLogger(__name__)
                 logger.error(
                     "memory.hotpath.submit.error: thread_id=%s user_id=%s error=%s",
                     thread_id,

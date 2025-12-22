@@ -13,6 +13,7 @@ from app.services.external_context.user.mapping import map_ai_context_to_user_co
 from app.services.external_context.user.profile_metadata import build_profile_metadata_payload
 from app.services.external_context.user.repository import ExternalUserRepository
 from app.services.onboarding.context_patching import context_patching_service
+from app.services.user_context_cache import get_user_context_cache
 
 logger = logging.getLogger(__name__)
 
@@ -186,6 +187,17 @@ async def _profile_sync_from_memory(user_id: str, thread_id: Optional[str], valu
                                 "[PROFILE_SYNC] Profile metadata update returned no body for user %s",
                                 state.user_context.user_id,
                             )
+
+                try:
+                    cache = get_user_context_cache()
+                    cache.invalidate(state.user_context.user_id)
+                    logger.info("[PROFILE_SYNC] Invalidated user context cache for user %s", state.user_context.user_id)
+                except Exception as cache_err:
+                    logger.warning(
+                        "[PROFILE_SYNC] Failed to invalidate cache for user %s: %s",
+                        state.user_context.user_id,
+                        cache_err,
+                    )
 
                 logger.info("profile_sync.applied: %s", json.dumps(changed)[:400])
         except Exception as e:

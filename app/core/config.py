@@ -96,6 +96,8 @@ class Config:
     MEMORY_CONTEXT_TOPN: Optional[int] = get_optional_value("MEMORY_CONTEXT_TOPN", int)
     MEMORY_RERANK_WEIGHTS: str = os.getenv("MEMORY_RERANK_WEIGHTS")
 
+    USER_CONTEXT_CACHE_TTL_SECONDS: Optional[int] = get_optional_value("USER_CONTEXT_CACHE_TTL_SECONDS", int)
+
     # Procedural Memory (Supervisor) Configuration
     MEMORY_PROCEDURAL_TOPK: Optional[int] = get_optional_value("MEMORY_PROCEDURAL_TOPK", int)
     MEMORY_PROCEDURAL_MIN_SCORE: Optional[float] = get_optional_value("MEMORY_PROCEDURAL_MIN_SCORE", float)

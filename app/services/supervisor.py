@@ -48,6 +48,7 @@ from app.services.llm.extended_description import (
     schedule_extended_description_update,
 )
 from app.services.location.normalizer import location_normalizer
+from app.services.user_context_cache import get_user_context_cache
 from app.utils.mapping import get_source_name
 from app.utils.tools import check_repeated_sources
 from app.utils.welcome import call_llm, generate_personalized_welcome
@@ -725,22 +726,42 @@ class SupervisorService:
         conversation_messages = session_ctx.get("conversation_messages", [])
         conversation_messages.append({"role": "user", "content": text.strip(), "sources": sources})
 
-        # Refresh UserContext and financial data flags each turn to avoid stale data
+        # Load user context with caching - only fetches from external if cache miss or expired
         user_id = session_ctx.get("user_id")
+        user_context_changed = False
         if user_id:
             uid = UUID(user_id)
-            ctx = await self._load_user_context_from_external(uid)
-            session_ctx["user_context"] = ctx.model_dump(mode="json")
+            cache = get_user_context_cache()
+            ctx, ctx_dict, ctx_hash, _cache_changed = await cache.get_or_fetch(
+                uid,
+                self._load_user_context_from_external,
+            )
+            old_hash = session_ctx.get("user_context_hash")
+            user_context_changed = old_hash is None or old_hash != ctx_hash
 
-            await self._refresh_financial_data_flags(uid, session_ctx)
+            if user_context_changed:
+                session_ctx["user_context"] = ctx_dict
+                session_ctx["user_context_hash"] = ctx_hash
+                logger.info(
+                    "[SUPERVISOR] User context updated for thread %s: old_hash=%s new_hash=%s",
+                    thread_id,
+                    old_hash[:8] if old_hash else None,
+                    ctx_hash[:8],
+                )
 
-            await session_store.set_session(thread_id, session_ctx)
+            # Refresh financial data flags each turn to detect newly added data
+            _, _, financial_flags_changed = await self._refresh_financial_data_flags(uid, session_ctx)
+
+            # Save session if either user context or financial flags changed
+            if user_context_changed or financial_flags_changed:
+                await session_store.set_session(thread_id, session_ctx)
 
         configurable = {
             "thread_id": thread_id,
             "session_id": thread_id,
             **session_ctx,
             "user_id": user_id,
+            "user_context_changed": user_context_changed,
         }
 
         # Add goal agent callback to configurable for propagation to workers
@@ -1279,8 +1300,10 @@ class SupervisorService:
                 user_ctx_dict = session_ctx.get("user_context", {})
                 if user_ctx_dict:
                     ctx = UserContext.model_validate(user_ctx_dict)
-                    ctx = await self._load_user_context_from_external(ctx.user_id)
-                    await self._export_user_context_to_external(ctx)
+                    export_success = await self._export_user_context_to_external(ctx)
+                    if export_success:
+                        cache = get_user_context_cache()
+                        cache.invalidate(ctx.user_id)
 
         except Exception as e:
             logger.exception(f"Failed to store conversation for thread {thread_id}: {e}")
