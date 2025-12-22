@@ -67,7 +67,16 @@ async def _reconnect_engine():
             await _engine.dispose()
             logger.info("Database engine disposed for reconnection")
 
-        # Recreate engine with new connection
+        connect_args = {
+            "server_settings": {
+                "application_name": "verde-ai",
+                "timezone": "UTC"
+            },
+            "timeout": 10.0,
+            "command_timeout": 60.0,
+            "ssl": "require",
+        }
+
         _engine = create_async_engine(
             DATABASE_URL,
             echo=False,
@@ -79,14 +88,7 @@ async def _reconnect_engine():
             pool_recycle=1800,               # Recycle connections every 30 min
             pool_pre_ping=True,              # Health check before using connection
             # Connection Configuration for asyncpg
-            connect_args={
-                "server_settings": {
-                    "application_name": "verde-ai",
-                    "timezone": "UTC"
-                },
-                "timeout": 10.0,             # Connection timeout for asyncpg
-                "command_timeout": 60.0,     # Query timeout for asyncpg
-            }
+            connect_args=connect_args
         )
 
         # Recreate session factory
@@ -113,6 +115,16 @@ def _get_engine():
     global _engine, _connection_health_check_task
     if _engine is None:
         try:
+            connect_args = {
+                "server_settings": {
+                    "application_name": "verde-ai",
+                    "timezone": "UTC"
+                },
+                "timeout": 10.0,
+                "command_timeout": 60.0,
+                "ssl": "require",
+            }
+
             _engine = create_async_engine(
                 DATABASE_URL,
                 echo=False,
@@ -124,14 +136,7 @@ def _get_engine():
                 pool_recycle=1800,               # Recycle connections every 30 min
                 pool_pre_ping=True,              # Health check before using connection
                 # Connection Configuration for asyncpg
-                connect_args={
-                    "server_settings": {
-                        "application_name": "verde-ai",
-                        "timezone": "UTC"
-                    },
-                    "timeout": 10.0,             # Connection timeout for asyncpg
-                    "command_timeout": 60.0,     # Query timeout for asyncpg
-                }
+                connect_args=connect_args
             )
 
             # Start periodic health check

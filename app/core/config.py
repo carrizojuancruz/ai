@@ -6,6 +6,7 @@ Centralizes all environment variables and provides type-safe access to configura
 import logging
 import os
 from typing import Optional, TypeVar
+from urllib.parse import quote_plus
 
 from app.core.aws_config import AWSConfig
 
@@ -261,6 +262,7 @@ class Config:
     DATABASE_USER: str = os.getenv("DATABASE_USER")
     DATABASE_PASSWORD: str = os.getenv("DATABASE_PASSWORD")
     DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL")
+    AURORA_SECRET_ARN: Optional[str] = os.getenv("AURORA_SECRET_ARN")
 
     # External Services Configuration
     FOS_SERVICE_URL: Optional[str] = os.getenv("FOS_SERVICE_URL")
@@ -393,7 +395,12 @@ class Config:
     @classmethod
     def get_database_url(cls) -> str:
         """Generate database URL if not provided via environment."""
-        return f"postgresql+asyncpg://{cls.DATABASE_USER}:{cls.DATABASE_PASSWORD}@{cls.DATABASE_HOST}:{cls.DATABASE_PORT}/{cls.DATABASE_NAME}"
+        if cls.DATABASE_URL:
+            return cls.DATABASE_URL
+            
+        password = quote_plus(cls.DATABASE_PASSWORD) if cls.DATABASE_PASSWORD else ""
+        user = quote_plus(cls.DATABASE_USER) if cls.DATABASE_USER else ""
+        return f"postgresql+asyncpg://{user}:{password}@{cls.DATABASE_HOST}:{cls.DATABASE_PORT}/{cls.DATABASE_NAME}"
 
     @classmethod
     def is_langfuse_enabled(cls) -> bool:

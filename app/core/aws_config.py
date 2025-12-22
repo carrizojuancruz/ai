@@ -55,12 +55,6 @@ class AWSConfig:
             return {}
 
     def _process_nested_secrets(self, client, secret_data: dict[str, Any]) -> dict[str, Any]:
-        if AURORA_SECRET_ARN_KEY in secret_data:
-            aurora_credentials = self._fetch_secret(client, secret_data[AURORA_SECRET_ARN_KEY], "Aurora")
-            if aurora_credentials:
-                secret_data[DATABASE_USER_KEY] = aurora_credentials.get("username")
-                secret_data[DATABASE_PASSWORD_KEY] = aurora_credentials.get("password")
-                logger.info("Mapped Aurora credentials to database variables")
         if FOS_AI_SECRET_ARN_KEY in secret_data:
             fos_ai_secret = self._fetch_secret(client, secret_data[FOS_AI_SECRET_ARN_KEY], "FOS_AI")
             if fos_ai_secret:
@@ -94,6 +88,12 @@ class AWSConfig:
                     mapped["REDIS_PORT"] = str(redis_secret["port"]) if redis_secret["port"] is not None else None
                 secret_data.update({k: v for k, v in mapped.items() if v is not None})
                 logger.info("Applied Redis secret variables: %s", ", ".join(sorted(mapped.keys())))
+        if AURORA_SECRET_ARN_KEY in secret_data:
+            aurora_credentials = self._fetch_secret(client, secret_data[AURORA_SECRET_ARN_KEY], "Aurora")
+            if aurora_credentials:
+                secret_data[DATABASE_USER_KEY] = aurora_credentials.get("username")
+                secret_data[DATABASE_PASSWORD_KEY] = aurora_credentials.get("password")
+                logger.info("Mapped Aurora credentials to database variables")
         return secret_data
 
 
