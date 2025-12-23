@@ -65,7 +65,7 @@ def preprocess_goal_data(data, user_id: str, is_update: bool = False) -> dict:
         if 'frequency' not in data_dict or not data_dict['frequency']:
             kind = data_dict.get('kind')
             is_habit = kind in [GoalKind.FINANCIAL_HABIT.value, GoalKind.NONFIN_HABIT.value]
-            
+
             if is_habit:
                 now = datetime.now()
                 data_dict['frequency'] = {
