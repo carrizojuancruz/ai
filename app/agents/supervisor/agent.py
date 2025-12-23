@@ -135,7 +135,8 @@ def compile_supervisor_graph(checkpointer=None) -> CompiledStateGraph:
         tool_name="transfer_to_finance_agent",
         guidelines="""
             Answer exactly the financial metric(s) requested; no extra metrics unless asked.
-            Use one well-structured SQL statement to compute the result; avoid probes/pre-checks (SELECT 1/COUNT/EXISTS).
+            Follow your system prompt tool mandates for canonical reports and only write SQL when those mandates do not apply.
+            If writing SQL, use one well-structured SQL statement to compute the result; avoid probes/pre-checks (SELECT 1/COUNT/EXISTS).
             Minimize tool calls; the database is fast but tool invocations are expensive.
             If the metric is computed, return immediately; do NOT run supplemental queries (count/first/last).
             State the timeframe used; keep the response concise.

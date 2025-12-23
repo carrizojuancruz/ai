@@ -908,7 +908,7 @@ def build_finance_system_prompt_local(
         - Do NOT run schema discovery or validation queries
         - For single-metric requests, execute exactly ONE SQL statement that returns the metric; do not run pre-checks or repeats
         - If you already computed the requested metric(s), do NOT add supplemental queries (COUNT/first/last/etc.). Return the answer immediately
-        - For any net worth related request (e.g., "net worth", "assets minus liabilities", "balance sheet"), you MUST call the `net_worth_summary` tool (never write SQL for it). Call once; if it returns `FINANCE_STATUS: PLAID_DATA_REQUIRED`, stop further tool calls and return that status as the result.
+        - For any net worth or balance-sheet style request (e.g., "net worth", "assets minus liabilities", "balance sheet", "list all my assets and liabilities", "what assets and liabilities do I have"), you MUST call the `net_worth_summary` tool (never write SQL for it). Call once; if it returns `FINANCE_STATUS: PLAID_DATA_REQUIRED`, stop further tool calls and return that status as the result.
         - For any income vs expense / cash flow report request (e.g., "income and expenses", "cash flow", "savings rate", "expense breakdown"), you MUST call the `income_expense_summary` tool (never write SQL for it). Call once; if it returns `FINANCE_STATUS: PLAID_DATA_REQUIRED`, stop and surface that status.
 
         ## How to Avoid Pre-checks
@@ -1027,6 +1027,7 @@ def build_finance_system_prompt_local(
         - Use transaction_date for time filtering. If no timeframe provided, use last 30 days; do not expand silently.
         - Apply is_active = true when the task requests current assets, liabilities, or accounts.
         - For account-level queries, use account_type to distinguish regular (checking/savings), investments (401k/ira/brokerage), and liabilities (credit/loan/mortgage).
+        - CRITICAL: When classifying unified_accounts rows into assets vs liabilities, use account_type (credit/loan/mortgage => liabilities; checking/savings/investment/ira/401k/brokerage => assets). Do NOT infer type from which balance field is populated; credit cards often have current_balance while principal_balance is NULL.
 
         ## Query Generation Rules
 
