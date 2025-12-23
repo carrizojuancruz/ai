@@ -56,12 +56,42 @@ This goal agent analysis is provided to the supervisor for final user response f
 
         def supervisor_node(state: MessagesState) -> dict:
             """Supervisor node that formats the final response."""
-            user_question = ""
-            for msg in state["messages"]:
-                if hasattr(msg, "content") and getattr(msg, "type", None) == "human":
-                    user_question = str(msg.content)
-                    break
+            def _is_delegation_message(content: str) -> bool:
+                """Check if message is a delegation/handoff message from supervisor."""
+                if not isinstance(content, str):
+                    return False
+                lower_content = content.lower()
+                return (
+                    "complete the following task as a specialized agent" in lower_content
+                    or "guidelines:" in lower_content
+                    or "{task_description}" in content
+                )
 
+            def _sanitize_format_string(text: str) -> str:
+                """Escape curly braces to prevent format string injection."""
+                if not isinstance(text, str):
+                    return ""
+                # Replace { and } with {{ and }} to escape them for .format()
+                return text.replace("{", "{{").replace("}", "}}")
+
+            # Extract the last actual user message (not delegation messages)
+            user_question = ""
+            for msg in reversed(state["messages"]):
+                msg_type = getattr(msg, "type", None)
+                if msg_type is None and isinstance(msg, dict):
+                    msg_type = msg.get("type")
+
+                if msg_type == "human":
+                    content = getattr(msg, "content", None)
+                    if content is None and isinstance(msg, dict):
+                        content = msg.get("content")
+
+                    content_str = str(content) if content else ""
+                    if content_str and not _is_delegation_message(content_str):
+                        user_question = content_str
+                        break
+
+            # Extract the latest assistant response (analysis)
             analysis_content = ""
             for msg in reversed(state["messages"]):
                 if (msg.__class__.__name__ == "AIMessage" and
@@ -77,9 +107,13 @@ This goal agent analysis is provided to the supervisor for final user response f
             if not analysis_content.strip():
                 analysis_content = self.DEFAULT_ANALYSIS_CONTENT
 
+            # Sanitize inputs before formatting to prevent format string injection
+            safe_user_question = _sanitize_format_string(user_question)
+            safe_analysis_content = _sanitize_format_string(analysis_content)
+
             formatted_response = self.RESPONSE_TEMPLATE.format(
-                user_question=user_question,
-                analysis_content=analysis_content
+                user_question=safe_user_question,
+                analysis_content=safe_analysis_content
             )
 
             return {
