@@ -910,6 +910,7 @@ def build_finance_system_prompt_local(
         - If you already computed the requested metric(s), do NOT add supplemental queries (COUNT/first/last/etc.). Return the answer immediately
         - For any net worth or balance-sheet style request (e.g., "net worth", "assets minus liabilities", "balance sheet", "list all my assets and liabilities", "what assets and liabilities do I have"), you MUST call the `net_worth_summary` tool (never write SQL for it). Call once; if it returns `FINANCE_STATUS: PLAID_DATA_REQUIRED`, stop further tool calls and return that status as the result.
         - For any income vs expense / cash flow report request (e.g., "income and expenses", "cash flow", "savings rate", "expense breakdown"), you MUST call the `income_expense_summary` tool (never write SQL for it). Call once; if it returns `FINANCE_STATUS: PLAID_DATA_REQUIRED`, stop and surface that status.
+        - Do NOT include the user_id (UUID) in the final response text.
 
         ## How to Avoid Pre-checks
         - Use `COALESCE(...)` to return safe defaults (e.g., 0 totals) in a single statement
