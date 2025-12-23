@@ -325,7 +325,7 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> Command
             return _create_error_command("ERROR: No task description provided for analysis.")
 
         finance_agent_instance = get_finance_agent()
-        
+
         has_plaid_accounts = False
         try:
             db_service = get_database_service()
