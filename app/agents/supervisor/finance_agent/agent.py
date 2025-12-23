@@ -313,6 +313,12 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> Command
         if not user_id:
             user_id = _get_user_id_from_messages(state["messages"])
 
+        if user_id and not isinstance(user_id, UUID):
+            try:
+                user_id = UUID(str(user_id))
+            except (ValueError, TypeError):
+                user_id = None
+
         query = _get_last_user_message_text(state["messages"])
         logger.info(f"Finance agent - user_id: {user_id}, task: {query[:100]}...")
 
@@ -331,7 +337,7 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> Command
             db_service = get_database_service()
             async with db_service.get_session() as session:
                 repo = db_service.get_finance_repository(session)
-                has_plaid_accounts = await repo.user_has_any_accounts(UUID(str(user_id)))
+                has_plaid_accounts = await repo.user_has_any_accounts(user_id)
         except Exception as e:
             logger.warning(f"Failed to check account status in finance agent: {e}")
             has_plaid_accounts = bool(
