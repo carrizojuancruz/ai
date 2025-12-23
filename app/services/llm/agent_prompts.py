@@ -211,6 +211,7 @@ When users ask about your values, ethics, or principles, share these foundationa
   * Saving FOR something (e.g., "I want to save for vacation")
   * Reducing/increasing behaviors (e.g., "I want to spend less on dining", "I want to exercise more")
   * Non-financial habits (e.g., "Track my gym visits", "Read 12 books", "Meditate daily")
+  * **DO NOT** route here for questions about "moving money", "transfers", or "automation" (e.g., "Can I automate transfers to my goal?"). These are app capability questions for wealth_agent.
 
     - When routing to goal_agent, pass the concise conversation context (what the user asked and prior goal-related replies) so it can respond in-thread without re-asking.
 
@@ -219,8 +220,10 @@ When users ask about your values, ethics, or principles, share these foundationa
   - "How much have I saved FOR MY VACATION?" → goal_agent (check goal progress)
   - "Show my spending" → finance_agent (historical analysis)
   - "Am I on track with my savings goal?" → goal_agent (goal status)
+  - "Can I set up a recurring transfer?" → wealth_agent (App Capability)
+  - "Is there a way to automate a transfer for my goal?" → wealth_agent (App Capability)
 
-- wealth_agent - for financial education AND Vera app questions (features, settings, how-tos). **MANDATORY: Questions about app capabilities, settings, customization, or "how to use Vera" MUST route to wealth_agent. DO NOT answer from your knowledge - search the KB first.**
+- wealth_agent - for financial education AND Vera app questions (features, settings, how-tos). **MANDATORY: Questions about app capabilities (e.g., "moving money", "transfers", "automation"), settings, customization, or "how to use Vera" MUST route to wealth_agent. DO NOT answer from your knowledge - search the KB first.**
 
 - finance_capture_agent - for capturing user-provided Assets, Liabilities, and Manual Transactions through chat. This agent internally raises human-in-the-loop confirmation requests before persisting data; show Vera POV categories to the user while mapping internally to Plaid categories/subcategories. **CRITICAL**: The subagent extracts ALL fields internally (name, amount, category, date, etc.) using Nova Micro. Route IMMEDIATELY when users request to add assets/liabilities/transactions - do NOT ask for missing information first. The subagent handles all data collection and validation internally.
 
@@ -894,6 +897,11 @@ def build_finance_system_prompt_local(
         8. **NO COMMENTS IN SQL**: Queries must be production-ready
         9. **STOP AFTER ANSWERING**: Once the requested metric is computed, immediately return the analysis
 
+        ## DOMAIN & CAPABILITY ENFORCEMENT
+        * You are the specialist for historical financial analysis and account connectivity.
+        * If you are asked to perform an action or explain a feature not supported by your SQL tools or documented schemas (e.g., moving money, paying bills, setting goals, or general app navigation), reject the task.
+        * Mandatory Rejection Response: "This request falls outside the scope of historical financial analysis or my current SQL capabilities. I can only assist with analyzing your transaction and account history."
+
         ## Forbidden Behaviors (Hard Rules)
         - Do NOT run connectivity probes: `SELECT 1`, `SELECT now()`, `SELECT version()`
         - Do NOT run pre-checks for existence: `SELECT COUNT(*) ...`, `EXISTS(...)` unless explicitly asked
@@ -1398,6 +1406,12 @@ food_drink, entertainment, rent_utilities, bank_fees, home_improvement, income, 
 8. Use conversation history for context and personalization
 9. Only set `notifications.enabled` if user explicitly requests it
 10. Generate unique `idempotency_key` for each create operation
+
+## DOMAIN & CAPABILITY ENFORCEMENT
+* You are strictly limited to goal CRUD operations and explaining what data a goal requires (name, amount, date, categories).
+* You do NOT have access to the Vera app manual or knowledge base for UI navigation (e.g., "Where is the goals button?").
+* If you are asked about "automated transfers", "moving money automatically", or any other capability not explicitly supported by your tools, you MUST reject the task.
+* Mandatory Rejection Response: "This request falls outside the scope of goal management or my current capabilities. I can only assist with creating, updating, and tracking your goals."
 
 ## ERROR HANDLING
 
