@@ -325,13 +325,23 @@ async def finance_agent(state: MessagesState, config: RunnableConfig) -> Command
             return _create_error_command("ERROR: No task description provided for analysis.")
 
         finance_agent_instance = get_finance_agent()
-        has_plaid_accounts = bool(
-            get_config_value(
-                config,
-                "has_plaid_accounts",
-                get_config_value(config, "has_financial_accounts", False),
+        
+        has_plaid_accounts = False
+        try:
+            db_service = get_database_service()
+            async with db_service.get_session() as session:
+                repo = db_service.get_finance_repository(session)
+                has_plaid_accounts = await repo.user_has_any_accounts(UUID(str(user_id)))
+        except Exception as e:
+            logger.warning(f"Failed to check account status in finance agent: {e}")
+            has_plaid_accounts = bool(
+                get_config_value(
+                    config,
+                    "has_plaid_accounts",
+                    get_config_value(config, "has_financial_accounts", False),
+                )
             )
-        )
+
         availability = FinanceDataAvailability(has_plaid_accounts=has_plaid_accounts)
         agent_command = await finance_agent_instance.process_query_with_agent(query, user_id, availability)
 
