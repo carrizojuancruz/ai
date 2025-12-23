@@ -33,13 +33,15 @@ class ToolDescriptions:
     OPTIONAL FIELDS (auto-completed with defaults):
     - category: {value: str} - One of: saving, spending, debt, income, investment, net_worth, other
     - nature: {value: str} - Either "increase" or "reduce"
-    - kind: str - One of: financial_habit, financial_punctual, nonfin_habit, nonfin_punctual
-    - frequency: {type: str, ...} - Object defining evaluation calendar (see Frequency section below)
+
+    CONDITIONAL FIELDS (Important):
+    - kind: str - Defaults to "financial_habit". MUST be set to "financial_punctual" for one-time goals.
+    - frequency: {type: str, ...} - REQUIRED for punctual goals (specific date). Defaults to monthly recurrent for habits.
     - notifications: {enabled: bool, min_gap_hours?: int} - Do not assume a default; only set this if the user explicitly asks to enable/disable reminders. If omitted, do not state a notifications status.
 
     GOAL KINDS:
     - financial_habit: Recurring financial goals (e.g., save $500/month). REQUIRES evaluation.affected_categories.
-    - financial_punctual: One-time financial goals (e.g., save $10,000 by Dec 31). REQUIRES evaluation.affected_categories.
+    - financial_punctual: One-time financial goals (e.g., save $10,000 by Dec 31). REQUIRES evaluation.affected_categories AND frequency.specific.date.
     - nonfin_habit: Recurring non-financial goals (e.g., exercise 3x/week). Optional nonfin_category for taxonomy.
     - nonfin_punctual: One-time non-financial goals (e.g., read 12 books this year). Optional nonfin_category.
 

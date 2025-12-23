@@ -63,16 +63,20 @@ def preprocess_goal_data(data, user_id: str, is_update: bool = False) -> dict:
 
         # Ensure 'frequency' field exists with default recurrent monthly
         if 'frequency' not in data_dict or not data_dict['frequency']:
-            now = datetime.now()
-            data_dict['frequency'] = {
-                'type': 'recurrent',
-                'recurrent': {
-                    'unit': FrequencyUnit.MONTH.value,
-                    'every': 1,
-                    'start_date': now.isoformat(),
-                    'end_date': (now + timedelta(days=365)).isoformat()  # 1 year from now
+            kind = data_dict.get('kind')
+            is_habit = kind in [GoalKind.FINANCIAL_HABIT.value, GoalKind.NONFIN_HABIT.value]
+            
+            if is_habit:
+                now = datetime.now()
+                data_dict['frequency'] = {
+                    'type': 'recurrent',
+                    'recurrent': {
+                        'unit': FrequencyUnit.MONTH.value,
+                        'every': 1,
+                        'start_date': now.isoformat(),
+                        'end_date': (now + timedelta(days=365)).isoformat()  # 1 year from now
+                    }
                 }
-            }
         elif isinstance(data_dict['frequency'], dict) and data_dict['frequency'].get('type') == 'recurrent':
             # Ensure recurrent frequency has all required fields
             if 'recurrent' not in data_dict['frequency']:
