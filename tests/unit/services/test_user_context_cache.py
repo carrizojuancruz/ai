@@ -5,20 +5,13 @@ from uuid import UUID
 
 import pytest
 
+import app.services.user_context_cache as user_context_cache_module
 from app.models.user import UserContext
-from app.services.user_context_cache import (
-    DEFAULT_CACHE_TTL_SECONDS,
-    CachedUserContextEntry,
-    UserContextCache,
-    get_user_context_cache,
-    start_user_context_cache,
-    stop_user_context_cache,
-)
 
 
 @pytest.fixture
 def cache():
-    return UserContextCache(ttl_seconds=60)
+    return user_context_cache_module.UserContextCache(ttl_seconds=60)
 
 
 @pytest.fixture
@@ -49,11 +42,11 @@ def mock_context_dict():
 
 class TestUserContextCacheInit:
     def test_default_ttl(self):
-        cache = UserContextCache()
-        assert cache._ttl_seconds == DEFAULT_CACHE_TTL_SECONDS
+        cache = user_context_cache_module.UserContextCache()
+        assert cache._ttl_seconds == user_context_cache_module.DEFAULT_CACHE_TTL_SECONDS
 
     def test_custom_ttl(self):
-        cache = UserContextCache(ttl_seconds=120)
+        cache = user_context_cache_module.UserContextCache(ttl_seconds=120)
         assert cache._ttl_seconds == 120
 
     def test_initial_state(self, cache):
@@ -65,13 +58,13 @@ class TestUserContextCacheInit:
 class TestVolatileFieldStripping:
     def test_strips_created_at(self):
         data = {"name": "Test", "created_at": "2025-01-01T00:00:00"}
-        result = UserContextCache._strip_volatile_fields(data)
+        result = user_context_cache_module.UserContextCache._strip_volatile_fields(data)
         assert "created_at" not in result
         assert result["name"] == "Test"
 
     def test_strips_updated_at(self):
         data = {"name": "Test", "updated_at": "2025-01-01T00:00:00"}
-        result = UserContextCache._strip_volatile_fields(data)
+        result = user_context_cache_module.UserContextCache._strip_volatile_fields(data)
         assert "updated_at" not in result
         assert result["name"] == "Test"
 
@@ -84,7 +77,7 @@ class TestVolatileFieldStripping:
                 "updated_at": "2025-01-01T00:00:00",
             },
         }
-        result = UserContextCache._strip_volatile_fields(data)
+        result = user_context_cache_module.UserContextCache._strip_volatile_fields(data)
         assert "created_at" not in result["nested"]
         assert "updated_at" not in result["nested"]
         assert result["nested"]["value"] == 123
@@ -96,7 +89,7 @@ class TestVolatileFieldStripping:
                 {"id": 2, "updated_at": "2025-01-02"},
             ]
         }
-        result = UserContextCache._strip_volatile_fields(data)
+        result = user_context_cache_module.UserContextCache._strip_volatile_fields(data)
         assert "created_at" not in result["items"][0]
         assert "updated_at" not in result["items"][1]
         assert result["items"][0]["id"] == 1
@@ -109,7 +102,7 @@ class TestVolatileFieldStripping:
             "city": "NYC",
             "created_at": "2025-01-01",
         }
-        result = UserContextCache._strip_volatile_fields(data)
+        result = user_context_cache_module.UserContextCache._strip_volatile_fields(data)
         assert result["name"] == "Test"
         assert result["age"] == 25
         assert result["city"] == "NYC"
@@ -119,22 +112,26 @@ class TestHashComputation:
     def test_same_content_same_hash(self):
         data1 = {"name": "Test", "value": 123}
         data2 = {"name": "Test", "value": 123}
-        assert UserContextCache.compute_hash(data1) == UserContextCache.compute_hash(data2)
+        hash_func = user_context_cache_module.UserContextCache.compute_hash
+        assert hash_func(data1) == hash_func(data2)
 
     def test_different_content_different_hash(self):
         data1 = {"name": "Test1", "value": 123}
         data2 = {"name": "Test2", "value": 123}
-        assert UserContextCache.compute_hash(data1) != UserContextCache.compute_hash(data2)
+        hash_func = user_context_cache_module.UserContextCache.compute_hash
+        assert hash_func(data1) != hash_func(data2)
 
     def test_volatile_fields_ignored_in_hash(self):
         data1 = {"name": "Test", "created_at": "2025-01-01T00:00:00"}
         data2 = {"name": "Test", "created_at": "2025-12-31T23:59:59"}
-        assert UserContextCache.compute_hash(data1) == UserContextCache.compute_hash(data2)
+        hash_func = user_context_cache_module.UserContextCache.compute_hash
+        assert hash_func(data1) == hash_func(data2)
 
     def test_hash_is_deterministic(self):
         data1 = {"b": 2, "a": 1}
         data2 = {"a": 1, "b": 2}
-        assert UserContextCache.compute_hash(data1) == UserContextCache.compute_hash(data2)
+        hash_func = user_context_cache_module.UserContextCache.compute_hash
+        assert hash_func(data1) == hash_func(data2)
 
 
 class TestCacheOperations:
@@ -176,7 +173,7 @@ class TestCacheOperations:
 class TestCacheExpiration:
     @pytest.mark.asyncio
     async def test_expired_entry_triggers_refetch(self, mock_user_id, mock_user_context):
-        cache = UserContextCache(ttl_seconds=1)
+        cache = user_context_cache_module.UserContextCache(ttl_seconds=1)
         mock_fetch = AsyncMock(return_value=mock_user_context)
         mock_user_context.model_dump = MagicMock(return_value={"name": "Test"})
 
@@ -189,7 +186,7 @@ class TestCacheExpiration:
         assert mock_fetch.call_count == 2
 
     def test_is_expired_check(self, cache):
-        entry = CachedUserContextEntry(
+        entry = user_context_cache_module.CachedUserContextEntry(
             context=MagicMock(),
             context_dict={},
             content_hash="abc",
@@ -199,7 +196,7 @@ class TestCacheExpiration:
         assert cache._is_expired(entry) is True
 
     def test_not_expired_check(self, cache):
-        entry = CachedUserContextEntry(
+        entry = user_context_cache_module.CachedUserContextEntry(
             context=MagicMock(),
             context_dict={},
             content_hash="abc",
@@ -224,7 +221,7 @@ class TestCacheInvalidation:
         assert len(cache._cache) == 0
 
     @pytest.mark.asyncio
-    async def test_invalidate_removes_lock(self, cache, mock_user_id, mock_user_context):
+    async def test_invalidate_preserves_lock(self, cache, mock_user_id, mock_user_context):
         mock_fetch = AsyncMock(return_value=mock_user_context)
         mock_user_context.model_dump = MagicMock(return_value={"name": "Test"})
 
@@ -233,7 +230,8 @@ class TestCacheInvalidation:
 
         cache.invalidate(mock_user_id)
 
-        assert str(mock_user_id) not in cache._locks
+        assert str(mock_user_id) in cache._locks
+        assert str(mock_user_id) not in cache._cache
 
     def test_invalidate_returns_false_if_not_found(self, cache, mock_user_id):
         result = cache.invalidate(mock_user_id)
@@ -262,8 +260,8 @@ class TestCacheInvalidation:
 
 class TestCacheCleanup:
     @pytest.mark.asyncio
-    async def test_cleanup_removes_expired_entries(self, mock_user_context):
-        cache = UserContextCache(ttl_seconds=1)
+    async def test_cleanup_removes_expired_entries_but_preserves_locks(self, mock_user_context):
+        cache = user_context_cache_module.UserContextCache(ttl_seconds=1)
         mock_fetch = AsyncMock(return_value=mock_user_context)
         mock_user_context.model_dump = MagicMock(return_value={"name": "Test"})
 
@@ -276,7 +274,7 @@ class TestCacheCleanup:
 
         assert cleaned == 1
         assert len(cache._cache) == 0
-        assert len(cache._locks) == 0
+        assert len(cache._locks) == 1
 
     @pytest.mark.asyncio
     async def test_start_creates_cleanup_task(self, cache):
@@ -347,26 +345,22 @@ class TestFetchErrorHandling:
 
 class TestSingletonFunctions:
     def test_get_user_context_cache_returns_same_instance(self):
-        import app.services.user_context_cache as module
+        user_context_cache_module._user_context_cache = None
 
-        module._user_context_cache = None
-
-        cache1 = get_user_context_cache()
-        cache2 = get_user_context_cache()
+        cache1 = user_context_cache_module.get_user_context_cache()
+        cache2 = user_context_cache_module.get_user_context_cache()
 
         assert cache1 is cache2
 
     @pytest.mark.asyncio
     async def test_start_and_stop_functions(self):
-        import app.services.user_context_cache as module
+        user_context_cache_module._user_context_cache = None
 
-        module._user_context_cache = None
-
-        await start_user_context_cache()
-        cache = get_user_context_cache()
+        await user_context_cache_module.start_user_context_cache()
+        cache = user_context_cache_module.get_user_context_cache()
 
         assert cache._cleanup_task is not None
 
-        await stop_user_context_cache()
+        await user_context_cache_module.stop_user_context_cache()
 
         assert cache._cleanup_task is None

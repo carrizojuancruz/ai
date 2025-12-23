@@ -88,8 +88,6 @@ class UserContextCache:
 
             for key in expired_keys:
                 self._cache.pop(key, None)
-                self._locks.pop(key, None)
-
         return len(expired_keys)
 
     async def _get_lock(self, user_id: str) -> asyncio.Lock:
@@ -214,7 +212,6 @@ class UserContextCache:
     def invalidate(self, user_id: UUID | str) -> bool:
         cache_key = str(user_id)
         entry = self._cache.pop(cache_key, None)
-        self._locks.pop(cache_key, None)
         if entry is not None:
             logger.info("user_context_cache.invalidate user_id=%s", user_id)
             return True
