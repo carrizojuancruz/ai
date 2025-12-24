@@ -63,6 +63,12 @@ class ToolDescriptions:
     - direction: "≥" (default), "≤", "="
     - source: "linked_accounts" (default), "manual_input", "mixed"
 
+    IMPORTANT - Category Translation for Supervisor:
+    - When preparing responses, translate Plaid tags to human-readable labels
+    - The supervisor will receive your translated categories and pass them to the user
+    - Example: "HOME_IMPROVEMENT" → "Home improvements" (not the raw tag)
+    - See Category Translation Rules in system prompt for full mapping
+
     NOTIFICATIONS:
     - enabled: bool - Set ONLY when the user explicitly asks to change notifications for the goal. Do NOT assume they are OFF by default. When available, read the current value from the goal using get_goal_by_id and reflect it accurately.
     - min_gap_hours: int - Minimum hours between notifications (default behavior is 24 if configured)
