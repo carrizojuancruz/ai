@@ -125,7 +125,7 @@ class UserContextCache:
         stable_dict = cls._strip_volatile_fields(context_dict)
 
         serialized = json.dumps(stable_dict, sort_keys=True, default=str)
-        return hashlib.md5(serialized.encode()).hexdigest()
+        return hashlib.md5(serialized.encode(), usedforsecurity=False).hexdigest()
 
     def _is_expired(self, entry: CachedUserContextEntry) -> bool:
         return (time.time() - entry.fetched_at) > self._ttl_seconds
