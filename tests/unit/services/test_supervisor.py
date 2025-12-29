@@ -1168,6 +1168,43 @@ class TestRefreshFinancialDataFlags:
             assert changed is True
             mock_repo.user_has_manual_financial_data.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_refresh_flags_invalidates_caches_when_data_removed(self, supervisor_service, mock_user_id):
+        """Should invalidate caches when financial data is disconnected (True -> False)."""
+        session_ctx = {
+            "has_plaid_accounts": True,
+            "has_financial_accounts": True,
+            "has_financial_data": True,
+        }
+
+        with (
+            patch("app.services.supervisor.get_database_service") as mock_db,
+            patch.object(supervisor_service, "_invalidate_finance_caches_for_user") as mock_invalidate,
+        ):
+            mock_repo = AsyncMock()
+            mock_repo.user_has_any_accounts.return_value = False
+            mock_repo.user_has_manual_financial_data.return_value = False
+
+            mock_session = AsyncMock()
+            mock_session.__aenter__.return_value = mock_session
+            mock_session.__aexit__.return_value = None
+
+            mock_db_service = MagicMock()
+            mock_db_service.get_session.return_value = mock_session
+            mock_db_service.get_finance_repository.return_value = mock_repo
+            mock_db.return_value = mock_db_service
+
+            has_plaid, has_data, changed = await supervisor_service._refresh_financial_data_flags(
+                mock_user_id, session_ctx
+            )
+
+            assert has_plaid is False
+            assert has_data is False
+            assert changed is True
+            assert session_ctx["has_plaid_accounts"] is False
+            assert session_ctx["has_financial_data"] is False
+            mock_invalidate.assert_called_once_with(mock_user_id)
+
 
 class TestInvalidateFinanceCaches:
     """Tests for _invalidate_finance_caches_for_user method."""

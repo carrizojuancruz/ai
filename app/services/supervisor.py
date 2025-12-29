@@ -450,9 +450,9 @@ class SupervisorService:
         session_ctx["has_financial_accounts"] = has_plaid_accounts
         session_ctx["has_financial_data"] = has_financial_data
 
-        plaid_became_available = has_plaid_accounts and not previous_has_plaid
-        data_became_available = has_financial_data and not previous_has_data
-        flags_changed = plaid_became_available or data_became_available
+        plaid_changed = has_plaid_accounts != previous_has_plaid
+        data_changed = has_financial_data != previous_has_data
+        flags_changed = plaid_changed or data_changed
 
         if flags_changed:
             logger.info(
