@@ -178,7 +178,7 @@ def create_wealth_subgraph(
         system_prompt = prompt_builder()
 
         if current_search_count >= max_tool_calls:
-            system_prompt += "\n\nIMPORTANT: You have reached the maximum allowed searches. Provide your final answer NOW based on what you found. Do not attempt to call any tools."
+            system_prompt += f"\n\nIMPORTANT: You have reached the maximum allowed searches. Provide your final answer NOW based on what you found. Do not attempt to call any tools."
             logger.warning(f"[WEALTH_AGENT] Max tool calls ({max_tool_calls}) reached. Removing tools from model.")
             model_to_use = llm
         else:
