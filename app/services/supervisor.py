@@ -407,6 +407,87 @@ class SupervisorService:
             if region:
                 ctx.location.region = region
 
+    async def _refresh_financial_data_flags(
+        self, user_id: UUID, session_ctx: dict[str, Any]
+    ) -> tuple[bool, bool, bool]:
+        """Refresh financial data availability flags from the database.
+
+        Checks the current state of Plaid accounts and manual financial data,
+        and invalidates caches if data has become newly available.
+
+        Args:
+            user_id: The user's UUID
+            session_ctx: Current session context (will be modified in place)
+
+        Returns:
+            Tuple of (has_plaid_accounts, has_financial_data, flags_changed)
+
+        """
+        previous_has_plaid = bool(
+            session_ctx.get("has_plaid_accounts", session_ctx.get("has_financial_accounts", False))
+        )
+        previous_has_data = bool(session_ctx.get("has_financial_data", False))
+
+        has_plaid_accounts = False
+        has_financial_data = False
+
+        try:
+            db_service = get_database_service()
+            async with db_service.get_session() as session:
+                repo = db_service.get_finance_repository(session)
+                has_plaid_accounts = await repo.user_has_any_accounts(user_id)
+                if has_plaid_accounts:
+                    has_financial_data = True
+                else:
+                    has_financial_data = await repo.user_has_manual_financial_data(user_id)
+        except Exception as e:
+            logger.warning(
+                "[SUPERVISOR] Failed to refresh financial flags for user %s: %s", user_id, e
+            )
+            return previous_has_plaid, previous_has_data, False
+
+        session_ctx["has_plaid_accounts"] = has_plaid_accounts
+        session_ctx["has_financial_accounts"] = has_plaid_accounts
+        session_ctx["has_financial_data"] = has_financial_data
+
+        plaid_became_available = has_plaid_accounts and not previous_has_plaid
+        data_became_available = has_financial_data and not previous_has_data
+        flags_changed = plaid_became_available or data_became_available
+
+        if flags_changed:
+            logger.info(
+                "[SUPERVISOR] Financial data flags changed for user %s: "
+                "plaid=%s->%s, data=%s->%s",
+                user_id,
+                previous_has_plaid,
+                has_plaid_accounts,
+                previous_has_data,
+                has_financial_data,
+            )
+            self._invalidate_finance_caches_for_user(user_id)
+
+        return has_plaid_accounts, has_financial_data, flags_changed
+
+    def _invalidate_finance_caches_for_user(self, user_id: UUID) -> None:
+        """Invalidate all finance-related caches for a user.
+
+        Called when financial data availability changes during a session,
+        ensuring subsequent queries use fresh data instead of stale cache.
+        """
+        from app.core.app_state import invalidate_finance_agent, invalidate_finance_samples
+
+        try:
+            invalidate_finance_samples(user_id)
+            logger.info("[SUPERVISOR] Invalidated finance samples cache for user %s", user_id)
+        except Exception as e:
+            logger.warning("[SUPERVISOR] Failed to invalidate finance samples for user %s: %s", user_id, e)
+
+        try:
+            invalidate_finance_agent(user_id)
+            logger.info("[SUPERVISOR] Invalidated finance agent cache for user %s", user_id)
+        except Exception as e:
+            logger.warning("[SUPERVISOR] Failed to invalidate finance agent for user %s: %s", user_id, e)
+
     async def _find_latest_prior_thread(
         self, session_store: InMemorySessionStore, user_id: str, exclude_thread_id: str
     ) -> Optional[str]:
@@ -644,12 +725,15 @@ class SupervisorService:
         conversation_messages = session_ctx.get("conversation_messages", [])
         conversation_messages.append({"role": "user", "content": text.strip(), "sources": sources})
 
-        # Refresh UserContext from external FOS service each turn to avoid stale profile
+        # Refresh UserContext and financial data flags each turn to avoid stale data
         user_id = session_ctx.get("user_id")
         if user_id:
             uid = UUID(user_id)
             ctx = await self._load_user_context_from_external(uid)
             session_ctx["user_context"] = ctx.model_dump(mode="json")
+
+            await self._refresh_financial_data_flags(uid, session_ctx)
+
             await session_store.set_session(thread_id, session_ctx)
 
         configurable = {

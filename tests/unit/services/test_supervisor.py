@@ -1020,6 +1020,196 @@ class TestProcessMessage:
             assert exported_ctx.preferred_name == "Test User"
 
 
+class TestRefreshFinancialDataFlags:
+    """Tests for _refresh_financial_data_flags method."""
+
+    @pytest.mark.asyncio
+    async def test_refresh_flags_updates_session_with_new_values(self, supervisor_service, mock_user_id):
+        """Should update session context with fresh database values."""
+        session_ctx = {
+            "has_plaid_accounts": False,
+            "has_financial_accounts": False,
+            "has_financial_data": False,
+        }
+
+        with patch("app.services.supervisor.get_database_service") as mock_db:
+            mock_repo = AsyncMock()
+            mock_repo.user_has_any_accounts.return_value = True
+            mock_repo.user_has_manual_financial_data.return_value = False
+
+            mock_session = AsyncMock()
+            mock_session.__aenter__.return_value = mock_session
+            mock_session.__aexit__.return_value = None
+
+            mock_db_service = MagicMock()
+            mock_db_service.get_session.return_value = mock_session
+            mock_db_service.get_finance_repository.return_value = mock_repo
+            mock_db.return_value = mock_db_service
+
+            has_plaid, has_data, changed = await supervisor_service._refresh_financial_data_flags(
+                mock_user_id, session_ctx
+            )
+
+            assert has_plaid is True
+            assert has_data is True
+            assert changed is True
+            assert session_ctx["has_plaid_accounts"] is True
+            assert session_ctx["has_financial_accounts"] is True
+            assert session_ctx["has_financial_data"] is True
+
+    @pytest.mark.asyncio
+    async def test_refresh_flags_no_change_when_already_true(self, supervisor_service, mock_user_id):
+        """Should not report change when flags were already True."""
+        session_ctx = {
+            "has_plaid_accounts": True,
+            "has_financial_accounts": True,
+            "has_financial_data": True,
+        }
+
+        with patch("app.services.supervisor.get_database_service") as mock_db:
+            mock_repo = AsyncMock()
+            mock_repo.user_has_any_accounts.return_value = True
+            mock_repo.user_has_manual_financial_data.return_value = False
+
+            mock_session = AsyncMock()
+            mock_session.__aenter__.return_value = mock_session
+            mock_session.__aexit__.return_value = None
+
+            mock_db_service = MagicMock()
+            mock_db_service.get_session.return_value = mock_session
+            mock_db_service.get_finance_repository.return_value = mock_repo
+            mock_db.return_value = mock_db_service
+
+            has_plaid, has_data, changed = await supervisor_service._refresh_financial_data_flags(
+                mock_user_id, session_ctx
+            )
+
+            assert has_plaid is True
+            assert has_data is True
+            assert changed is False
+
+    @pytest.mark.asyncio
+    async def test_refresh_flags_invalidates_caches_on_change(self, supervisor_service, mock_user_id):
+        """Should invalidate finance caches when data becomes available."""
+        session_ctx = {
+            "has_plaid_accounts": False,
+            "has_financial_data": False,
+        }
+
+        with (
+            patch("app.services.supervisor.get_database_service") as mock_db,
+            patch.object(supervisor_service, "_invalidate_finance_caches_for_user") as mock_invalidate,
+        ):
+            mock_repo = AsyncMock()
+            mock_repo.user_has_any_accounts.return_value = True
+
+            mock_session = AsyncMock()
+            mock_session.__aenter__.return_value = mock_session
+            mock_session.__aexit__.return_value = None
+
+            mock_db_service = MagicMock()
+            mock_db_service.get_session.return_value = mock_session
+            mock_db_service.get_finance_repository.return_value = mock_repo
+            mock_db.return_value = mock_db_service
+
+            await supervisor_service._refresh_financial_data_flags(mock_user_id, session_ctx)
+
+            mock_invalidate.assert_called_once_with(mock_user_id)
+
+    @pytest.mark.asyncio
+    async def test_refresh_flags_keeps_previous_on_db_error(self, supervisor_service, mock_user_id):
+        """Should keep previous values when database check fails."""
+        session_ctx = {
+            "has_plaid_accounts": True,
+            "has_financial_accounts": True,
+            "has_financial_data": True,
+        }
+
+        with patch("app.services.supervisor.get_database_service") as mock_db:
+            mock_db.side_effect = Exception("Database connection failed")
+
+            has_plaid, has_data, changed = await supervisor_service._refresh_financial_data_flags(
+                mock_user_id, session_ctx
+            )
+
+            assert has_plaid is True
+            assert has_data is True
+            assert changed is False
+            assert session_ctx["has_plaid_accounts"] is True
+
+    @pytest.mark.asyncio
+    async def test_refresh_flags_checks_manual_data_when_no_plaid(self, supervisor_service, mock_user_id):
+        """Should check manual financial data when no Plaid accounts exist."""
+        session_ctx = {
+            "has_plaid_accounts": False,
+            "has_financial_data": False,
+        }
+
+        with patch("app.services.supervisor.get_database_service") as mock_db:
+            mock_repo = AsyncMock()
+            mock_repo.user_has_any_accounts.return_value = False
+            mock_repo.user_has_manual_financial_data.return_value = True
+
+            mock_session = AsyncMock()
+            mock_session.__aenter__.return_value = mock_session
+            mock_session.__aexit__.return_value = None
+
+            mock_db_service = MagicMock()
+            mock_db_service.get_session.return_value = mock_session
+            mock_db_service.get_finance_repository.return_value = mock_repo
+            mock_db.return_value = mock_db_service
+
+            has_plaid, has_data, changed = await supervisor_service._refresh_financial_data_flags(
+                mock_user_id, session_ctx
+            )
+
+            assert has_plaid is False
+            assert has_data is True
+            assert changed is True
+            mock_repo.user_has_manual_financial_data.assert_called_once()
+
+
+class TestInvalidateFinanceCaches:
+    """Tests for _invalidate_finance_caches_for_user method."""
+
+    def test_invalidate_caches_calls_both_invalidators(self, supervisor_service, mock_user_id):
+        """Should invalidate both samples and agent caches."""
+        with (
+            patch("app.core.app_state.invalidate_finance_samples") as mock_samples,
+            patch("app.core.app_state.invalidate_finance_agent") as mock_agent,
+        ):
+            supervisor_service._invalidate_finance_caches_for_user(mock_user_id)
+
+            mock_samples.assert_called_once_with(mock_user_id)
+            mock_agent.assert_called_once_with(mock_user_id)
+
+    def test_invalidate_caches_handles_samples_error_gracefully(self, supervisor_service, mock_user_id):
+        """Should continue to agent invalidation even if samples fails."""
+        with (
+            patch("app.core.app_state.invalidate_finance_samples") as mock_samples,
+            patch("app.core.app_state.invalidate_finance_agent") as mock_agent,
+        ):
+            mock_samples.side_effect = Exception("Cache error")
+
+            supervisor_service._invalidate_finance_caches_for_user(mock_user_id)
+
+            mock_samples.assert_called_once()
+            mock_agent.assert_called_once_with(mock_user_id)
+
+    def test_invalidate_caches_handles_agent_error_gracefully(self, supervisor_service, mock_user_id):
+        """Should handle agent cache invalidation error gracefully."""
+        with (
+            patch("app.core.app_state.invalidate_finance_samples") as mock_samples,
+            patch("app.core.app_state.invalidate_finance_agent") as mock_agent,
+        ):
+            mock_agent.side_effect = Exception("Agent cache error")
+
+            supervisor_service._invalidate_finance_caches_for_user(mock_user_id)
+
+            mock_samples.assert_called_once()
+            mock_agent.assert_called_once()
+
+
 class TestAddSourceFromToolEnd:
     """Tests for _add_source_from_tool_end method."""
 
