@@ -1,0 +1,374 @@
+{
+  "SUPERVISOR_TEST_PARALLELISM": 10,
+  "base_url": "http://localhost:8000",
+  "user_id": "17a0b13a-8dfb-4dba-a652-882322dc0563",
+  "cases": [
+    {
+      "id": "ui_goal_create",
+      "question": "How do I create a goal in the app?",
+      "voice": false,
+      "expected_route": "wealth_agent",
+      "expected": {
+        "notes": "Should answer as app UI navigation guidance for creating a goal. Must not fabricate unsupported automation."
+      }
+    },
+    {
+      "id": "capability_automation_transfer",
+      "question": "Is there a way to automate a transfer so that I forget about depositing money and it's done automatically?",
+      "voice": false,
+      "expected_route": "wealth_agent",
+      "expected": {
+        "notes": "Should clearly state Vera does not support automated or recurring transfers. Only notifications/reminders exist (Payment Reminders)."
+      }
+    },
+
+    {
+      "id": "capability_recurring_transfer_howto",
+      "question": "Can I set up a recurring transfer in Vera? How do I do that?",
+      "voice": false,
+      "expected_route": "wealth_agent",
+      "expected": {
+        "notes": "Should route to wealth_agent and clearly distinguish reminders vs true automated recurring transfers (no automation)."
+      }
+    },
+    {
+      "id": "capability_scheduled_transfers_to_goal",
+      "question": "Does Vera support scheduled/automatic transfers to a goal?",
+      "voice": false,
+      "expected_route": "wealth_agent",
+      "expected": {
+        "notes": "Should state no automated transfers; only Payment Reminders/notifications."
+      }
+    },
+    {
+      "id": "capability_move_money_weekly",
+      "question": "Can Vera move money automatically every week?",
+      "voice": false,
+      "expected_route": "wealth_agent",
+      "expected": {
+        "notes": "Should state no automatic money movement; reminders only."
+      }
+    },
+    {
+      "id": "capability_recurring_saving_vs_reminders",
+      "question": "Is recurring saving automated or just reminders?",
+      "voice": false,
+      "expected_route": "wealth_agent",
+      "expected": {
+        "notes": "Should answer: reminders/notifications, not automated transfers."
+      }
+    },
+
+    {
+      "id": "ui_payment_reminders_location",
+      "question": "Where do I find Payment Reminders in Vera?",
+      "voice": false,
+      "expected_route": "wealth_agent",
+      "expected": {
+        "notes": "Should give KB-grounded UI navigation to Payment Reminders."
+      }
+    },
+    {
+      "id": "ui_connect_bank_account",
+      "question": "How do I connect my bank account in the app?",
+      "voice": false,
+      "expected_route": "wealth_agent",
+      "expected": {
+        "notes": "Should give KB-grounded UI steps for connecting a bank account."
+      }
+    },
+    {
+      "id": "ui_profile_security_settings",
+      "question": "Where are my profile/security settings?",
+      "voice": false,
+      "expected_route": "wealth_agent",
+      "expected": {
+        "notes": "Should give KB-grounded UI navigation to profile/security settings."
+      }
+    },
+
+    {
+      "id": "goal_create_emergency_fund",
+      "question": "Create a goal: Emergency Fund, $5,000 by March 31, 2026.",
+      "voice": false,
+      "expected_route": "goal_agent",
+      "expected": {
+        "notes": "Should route to goal_agent for goal creation (CRUD)."
+      }
+    },
+    {
+      "id": "goal_update_emergency_fund",
+      "question": "Update my Emergency Fund goal to $6,000.",
+      "voice": false,
+      "expected_route": "goal_agent",
+      "expected": {
+        "notes": "Should route to goal_agent for goal update."
+      }
+    },
+    {
+      "id": "goal_delete_vacation",
+      "question": "Delete my Vacation goal.",
+      "voice": false,
+      "expected_route": "goal_agent",
+      "expected": {
+        "notes": "Should route to goal_agent for goal deletion."
+      }
+    },
+    {
+      "id": "goal_data_requirements",
+      "question": "What data do you need to create a goal?",
+      "voice": false,
+      "expected_route": "goal_agent",
+      "expected": {
+        "notes": "Should route to goal_agent and describe required fields (name, amount, date, optional categories). No UI navigation."
+      }
+    },
+    {
+      "id": "goal_on_track_emergency_fund",
+      "question": "Am I on track with my Emergency Fund goal?",
+      "voice": false,
+      "expected_route": "goal_agent",
+      "expected": {
+        "notes": "Should route to goal_agent for goal status/progress."
+      }
+    },
+
+    {
+      "id": "finance_groceries_last_month",
+      "question": "How much did I spend on groceries last month?",
+      "voice": false,
+      "expected_route": "finance_agent",
+      "expected": {
+        "notes": "Should route to finance_agent for historical analysis (may require connected accounts)."
+      }
+    },
+    {
+      "id": "finance_avg_income_3_months",
+      "question": "What’s my average monthly income over the last 3 months?",
+      "voice": false,
+      "expected_route": "finance_agent",
+      "expected": {
+        "notes": "Should route to finance_agent for historical analysis (may require connected accounts)."
+      }
+    },
+    {
+      "id": "finance_dining_trend_year",
+      "question": "Show my dining spend trend this year.",
+      "voice": false,
+      "expected_route": "finance_agent",
+      "expected": {
+        "notes": "Should route to finance_agent for historical analysis."
+      }
+    },
+
+    {
+      "id": "capture_add_liability",
+      "question": "Add a liability: Visa card, $2,300 balance, 24% APR.",
+      "voice": false,
+      "expected_route": "finance_capture_agent",
+      "expected": {
+        "notes": "Should route immediately to finance_capture_agent for capture/confirmation flow."
+      }
+    },
+    {
+      "id": "capture_add_manual_transaction",
+      "question": "Add a manual transaction: $45 dinner yesterday.",
+      "voice": false,
+      "expected_route": "finance_capture_agent",
+      "expected": {
+        "notes": "Should route immediately to finance_capture_agent."
+      }
+    },
+    {
+      "id": "capture_add_asset_cash",
+      "question": "Add an asset: Cash $500.",
+      "voice": false,
+      "expected_route": "finance_capture_agent",
+      "expected": {
+        "notes": "Should route immediately to finance_capture_agent."
+      }
+    },
+
+    {
+      "id": "misroute_recovery_automate_goal_transfers",
+      "question": "Automate transfers to my Emergency Fund goal",
+      "voice": false,
+      "expected_route": "wealth_agent",
+      "expected": {
+        "notes": "This is an app capability question. If misrouted to goal_agent, it should reject and supervisor should handoff to wealth_agent. Final routing should be wealth_agent."
+      }
+    },
+    {
+      "id": "misroute_recovery_pay_bills",
+      "question": "How do I pay my bills in Vera?",
+      "voice": false,
+      "expected_route": "wealth_agent",
+      "expected": {
+        "notes": "This is app capability/UI navigation. If misrouted to finance_agent, it should reject and supervisor should handoff to wealth_agent."
+      }
+    },
+
+    {
+      "id": "direct_hi",
+      "question": "Hi",
+      "voice": false,
+      "expected_path": {"source": "fast_response", "type": "smalltalk"},
+      "expected": {
+        "notes": "Should be a simple greeting reply from supervisor (no subagent transfer events)."
+      }
+    },
+    {
+      "id": "direct_thanks",
+      "question": "Thanks!",
+      "voice": false,
+      "expected_path": {"source": "fast_response", "type": "smalltalk"},
+      "expected": {
+        "notes": "Should be a short acknowledgement; should stay on fast_response/smalltalk."
+      }
+    },
+    {
+      "id": "direct_how_are_you",
+      "question": "How are you?",
+      "voice": false,
+      "expected_path": {"source": "fast_response", "type": "smalltalk"},
+      "expected": {
+        "notes": "Should be friendly smalltalk; should stay on fast_response/smalltalk."
+      }
+    },
+    {
+      "id": "mixed_thanks_automation_question",
+      "question": "Thanks! Also—can I automate transfers in Vera?",
+      "voice": false,
+      "expected_path": {"source": "supervisor", "type": "full"},
+      "expected_route": "wealth_agent",
+      "expected": {
+        "notes": "Even though it starts like smalltalk, this is an app capability question. Should go full path and route to wealth_agent; must say no automated transfers, reminders only."
+      }
+    },
+    {
+      "id": "mixed_hello_create_goal_ui",
+      "question": "Hey :) how do I create a goal in the app?",
+      "voice": false,
+      "expected_path": {"source": "supervisor", "type": "full"},
+      "expected_route": "wealth_agent",
+      "expected": {
+        "notes": "Even though it starts casual, this is UI navigation. Should go full path and route to wealth_agent; should provide KB-grounded UI steps."
+      }
+    },
+    {
+      "id": "mixed_lol_connect_bank",
+      "question": "lol—how do I connect my bank account in the app?",
+      "voice": false,
+      "expected_path": {"source": "supervisor", "type": "full"},
+      "expected_route": "wealth_agent",
+      "expected": {
+        "notes": "Should go full path and route to wealth_agent; should provide KB-grounded UI steps."
+      }
+    },
+    {
+      "id": "wealth_budgeting_where_to_start",
+      "question": "I don’t know how to budget. Where do I start?",
+      "voice": false,
+      "expected_route": "wealth_agent",
+      "expected_path": {"source": "supervisor", "type": "full"},
+      "expected": {
+        "notes": "Should either route to wealth_agent or answer directly without recommending spreadsheets/external apps; should reference Vera tracking (Plaid, goals) if mentioned."
+      }
+    },
+
+    {
+      "id": "goal_create_intake",
+      "question": "I want to create a new goal.",
+      "voice": false,
+      "expected_route": "goal_agent",
+      "expected": {
+        "notes": "Should route immediately to goal_agent for intake (collect goal details)."
+      }
+    },
+    {
+      "id": "goal_progress_vacation_saved",
+      "question": "How much have I saved for my vacation?",
+      "voice": false,
+      "expected_route": "goal_agent",
+      "expected": {
+        "notes": "Should route to goal_agent and report progress (amount/percent) if available."
+      }
+    },
+    {
+      "id": "goal_update_vacation_fund",
+      "question": "Give me an update on my ‘Vacation fund’ goal.",
+      "voice": false,
+      "expected_route": "goal_agent",
+      "expected": {
+        "notes": "Should route to goal_agent and provide current progress/status and a follow-up question."
+      }
+    },
+    {
+      "id": "goal_reduce_dining_weekly",
+      "question": "I want to reduce dining spending and track it weekly.",
+      "voice": false,
+      "expected_route": "goal_agent",
+      "expected": {
+        "notes": "Should route to goal_agent to set up a behavior/goal tracking flow (weekly cadence)."
+      }
+    },
+
+    {
+      "id": "finance_mcdonalds_this_year",
+      "question": "How much did I spend at McDonald’s this year?",
+      "voice": false,
+      "expected_route": "finance_agent",
+      "expected": {
+        "notes": "Should route to finance_agent for merchant-based historical analysis."
+      }
+    },
+
+    {
+      "id": "capture_manual_expense_trader_joes",
+      "question": "Add a manual expense: $45 at Trader Joe’s today.",
+      "voice": false,
+      "expected_route": "finance_capture_agent",
+      "expected": {
+        "notes": "Should route to finance_capture_agent and end in confirm.request (HITL) with a draft for approval/edit/reject."
+      }
+    },
+    {
+      "id": "capture_add_asset_tesla_model_3",
+      "question": "Add an asset: Tesla Model 3 worth $22,000.",
+      "voice": false,
+      "expected_route": "finance_capture_agent",
+      "expected": {
+        "notes": "Should route to finance_capture_agent and request confirmation (HITL)."
+      }
+    },
+    {
+      "id": "capture_add_liability_student_loan",
+      "question": "Add a liability: student loan balance is $12,500.",
+      "voice": false,
+      "expected_route": "finance_capture_agent",
+      "expected": {
+        "notes": "Should route to finance_capture_agent and request confirmation (HITL)."
+      }
+    },
+    {
+      "id": "capture_log_manual_income_freelance",
+      "question": "Log manual income: $500 from freelance yesterday.",
+      "voice": false,
+      "expected_route": "finance_capture_agent",
+      "expected": {
+        "notes": "Should route to finance_capture_agent and request confirmation (HITL)."
+      }
+    },
+    {
+      "id": "capture_record_cash_expense_groceries",
+      "question": "Record a cash expense: $30 groceries last Friday.",
+      "voice": false,
+      "expected_route": "finance_capture_agent",
+      "expected": {
+        "notes": "Should route to finance_capture_agent and request confirmation (HITL)."
+      }
+    }
+  ]
+}
+
+

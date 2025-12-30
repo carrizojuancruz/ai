@@ -8,6 +8,54 @@ Utility for inspecting and managing user memories stored in Amazon S3 Vectors.
 docker compose exec app poetry run python -m app.scripts.dump_memories --help
 ```
 
+## Supervisor SSE QA runner
+
+Run `/supervisor/initialize` + `/supervisor/message`, then read `/supervisor/sse/{thread_id}` until `event: message.completed`,
+and export results as JSON.
+
+```bash
+docker compose exec app poetry run python -m app.scripts.automated_testing_of_supervisor.run_cases \
+  # writes results to /app/app/scripts/automated_testing_of_supervisor/results.json
+```
+
+Parallelism is configured in `app/scripts/automated_testing_of_supervisor/cases.json` via `SUPERVISOR_TEST_PARALLELISM`.
+
+Each case can include an `expected` block. After running, the script uses an LLM-as-a-judge to score each case and adds a
+`judge` object into `results.json` with `score`, `pass` (score >= 70), and `reasons`.
+
+The script also captures routing from SSE `source.search.start` events and writes it into each result as `routing`:
+- `routing.transfers`: e.g. `["transfer_to_goal_agent", "transfer_to_wealth_agent"]`
+- `routing.primary` / `routing.final`: e.g. `"goal_agent"` / `"wealth_agent"`
+
+For `finance_capture_agent` flows, the terminal event is `confirm.request` (human-in-the-loop). Those cases will finish with:
+- `status: "confirm_requested"`
+- `confirm: { confirm_id, items, ... }`
+
+### Filtering / re-running subsets
+
+You can run a subset of cases while iterating on prompts/routing:
+
+```bash
+# Run one case by id
+docker compose exec app poetry run python -m app.scripts.automated_testing_of_supervisor.run_cases --only ui_goal_create
+
+# Run a comma-separated list of case ids
+docker compose exec app poetry run python -m app.scripts.automated_testing_of_supervisor.run_cases --only ui_goal_create,capability_automation_transfer
+
+# Run by regex matched against case ids:
+# - /pattern/ form
+docker compose exec app poetry run python -m app.scripts.automated_testing_of_supervisor.run_cases --only "/^capability_/"
+# - or re:pattern form
+docker compose exec app poetry run python -m app.scripts.automated_testing_of_supervisor.run_cases --only "re:^capability_"
+```
+
+Re-run only the cases that previously **errored** (`status=error`) or scored **0** (`judge.score==0`) by reading the existing
+`results.json` next to the script:
+
+```bash
+docker compose exec app poetry run python -m app.scripts.automated_testing_of_supervisor.run_cases --only-failed
+```
+
 **Pretty-print JSON** (PowerShell): `| ConvertFrom-Json | ConvertTo-Json -Depth 100`  
 **Pretty-print JSON** (bash): `| jq .`
 
