@@ -653,9 +653,7 @@ async def _judge_all_incremental(
             continue
         results[idx]["judge"] = judged
         if isinstance(results[idx].get("judge"), dict):
-            if results[idx].get("status") == STATUS_ERROR:
-                results[idx]["status"] = STATUS_JUDGE_SKIPPED
-            elif judged.get("score") is None and judged.get("pass") is None:
+            if results[idx].get("status") == STATUS_ERROR or judged.get("score") is None and judged.get("pass") is None:
                 results[idx]["status"] = STATUS_JUDGE_SKIPPED
             else:
                 results[idx]["status"] = STATUS_JUDGED
