@@ -707,15 +707,15 @@ class SupervisorService:
 
         q = get_sse_queue(thread_id)
         current_description = _get_random_step_planning_current()
-        await q.put(
-            {
-                "event": "step.update",
-                "data": {
-                    "status": "processing",
-                    "description": current_description,
-                },
-            }
-        )
+        step_update_event = {
+            "event": "step.update",
+            "data": {
+                "status": "processing",
+                "description": current_description,
+            },
+        }
+        logger.info("[SSE] Emitting event: %s", json.dumps(step_update_event, ensure_ascii=False))
+        await q.put(step_update_event)
 
         graph: CompiledStateGraph = get_supervisor_graph()
         session_store: InMemorySessionStore = get_session_store()
@@ -805,16 +805,20 @@ class SupervisorService:
             if etype == "on_chain_start" and name:
                 current_graph_node = name
                 if name == "fast_response" and not fast_path_event_emitted:
-                    await q.put({
+                    fast_response_event = {
                         "event": "response.path",
                         "data": {"source": "fast_response", "type": "smalltalk"},
-                    })
+                    }
+                    logger.info("[SSE] Emitting fast_response path event: %s", json.dumps(fast_response_event, ensure_ascii=False))
+                    await q.put(fast_response_event)
                     fast_path_event_emitted = True
                 elif name == "supervisor" and not supervisor_path_event_emitted:
-                    await q.put({
+                    supervisor_event = {
                         "event": "response.path",
                         "data": {"source": "supervisor", "type": "full"},
-                    })
+                    }
+                    logger.info("[SSE] Emitting supervisor path event: %s", json.dumps(supervisor_event, ensure_ascii=False))
+                    await q.put(supervisor_event)
                     supervisor_path_event_emitted = True
             elif etype == "on_chain_end" and name == current_graph_node:
                 current_graph_node = None
@@ -915,13 +919,54 @@ class SupervisorService:
                 try:
                     chunk = data.get("chunk") if isinstance(data, dict) else None
                     chunk_text = self._content_to_text(getattr(chunk, "content", "")) if chunk else ""
+
+                    logger.debug(
+                        "[STREAMING] Received chunk: node=%s, has_chunk=%s, chunk_length=%s",
+                        current_graph_node,
+                        chunk is not None,
+                        len(chunk_text) if chunk_text else 0
+                    )
+
                     if chunk_text:
-                        hit_guardrail = hit_guardrail or self._has_guardrail_intervention(chunk_text)
+                        logger.info(
+                            "[STREAMING] Raw chunk text: '%s'",
+                            chunk_text[:100] + "..." if len(chunk_text) > 100 else chunk_text
+                        )
+
+                        has_guardrail = self._has_guardrail_intervention(chunk_text)
+                        hit_guardrail = hit_guardrail or has_guardrail
+
+                        if has_guardrail:
+                            logger.warning(
+                                "[STREAMING] Guardrail intervention detected in chunk: '%s'",
+                                chunk_text[:100]
+                            )
+
                         cleaned_chunk = _strip_emojis(self._strip_guardrail_marker(chunk_text))
+
                         if cleaned_chunk.strip():
-                            await q.put({"event": "token.delta", "data": {"text": cleaned_chunk, "sources": sources}})
+                            token_event = {"event": "token.delta", "data": {"text": cleaned_chunk, "sources": sources}}
+                            logger.info(
+                                "📡 [STREAMING] Emitting token.delta: length=%s, text='%s', sources_count=%s, full_event=%s",
+                                len(cleaned_chunk),
+                                cleaned_chunk[:100] + "..." if len(cleaned_chunk) > 100 else cleaned_chunk,
+                                len(sources),
+                                json.dumps(token_event, ensure_ascii=False)[:500]
+                            )
+                            await q.put(token_event)
+                        else:
+                            logger.debug("[STREAMING] Cleaned chunk is empty, skipping emission")
+                    else:
+                        logger.debug("[STREAMING] No chunk text extracted, skipping")
+
                 except Exception as stream_exc:
-                    logger.debug(f"[TRACE] supervisor.stream.chunk.error err={stream_exc}")
+                    logger.error(
+                        "[STREAMING] Error processing stream chunk: %s, event=%s, name=%s",
+                        stream_exc,
+                        etype,
+                        name,
+                        exc_info=True
+                    )
 
             if etype == "on_tool_start":
                 tool_name = name
@@ -980,12 +1025,16 @@ class SupervisorService:
                     continue
 
                 if name and not name.startswith("transfer_to_"):
-                    await q.put({"event": "tool.start", "data": {"tool": name}})
+                    tool_start_event = {"event": "tool.start", "data": {"tool": name}}
+                    logger.info("[SSE] Emitting tool.start: %s", json.dumps(tool_start_event, ensure_ascii=False))
+                    await q.put(tool_start_event)
 
             elif etype == "on_tool_end":
                 sources = self._add_source_from_tool_end(sources, name, data, current_agent_tool)
                 if name and not name.startswith("transfer_to_"):
-                    await q.put({"event": "tool.end", "data": {"tool": name}})
+                    tool_end_event = {"event": "tool.end", "data": {"tool": name}}
+                    logger.info("[SSE] Emitting tool.end: %s", json.dumps(tool_end_event, ensure_ascii=False))
+                    await q.put(tool_end_event)
             elif etype == "on_chain_end":
                 try:
                     output = data.get("output", {}) if isinstance(data, dict) else {}
@@ -1126,26 +1175,49 @@ class SupervisorService:
                 )
 
                 for nav_event in navigation_events_to_emit:
-                    await q.put(
-                        {
-                            "event": nav_event.get("event"),
-                            "data": nav_event.get("data", {}),
-                        }
+                    nav_sse_event = {
+                        "event": nav_event.get("event"),
+                        "data": nav_event.get("data", {}),
+                    }
+                    logger.info(
+                        "[SSE] Emitting navigation event: %s, full_event=%s",
+                        nav_event.get('event'),
+                        json.dumps(nav_sse_event, ensure_ascii=False)
                     )
-                    logger.info(f"[SUPERVISOR] Emitted navigation event: {nav_event.get('event')}")
+                    await q.put(nav_sse_event)
 
                 # If guardrail was hit, emit tokens before message.completed so frontend receives text
                 if hit_guardrail and final_text_to_emit.strip():
+                    logger.info("[SSE] Guardrail hit - emitting final text as token chunks")
                     words = final_text_to_emit.split()
                     for i in range(0, len(words), STREAM_WORD_GROUP_SIZE):
                         word_group = " ".join(words[i : i + STREAM_WORD_GROUP_SIZE])
-                        await q.put({"event": "token.delta", "data": {"text": f"{word_group} ", "sources": sources}})
+                        guardrail_token_event = {"event": "token.delta", "data": {"text": f"{word_group} ", "sources": sources}}
+                        logger.info(
+                            "[SSE] Emitting guardrail token chunk: %s",
+                            json.dumps(guardrail_token_event, ensure_ascii=False)[:300]
+                        )
+                        await q.put(guardrail_token_event)
 
-                await q.put({"event": "message.completed", "data": {"content": final_text_to_emit}})
+                message_completed_event = {"event": "message.completed", "data": {"content": final_text_to_emit}}
+                logger.info(
+                    "🎯 [SSE] Emitting message.completed: length=%s, content_preview='%s', full_event=%s",
+                    len(final_text_to_emit),
+                    final_text_to_emit[:200] + "..." if len(final_text_to_emit) > 200 else final_text_to_emit,
+                    json.dumps(message_completed_event, ensure_ascii=False)[:1000]
+                )
+                await q.put(message_completed_event)
 
                 # Generate audio only if voice=True
                 if voice:
                     try:
+                        logger.info(
+                            "[AUDIO] Starting audio synthesis: thread_id=%s, text_length=%s, voice_id=%s, format=%s",
+                            thread_id,
+                            len(final_text_to_emit),
+                            config.TTS_VOICE_ID,
+                            config.TTS_OUTPUT_FORMAT
+                        )
                         audio_service = get_audio_service()
                         await audio_service._synthesize_and_stream_audio(
                             thread_id,
@@ -1154,24 +1226,29 @@ class SupervisorService:
                             config.TTS_OUTPUT_FORMAT,
                             get_audio_queue(thread_id),
                         )
-                        logger.info(f"[SUPERVISOR] Triggered audio synthesis for thread_id: {thread_id}")
+                        logger.info("[AUDIO] ✅ Audio synthesis completed for thread_id: %s", thread_id)
                     except Exception as e:
-                        logger.error(f"[SUPERVISOR] Failed to trigger audio synthesis for thread_id {thread_id}: {e}")
+                        logger.error(
+                            "[AUDIO] ❌ Failed audio synthesis for thread_id %s: %s",
+                            thread_id,
+                            e,
+                            exc_info=True
+                        )
                 else:
-                    logger.info(f"[SUPERVISOR] Audio generation disabled for thread_id: {thread_id}")
+                    logger.info("[AUDIO] Audio generation disabled (voice=False) for thread_id: %s", thread_id)
         except Exception as e:
             logger.error(f"[DEBUG] Error sending message.completed: {e}")
 
         completed_description = _get_random_step_planning_completed()
-        await q.put(
-            {
-                "event": "step.update",
-                "data": {
-                    "status": "presented",
-                    "description": completed_description,
-                },
-            }
-        )
+        step_completed_event = {
+            "event": "step.update",
+            "data": {
+                "status": "presented",
+                "description": completed_description,
+            },
+        }
+        logger.info("[SSE] Emitting step.update (completed): %s", json.dumps(step_completed_event, ensure_ascii=False))
+        await q.put(step_completed_event)
 
         try:
             final_text = supervisor_latest_response_text
