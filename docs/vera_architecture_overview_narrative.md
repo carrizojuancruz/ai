@@ -9,7 +9,7 @@ The system integrates seamlessly with external services, manages multiple layers
 ## High-Level System Architecture
 
 ```mermaid
-graph TB
+flowchart TB
     %% User Interface Layer
     subgraph "User Interface"
         USER[User]
@@ -21,11 +21,14 @@ graph TB
         API[FastAPI Server]
         SSE[Server-Sent Events]
         ROUTES[API Routes]
+        GUARD[Security Guardrails]
+        INTENT[Intent Classifier]
     end
     
     %% Core Orchestration
     subgraph "Core System"
         SUPERVISOR[Supervisor Service]
+        FAST[Fast Path Service]
         ONBOARDING[Onboarding Service]
         GUEST[Guest Service]
     end
@@ -34,8 +37,10 @@ graph TB
     subgraph "Specialized Agents"
         SUP_AGENT[Supervisor Agent]
         FINANCE[Finance Agent]
+        FIN_CAPTURE[Finance Capture Agent]
         GOAL[Goal Agent]
         WEALTH[Wealth Agent]
+        FAST_AGENT[Fast Response Agent]
         GUEST_AGENT[Guest Agent]
         ONBOARD_AGENT[Onboarding Agent]
     end
@@ -59,7 +64,7 @@ graph TB
     
     %% External Services
     subgraph "AWS Services"
-        BEDROCK[AWS Bedrock<br/>Claude & GPT-120B]
+        BEDROCK[AWS Bedrock<br/>Amazon Nova & GPT-120B OSS]
         SECRETS[AWS Secrets Manager]
         S3[AWS S3<br/>Vector Storage]
     end
@@ -76,19 +81,24 @@ graph TB
     FRONTEND --> API
     API --> SSE
     API --> ROUTES
+    ROUTES --> GUARD
+    GUARD --> INTENT
     
     %% Service Routing
-    ROUTES --> SUPERVISOR
+    INTENT --> SUPERVISOR
+    INTENT --> FAST
     ROUTES --> ONBOARDING
     ROUTES --> GUEST
     
     %% Agent Orchestration
     SUPERVISOR --> SUP_AGENT
     SUP_AGENT --> FINANCE
+    SUP_AGENT --> FIN_CAPTURE
     SUP_AGENT --> GOAL
     SUP_AGENT --> WEALTH
     ONBOARDING --> ONBOARD_AGENT
     GUEST --> GUEST_AGENT
+    FAST --> FAST_AGENT
     
     %% Memory Integration
     SUPERVISOR --> SHORT_MEM
@@ -99,6 +109,7 @@ graph TB
     
     %% Data Access
     FINANCE --> POSTGRES
+    FIN_CAPTURE --> POSTGRES
     GOAL --> POSTGRES
     WEALTH --> KNOWLEDGE
     ONBOARD_AGENT --> FOS_API
@@ -128,7 +139,7 @@ Vera's technology stack is carefully chosen to support the complex requirements 
 
 The core orchestration is handled by LangGraph, a powerful framework specifically designed for building multi-agent systems. LangGraph provides the infrastructure needed to coordinate between different agents, manage conversation state, and handle complex workflows that span multiple specialized components.
 
-For AI inference, Vera leverages AWS Bedrock, which provides access to both Claude models and GPT-120B, giving the system flexibility to choose the most appropriate model for each task. This multi-model approach ensures that Vera can handle everything from simple conversations to complex financial analysis with the right level of intelligence. Note: The complete AWS deployment includes dev, UAT, and production environments with additional infrastructure components not covered in this document. Additional technical documentation is available in the `docs/` folder for detailed implementation guides.
+For AI inference, Vera leverages AWS Bedrock with a multi-model strategy that selects the most appropriate model for each task and latency profile. In practice, this includes GPT-120B OSS, Amazon Nova Micro, and Amazon Nova Pro depending on the context. This approach ensures that Vera can handle everything from simple conversations to complex financial analysis with the right level of intelligence and responsiveness. Note: The complete AWS deployment includes dev, UAT, and production environments with additional infrastructure components not covered in this document. Additional technical documentation is available in the `docs/` folder for detailed implementation guides.
 
 Data persistence is handled through PostgreSQL for structured data and AWS S3 for vector storage and file management. This hybrid approach allows Vera to efficiently store both relational data like user accounts and financial transactions, as well as vector embeddings for semantic search and memory systems.
 
@@ -142,14 +153,14 @@ Vera's architecture follows a sophisticated multi-agent orchestration MAS (Multi
 
 The supervisor agent acts as the central decision maker and response coordinator, analyzing incoming requests and determining which specialized agent is best suited to handle the task. This delegation approach allows each agent to be finely tuned for its particular expertise, resulting in more accurate and relevant responses than a single general-purpose agent could provide.
 
-The specialized agents include a finance agent that excels at SQL generation and financial data analysis, a goal agent that manages financial goal setting and tracking, and a wealth agent that provides financial education through knowledge base search. Each agent has access to domain-specific tools and knowledge, allowing them to provide deep, expert-level assistance in their areas of specialization.
+The specialized agents include a finance agent that excels at SQL generation and financial data analysis, a finance capture agent that focuses on structured persistence of user-provided financial entries, a goal agent that manages financial goal setting and tracking, and a wealth agent that provides financial education through knowledge base search. The system also includes a fast path response agent for low-latency smalltalk handling. Each agent has access to domain-specific tools and knowledge, allowing them to provide deep, expert-level assistance in their areas of specialization.
 
 The system also includes a guest agent that provides limited functionality for unauthenticated users, ensuring that everyone can experience Vera's capabilities while to encourage registration for full access. This tiered approach allows Vera to serve a broad audience while providing enhanced features for engaged users.
 
 ## Architecture Pattern: Multi-Agent Orchestration
 
 ```mermaid
-graph TD
+flowchart TD
     User[User] --> API[FastAPI API]
     API --> Supervisor[Supervisor Agent]
     
@@ -164,6 +175,14 @@ graph TD
     Supervisor --> Memory[Memory System]
     Memory --> Vectors[S3 Vector Store]
 ```
+
+## Intent Classification & Fast Path Optimization
+
+While Vera's core architecture is built around a supervisor-driven multi-agent system, the runtime execution path includes an additional optimization layer that routes certain messages through a lightweight path. This intent classification layer exists to keep the user experience responsive for short, non-task messages (greetings, acknowledgments, quick confirmations) without incurring the full cost of memory injection and multi-agent orchestration.
+
+At the start of each turn, Vera classifies the user message using a combination of structural signals (message length, punctuation, question patterns), domain-specific veto gates (finance, goal, and action markers), and fast LLM classification. If a message is determined to be smalltalk, the system routes it to a fast response agent designed specifically for low-latency conversational replies. If a message is determined to be a task, it follows the full supervisor path, including long-term memory retrieval and delegation to specialized agents.
+
+This fast path is intentionally conservative. If the classifier is uncertain, the system defaults to the supervisor path to preserve quality and correctness.
 
 ## Agent System Design
 
@@ -185,15 +204,21 @@ This delegation pattern with state isolation provides several critical advantage
 
 The finance agent specializes in financial data analysis and SQL generation, using procedural memory to access pre-built SQL templates for fast and accurate analysis of spending patterns, net worth calculations, and income/expense tracking. The goal agent manages financial goal setting and tracking, helping users define and achieve their objectives with persistent state across conversations. The wealth agent focuses on financial education through knowledge base search, providing evidence-based information from authoritative sources. The guest agent offers limited functionality for unauthenticated users, providing a taste of Vera's capabilities while encouraging registration for full access.
 
+Vera also includes a finance capture agent focused on reliably converting natural language into structured financial entries (assets, liabilities, and manual transactions). This flow is designed to be explicit and trustworthy, supporting confirmation when needed before data is persisted. In practice, the capture system supports multi-intent extraction, allowing a single user message to include multiple items that are confirmed and persisted as a cohesive operation.
+
+The wealth agent includes an additional user experience capability: when answering questions about Vera's own app features, it can emit navigation events that guide the frontend to the most relevant UI surface (for example, connecting accounts or viewing a report). This creates a tighter loop between knowledge retrieval and product interaction, keeping answers actionable rather than purely informational.
+
 ## Memory System Architecture
 
 Vera's memory system is designed as a two-tier architecture that handles both immediate conversation state and long-term persistent knowledge. This dual approach ensures that conversations feel natural and contextual while building up a rich understanding of each user over time.
 
 ### Short-Term Memory: Conversation State Management
 
-The short-term memory system is built on LangGraph's checkpointer technology, which serves as the backbone for maintaining conversation continuity. When a user starts a conversation, the system creates a unique thread ID and uses LangGraph's MemorySaver to store the complete conversation state in memory. This includes not just the message history, but also which agent is currently active, any pending tool calls, and the overall conversation context.
+The short-term memory system is built on LangGraph's checkpointer technology, which serves as the backbone for maintaining conversation continuity. When a user starts a conversation, the system creates a unique thread ID and persists the complete conversation state through a custom Redis-backed checkpointer abstraction. This includes not just the message history, but also which agent is currently active, any pending tool calls, and the overall conversation context.
 
 When a conversation resumes after a break, the system can restore the complete state, allowing for natural continuation. The checkpointer also handles automatic cleanup, removing old sessions to prevent memory bloat while keeping active conversations responsive.
+
+This Redis-backed approach makes session continuity resilient across multi-instance scaling and restarts, while preserving the same conceptual role described above: maintaining the full conversation state required to resume and continue a thread naturally.
 
 ### Long-Term Memory: Persistent Knowledge Storage
 
@@ -208,6 +233,8 @@ Episodic memory acts as Vera's "diary," capturing the important moments and outc
 The system employs a cooldown mechanism that prevents memory spam by requiring at least three turns and ten minutes between creating new episodic memories. It also uses novelty detection with a 90% similarity threshold, meaning it only stores information that's truly new and different from what's already been captured. This ensures that the memory system builds a rich, diverse understanding without redundancy.
 
 Episodic memories are also subject to daily limits (maximum of five per day) and a merge window system where similar memories created within 48 hours are automatically merged or recreated to avoid fragmentation. This creates a clean, organized memory that tells a coherent story of the user's journey.
+
+These values are designed as operational controls rather than hard-coded constants. In practice, the cooldown windows, daily limits, merge windows, and novelty thresholds are configurable, allowing Vera to tune memory creation rates while protecting against memory spam and preserving relevance.
 
 ### Semantic Memory: User Knowledge and Preferences
 
@@ -227,10 +254,22 @@ Second, the finance agent leverages procedural memory extensively for SQL query 
 
 The procedural memory system uses semantic retrieval to find the most relevant patterns based on the specific question and context, ensuring that the injected examples are directly applicable to the current task. This makes the system more intelligent and adaptive, as it can learn from successful patterns and apply them to new but similar situations.
 
+Procedural memory is treated as a system-wide capability, not user-specific personal data. This allows Vera to maintain a shared library of best practices (such as routing examples and finance SQL templates) that improves consistency and quality across all user conversations.
+
+### Hot Path and Cold Path Memory Processing
+
+To keep Vera responsive, the memory pipeline separates retrieval from creation. Memory retrieval happens on the critical path of the conversation turn, loading relevant episodic, semantic, and procedural context before the supervisor reasons about the user's request. Memory creation and merge decisions, however, can be more expensive and are handled asynchronously after the user receives a response.
+
+This hot/cold split makes the system feel fast while still building deep personalization over time. The cold path processes memory creation in the background, applying novelty detection, importance scoring, merge logic, and storage updates without blocking the main user interaction loop.
+
+### Profile Synchronization
+
+As semantic memory evolves, Vera also maintains a structured representation of user context in the primary database. When the memory system learns or updates stable user attributes (preferences, location, tone, goals), the system synchronizes these changes back into the persisted user context. This ensures that personalization remains consistent across both the memory layer and the structured data layer, and that key user attributes are reliably available even when full memory retrieval is constrained.
+
 ### Memory Flow Architecture
 
 ```mermaid
-graph TD
+flowchart TD
     User[User Input] --> STM[Short-Term Memory]
     STM --> Supervisor[Supervisor Agent]
     
@@ -262,9 +301,11 @@ Before any user interaction, Vera performs comprehensive system initialization. 
 
 The system also loads configuration from AWS Secrets Manager, including model fallback configurations and guardrail settings, ensuring that all agents have the necessary context and safety measures in place from the moment the application starts.
 
+During initialization, Vera also prepares key knowledge and memory assets used at runtime. This includes verifying Redis connectivity, preparing background executors, and seeding procedural memories that power routing patterns and finance SQL template injection. These steps reduce the chance of first-request delays and ensure that the system's most important guidance data is immediately available.
+
 ### User Session Initialization
 
-When a user first starts a conversation, Vera performs a comprehensive initialization sequence. The system creates a State object that's cached and reused with already injected user information, making subsequent interactions quicker. This State object is currently being migrated to Redis for improved scalability and persistence.
+When a user first starts a conversation, Vera performs a comprehensive initialization sequence. The system creates a State object that's cached and reused with already injected user information, making subsequent interactions quicker. This state is persisted in Redis for scalability and persistence, with ongoing work captured in an open pull request to complete the rollout and harden operational behavior.
 
 ```mermaid
 sequenceDiagram
@@ -352,6 +393,39 @@ sequenceDiagram
 5. **Memory Decision**: System decides whether to create new memories based on the conversation
 6. **Final Response**: Complete answer with sources is streamed back to user
 
+### Fast Path Execution for Smalltalk
+
+In addition to the main supervisor path described above, Vera can route certain messages through a fast path when they are classified as smalltalk. This path is designed for speed and reduces unnecessary overhead for non-task interactions.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant API
+    participant Guardrails
+    participant IntentClassifier
+    participant FastAgent
+    participant Supervisor
+    participant SSE
+
+    User->>Frontend: Sends message
+    Frontend->>API: HTTP request
+    API->>Guardrails: Validate input
+    Guardrails->>IntentClassifier: Classify intent
+    
+    alt Smalltalk (Fast Path)
+        IntentClassifier-->>FastAgent: Route to fast response
+        FastAgent->>SSE: Stream response
+        SSE-->>Frontend: Real-time response
+        Frontend-->>User: Display response
+    else Task (Supervisor Path)
+        IntentClassifier-->>Supervisor: Route to supervisor
+        Supervisor->>SSE: Stream "Analyzing request..."
+        SSE-->>Frontend: Real-time update
+        Frontend-->>User: Display updates + response
+    end
+```
+
 ### Real-Time Transparency and Source Attribution
 
 Throughout the entire process, Vera provides complete transparency by streaming real-time updates about what's happening. Users see live updates like "Analyzing your request...", "Consulting your financial data...", or "Searching knowledge base..." as the system works through their question.
@@ -429,9 +503,23 @@ The architecture of Vera reflects several key design decisions that prioritize s
 
 The memory-first architecture recognizes that personalization is the key to effective AI assistance. By maintaining multiple layers of memory, from immediate conversation context to long-term user understanding, Vera creates a sense of continuity and personal relationship that makes each conversation more valuable than the last. This approach ensures that users don't have to repeat information and that the system can provide increasingly relevant and helpful responses over time.
 
-The AWS secrets management and model fallback system provides enterprise-grade reliability and flexibility. By centralizing configuration through AWS Secrets Manager and implementing automatic failover between ACTIVE and STANDBY regions, Vera can handle infrastructure failures gracefully while maintaining service availability. The integration of GPT-120B alongside Claude models gives the system flexibility to choose the most appropriate model for each task, ensuring optimal performance across different types of requests.
+The AWS secrets management and model fallback system provides enterprise-grade reliability and flexibility. By centralizing configuration through AWS Secrets Manager and implementing automatic failover between ACTIVE and STANDBY regions, Vera can handle infrastructure failures gracefully while maintaining service availability. The integration of GPT-120B OSS alongside the Amazon Nova family gives the system flexibility to choose the most appropriate model for each task, ensuring optimal performance across different types of requests.
 
 Event-driven communication enables real-time, responsive interactions that feel natural and engaging. Through server-sent events and asynchronous processing, Vera can stream responses in real-time, handle complex multi-step operations without blocking, and manage background tasks efficiently. This creates a conversational experience that feels immediate and alive, rather than the delayed, batch-processed responses that characterize many AI systems.
+
+## Knowledge Base and Vector Services
+
+Vera's knowledge base system supports both user-facing financial education and internal product guidance about Vera itself. While the high-level architecture is often described as \"Knowledge Base over S3 vectors,\" the operational system includes a synchronization and orchestration layer that keeps the vector store consistent across multiple sources.
+
+External knowledge sources are discovered and managed through the FOS API rather than through a local JSON configuration file. Internal documents can also be synced from S3 as first-class sources, supporting team-managed knowledge artifacts and product guidance content. A unified synchronization service orchestrates these inputs, performing crawling or file ingestion, chunking, hash-based change detection, embedding generation, and storage into the S3-backed vector store.
+
+This approach allows Vera to maintain a single retrieval interface for internal and external knowledge while keeping the source-of-truth flexible and operationally manageable.
+
+## Security and Guardrails System
+
+Vera includes a comprehensive guardrails system designed to protect user privacy, maintain safe outputs, and harden the application against adversarial inputs. This system sits close to the point of ingress and is reinforced during streaming response delivery.
+
+On input, Vera performs validation to detect common prompt injection patterns, blocked topics, and PII-like content. On output, Vera validates generated content during streaming to prevent accidental disclosure of sensitive context, and applies additional safety classification for high-risk categories. These controls are configurable and designed to balance safety with user experience, avoiding unnecessary false positives while ensuring that privacy and safety remain first-class system concerns.
 
 
 ## Configuration Architecture
@@ -442,4 +530,6 @@ The dynamic reloading capability allows the system to update configuration at ru
 
 Environment variable overrides allow for local development and testing while maintaining the security of production configurations. The system's configuration validation ensures that all required settings are present and valid before the system starts, preventing runtime errors due to misconfiguration.
 
-The model configuration system supports multiple models (Claude and GPT-120B) with per-agent configuration, allowing each agent to be optimized for its specific use case. Guardrail management is centralized with fallback capabilities, ensuring that content safety is maintained even when primary guardrails fail. The reasoning effort levels are configurable per agent, allowing the system to balance performance and accuracy based on the specific requirements of each use case.
+The model configuration system supports multiple models (GPT-120B OSS and the Amazon Nova family, including Nova Micro and Nova Pro) with per-agent configuration, allowing each agent to be optimized for its specific use case. Guardrail management is centralized with fallback capabilities, ensuring that content safety is maintained even when primary guardrails fail. The reasoning effort levels are configurable per agent, allowing the system to balance performance and accuracy based on the specific requirements of each use case.
+
+In practice, operations also rely on built-in runtime inspection and reload mechanisms. Vera exposes health signals for key dependencies (database, Redis, and procedural memory readiness) and supports controlled configuration reload workflows for secrets and prompt configuration updates. This operational tooling is a key part of running the system reliably across environments while iterating on agent behavior safely.
