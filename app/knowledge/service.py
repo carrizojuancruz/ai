@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class KnowledgeService:
 
     TOP_K_SEARCH = 10
-    
+
     def __init__(self):
         self.vector_store_service = S3VectorStoreService()
         self.document_service = DocumentService()
