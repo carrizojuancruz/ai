@@ -200,3 +200,5 @@ app/knowledge/log.txt
 
 # Cursor commands
 .cursor/commands/
+
+results.json
