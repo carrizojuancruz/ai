@@ -481,7 +481,7 @@ Not ready? Totally fine. You can connect later or add expenses manually. Connect
         id=FlowStep.FINAL_WRAP_UP,
         message=(
             "Great!  When you’re done with this setup, you’ll be able to add your spending info too.\n\n"
-            "Now, one last thing: you’ll get 30 days of full access for free. After that, it’s just $5 a month to keep chatting with me.\n\n"
+            "Now, one last thing: you’ll get 30 days of full access for free. After that, it’s $5 per month or $35 per year to keep chatting with me.\n\n"
             "Want to learn more about the subscription?"
         ),
         interaction_type=InteractionType.SINGLE_CHOICE,
@@ -504,7 +504,7 @@ Not ready? Totally fine. You can connect later or add expenses manually. Connect
     FlowStep.SUBSCRIPTION_NOTICE: StepDefinition(
         id=FlowStep.SUBSCRIPTION_NOTICE,
         message=(
-            "Now, one last thing: you’ll get 30 days of full access for free. After that, it’s just $5 a month to keep chatting with me.\n\n"
+            "Now, one last thing: you’ll get 30 days of full access for free. After that, it’s $5 per month or $35 per year to keep chatting with me.\n\n"
             "Want to learn more about the subscription?"
         ),
         interaction_type=InteractionType.SINGLE_CHOICE,
