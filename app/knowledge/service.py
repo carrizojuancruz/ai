@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 
 class KnowledgeService:
-    TOP_K_SEARCH = 10
 
     TOP_K_SEARCH = 10
     
