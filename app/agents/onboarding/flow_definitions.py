@@ -246,6 +246,13 @@ SUBSCRIPTION_FREE_MESSAGE: str = (
 )
 
 
+SUBSCRIPTION_FREE_SHORT_MESSAGE: str = (
+    "Now, one last thing: Vera is 100% free. All features are available from day one, with no limits.\n\n"
+    "I'm here to help you take control of your money, not to profit from selling or sharing your information.\n\n"
+    "Ready to make money feel simpler?"
+)
+
+
 def determine_next_step(response: str, state: "OnboardingState") -> FlowStep:
     current = state.current_flow_step
     logger.debug(
@@ -501,14 +508,14 @@ Not ready? Totally fine. You can connect later or add expenses manually. Connect
     ),
     FlowStep.SUBSCRIPTION_NOTICE: StepDefinition(
         id=FlowStep.SUBSCRIPTION_NOTICE,
-        message=SUBSCRIPTION_FREE_MESSAGE,
+        message=SUBSCRIPTION_FREE_SHORT_MESSAGE,
         interaction_type=InteractionType.SINGLE_CHOICE,
         choices=[
             Choice(
                 id="finish_setup",
-                label="Finish setup",
+                label="Let's get started",
                 value="finish_setup",
-                synonyms=["finish", "done", "complete", "wrap up"],
+                synonyms=["start", "get started", "begin", "finish"],
             ),
         ],
         next_step=lambda _r, _s: FlowStep.COMPLETE,
