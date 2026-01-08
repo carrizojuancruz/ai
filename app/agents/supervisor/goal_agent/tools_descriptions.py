@@ -1,5 +1,6 @@
 """Extended tool descriptions for the Goal Agent. Including detailed explanations of each tool's purpose."""
 
+
 class ToolDescriptions:
     GOAL_CREATION_TOOL = """Create a new goal (financial or non-financial, habit or punctual) for a user.
     MINIMUM REQUIRED FOR ACTIVATION (in_progress status):
@@ -70,13 +71,19 @@ class ToolDescriptions:
     - See Category Translation Rules in system prompt for full mapping
 
     NOTIFICATIONS:
-    - enabled: bool - Set ONLY when the user explicitly asks to change notifications for the goal. Do NOT assume they are OFF by default. When available, read the current value from the goal using get_goal_by_id and reflect it accurately.
+    - enabled: bool - Set ONLY when the user explicitly asks to change notifications for the goal.
+    - CRITICAL: Do NOT assume they are OFF by default.
+    - When reading goal details: If notifications field is missing or null, state "Notification configuration not set" rather than inventing a status.
+    - When available, read the current value from the goal using get_goal_by_id and reflect it accurately.
     - min_gap_hours: int - Minimum hours between notifications (default behavior is 24 if configured)
     - If enabled=false, no notifications will be sent regardless of reminders configuration
     - App-level/device notification status is not visible to this agent. Do NOT assert that app/device notifications are on/off. Prefer a neutral phrasing: "Push notifications depend on your device/app settings; I can configure goal reminders here."
 
     REMINDERS (optional):
-    - items: List of reminder schedules
+    - This field is OPTIONAL and can be null or have an empty items list
+    - ONLY mention reminder details when reminders.items actually contains schedules
+    - NEVER fabricate reminder times or schedules when this field is absent or empty
+    - items: List of reminder schedules (can be empty list)
     - Each item has a "schedule" with:
       * type: "one_time" or "recurring"
       * unit: "day", "week", or "month" (for recurring)
@@ -88,6 +95,11 @@ class ToolDescriptions:
 
         SUPPORTED REMINDER CAPABILITIES ONLY:
         - Do NOT invent unsupported options like "daily nudges" as a separate feature, "weekly check-ins" as a distinct type, "per-book prompts", or custom intervals beyond the fields above. If the user requests something outside this schema, offer the closest supported equivalent (e.g., recurring weekly Mondays at 09:00).
+
+        CRITICAL REMINDER RULES:
+        - Before displaying goal details, check if reminders.items exists and is non-empty
+        - If reminders is null or items is empty: "No reminders configured"
+        - NEVER invent reminder times when none exist in the data
 
     THRESHOLDS (optional):
     - warn_progress_pct: Percentage for warning (0-100)
@@ -278,7 +290,7 @@ class ToolDescriptions:
     - Evaluation config (including affected_categories for financial goals)
     - Current progress and status (including window state for habits)
     - Notification configuration (enabled, last_notified_at, min_gap_hours)
-    - Reminder schedules (type, unit, frequency, time_of_day, weekdays, etc.)
+    - Reminder schedules (OPTIONAL - may be null or have empty items list)
     - Thresholds for alerts
     - Cadence configuration (for habit goals)
     - Audit trail (created_at, updated_at)
@@ -286,10 +298,18 @@ class ToolDescriptions:
     RETURNED FIELDS INCLUDE:
     - notifications.enabled: Whether notifications are active
     - notifications.status: Whether a pending notification exists
-    - reminders.items[].schedule: Complete schedule configuration
+    - reminders: OPTIONAL - Can be null or have empty items list
+      * If present and non-empty: reminders.items[].schedule contains complete schedule configuration
+      * If null or empty: NO reminders are configured - do NOT invent or assume any reminder data
+      * When displaying: ONLY mention reminders if items list is populated
     - state.current_accomplished: Current window accomplishment status
     - state.streak_count: Number of consecutive accomplished windows
     - state.nudge_level: Dynamic nudge intensity based on failures
+
+    CRITICAL REMINDER HANDLING:
+    - ALWAYS check if reminders field exists and items list is non-empty before mentioning reminder times
+    - If reminders is null or items is empty, state "No reminders configured"
+    - NEVER fabricate reminder times, schedules, or frequencies
 
     Example usage:
     ```
@@ -387,4 +407,3 @@ class ToolDescriptions:
     delete_history_record(record_id="987e6543-e21b-12d3-a456-426614174999")
     ```
     """
-
