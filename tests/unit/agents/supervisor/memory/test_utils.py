@@ -187,7 +187,7 @@ class TestBuildProfileLine:
         assert "satisfied" in result
         assert "employer-provided" in result
         assert "save for house, pay off debt, build emergency fund" in result
-        assert "Use these details to personalize" in result
+        assert "MANDATORY: Every response must integrate" in result
 
     def test_build_with_name_only(self):
         """Test building profile with only name."""
@@ -393,11 +393,11 @@ class TestBuildProfileLine:
         result = _build_profile_line(ctx)
 
         assert result is not None
-        assert "Use these details to personalize tone and examples" in result
-        assert "Do not restate this information verbatim" in result
-        assert "Do not override with assumptions" in result
-        assert "prefer the latest user message" in result
-        assert "Respect blocked topics" in result
+        assert "MANDATORY: Every response must integrate" in result
+        assert "naturally without explicitly citing this profile" in result
+        assert "Weave context implicitly" in result
+        assert "Never restate this information verbatim" in result
+        assert "prioritize their current message" in result
 
     def test_preference_order_for_nested_vs_flat(self):
         """Test that nested fields take precedence over flat fields."""
