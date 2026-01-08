@@ -238,6 +238,14 @@ Or we can skip them and just chat openly about what’s on your mind, like a spe
 Totally up to you!"""
 
 
+SUBSCRIPTION_FREE_MESSAGE: str = (
+    "Great!  When you're done with this setup, you'll be able to add your spending info too.\n\n"
+    "Now, one last thing: Vera is 100% free. All features are available from day one, with no limits.\n\n"
+    "I'm here to help you take control of your money, not to profit from selling or sharing your information.\n\n"
+    "Ready to make money feel simpler?"
+)
+
+
 def determine_next_step(response: str, state: "OnboardingState") -> FlowStep:
     current = state.current_flow_step
     logger.debug(
@@ -479,19 +487,9 @@ Not ready? Totally fine. You can connect later or add expenses manually. Connect
     ),
     FlowStep.FINAL_WRAP_UP: StepDefinition(
         id=FlowStep.FINAL_WRAP_UP,
-        message=(
-            "Great!  When you’re done with this setup, you’ll be able to add your spending info too.\n\n"
-            "Now, one last thing: you’ll get 30 days of full access for free. After that, it’s just $5 per month or $35 per year to keep chatting with me.\n\n"
-            "Want to learn more about the subscription?"
-        ),
+        message=SUBSCRIPTION_FREE_MESSAGE,
         interaction_type=InteractionType.SINGLE_CHOICE,
         choices=[
-            Choice(
-                id="see_subscription_info",
-                label="See subscription info",
-                value="see_subscription_info",
-                synonyms=["see", "learn more", "more info", "details"],
-            ),
             Choice(
                 id="finish_setup",
                 label="Finish setup",
@@ -503,23 +501,14 @@ Not ready? Totally fine. You can connect later or add expenses manually. Connect
     ),
     FlowStep.SUBSCRIPTION_NOTICE: StepDefinition(
         id=FlowStep.SUBSCRIPTION_NOTICE,
-        message=(
-            "Now, one last thing: you’ll get 30 days of full access for free. After that, it’s just $5 per month or $35 per year to keep chatting with me.\n\n"
-            "Want to learn more about the subscription?"
-        ),
+        message=SUBSCRIPTION_FREE_MESSAGE,
         interaction_type=InteractionType.SINGLE_CHOICE,
         choices=[
             Choice(
-                id="see_subscription_info",
-                label="See subscription info",
-                value="see_subscription_info",
-                synonyms=["see", "learn more", "more info", "details"],
-            ),
-            Choice(
-                id="not_right_now",
-                label="Not right now",
-                value="not_right_now",
-                synonyms=["not now", "later", "skip"],
+                id="finish_setup",
+                label="Finish setup",
+                value="finish_setup",
+                synonyms=["finish", "done", "complete", "wrap up"],
             ),
         ],
         next_step=lambda _r, _s: FlowStep.COMPLETE,
