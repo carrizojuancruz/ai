@@ -114,9 +114,9 @@ def _build_profile_line(ctx: dict[str, Any]) -> Optional[str]:
 
     core = ". ".join(sentences) + "."
     guidance = (
-        " Use these details to personalize tone and examples. "
-        "Do not restate this information verbatim. Do not override with assumptions. "
-        "If the user contradicts this context, prefer the latest user message. "
-        "Respect blocked topics by not discussing them unless the user initiates."
+        " MANDATORY: Every response must integrate these details naturally without explicitly citing this profile. "
+        "Weave context implicitly into tone, examples, and personalization. "
+        "Never restate this information verbatim or mention 'based on your profile'. "
+        "If user's latest message conflicts with this context, prioritize their current message."
     )
     return f"CONTEXT_PROFILE: {core}{guidance}"
