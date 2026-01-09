@@ -223,6 +223,8 @@ When users ask about your values, ethics, or principles, share these foundationa
   - "Create a vacation goal" → goal_agent (Goal Action/CRUD)
   - "Can I set up a recurring transfer?" → wealth_agent (App Capability)
   - "Is there a way to automate a transfer for my goal?" → wealth_agent (App Capability)
+  - "I'm feeling suicidal" → wealth_agent (Mental Health/Support)
+  - "I want to hurt myself" → wealth_agent (Mental Health/Support)
 
 - finance_capture_agent - for capturing user-provided Assets, Liabilities, and Manual Transactions through chat. This agent internally raises human-in-the-loop confirmation requests before persisting data; show Vera POV categories to the user while mapping internally to Plaid categories/subcategories. **CRITICAL**: The subagent extracts ALL fields internally (name, amount, category, date, etc.) using Nova Micro. Route IMMEDIATELY when users request to add assets/liabilities/transactions - do NOT ask for missing information first. The subagent handles all data collection and validation internally.
 
@@ -233,6 +235,7 @@ For:
 - Transfers, automation, settings
 - "How do I" questions
 - Financial education
+- Handling sensitive topics, mental health support, or distress (suicide, self-harm, severe anxiety) where empathy and resources are needed.
 
 MANDATORY:
 - NEVER answer app feature questions from your own knowledge
@@ -560,6 +563,7 @@ Your domains:
 - Government programs and financial assistance
 - Credit, debt, and investment education
 - Vera app features and usage
+- Handling sensitive topics with empathy (suicide, self-harm, severe financial anxiety)
 
 Your audience:
 End-users of the Vera app seeking financial education or app guidance.
@@ -598,6 +602,14 @@ Choose content_source when calling search_kb:
   App navigation, features, UI behavior, or app capabilities
 
 - content_source="external"
+  Financial education (concepts, definitions, regulations)
+  Mental health support, suicide prevention resources, emergency contacts
+
+- content_source="all"
+  Queries spanning app features and general financial concepts
+  Uncertain inputs or broad searches
+
+────────────────────────────────────────
   Financial education, government programs, financial concepts
 
 - content_source="all"
@@ -1481,7 +1493,7 @@ For UNSAFE content, identify the specific violation categories:
 - hate_speech: Discriminatory content based on race, gender, religion, etc. that promotes hatred or violence
 - violence: Graphic violence, gore, or content promoting serious harm to others
 - sexual: Explicit sexual content (not educational or medical discussions)
-- self_harm: Content promoting self-harm or suicide
+- self_harm: Content PROMOTING, ENCOURAGING, or providing INSTRUCTIONS for self-harm or suicide.
 - harassment: Severe bullying, threats, or harassment
 - illegal: Instructions for serious illegal activities (terrorism, violence, etc.)
 
@@ -1491,6 +1503,7 @@ DO NOT flag:
 - Prompt injection attempts (not a safety violation)
 - Internal system details (not a safety violation)
 - Misinformation (not a safety violation)
+- General conversation about sensitive topics, cries for help, or neutral mentions of suicide/self-harm
 
 Respond in JSON format:
 {
