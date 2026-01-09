@@ -1,6 +1,5 @@
 """Unit tests for onboarding flow definitions."""
-
-import datetime
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 from app.agents.onboarding.flow_definitions import (
@@ -259,7 +258,7 @@ class TestValidateDOB:
         is_valid, error_msg = validate_dob("2010-01-01", onboarding_state)
         assert is_valid is True
         assert error_msg is None
-        assert onboarding_state.user_context.age == 15
+        assert onboarding_state.user_context.age == datetime.now().year - 2010  # 2025 - 2010 = 15
 
     def test_validate_dob_invalid_format(self, onboarding_state):
         """Test validate_dob with invalid format."""
@@ -274,7 +273,7 @@ class TestValidateDOB:
         is_valid, error_msg = validate_dob("2030-01-01", onboarding_state)
         assert is_valid is True  # Technically valid format
         assert error_msg is None
-        assert onboarding_state.user_context.age == -5  # 2025 - 2030 = -5
+        assert onboarding_state.user_context.age == datetime.now().year - 2030  # 2025 - 2030 = -5
 
 
 class TestValidateLocation:
