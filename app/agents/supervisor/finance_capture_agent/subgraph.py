@@ -312,6 +312,7 @@ def create_finance_capture_graph(
             elif "vera_expense_category" in patch and patch.get("vera_expense_category") is not None:
                 effective_kind = "expense"
 
+
         if effective_kind is None:
             kind_existing = str(draft.get("kind") or "").strip().lower()
             if kind_existing in ("income", "expense"):
@@ -328,6 +329,11 @@ def create_finance_capture_graph(
         kind = effective_kind
         if isinstance(patch_kind_raw, str):
             draft["kind"] = kind
+
+        if kind == "income":
+            draft["vera_expense_category"] = None
+        elif kind == "expense":
+            draft["vera_income_category"] = None
 
         scope: Literal["income", "expenses"] = "income" if kind == "income" else "expenses"
 
