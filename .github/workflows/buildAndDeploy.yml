@@ -34,29 +34,32 @@ jobs:
 ## -----------------------------------------
 ## Prepare: detect environment + release type
 ## -----------------------------------------
-  prepare:
-    runs-on: ubuntu-latest
-    outputs:
-      environment: ${{ steps.set-env.outputs.environment }}
-      release_type: ${{ steps.set-env.outputs.release_type }}
-      release_notes: ${{ steps.set-env.outputs.release_notes }}
-  
-    steps:
-      - name: Call composite release action
-        uses: verde-money/action-release-and-tag@main
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          python_version: "3.12"
-          environment: ${{ inputs.environment }}
-          release_notes: ${{ inputs.release_notes }}
-          version_file_path: "version.json"
-          push_branch: ${{ inputs.environment }}
-          deploy_key: ${{ secrets.DEPLOY_KEY }}
+## -----------------------------------------
+## Prepare: detect environment + release type
+## -----------------------------------------
+##  prepare:
+##    runs-on: ubuntu-latest
+##    outputs:
+##      environment: ${{ steps.set-env.outputs.environment }}
+##      release_type: ${{ steps.set-env.outputs.release_type }}
+##      release_notes: ${{ steps.set-env.outputs.release_notes }}
+##  
+##    steps:
+##      - name: Call composite release action
+##        uses: verde-money/action-release-and-tag@main
+##        with:
+##          github_token: ${{ secrets.GITHUB_TOKEN }}
+##          python_version: "3.12"
+##          environment: ${{ inputs.environment }}
+##          release_notes: ${{ inputs.release_notes }}
+##          version_file_path: "version.json"
+##          push_branch: ${{ inputs.environment }}
+##          deploy_key: ${{ secrets.DEPLOY_KEY }}
   ## -----------------------------------------
   ## Deploy ECS
   ## -----------------------------------------
   deploy:
-    needs: [prepare]
+##   needs: [prepare]
     uses: verde-money/reusable-workflows/.github/workflows/deploy-ecs.yml@main
     with:
       environment: ${{ inputs.environment }}
@@ -68,7 +71,7 @@ jobs:
   ## Slack Notification
   ## -----------------------------------------
   notify-slack:
-    needs: [deploy, prepare]
+    needs: [deploy]
     uses: verde-money/reusable-workflows/.github/workflows/slack-notification.yml@main
     with:
       environment: ${{ needs.prepare.outputs.environment }}
