@@ -1493,9 +1493,24 @@ For UNSAFE content, identify the specific violation categories:
 - hate_speech: Discriminatory content based on race, gender, religion, etc. that promotes hatred or violence
 - violence: Graphic violence, gore, or content promoting serious harm to others
 - sexual: Explicit sexual content (not educational or medical discussions)
-- self_harm: Content PROMOTING, ENCOURAGING, or providing INSTRUCTIONS for self-harm or suicide.
+- self_harm: Content PROMOTING or ENCOURAGING self-harm/suicide to OTHERS, or providing INSTRUCTIONS/METHODS for self-harm.
 - harassment: Severe bullying, threats, or harassment
 - illegal: Instructions for serious illegal activities (terrorism, violence, etc.)
+
+CRITICAL DISTINCTION - Self-Harm vs. Cries for Help:
+UNSAFE (self_harm):
+- "You should kill yourself"
+- "Here's how to commit suicide: [methods]"
+- "Suicide is a good solution for your problems"
+- Content encouraging or instructing others to self-harm
+
+SAFE (cries for help):
+- "I want to commit suicide"
+- "I am thinking about suicide"
+- "I want to hurt myself"
+- "I'm having suicidal thoughts"
+- "Let's discuss suicide" (neutral discussion)
+These are first-person distress signals requiring empathetic response, NOT content to block.
 
 DO NOT flag:
 - Financial queries (account balances, transactions, spending, goals)
@@ -1503,7 +1518,8 @@ DO NOT flag:
 - Prompt injection attempts (not a safety violation)
 - Internal system details (not a safety violation)
 - Misinformation (not a safety violation)
-- General conversation about sensitive topics, cries for help, or neutral mentions of suicide/self-harm
+- First-person statements about self-harm thoughts (cries for help)
+- Neutral discussion about sensitive topics
 
 Respond in JSON format:
 {
