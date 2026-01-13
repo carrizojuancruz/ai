@@ -549,23 +549,11 @@ def create_finance_capture_graph(
             if chosen_category and safe_str_equal(chosen_category, "income"):
                 draft["kind"] = "income"
                 derived_income = derive_vera_income(chosen_category, chosen_subcategory)
-                if derived_income is None:
-                    logger.warning(
-                        "[finance_capture] map_categories.income_derivation_failed category=%r subcategory=%r",
-                        chosen_category,
-                        chosen_subcategory,
-                    )
                 draft["vera_income_category"] = derived_income or draft.get("vera_income_category")
                 draft["vera_expense_category"] = None
             else:
                 draft["kind"] = "expense"
                 derived_expense = derive_vera_expense(chosen_category, chosen_subcategory)
-                if derived_expense is None:
-                    logger.warning(
-                        "[finance_capture] map_categories.expense_derivation_failed category=%r subcategory=%r",
-                        chosen_category,
-                        chosen_subcategory,
-                    )
                 draft["vera_expense_category"] = derived_expense or draft.get("vera_expense_category")
                 draft["vera_income_category"] = None
 
