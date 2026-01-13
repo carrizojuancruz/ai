@@ -299,14 +299,6 @@ def create_finance_capture_graph(
         if not any(key in patch for key in ("vera_income_category", "vera_expense_category", "kind")):
             return draft
 
-        # Idempotency check: if patch values match current draft values, skip recomputation
-        if (
-            patch.get("vera_income_category") == draft.get("vera_income_category")
-            and patch.get("vera_expense_category") == draft.get("vera_expense_category")
-            and patch.get("kind") == draft.get("kind")
-        ):
-            return draft
-
         effective_kind: str | None = None
 
         patch_kind_raw = patch.get("kind")
