@@ -42,7 +42,7 @@ if "thread_id" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "user_id" not in st.session_state:
-    st.session_state.user_id = "719b24bb-c9c5-41b4-9c91-9b6231b36bbc"
+    st.session_state.user_id = "a0911c1c-84bd-4ce7-96d9-649167455a06"
 if "base_url" not in st.session_state:
     st.session_state.base_url = "http://localhost:8001"
 if "benchmark_results" not in st.session_state:
@@ -258,91 +258,44 @@ if st.session_state.thread_id is not None:
             )
             response.raise_for_status()
 
+            # Instantiate SSEClient for streaming events
+            sse_url = f"{st.session_state.base_url}/supervisor/sse/{st.session_state.thread_id}"
+            headers = {'Accept': 'text/event-stream'}
+            sse_response = requests.get(sse_url, stream=True, headers=headers)
+            client = SSEClient(sse_response)
+
             with st.chat_message("assistant"):
                 message_placeholder = st.empty()
                 full_response = ""
-
-                sse_url = f"{st.session_state.base_url}/supervisor/sse/{st.session_state.thread_id}"
-                headers = {'Accept': 'text/event-stream'}
-                response = requests.get(sse_url, stream=True, headers=headers)
-                client = SSEClient(response)
-
-                is_first_delta = True
+                final_response = ""
                 sources = []
+                is_first_delta = True
                 welcome_message = st.session_state.messages[0]['content']
                 suppress_tokens = False
 
                 for event in client.events():
-                    if event.event == "token.delta":
+                    if event.event == "message.completed":
                         data = json.loads(event.data)
-                        text_delta = data.get("text", "")
+                        final_response = data.get("content", "")
                         sources = data.get("sources", [])
-
                         st.session_state.events.append({
-                            "type": "token.delta",
+                            "type": "message.completed",
                             "timestamp": time.time(),
                             "data": data
                         })
+                        escaped_final = escape_currency_dollars(final_response)
+                        message_placeholder.markdown(escaped_final)
+                        full_response = final_response
 
-                        if is_first_delta and text_delta.strip() == welcome_message.strip():
-                            is_first_delta = False
-                            continue
+                        escaped_response = escape_currency_dollars(full_response)
+                        message_with_sources = {"role": "assistant", "content": escaped_response}
+                        if len(sources) > 0:
+                            message_with_sources["sources"] = sources
 
-                        is_first_delta = False
-
-                        if text_delta.strip().startswith("CONTEXT_PROFILE:") or \
-                           text_delta.strip().startswith("Relevant context for tailoring this turn:"):
-                            continue
-
-                        # Only accumulate tokens when not suppressed (final response after tool completion)
-                        if not suppress_tokens:
-                            full_response += text_delta
-                            escaped_response = escape_currency_dollars(full_response)
-                            message_placeholder.markdown(escaped_response + "▌")
-                    elif event.event == "source.search.start":
-                        data = json.loads(event.data)
-                        st.session_state.events.append({
-                            "type": "source.search.start",
-                            "timestamp": time.time(),
-                            "data": data
-                        })
-                        # Start suppressing tokens when agent tool starts
-                        suppress_tokens = True
-                        full_response = ""
-                    elif event.event == "source.search.end":
-                        data = json.loads(event.data)
-                        st.session_state.events.append({
-                            "type": "source.search.end",
-                            "timestamp": time.time(),
-                            "data": data
-                        })
-                        suppress_tokens = False
-                    elif event.event in ["tool.start", "tool.end"]:
-                        data = json.loads(event.data)
-                        st.session_state.events.append({
-                            "type": event.event,
-                            "timestamp": time.time(),
-                            "data": data
-                        })
-                        tool_name = data.get("tool")
-                    elif event.event == "step.update":
-                        data = json.loads(event.data)
-                        st.session_state.events.append({
-                            "type": "step.update",
-                            "timestamp": time.time(),
-                            "data": data
-                        })
-                        if data.get("status") == "presented":
-                            break
-
-                escaped_response = escape_currency_dollars(full_response)
-                message_placeholder.markdown(escaped_response)
-
-            message_with_sources = {"role": "assistant", "content": escaped_response}
-            if len(sources) > 0:
-                message_with_sources["sources"] = sources
-
-            st.session_state.messages.append(message_with_sources)
+                        st.session_state.messages.append(message_with_sources)
+                        break
+                    else:
+                        continue
 
         except requests.exceptions.RequestException as e:
             st.error(f"Failed to send message: {e}")
