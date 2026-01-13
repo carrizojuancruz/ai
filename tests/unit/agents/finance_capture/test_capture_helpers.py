@@ -329,6 +329,30 @@ class TestChooseFromTaxonomy:
         )
         assert tax_id == "123"
 
+    def test_choose_specific_match_priority(self):
+        taxonomy = [
+            {
+                "id": "1",
+                "primary": "Shopping",
+                "primary_display": "Shopping",
+                "detailed": "Amazon",
+                "detailed_display": "Amazon",
+            },
+            {
+                "id": "2",
+                "primary": "Technology",
+                "primary_display": "Technology",
+                "detailed": "Amazon",
+                "detailed_display": "Amazon",
+            },
+        ]
+        # Should match ID 2 because we asked for Technology+Amazon, which is more specific
+        # than just matching Amazon (which appears in ID 1 first)
+        category, subcategory, tax_id = choose_from_taxonomy(
+            taxonomy, "Technology", "Amazon"
+        )
+        assert tax_id == "2"
+
 
 class TestBuildConfirmationSummary:
     def test_asset_summary(self):

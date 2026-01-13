@@ -142,14 +142,14 @@ def choose_from_taxonomy(
     cat_key = _alias_key(cat_normalized)
     subcat_key = _alias_key(subcat_normalized)
 
-    if subcat_key:
-        for row in rows:
-            if row.subcategory_key == subcat_key:
-                return row.category_display, row.subcategory_display, row.taxonomy_id
-
     if cat_key and subcat_key:
         for row in rows:
             if row.category_key == cat_key and row.subcategory_key == subcat_key:
+                return row.category_display, row.subcategory_display, row.taxonomy_id
+
+    if subcat_key:
+        for row in rows:
+            if row.subcategory_key == subcat_key:
                 return row.category_display, row.subcategory_display, row.taxonomy_id
 
     if cat_key:
@@ -430,5 +430,5 @@ def safe_str_equal(str1: str | None, str2: str | None) -> bool:
     Handles None values gracefully.
     """
     if str1 is None or str2 is None:
-        return str1 is str2  # Both None or both exist
+        return str1 is str2  # Both None
     return safe_normalize_string(str1) == safe_normalize_string(str2)
