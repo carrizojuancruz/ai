@@ -31,7 +31,6 @@ from .helpers import (
     match_vera_expense_to_plaid,
     match_vera_income_to_plaid,
     normalize_basic_fields,
-    safe_normalize_string,
     safe_str_equal,
     seed_draft_from_intent,
 )
@@ -482,7 +481,7 @@ def create_finance_capture_graph(
                     state.get("active_item_id"),
                 )
                 return {}
-            
+
             categories = taxonomy.get("categories") or []
             if not categories:
                 logger.warning(

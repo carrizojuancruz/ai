@@ -3,8 +3,6 @@
 import pytest
 
 from app.agents.supervisor.finance_capture_agent.subgraph import (
-    CaptureConfirmationItem,
-    CaptureDecisionPayload,
     _build_completion_message,
     _coerce_single_decision,
     _generate_item_id,

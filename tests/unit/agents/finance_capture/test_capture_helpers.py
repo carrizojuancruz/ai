@@ -2,8 +2,6 @@
 
 from decimal import Decimal
 
-import pytest
-
 from app.agents.supervisor.finance_capture_agent.constants import (
     AssetCategory,
     LiabilityCategory,

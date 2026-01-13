@@ -414,8 +414,8 @@ def to_decimal_str(value: Any) -> str | None:
         return None
 
 def safe_normalize_string(value: str | None) -> str | None:
-    """
-    Safely normalize a string by stripping whitespace and converting to lowercase.
+    """Safely normalize a string by stripping whitespace and converting to lowercase.
+
     Returns None if value is None or empty after normalization.
     """
     if value is None:
@@ -425,8 +425,8 @@ def safe_normalize_string(value: str | None) -> str | None:
 
 
 def safe_str_equal(str1: str | None, str2: str | None) -> bool:
-    """
-    Safely compare two strings case-insensitively with whitespace trimming.
+    """Safely compare two strings case-insensitively with whitespace trimming.
+
     Handles None values gracefully.
     """
     if str1 is None or str2 is None:
