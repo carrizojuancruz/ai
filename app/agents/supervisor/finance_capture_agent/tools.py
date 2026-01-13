@@ -58,8 +58,12 @@ async def get_taxonomy(
     total = 0
 
     if isinstance(response, Mapping):
-        raw_items = response.get("categories") or []
-        total = response.get("total", len(raw_items))
+        if scope == "primaries":
+            raw_items = []
+            total = response.get("total", 0)
+        else:
+            raw_items = response.get("categories") or []
+            total = response.get("total", len(raw_items))
     elif isinstance(response, list):
         raw_items = response
         total = len(response)

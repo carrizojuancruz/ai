@@ -142,14 +142,14 @@ def choose_from_taxonomy(
     cat_key = _alias_key(cat_normalized)
     subcat_key = _alias_key(subcat_normalized)
 
-    if cat_key and subcat_key:
-        for row in rows:
-            if row.category_key == cat_key and row.subcategory_key == subcat_key:
-                return row.category_display, row.subcategory_display, row.taxonomy_id
-
     if subcat_key:
         for row in rows:
             if row.subcategory_key == subcat_key:
+                return row.category_display, row.subcategory_display, row.taxonomy_id
+
+    if cat_key and subcat_key:
+        for row in rows:
+            if row.category_key == cat_key and row.subcategory_key == subcat_key:
                 return row.category_display, row.subcategory_display, row.taxonomy_id
 
     if cat_key:
@@ -157,10 +157,8 @@ def choose_from_taxonomy(
             if row.category_key == cat_key:
                 return row.category_display, row.subcategory_display, row.taxonomy_id
 
-        logger.warning("[choose_from_taxonomy] no taxonomy category match for %r", cat)
-
-    logger.error(
-        "[choose_from_taxonomy] no taxonomy match found for category=%r subcategory=%r",
+    logger.debug(
+        "[choose_from_taxonomy] no taxonomy match for category=%r subcategory=%r (will use as-is)",
         cat,
         subcat,
     )
@@ -180,6 +178,7 @@ def derive_vera_income(category: str, subcategory: str | None) -> VeraPovIncomeC
                 (subcategory_normalized in subcats_normalized) if subcategory_normalized else True
             ):
                 return vera
+    logger.warning("[derive_vera_income] no match found for category=%r subcategory=%r", category, subcategory)
     return None
 
 
@@ -413,3 +412,23 @@ def to_decimal_str(value: Any) -> str | None:
         return str(Decimal(str(value)))
     except Exception:
         return None
+
+def safe_normalize_string(value: str | None) -> str | None:
+    """
+    Safely normalize a string by stripping whitespace and converting to lowercase.
+    Returns None if value is None or empty after normalization.
+    """
+    if value is None:
+        return None
+    normalized = str(value).strip().lower()
+    return normalized if normalized else None
+
+
+def safe_str_equal(str1: str | None, str2: str | None) -> bool:
+    """
+    Safely compare two strings case-insensitively with whitespace trimming.
+    Handles None values gracefully.
+    """
+    if str1 is None or str2 is None:
+        return str1 is str2  # Both None or both exist
+    return safe_normalize_string(str1) == safe_normalize_string(str2)
