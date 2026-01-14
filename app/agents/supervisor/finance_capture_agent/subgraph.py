@@ -242,6 +242,21 @@ def _build_completion_message(
     error: str | None = None,
 ) -> str:
     entity_kind_normalized = (entity_kind or draft.get("entity_kind") or draft.get("kind") or "").lower()
+    draft_kind = draft.get("kind")
+    kind_normalized = str(draft_kind).strip().lower() if isinstance(draft_kind, str) else ""
+
+    def _kind_label() -> str | None:
+        if kind_normalized == "income":
+            return "Income"
+        if kind_normalized == "expense":
+            return "Expense"
+        return None
+
+    def _tx_descriptor(default: str) -> str:
+        value = draft.get("merchant_or_payee") or draft.get("name")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        return default
     if error:
         return f"Task failed: {error}"
     if confirm_decision == "cancel":
@@ -252,9 +267,10 @@ def _build_completion_message(
             name = draft.get("name", "liability")
             return f"Task cancelled: Liability '{name}' was not saved."
         if entity_kind_normalized in ("income", "expense", "manual_tx"):
-            merchant = draft.get("merchant_or_payee", "transaction")
-            label = "Income" if entity_kind_normalized == "income" else "Expense"
-            return f"Task cancelled: {label} transaction for {merchant} was not saved."
+            merchant = _tx_descriptor("transaction")
+            kind_label = _kind_label()
+            kind_prefix = f"{kind_label} " if kind_label else ""
+            return f"Task cancelled: {kind_prefix}transaction for {merchant} was not saved."
         return "Task cancelled: No changes were saved."
 
     if persisted_ids:
@@ -271,12 +287,13 @@ def _build_completion_message(
             edit_note = " Note: The user edited the original values before saving." if was_edited else ""
             return f"TASK COMPLETED: Liability '{name}' with balance {balance} {currency} has been successfully saved to the user's financial profile.{edit_note} No further action needed."
         if entity_kind_normalized in ("income", "expense", "manual_tx"):
-            kind_label = "Income" if entity_kind_normalized == "income" else "Expense"
+            kind_label = _kind_label()
             amount = draft.get("amount", "")
             currency = draft.get("currency_code", "USD")
-            merchant = draft.get("merchant_or_payee", "transaction")
+            merchant = _tx_descriptor("transaction")
             edit_note = " Note: The user edited the original values before saving." if was_edited else ""
-            return f"TASK COMPLETED: {kind_label} transaction for {merchant} ({amount} {currency}) has been successfully saved.{edit_note} No further action needed."
+            kind_prefix = f"{kind_label} " if kind_label else ""
+            return f"TASK COMPLETED: {kind_prefix}transaction for {merchant} ({amount} {currency}) has been successfully saved.{edit_note} No further action needed."
 
     return "Finance data capture task completed."
 
@@ -404,7 +421,10 @@ def create_finance_capture_graph(
             if role in ("user", "human"):
                 content = getattr(message, "content", None)
                 if isinstance(content, str):
-                    user_message = content.strip()
+                    stripped = content.strip()
+                    if stripped.startswith("CONTEXT_PROFILE:") or stripped.startswith("Relevant context for tailoring this turn:"):
+                        continue
+                    user_message = stripped
                     break
 
         intents: list[NovaMicroIntentResult] = []
@@ -776,11 +796,11 @@ def create_finance_capture_graph(
                         "confirm_decision": "error",
                         "persisted_ids": None,
                         "was_edited": decision == "edit" or item.get("was_edited", False),
-                        "draft": draft,
+                        "draft": validated_payload,
                         "error": error_msg,
                         "completion_message": _build_completion_message(
                             entity_kind=entity_kind,
-                            draft=draft,
+                            draft=validated_payload,
                             confirm_decision="approve",
                             persisted_ids=None,
                             was_edited=decision == "edit" or item.get("was_edited", False),
@@ -797,10 +817,10 @@ def create_finance_capture_graph(
                     "confirm_decision": decision,
                     "persisted_ids": persisted_ids or None,
                     "was_edited": decision == "edit" or item.get("was_edited", False),
-                    "draft": draft,
+                    "draft": validated_payload,
                     "completion_message": _build_completion_message(
                         entity_kind=entity_kind,
-                        draft=draft,
+                        draft=validated_payload,
                         confirm_decision=decision,
                         persisted_ids=persisted_ids or None,
                         was_edited=decision == "edit" or item.get("was_edited", False),

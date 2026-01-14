@@ -317,7 +317,7 @@ class TestBuildCompletionMessage:
     def test_manual_tx_income_success(self):
         message = _build_completion_message(
             entity_kind="income",
-            draft={"amount": "5000", "currency_code": "USD", "merchant_or_payee": "Employer"},
+            draft={"kind": "income", "amount": "5000", "currency_code": "USD", "merchant_or_payee": "Employer"},
             confirm_decision="approve",
             persisted_ids=["111"],
             was_edited=False,
@@ -326,10 +326,28 @@ class TestBuildCompletionMessage:
         assert "Income" in message
         assert "5000" in message
 
+    def test_manual_tx_entity_kind_uses_draft_kind_income(self):
+        message = _build_completion_message(
+            entity_kind="manual_tx",
+            draft={
+                "kind": "income",
+                "amount": "275",
+                "currency_code": "USD",
+                "name": "Trading bitcoin",
+            },
+            confirm_decision="approve",
+            persisted_ids=["333"],
+            was_edited=True,
+        )
+        assert "TASK COMPLETED" in message.upper()
+        assert "Income" in message
+        assert "Expense" not in message
+        assert "Trading bitcoin" in message
+
     def test_manual_tx_expense_success(self):
         message = _build_completion_message(
             entity_kind="expense",
-            draft={"amount": "150", "currency_code": "USD", "merchant_or_payee": "Restaurant"},
+            draft={"kind": "expense", "amount": "150", "currency_code": "USD", "merchant_or_payee": "Restaurant"},
             confirm_decision="approve",
             persisted_ids=["222"],
             was_edited=False,
@@ -337,6 +355,22 @@ class TestBuildCompletionMessage:
         assert "TASK COMPLETED" in message.upper()
         assert "Expense" in message
         assert "Restaurant" in message
+
+    def test_manual_tx_descriptor_falls_back_to_name(self):
+        message = _build_completion_message(
+            entity_kind="manual_tx",
+            draft={
+                "kind": "expense",
+                "amount": "666",
+                "currency_code": "USD",
+                "name": "freelance work",
+            },
+            confirm_decision="approve",
+            persisted_ids=["444"],
+            was_edited=False,
+        )
+        assert "Expense" in message
+        assert "freelance work" in message
 
     def test_cancel_message_asset(self):
         message = _build_completion_message(
