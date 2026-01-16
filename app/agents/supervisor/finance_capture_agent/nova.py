@@ -147,20 +147,35 @@ def _extract_text_from_response(data: dict[str, object]) -> str:
 
 
 def _invoke_nova(prompt: str) -> dict[str, object]:
-    model_id = config.MEMORY_TINY_LLM_MODEL_ID
-    if not model_id:
-        raise RuntimeError("MEMORY_TINY_LLM_MODEL_ID is not configured")
+    supervisor_model_id = config.SUPERVISOR_AGENT_MODEL_ID
+    if not supervisor_model_id:
+        raise RuntimeError("SUPERVISOR_AGENT_MODEL_ID is not configured")
 
-    body_payload = {
-        "messages": [{"role": "user", "content": [{"text": prompt}]}],
-        "inferenceConfig": {"temperature": 0.0, "topP": 0.1, "stopSequences": []},
-    }
+    from langchain_aws import ChatBedrockConverse
+    from langchain_core.messages import HumanMessage
 
-    client = get_bedrock_runtime_client()
-    response = client.invoke_model(modelId=model_id, body=json.dumps(body_payload))
-    body = response.get("body")
-    raw = body.read().decode("utf-8") if hasattr(body, "read") else str(body)
-    return json.loads(raw or "{}")
+    region = config.SUPERVISOR_AGENT_MODEL_REGION or config.get_aws_region()
+    if not region:
+        raise RuntimeError("SUPERVISOR_AGENT_MODEL_REGION (or AWS_REGION fallback) is required")
+
+    llm = ChatBedrockConverse(model=supervisor_model_id, region_name=region, temperature=0.0)
+    response = llm.invoke([HumanMessage(content=prompt)])
+    content = getattr(response, "content", "")
+    if isinstance(content, str):
+        text = content
+    elif isinstance(content, list):
+        parts: list[str] = []
+        for part in content:
+            if isinstance(part, str):
+                parts.append(part)
+            elif isinstance(part, dict):
+                part_text = part.get("text")
+                if isinstance(part_text, str):
+                    parts.append(part_text)
+        text = "".join(parts)
+    else:
+        text = str(content)
+    return {"outputText": text}
 
 
 def extract_intent(user_message: str) -> NovaMicroIntentResult | None:
@@ -217,8 +232,13 @@ def _load_and_parse_intents(prompt: str) -> list[NovaMicroIntentResult]:
         logger.warning("finance_capture.nova.empty_output")
         return []
 
+    logger.info(
+        "finance_capture.nova.output_text len=%s payload=%s",
+        len(text),
+        _truncate_for_log(text),
+    )
 
-    raw_payload: Any
+
     candidate = _clean_json_text(text)
 
     raw_payload: Any | None = None

@@ -15,7 +15,7 @@ from app.core.app_state import get_sse_queue
 from app.services.memory.checkpointer import KVRedisCheckpointer
 from app.utils.tools import get_config_value
 
-from .constants import AssetCategory, LiabilityCategory, VeraPovExpenseCategory
+from .constants import AssetCategory, LiabilityCategory, VeraPovExpenseCategory, VeraPovIncomeCategory
 from .helpers import (
     asset_payload_from_draft,
     asset_payload_to_fos,
@@ -603,10 +603,26 @@ def create_finance_capture_graph(
             draft["taxonomy_id"] = taxonomy_id
 
             # Derive Vera POV category (income vs expense)
-            if chosen_category and safe_str_equal(chosen_category, "income"):
+            is_income_category = bool(
+                chosen_category
+                and (
+                    safe_str_equal(chosen_category, "income")
+                    or safe_str_equal(chosen_category, "transfer in")
+                )
+            )
+
+            if is_income_category:
                 draft["kind"] = "income"
-                derived_income = derive_vera_income(chosen_category, chosen_subcategory)
-                draft["vera_income_category"] = derived_income or draft.get("vera_income_category")
+
+                derived_income = None
+                if chosen_category and safe_str_equal(chosen_category, "income"):
+                    derived_income = derive_vera_income(chosen_category, chosen_subcategory)
+
+                suggested_income = (
+                    intent_dict.get("suggested_vera_income_category")
+                    or draft.get("vera_income_category")
+                )
+                draft["vera_income_category"] = derived_income or suggested_income or VeraPovIncomeCategory.TRANSFERS_DEPOSITS
                 draft["vera_expense_category"] = None
             else:
                 draft["kind"] = "expense"

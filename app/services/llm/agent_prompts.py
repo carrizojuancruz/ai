@@ -29,8 +29,10 @@ def build_finance_capture_nova_intent_prompt(
 ) -> str:
     vera_income_categories = ", ".join(category.value for category in VeraPovIncomeCategory)
     vera_expense_categories = ", ".join(category.value for category in VeraPovExpenseCategory)
+    
     allowed_kinds_joined = ", ".join(allowed_kinds)
     plaid_expense_joined = ", ".join(plaid_expense_categories)
+    
     asset_categories_joined = (
         ", ".join(asset_categories) if asset_categories else ", ".join(cat.value for cat in AssetCategory)
     )
@@ -56,20 +58,25 @@ Mapping between Vera POV categories (for user display) and Plaid categories (for
         else ""
     )
 
-    prompt = f"""You are an expert financial data classifier. Given a user's free-form message, extract one or more structured objects matching the schema below.
+    prompt = f"""You are an expert financial intent extraction and classification system.
 
-Preferred output format (when multiple assets/liabilities/transactions are mentioned):
+Your task is to analyze a user's free-form message and extract **one or more structured financial objects** that strictly conform to the schema and rules below.
+---
+## OUTPUT FORMAT
+If multiple items are mentioned, return:
+```json
 {{
   "items": [
-    {{<object 1>}},
-    {{<object 2>}},
-    ...
+    {{ <object 1> }},
+    {{ <object 2> }}
   ]
 }}
 
-If the user clearly references only one item, you may return a single object instead of wrapping it in "items".
-
-Each object MUST contain:
+If only one item is clearly referenced, you may return a single object without wrapping it in "items".
+Respond with valid JSON only. No explanations or commentary.
+---
+## OBJECT SCHEMA (REQUIRED FIELDS)
+Each extracted object MUST contain all fields below (use null if unknown):
 {{
   "kind": "asset" | "liability" | "manual_tx",
   "name": string | null,
@@ -86,31 +93,75 @@ Each object MUST contain:
   "confidence": number | null
 }}
 
-Rules:
+## GLOBAL RULES
 - "kind" must be one of: {allowed_kinds_joined}
-- If kind == "asset":
-  - suggested_category SHOULD be one of the asset categories: {asset_categories_joined} (use null if uncertain)
-  - suggested_vera_income_category, suggested_plaid_category, and suggested_plaid_subcategory MUST be null
-- If kind == "liability":
-  - suggested_category SHOULD be one of the liability categories: {liability_categories_joined} (use null if uncertain)
-  - suggested_vera_income_category, suggested_plaid_category, and suggested_plaid_subcategory MUST be null
-- If kind == "manual_tx":
-  - suggested_category MUST be null
-  - suggested_vera_income_category and suggested_vera_expense_category cannot both be non-null; choose exactly one depending on intent
-  - CRITICAL: You MUST set at least one of suggested_vera_income_category or suggested_vera_expense_category (never return both null).
-  - If you pick a Vera POV income category, choose from: {vera_income_categories}
-  - If you pick a Vera POV expense category, choose from: {vera_expense_categories}
-  - CRITICAL: suggested_plaid_category MUST NOT be null. It MUST be either "Income" or one of the Plaid expense categories listed in: {plaid_expense_joined}.
-  - suggested_plaid_subcategory SHOULD be one of the allowed subcategories corresponding to the chosen Plaid category (see valid combinations below). If uncertain, return the closest match; otherwise use null.
-  - CRITICAL VALIDATION: The suggested_plaid_subcategory MUST exist under the suggested_plaid_category in the valid combinations list below. If a subcategory (e.g., "Coffee") only appears under one category (e.g., "Food & Dining"), you MUST use that category, not a different one.
-  - IMPORTANT: When suggesting both Vera POV and Plaid categories, ensure they are consistent with the mapping below. The Vera POV category is for user display, while the Plaid category/subcategory is for backend storage.
-  - EXAMPLE: For "coffee at Blue Bottle", the subcategory "Coffee" belongs to "Food & Dining", so use suggested_plaid_category="Food & Dining" and suggested_vera_expense_category="Food & Dining", NOT "Shopping & Entertainment".{subcategory_section}{mapping_section}
-- amount should be a stringified decimal without currency symbols
-- currency_code should be uppercase ISO-4217 (e.g., "USD") when available
-- date should be ISO-8601 (YYYY-MM-DD) if present
-- confidence should reflect your certainty (0-1). Use null if you cannot estimate
-- If any field is unknown, set it to null
-- Respond with JSON only. Do not include explanations
+- amount must be a stringified decimal (no currency symbols)
+- currency_code must be ISO-4217 uppercase (e.g. "USD")
+- date must be ISO-8601 (YYYY-MM-DD)
+- confidence is a float from 0 to 1 (use null if uncertain)
+- Unknown or missing values must be null
+
+## KIND-SPECIFIC RULES
+
+### ASSET
+- suggested_category SHOULD be one of: {asset_categories_joined}
+- All of the following MUST be null:
+    - suggested_vera_income_category
+    - suggested_vera_expense_category
+    - suggested_plaid_category
+    - suggested_plaid_subcategory
+
+### LIABILITY
+- suggested_category SHOULD be one of: {liability_categories_joined}
+- All of the following MUST be null:
+    - suggested_vera_income_category
+    - suggested_vera_expense_category
+    - suggested_plaid_category
+    - suggested_plaid_subcategory
+
+### MANUAL TRANSACTION (manual_tx)
+
+#### CRITICAL CONSTRAINTS
+- suggested_category MUST be null
+- You MUST set exactly one of:
+    - suggested_vera_income_category
+    - suggested_vera_expense_category
+- NEVER return both as non-null
+- NEVER return both as null
+
+#### Naming Rules (MANDATORY)
+- If the user mentions a specific item/service (e.g., "buying a notebook"), set "name" to that item/service.
+- If the user mentions a merchant/payee, set "merchant_or_payee" to that merchant/payee.
+- If no merchant/payee is provided, set "merchant_or_payee" to the same value as "name" (or null if truly unknown).
+- Do NOT use placeholder/generic values for "name" or "merchant_or_payee" such as "Manual expense", "Manual income", "Manual transaction", or similar.
+
+#### Vera POV Categories
+- Income categories (choose one if income): {vera_income_categories}
+- Expense categories (choose one if expense): {vera_expense_categories}
+
+#### Plaid Categories (MANDATORY)
+- suggested_plaid_category MUST NOT be null
+- It must be either: "Income", or one of the Plaid expense categories: {plaid_expense_joined}
+
+#### Plaid Subcategory Rules
+- suggested_plaid_subcategory SHOULD match a valid subcategory
+- If uncertain, choose the closest valid match or null
+- CRITICAL VALIDATION RULE: The chosen subcategory MUST exist under the chosen Plaid category. If a subcategory exists under only one category, you MUST use that category
+
+#### Cross-System Consistency
+- Vera POV categories are for user display
+- Plaid categories/subcategories are for backend storage
+- Ensure consistency using the mapping below
+
+#### Example:
+
+For "coffee at Blue Bottle". The subcategory "Coffee" belongs to "Food & Dining", so use:
+- suggested_plaid_category = "Food & Dining" 
+- suggested_plaid_subcategory = "Coffee"
+- suggested_vera_expense_category = "Food & Dining"
+
+{subcategory_section}
+{mapping_section}
 
 User message:
 {text}
