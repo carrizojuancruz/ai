@@ -1473,6 +1473,7 @@ Note: The supervisor will receive your structured response and format it convers
 """
 
 
+
 # Supervisor Delegation Template
 SUPERVISOR_DELEGATION_TEMPLATE_LOCAL = """Please analyze and complete the following task as a specialized agent.
 You are providing analysis to your supervisor - they will format the final response to the user.
