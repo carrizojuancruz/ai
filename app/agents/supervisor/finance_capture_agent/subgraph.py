@@ -15,7 +15,7 @@ from app.core.app_state import get_sse_queue
 from app.services.memory.checkpointer import KVRedisCheckpointer
 from app.utils.tools import get_config_value
 
-from .constants import AssetCategory, LiabilityCategory
+from .constants import AssetCategory, LiabilityCategory, VeraPovExpenseCategory
 from .helpers import (
     asset_payload_from_draft,
     asset_payload_to_fos,
@@ -50,6 +50,49 @@ class CaptureConfirmationItem(TypedDict, total=False):
 
 
 DecisionLiteral = Literal["approve", "edit", "cancel"]
+
+
+def _extract_user_message_for_intent(messages: list[Any]) -> str:
+    def _get_attr(obj: Any, key: str) -> Any:
+        if isinstance(obj, dict):
+            return obj.get(key)
+        return getattr(obj, key, None)
+
+    def _is_context_profile(text: str) -> bool:
+        stripped = text.strip()
+        return stripped.startswith("CONTEXT_PROFILE:") or stripped.startswith(
+            "Relevant context for tailoring this turn:"
+        )
+
+    delegator_content: str | None = None
+
+    for message in reversed(messages or []):
+        role = _get_attr(message, "role") or _get_attr(message, "type")
+        if role not in ("user", "human"):
+            continue
+
+        name = _get_attr(message, "name")
+        content = _get_attr(message, "content")
+
+        if isinstance(content, str) and content.strip() and _is_context_profile(content):
+            continue
+
+        if name == "supervisor_delegator":
+            if isinstance(content, str) and content.strip():
+                delegator_content = content
+            continue
+
+        if isinstance(content, str) and content.strip():
+            return content.strip()
+
+    if delegator_content:
+        for line in delegator_content.splitlines():
+            stripped = line.strip()
+            if stripped.lower().startswith("task:"):
+                task_text = stripped.split(":", 1)[1].strip()
+                return task_text
+
+    return ""
 
 
 class CaptureDecisionPayload(TypedDict, total=False):
@@ -415,17 +458,7 @@ def create_finance_capture_graph(
         return draft
 
     async def parse_and_normalize(state: FinanceCaptureState, config: RunnableConfig) -> dict[str, Any]:
-        user_message = ""
-        for message in reversed(state.get("messages", [])):
-            role = getattr(message, "role", getattr(message, "type", None))
-            if role in ("user", "human"):
-                content = getattr(message, "content", None)
-                if isinstance(content, str):
-                    stripped = content.strip()
-                    if stripped.startswith("CONTEXT_PROFILE:") or stripped.startswith("Relevant context for tailoring this turn:"):
-                        continue
-                    user_message = stripped
-                    break
+        user_message = _extract_user_message_for_intent(list(state.get("messages", [])))
 
         intents: list[NovaMicroIntentResult] = []
         if user_message:
@@ -530,6 +563,10 @@ def create_finance_capture_graph(
 
                 vera_income = intent_dict.get("suggested_vera_income_category") or draft.get("vera_income_category")
                 vera_expense = intent_dict.get("suggested_vera_expense_category") or draft.get("vera_expense_category")
+
+                if vera_income is None and vera_expense is None:
+                    vera_expense = VeraPovExpenseCategory.FEES_OTHER
+                    draft["vera_expense_category"] = vera_expense
 
                 plaid_cat_fallback: str | None = None
                 plaid_subcat_fallback: str | None = None

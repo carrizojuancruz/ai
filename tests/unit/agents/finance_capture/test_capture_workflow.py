@@ -5,6 +5,7 @@ import pytest
 from app.agents.supervisor.finance_capture_agent.subgraph import (
     _build_completion_message,
     _coerce_single_decision,
+    _extract_user_message_for_intent,
     _generate_item_id,
     _serialize_confirmation_items,
     _upsert_confirmation_item,
@@ -178,6 +179,36 @@ class TestCoerceSingleDecision:
             {"draft": {"name": "Test"}, "action": "cancel"}
         )
         assert decision == "cancel"
+
+
+class TestExtractUserMessageForIntent:
+    def test_prefers_real_user_over_supervisor_delegator(self):
+        messages = [
+            {"role": "user", "content": "Add an expense"},
+            {
+                "role": "human",
+                "name": "supervisor_delegator",
+                "content": "Complete the following task as a specialized agent.\n\nTask: Add an expense\n\nGuidelines:\n- ...",
+            },
+        ]
+        assert _extract_user_message_for_intent(messages) == "Add an expense"
+
+    def test_skips_context_profile_messages(self):
+        messages = [
+            {"role": "human", "content": "CONTEXT_PROFILE: blah blah"},
+            {"role": "user", "content": "Add an expense"},
+        ]
+        assert _extract_user_message_for_intent(messages) == "Add an expense"
+
+    def test_fallback_extracts_task_line_from_delegator(self):
+        messages = [
+            {
+                "role": "human",
+                "name": "supervisor_delegator",
+                "content": "Complete the following task as a specialized agent and report back the results.\n\nTask: Add an expense\n\nGuidelines:\n- ...",
+            }
+        ]
+        assert _extract_user_message_for_intent(messages) == "Add an expense"
 
 
 class TestNormalizeConfirmationDecisions:

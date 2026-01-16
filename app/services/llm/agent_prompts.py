@@ -97,10 +97,11 @@ Rules:
 - If kind == "manual_tx":
   - suggested_category MUST be null
   - suggested_vera_income_category and suggested_vera_expense_category cannot both be non-null; choose exactly one depending on intent
+  - CRITICAL: You MUST set at least one of suggested_vera_income_category or suggested_vera_expense_category (never return both null).
   - If you pick a Vera POV income category, choose from: {vera_income_categories}
   - If you pick a Vera POV expense category, choose from: {vera_expense_categories}
-  - suggested_plaid_category MUST be either "Income" or one of the Plaid expense categories listed in: {plaid_expense_joined}
-  - suggested_plaid_subcategory MUST be one of the allowed subcategories corresponding to the chosen Plaid category (see valid combinations below). If uncertain, return the closest match; otherwise use null
+  - CRITICAL: suggested_plaid_category MUST NOT be null. It MUST be either "Income" or one of the Plaid expense categories listed in: {plaid_expense_joined}.
+  - suggested_plaid_subcategory SHOULD be one of the allowed subcategories corresponding to the chosen Plaid category (see valid combinations below). If uncertain, return the closest match; otherwise use null.
   - CRITICAL VALIDATION: The suggested_plaid_subcategory MUST exist under the suggested_plaid_category in the valid combinations list below. If a subcategory (e.g., "Coffee") only appears under one category (e.g., "Food & Dining"), you MUST use that category, not a different one.
   - IMPORTANT: When suggesting both Vera POV and Plaid categories, ensure they are consistent with the mapping below. The Vera POV category is for user display, while the Plaid category/subcategory is for backend storage.
   - EXAMPLE: For "coffee at Blue Bottle", the subcategory "Coffee" belongs to "Food & Dining", so use suggested_plaid_category="Food & Dining" and suggested_vera_expense_category="Food & Dining", NOT "Shopping & Entertainment".{subcategory_section}{mapping_section}
