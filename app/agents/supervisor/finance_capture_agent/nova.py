@@ -4,7 +4,6 @@ import json
 import logging
 from typing import Any
 
-from app.core.app_state import get_bedrock_runtime_client
 from app.core.config import config
 from app.services.llm.prompt_loader import prompt_loader
 

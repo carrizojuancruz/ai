@@ -29,10 +29,10 @@ def build_finance_capture_nova_intent_prompt(
 ) -> str:
     vera_income_categories = ", ".join(category.value for category in VeraPovIncomeCategory)
     vera_expense_categories = ", ".join(category.value for category in VeraPovExpenseCategory)
-    
+
     allowed_kinds_joined = ", ".join(allowed_kinds)
     plaid_expense_joined = ", ".join(plaid_expense_categories)
-    
+
     asset_categories_joined = (
         ", ".join(asset_categories) if asset_categories else ", ".join(cat.value for cat in AssetCategory)
     )
@@ -156,7 +156,7 @@ Each extracted object MUST contain all fields below (use null if unknown):
 #### Example:
 
 For "coffee at Blue Bottle". The subcategory "Coffee" belongs to "Food & Dining", so use:
-- suggested_plaid_category = "Food & Dining" 
+- suggested_plaid_category = "Food & Dining"
 - suggested_plaid_subcategory = "Coffee"
 - suggested_vera_expense_category = "Food & Dining"
 
