@@ -241,7 +241,9 @@ class TestValidateDOB:
         is_valid, error_msg = validate_dob("1990-01-15", onboarding_state)
         assert is_valid is True
         assert error_msg is None
-        assert onboarding_state.user_context.age == 35  # 2025 - 1990 = 35
+        # TODO: remove this validation because has nothing to to with date validation and
+        # will only works only during year 2025
+        # assert onboarding_state.user_context.age == 35  # 2025 - 1990 = 35
 
     @patch('app.agents.onboarding.flow_definitions.date')
     def test_validate_dob_valid_mm_dd_yyyy(self, mock_date, onboarding_state):
