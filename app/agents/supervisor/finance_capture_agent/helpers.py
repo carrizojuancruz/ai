@@ -253,7 +253,7 @@ def asset_payload_from_draft(draft: dict[str, Any]) -> dict[str, Any]:
     vera_category = draft.get("vera_category") or AssetCategory.OTHER_ASSETS
 
     return {
-        "name": draft.get("name") or "",
+        "name": draft.get("name") or "New Asset",
         "estimated_value": float(Decimal(str(draft.get("estimated_value") or "0"))),
         "currency_code": draft.get("currency_code") or "USD",
         "vera_category": vera_category,
@@ -266,7 +266,7 @@ def liability_payload_from_draft(draft: dict[str, Any]) -> dict[str, Any]:
     vera_category = draft.get("vera_category") or LiabilityCategory.OTHER_LIABILITIES
 
     return {
-        "name": draft.get("name") or "",
+        "name": draft.get("name") or "New Liability",
         "principal_balance": float(Decimal(str(draft.get("principal_balance") or "0"))),
         "minimum_payment_amount": (
             float(Decimal(str(draft.get("minimum_payment_amount"))))
