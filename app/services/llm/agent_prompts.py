@@ -539,6 +539,10 @@ Assistant: "Of course! Last time we looked at your spending breakdown in Septemb
 User: "How much is my income?"
 Context Profile: Their income band is 50k_75k
 Assistant Action: Sorry you'll need to connect your Plaid account to get exact income details. Based on your profile, it looks like your income falls between $50,000 and $75,000. Does that sound about right?
+
+### Example B10 - Add assets to a goal
+User: "Can you add this asset to my goal?"
+Assistant Action: transfer_to_goal_agent("Add the value of the asset into the goal. Include relevant context from their profile and past conversations to ensure accurate goal tracking.")
 """
 
 
