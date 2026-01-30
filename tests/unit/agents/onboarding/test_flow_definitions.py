@@ -1,5 +1,5 @@
 """Unit tests for onboarding flow definitions."""
-from datetime import datetime
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 from app.agents.onboarding.flow_definitions import (
@@ -237,7 +237,7 @@ class TestValidateDOB:
     @patch('app.agents.onboarding.flow_definitions.date')
     def test_validate_dob_valid_yyyy_mm_dd(self, mock_date, onboarding_state):
         """Test validate_dob with valid YYYY-MM-DD format."""
-        mock_date.today.return_value = datetime.date(2025, 6, 15)
+        mock_date.today.return_value = date(2025, 6, 15)
         is_valid, error_msg = validate_dob("1990-01-15", onboarding_state)
         assert is_valid is True
         assert error_msg is None
@@ -248,7 +248,7 @@ class TestValidateDOB:
     @patch('app.agents.onboarding.flow_definitions.date')
     def test_validate_dob_valid_mm_dd_yyyy(self, mock_date, onboarding_state):
         """Test validate_dob with valid MM/DD/YYYY format."""
-        mock_date.today.return_value = datetime.date(2025, 6, 15)
+        mock_date.today.return_value = date(2025, 6, 15)
         is_valid, error_msg = validate_dob("01/15/1990", onboarding_state)
         assert is_valid is True
         assert error_msg is None
@@ -256,11 +256,11 @@ class TestValidateDOB:
     @patch('app.agents.onboarding.flow_definitions.date')
     def test_validate_dob_under_18(self, mock_date, onboarding_state):
         """Test validate_dob with date making person under 18."""
-        mock_date.today.return_value = datetime.date(2025, 6, 15)
+        mock_date.today.return_value = date(2025, 6, 15)
         is_valid, error_msg = validate_dob("2010-01-01", onboarding_state)
         assert is_valid is True
         assert error_msg is None
-        assert onboarding_state.user_context.age == datetime.now().year - 2010  # 2025 - 2010 = 15
+        assert onboarding_state.user_context.age == 15  # 2025 - 2010
 
     def test_validate_dob_invalid_format(self, onboarding_state):
         """Test validate_dob with invalid format."""
@@ -271,11 +271,11 @@ class TestValidateDOB:
     @patch('app.agents.onboarding.flow_definitions.date')
     def test_validate_dob_future_date(self, mock_date, onboarding_state):
         """Test validate_dob with future date."""
-        mock_date.today.return_value = datetime.date(2025, 6, 15)
+        mock_date.today.return_value = date(2025, 6, 15)
         is_valid, error_msg = validate_dob("2030-01-01", onboarding_state)
         assert is_valid is True  # Technically valid format
         assert error_msg is None
-        assert onboarding_state.user_context.age == datetime.now().year - 2030  # 2025 - 2030 = -5
+        assert onboarding_state.user_context.age == -5  # 2025 - 2030
 
 
 class TestValidateLocation:
