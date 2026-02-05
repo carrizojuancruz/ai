@@ -14,6 +14,7 @@ from app.core.config import config
 from app.observability.logging_config import configure_logging
 from app.services.llm.prompt_loader import prompt_loader
 
+from .filters import strip_notifications
 from .subgraph import create_goal_subgraph
 from .tools import (
     create_goal,
@@ -107,8 +108,10 @@ class GoalAgent:
                 if user_goals_response and user_goals_response.get('goals'):
                     import json
 
+                    filtered_goals_response = strip_notifications(user_goals_response)
+
                     goals_context = "\n\n## USER'S CURRENT GOALS (RAW)\n\n"
-                    goals_context += json.dumps(user_goals_response, ensure_ascii=False, indent=2)
+                    goals_context += json.dumps(filtered_goals_response, ensure_ascii=False, indent=2)
                     return base_prompt + goals_context
             except Exception as e:
                 logger.warning(f"Failed to inject goals context: {e}")
