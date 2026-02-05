@@ -40,6 +40,7 @@ from app.services.external_context.user.mapping import (
     map_ai_context_to_user_context,
     map_user_context_to_ai_context,
 )
+from app.services.external_context.user.payment_reminders import PaymentRemindersService
 from app.services.external_context.user.personal_information import PersonalInformationService
 from app.services.external_context.user.profile_metadata import build_profile_metadata_payload
 from app.services.external_context.user.repository import ExternalUserRepository
@@ -160,6 +161,7 @@ class SupervisorService:
         try:
             repo = ExternalUserRepository()
             personal_info_service = PersonalInformationService()
+            payment_reminders_service = PaymentRemindersService()
             external_ctx = await repo.get_by_id(user_id)
 
             ctx = UserContext(user_id=user_id)
@@ -170,6 +172,11 @@ class SupervisorService:
             profile_details = await personal_info_service.get_profile_details(str(user_id))
             if profile_details:
                 self._merge_profile_details(ctx, profile_details)
+
+            payment_reminders = await payment_reminders_service.get_payment_reminders(str(user_id))
+            if payment_reminders:
+                ctx.payment_reminders = payment_reminders
+
             if external_ctx:
                 ctx = map_ai_context_to_user_context(external_ctx, ctx)
                 logger.info(f"[SUPERVISOR] External AI Context loaded for user: {user_id}")

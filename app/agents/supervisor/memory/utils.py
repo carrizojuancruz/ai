@@ -66,6 +66,8 @@ def _build_profile_line(ctx: dict[str, Any]) -> Optional[str]:
     goals = ctx.get("goals") or []
     goals_str = ", ".join([str(g) for g in goals[:3] if isinstance(g, str)]) if isinstance(goals, list) else ""
     personal_information = ctx.get("personal_information") or None
+    payment_reminders = ctx.get("payment_reminders") or {}
+    
     sentences: list[str] = []
 
     if name and age is not None:
@@ -108,6 +110,22 @@ def _build_profile_line(ctx: dict[str, Any]) -> Optional[str]:
 
     if personal_information:
         sentences.append(personal_information)
+
+    if payment_reminders:
+        reminders_list = payment_reminders.get("payment_reminders", []) if isinstance(payment_reminders, dict) else []
+        if reminders_list:
+            active_reminders = [r for r in reminders_list if r.get("status") == "active"]
+            paused_reminders = [r for r in reminders_list if r.get("status") == "paused"]
+            
+            if active_reminders or paused_reminders:
+                reminder_parts = []
+                if active_reminders:
+                    active_summaries = [r.get("summary", r.get("title", "")) for r in active_reminders[:3]]
+                    reminder_parts.append(f"{len(active_reminders)} active reminder(s): {'; '.join(active_summaries)}")
+                if paused_reminders:
+                    paused_summaries = [r.get("summary", r.get("title", "")) for r in paused_reminders[:3]]
+                    reminder_parts.append(f"{len(paused_reminders)} paused reminder(s): {'; '.join(paused_summaries)}")
+                sentences.append(f"Payment reminders: {' | '.join(reminder_parts)}")
 
     if not sentences:
         return None
