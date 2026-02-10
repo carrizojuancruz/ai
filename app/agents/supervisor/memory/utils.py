@@ -67,7 +67,7 @@ def _build_profile_line(ctx: dict[str, Any]) -> Optional[str]:
     goals_str = ", ".join([str(g) for g in goals[:3] if isinstance(g, str)]) if isinstance(goals, list) else ""
     personal_information = ctx.get("personal_information") or None
     payment_reminders = ctx.get("payment_reminders") or {}
-    
+
     sentences: list[str] = []
 
     if name and age is not None:
@@ -116,7 +116,7 @@ def _build_profile_line(ctx: dict[str, Any]) -> Optional[str]:
         if reminders_list:
             active_reminders = [r for r in reminders_list if r.get("status") == "active"]
             paused_reminders = [r for r in reminders_list if r.get("status") == "paused"]
-            
+
             if active_reminders or paused_reminders:
                 reminder_parts = []
                 if active_reminders:
