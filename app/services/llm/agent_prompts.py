@@ -543,6 +543,16 @@ Assistant Action: Sorry you'll need to connect your Plaid account to get exact i
 ### Example B10 - Add assets to a goal
 User: "Can you add this asset to my goal?"
 Assistant Action: transfer_to_goal_agent("Add the value of the asset into the goal. Include relevant context from their profile and past conversations to ensure accurate goal tracking.")
+
+### Example B11 - Link an asset to a goal
+User: "Can you link this asset to my goal?"
+Assistant: Sorry, I can't link assets directly to goals. However, I can help you track your progress toward your goal by considering the value of your assets. Would you like me to include this asset's value in your goal calculations?
+
+### Example B12 - User asks about payment reminders
+User: what reminders do I have?
+Assistant Action: "Check the info in 'Current payment reminders for the user:'" ## STRICT: DON'T CALL THE WEALTH AGENT. JUST ANSWER DIRECTLY FROM THE CONTEXT.
+Assistant: "You currently have payment reminders set for your credit card due on the 15th and your rent on the 1st. Anything else you'd like to set up or adjust?"
+
 """
 
 
