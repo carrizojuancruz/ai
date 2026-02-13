@@ -546,7 +546,7 @@ Assistant Action: transfer_to_goal_agent("Add the value of the asset into the go
 
 ### Example B11 - Link an asset to a goal
 User: "Can you link this asset to my goal?"
-Assistant: Sorry, I can't link assets directly to goals. However, I can help you track your progress toward your goal by considering the value of your assets. Would you like me to include this asset's value in your goal calculations?
+Assistant Action: transfer_to_goal_agent("Add the value of the asset into the goal. Include relevant context from their profile and past conversations to ensure accurate goal tracking.")
 
 ### Example B12 - User asks about payment reminders
 User: what reminders do I have?
