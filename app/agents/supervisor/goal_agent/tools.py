@@ -615,3 +615,79 @@ async def delete_history_record(record_id: str, config: RunnableConfig) -> str:
             message=f"Failed to delete history record: {str(e)}",
             user_id=user_key if 'user_key' in locals() else ""
         )
+
+
+@tool(
+    name_or_callable="link_asset_to_goal",
+    description=ToolDescriptions.LINK_ASSET_TO_GOAL_TOOL,
+)
+async def link_asset_to_goal(goal_id: str, amount: float, config: RunnableConfig, asset_name: str = None) -> str:
+    """Add the value of an asset to a goal's current progress."""
+    try:
+        user_key = str(get_config_value(config, "user_id"))
+
+        # Validate amount is positive
+        if amount <= 0:
+            return ResponseBuilder.error(
+                error_code=ErrorCodes.INVALID_DATA,
+                message="Amount must be positive",
+                user_id=user_key
+            )
+
+        # Fetch existing goal
+        goal_response = await fetch_goal_by_id(goal_id, user_id=user_key)
+        existing_goal_data = extract_goal_from_response(goal_response)
+
+        if not existing_goal_data:
+            return ResponseBuilder.error(
+                error_code=ErrorCodes.NO_GOAL_TO_UPDATE,
+                message="Goal not found",
+                user_id=user_key
+            )
+
+        # Get current progress value
+        from decimal import Decimal
+        current_value = Decimal(str(existing_goal_data.get('progress', {}).get('current_value', 0)))
+        amount_decimal = Decimal(str(amount))
+        new_value = current_value + amount_decimal
+
+        # Merge with existing data
+        updated_data = existing_goal_data.copy()
+        updated_data['progress']['current_value'] = str(new_value)
+        updated_data['progress']['updated_at'] = _now().isoformat()
+
+        # Update version and audit
+        updated_data['version'] = updated_data.get('version', 1) + 1
+        updated_data['audit'] = {
+            'created_at': existing_goal_data.get('audit', {}).get('created_at', _now().isoformat()),
+            'updated_at': _now().isoformat()
+        }
+
+        # Remove metadata if present
+        if 'metadata' in updated_data:
+            del updated_data['metadata']
+
+        # Create and save updated goal
+        updated_goal = Goal(**updated_data)
+        await edit_goal(updated_goal)
+
+        # Build response
+        goal_json = updated_goal.model_dump_json()
+        goal_dict = json.loads(goal_json)
+
+        asset_context = f" ({asset_name})" if asset_name else ""
+        message = f"Added {amount_decimal} from asset{asset_context} to goal. New progress: {new_value}"
+
+        return ResponseBuilder.success(
+            message=message,
+            user_id=user_key,
+            goal=goal_dict
+        )
+
+    except Exception as e:
+        logger.error(f"Error linking asset to goal: {e}", exc_info=True)
+        return ResponseBuilder.error(
+            error_code=ErrorCodes.UPDATE_FAILED,
+            message=f"Failed to link asset to goal: {str(e)}",
+            user_id=user_key if 'user_key' in locals() else ""
+        )

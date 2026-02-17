@@ -18,6 +18,7 @@ from app.agents.supervisor.goal_agent.tools import (
     delete_goal,
     get_goal_by_id,
     get_in_progress_goal,
+    link_asset_to_goal,
     switch_goal_status,
     update_goal,
 )
@@ -347,3 +348,91 @@ class TestGetGoalById:
             result = json.loads(result_str)
 
             assert result["error"] == ErrorCodes.GOAL_NOT_FOUND
+
+
+# ============================================================================
+# LINK ASSET TO GOAL TESTS
+# ============================================================================
+
+class TestLinkAssetToGoal:
+    """Test cases for link_asset_to_goal tool."""
+
+    @pytest.mark.asyncio
+    async def test_link_asset_to_goal_success(self, mock_config, sample_goal_dict):
+        """Test successfully linking an asset to a goal."""
+        goal_id = sample_goal_dict["id"]
+        asset_value = 22000.0
+        asset_name = "Tesla Model 3"
+
+        # Set initial progress
+        sample_goal_dict["progress"]["current_value"] = 5000
+
+        with patch('app.agents.supervisor.goal_agent.tools.fetch_goal_by_id', new_callable=AsyncMock) as mock_fetch, \
+             patch('app.agents.supervisor.goal_agent.tools.edit_goal', new_callable=AsyncMock) as mock_edit:
+
+            mock_fetch.return_value = {"goal": sample_goal_dict}
+
+            result_str = await link_asset_to_goal.ainvoke({
+                "goal_id": goal_id,
+                "amount": asset_value,
+                "asset_name": asset_name
+            }, config=mock_config)
+            result = json.loads(result_str)
+
+            assert "Added" in result["message"]
+            assert asset_name in result["message"]
+            assert result["goal"]["progress"]["current_value"] == "27000"  # 5000 + 22000
+            mock_edit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_link_asset_to_goal_without_name(self, mock_config, sample_goal_dict):
+        """Test linking an asset without providing asset name."""
+        goal_id = sample_goal_dict["id"]
+        asset_value = 10000.0
+
+        sample_goal_dict["progress"]["current_value"] = 0
+
+        with patch('app.agents.supervisor.goal_agent.tools.fetch_goal_by_id', new_callable=AsyncMock) as mock_fetch, \
+             patch('app.agents.supervisor.goal_agent.tools.edit_goal', new_callable=AsyncMock):
+
+            mock_fetch.return_value = {"goal": sample_goal_dict}
+
+            result_str = await link_asset_to_goal.ainvoke({
+                "goal_id": goal_id,
+                "amount": asset_value
+            }, config=mock_config)
+            result = json.loads(result_str)
+
+            assert "Added" in result["message"]
+            assert result["goal"]["progress"]["current_value"] == "10000"
+
+    @pytest.mark.asyncio
+    async def test_link_asset_to_goal_negative_amount(self, mock_config):
+        """Test linking with negative amount (should fail)."""
+        goal_id = str(uuid4())
+
+        result_str = await link_asset_to_goal.ainvoke({
+            "goal_id": goal_id,
+            "amount": -5000.0
+        }, config=mock_config)
+        result = json.loads(result_str)
+
+        assert result["error"] == ErrorCodes.INVALID_DATA
+        assert "positive" in result["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_link_asset_to_goal_not_found(self, mock_config):
+        """Test linking asset to non-existent goal."""
+        goal_id = str(uuid4())
+
+        with patch('app.agents.supervisor.goal_agent.tools.fetch_goal_by_id', new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.return_value = {}
+
+            result_str = await link_asset_to_goal.ainvoke({
+                "goal_id": goal_id,
+                "amount": 10000.0
+            }, config=mock_config)
+            result = json.loads(result_str)
+
+            assert result["error"] == ErrorCodes.NO_GOAL_TO_UPDATE
+

@@ -407,3 +407,25 @@ class ToolDescriptions:
     delete_history_record(record_id="987e6543-e21b-12d3-a456-426614174999")
     ```
     """
+
+    LINK_ASSET_TO_GOAL_TOOL = """Add the value of an asset to a goal's current progress.
+
+    Use this when the user wants to link an existing asset to a goal.
+    This simply adds the asset's value to the goal's current progress.
+
+    REQUIRED:
+    - goal_id: The ID of the goal to update
+    - amount: The asset value to add to the goal's progress (must be positive)
+
+    OPTIONAL:
+    - asset_name: Name of the asset being linked (for confirmation message)
+
+    Example:
+    ```
+    link_asset_to_goal(
+        goal_id="123e4567-e89b-12d3-a456-426614174000",
+        amount=22000,
+        asset_name="Tesla Model 3"
+    )
+    ```
+    """

@@ -29,7 +29,7 @@
 {"summary":"When user asks 'Delete my vacation goal' or 'Remove my savings goal', route to goal_agent. Rationale: goal deletion action.","category":"Routing","key":"routing_example_delete_goal_action"}
 {"summary":"When user asks 'How am I doing with my savings goal?' or 'Am I on track?', route to goal_agent. Rationale: goal status/progress.","category":"Routing","key":"routing_example_goal_status"}
 {"summary":"When user asks 'Show my goal progress history for the last 3 months', route to goal_agent. Rationale: Goal history analysis (dedicated tool).","category":"Routing","key":"routing_example_goal_history"}
-{"summary":"User says 'Add this asset to my Savings Goal' or 'Link my existing asset to my goal' -> route to goal_agent. Rationale: link existing asset to goal.","category":"Routing","key":"routing_example_goal_link_asset"}
+{"summary":"User says 'Add my Tesla to my Savings Goal' or 'Link this asset to my vacation goal' -> route to goal_agent with asset name and value from context. Rationale: Add asset value to goal using link_asset_to_goal tool.","category":"Routing","key":"routing_example_goal_link_asset"}
 {"summary":"User says 'Track my gym visits 3x per week' or 'I want to meditate daily', route to goal_agent. Rationale: Non-financial habit goal creation.","category":"Routing","key":"routing_example_goal_nonfin_habit"}
 {"summary":"When user asks 'How many times did I go to the gym this week?', route to goal_agent. Rationale: Non-financial goal progress status.","category":"Routing","key":"routing_example_goal_nonfin_status"}
 {"summary":"When user asks 'How do I build good credit?' or 'What is a credit score?', route to wealth_agent. Rationale: General financial education.","category":"Routing","key":"routing_example_education_credit"}

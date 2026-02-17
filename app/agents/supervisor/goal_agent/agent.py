@@ -24,6 +24,7 @@ from .tools import (
     get_goal_by_id,
     get_goal_history,
     get_in_progress_goal,
+    link_asset_to_goal,
     switch_goal_status,
     update_goal,
     update_history_record,
@@ -86,6 +87,7 @@ class GoalAgent:
             create_goal, update_goal, get_in_progress_goal,
             delete_goal, switch_goal_status, get_goal_by_id,
             get_goal_history, create_history_record, update_history_record, delete_history_record,
+            link_asset_to_goal,
             calculate
         ]
 
