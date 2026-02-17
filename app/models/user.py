@@ -1,8 +1,12 @@
+import logging
 from datetime import datetime
 from enum import Enum
+from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+logger = logging.getLogger(__name__)
 
 
 class SubscriptionTier(str, Enum):
@@ -101,7 +105,32 @@ class UserContext(BaseModel):
     assets_high_level: list[str] = Field(default_factory=list)
     blocked_topics: list[str] | None = Field(default=None)
     personal_information: str | None = Field(default=None)
-    payment_reminders: dict | list[dict] = Field(default_factory=list)
+    payment_reminders: list[dict] = Field(default_factory=list)
+
+    @field_validator("rent_mortgage", mode="before")
+    @classmethod
+    def validate_rent_mortgage(cls, v: Any) -> float | None:
+        """Validate and convert rent_mortgage to float, handling string inputs gracefully."""
+        if v is None or v == "":
+            return None
+        if isinstance(v, (int, float)):
+            return float(v)
+        if isinstance(v, str):
+            # Remove common currency symbols and whitespace
+            cleaned = v.strip().replace("$", "").replace(",", "")
+            try:
+                return float(cleaned)
+            except (ValueError, TypeError):
+                logger.warning(
+                    "Cannot convert rent_mortgage value to float: %r. Setting to None.",
+                    v,
+                )
+                return None
+        logger.warning(
+            "Unexpected type for rent_mortgage: %s. Setting to None.",
+            type(v).__name__,
+        )
+        return None
 
     def sync_flat_to_nested(self) -> None:
         if self.preferred_name:

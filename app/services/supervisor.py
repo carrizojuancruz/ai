@@ -174,8 +174,8 @@ class SupervisorService:
                 self._merge_profile_details(ctx, profile_details)
 
             payment_reminders = await payment_reminders_service.get_payment_reminders(str(user_id))
-            if payment_reminders:
-                ctx.payment_reminders = payment_reminders
+            if payment_reminders and isinstance(payment_reminders, dict):
+                ctx.payment_reminders = payment_reminders.get("payment_reminders", [])
 
             if external_ctx:
                 ctx = map_ai_context_to_user_context(external_ctx, ctx)
