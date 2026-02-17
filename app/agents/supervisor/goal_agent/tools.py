@@ -37,6 +37,14 @@ def _now() -> datetime:
     return datetime.now()
 
 
+def _format_decimal(value) -> str:
+    normalized = value.normalize()
+    value_str = format(normalized, 'f')
+    if '.' in value_str:
+        value_str = value_str.rstrip('0').rstrip('.')
+    return value_str
+
+
 @tool(
     name_or_callable="create_goal",
     description=ToolDescriptions.GOAL_CREATION_TOOL,
@@ -650,10 +658,12 @@ async def link_asset_to_goal(goal_id: str, amount: float, config: RunnableConfig
         current_value = Decimal(str(existing_goal_data.get('progress', {}).get('current_value', 0)))
         amount_decimal = Decimal(str(amount))
         new_value = current_value + amount_decimal
+        new_value_str = _format_decimal(new_value)
+        amount_str = _format_decimal(amount_decimal)
 
         # Merge with existing data
         updated_data = existing_goal_data.copy()
-        updated_data['progress']['current_value'] = str(new_value)
+        updated_data['progress']['current_value'] = new_value_str
         updated_data['progress']['updated_at'] = _now().isoformat()
 
         # Update version and audit
@@ -676,7 +686,7 @@ async def link_asset_to_goal(goal_id: str, amount: float, config: RunnableConfig
         goal_dict = json.loads(goal_json)
 
         asset_context = f" ({asset_name})" if asset_name else ""
-        message = f"Added {amount_decimal} from asset{asset_context} to goal. New progress: {new_value}"
+        message = f"Added {amount_str} from asset{asset_context} to goal. New progress: {new_value_str}"
 
         return ResponseBuilder.success(
             message=message,
