@@ -1,29 +1,8 @@
 name: Build, Release and Deploy to ECS
 
 on:
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: "Select deployment environment"
-        required: false
-        default: develop
-        type: choice
-        options:
-          - develop
-          - uat
-          - prod
-      release_notes:
-        description: "Release notes"
-        required: false
-        default: ""
-
-env:
-  ECR_REPOSITORY:  ${{ vars.ECR_REGISTRY_NAME }}
-  AWS_REGION:      ${{ vars.AWS_REGION }}
-  AWS_ACCOUNT_ID:  ${{ vars.AWS_ACCOUNT_ID }}
-  ROLE_NAME:       ${{ vars.ROLE_NAME }}
-  ECS_CLUSTER:     ${{ vars.ECS_CLUSTER }}
-  ECS_SERVICE:     ${{ vars.ECS_SERVICE }}
+  push:
+    branches: [develop, uat, main]
 
 permissions:
   id-token: write
@@ -31,52 +10,33 @@ permissions:
   pull-requests: write
 
 jobs:
-## -----------------------------------------
-## Prepare: detect environment + release type
-## -----------------------------------------
-## -----------------------------------------
-## Prepare: detect environment + release type
-## -----------------------------------------
-##  prepare:
-##    runs-on: ubuntu-latest
-##    outputs:
-##      environment: ${{ steps.set-env.outputs.environment }}
-##      release_type: ${{ steps.set-env.outputs.release_type }}
-##      release_notes: ${{ steps.set-env.outputs.release_notes }}
-##  
-##    steps:
-##      - name: Call composite release action
-##        uses: verde-money/action-release-and-tag@main
-##        with:
-##          github_token: ${{ secrets.GITHUB_TOKEN }}
-##          python_version: "3.12"
-##          environment: ${{ inputs.environment }}
-##          release_notes: ${{ inputs.release_notes }}
-##          version_file_path: "version.json"
-##          push_branch: ${{ inputs.environment }}
-##          deploy_key: ${{ secrets.DEPLOY_KEY }}
-  ## -----------------------------------------
-  ## Deploy ECS
-  ## -----------------------------------------
+  resolve-env:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.map.outputs.environment }}
+    steps:
+      - name: Map branch to environment
+        id: map
+        run: |
+          case "${{ github.ref_name }}" in
+            main)    echo "environment=prod"    >> "$GITHUB_OUTPUT" ;;
+            uat)     echo "environment=uat"     >> "$GITHUB_OUTPUT" ;;
+            develop) echo "environment=develop" >> "$GITHUB_OUTPUT" ;;
+          esac
   deploy:
-##   needs: [prepare]
+    needs: [resolve-env]
     uses: verde-money/reusable-workflows/.github/workflows/deploy-ecs.yml@main
     with:
-      environment: ${{ inputs.environment }}
-    secrets:
-      inherit
+      environment: ${{ needs.resolve-env.outputs.environment }}
+    secrets: inherit
 
-
-  ## -----------------------------------------
-  ## Slack Notification
-  ## -----------------------------------------
   notify-slack:
-    needs: [deploy]
+    needs: [resolve-env, deploy]
     uses: verde-money/reusable-workflows/.github/workflows/slack-notification.yml@main
     with:
-      environment: ${{ needs.prepare.outputs.environment }}
+      environment: ${{ needs.resolve-env.outputs.environment }}
       version_file_path: "version.json"
       deploy_result: ${{ needs.deploy.result }}
-      title: "FOS: ${{ github.repository }} - ${{ needs.prepare.outputs.environment }} Deployment"
+      title: "FOS: ${{ github.repository }} - ${{ needs.resolve-env.outputs.environment }} Deployment"
     secrets:
-      SLACK_WEBHOOK_URL: ${{ vars.DEPLOY_SLACK_WEBHOOK_URL }}
+      SLACK_WEBHOOK_URL: ${{ secrets.DEPLOY_SLACK_WEBHOOK_URL }}
