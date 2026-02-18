@@ -1,0 +1,41 @@
+name: Validate PR source branch
+
+on:
+  pull_request:
+    branches: [main, uat, develop]
+
+jobs:
+  check-source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate source branch
+        run: |
+          BASE_REF="${{ github.base_ref }}"
+          HEAD_REF="${{ github.head_ref }}"
+
+          case "$BASE_REF" in
+            main)
+              if [[ "$HEAD_REF" == "uat" || "$HEAD_REF" == hotfix/* ]]; then
+                echo "OK: '$HEAD_REF' -> main"
+              else
+                echo "ERROR: PRs to main only allowed from 'uat' or 'hotfix/*'. Got: '$HEAD_REF'"
+                exit 1
+              fi
+              ;;
+            uat)
+              if [[ "$HEAD_REF" == "develop" ]]; then
+                echo "OK: '$HEAD_REF' -> uat"
+              else
+                echo "ERROR: PRs to uat only allowed from 'develop'. Got: '$HEAD_REF'"
+                exit 1
+              fi
+              ;;
+            develop)
+              if [[ "$HEAD_REF" == feature/* || "$HEAD_REF" == feat/* || "$HEAD_REF" == bug/* || "$HEAD_REF" == bugfix/* || "$HEAD_REF" == chore/* || "$HEAD_REF" == fix/* || "$HEAD_REF" == hotfix/* || "$HEAD_REF" == refactor/* || "$HEAD_REF" == docs/* || "$HEAD_REF" == test/* || "$HEAD_REF" == ci/* || "$HEAD_REF" == style/* || "$HEAD_REF" == perf/* || "$HEAD_REF" == build/* ]]; then
+                echo "OK: '$HEAD_REF' -> develop"
+              else
+                echo "ERROR: PRs to develop must use a conventional branch prefix (feature/*, feat/*, bug/*, bugfix/*, chore/*, fix/*, hotfix/*, refactor/*, docs/*, test/*, ci/*, style/*, perf/*, build/*). Got: '$HEAD_REF'"
+                exit 1
+              fi
+              ;;
+          esac
