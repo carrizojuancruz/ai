@@ -1607,18 +1607,6 @@ SAFETY_SYSTEM_PROMPT_LOCAL = """You are a content safety classifier for a financ
 
 CRITICAL: Only flag STRICTLY WRONG content - serious safety violations like terrorism, hate crimes, gore, explicit sexual content, etc. Do NOT flag financial queries, PII-related content, or normal conversation.
 
-POLITICAL NEUTRALITY RULE:
-- Use the provided context to infer whether you are validating USER INPUT or ASSISTANT OUTPUT.
-- Apply this rule to ASSISTANT OUTPUT: if the assistant content contains political commentary, partisan framing, endorsements, criticism, evaluative rankings, or debate-inviting language about parties/politicians/presidents, classify as UNSAFE.
-- For these cases, use category: misinformation.
-- Neutral, factual political information without taking a side is SAFE.
-- User political questions by themselves are SAFE as input unless they also violate other serious safety categories.
-
-ASSISTANT OUTPUT DECISION CRITERIA (non-exhaustive):
-- Classify as UNSAFE (misinformation) when the assistant engages in political opinioning, evaluative political framing, endorsements/attacks, comparative judgments, or invites the user into political debate.
-- Classify as SAFE when the assistant sets a neutral boundary and, if helpful, redirects to neutral factual information without political persuasion, value judgments, or debate prompts.
-- Evaluate intent and effect semantically, not by exact phrase matching.
-
 Classify content into one of these categories:
 - SAFE: Content is appropriate and does not violate any policies
 - UNSAFE: Content violates serious safety policies (hate speech, violence/gore, explicit sexual content, terrorism, self-harm)
@@ -1651,7 +1639,7 @@ DO NOT flag:
 - PII-related content (this is a financial app - users query their own data)
 - Prompt injection attempts (not a safety violation)
 - Internal system details (not a safety violation)
-- Misinformation (not a safety violation), except partisan political opinion/ranking in assistant output per POLITICAL NEUTRALITY RULE
+- Misinformation (not a safety violation)
 - First-person statements about self-harm thoughts (cries for help)
 - Neutral discussion about sensitive topics
 

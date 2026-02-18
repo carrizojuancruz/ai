@@ -336,12 +336,6 @@ class LLMSafetyMiddleware:
 
         # Classify
         classification = await self.classifier.classify(combined_text, context)
-        logger.info(
-            "[LLMSafetyMiddleware][input] level=%s confidence=%.2f categories=%s",
-            classification.level.value,
-            classification.confidence,
-            [cat.value for cat in classification.categories],
-        )
 
         # Decide based on confidence
         if classification.level == SafetyLevel.UNCERTAIN:
@@ -391,12 +385,6 @@ class LLMSafetyMiddleware:
 
         # Classify
         classification = await self.classifier.classify(text, context)
-        logger.info(
-            "[LLMSafetyMiddleware][output] level=%s confidence=%.2f categories=%s",
-            classification.level.value,
-            classification.confidence,
-            [cat.value for cat in classification.categories],
-        )
 
         # Decide based on confidence
         if classification.level == SafetyLevel.UNCERTAIN:
