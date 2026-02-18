@@ -13,7 +13,7 @@ from langchain_cerebras import ChatCerebras
 from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
 from pydantic import PrivateAttr
 
-from app.services.guardrails import InputGuardrailMiddleware
+from app.services.guardrails import InputGuardrailMiddleware, OutputGuardrailMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,7 @@ class SafeChatCerebras(ChatCerebras):
     """
 
     _input_guardrail: InputGuardrailMiddleware = PrivateAttr()
+    _output_guardrail: OutputGuardrailMiddleware = PrivateAttr()
     _user_context: dict = PrivateAttr(default_factory=dict)
 
     def __init__(
@@ -77,6 +78,7 @@ class SafeChatCerebras(ChatCerebras):
             ocfg.setdefault("fail_open", fail_open)
 
         self._input_guardrail = input_guardrail or InputGuardrailMiddleware(config=icfg)
+        self._output_guardrail = OutputGuardrailMiddleware(config=ocfg)
         self._user_context = user_context or {}
 
     @property
@@ -86,6 +88,10 @@ class SafeChatCerebras(ChatCerebras):
     @property
     def user_context(self) -> dict:
         return self._user_context
+
+    @property
+    def output_guardrail(self) -> OutputGuardrailMiddleware:
+        return self._output_guardrail
 
     @user_context.setter
     def user_context(self, value: dict) -> None:
@@ -122,8 +128,20 @@ class SafeChatCerebras(ChatCerebras):
                 logger.warning(f"[SafeCerebras] Input blocked: {violation_msg}")
                 content, metadata = self._format_intervention(violation_msg)
                 return AIMessage(content=content, response_metadata=metadata)
-            # Safe → return model result
-            return await model_task
+            model_result = await model_task
+            output_text = self._message_content_to_text(model_result)
+            output_safe, output_violation = await self.output_guardrail.validate_text(
+                output_text,
+                self.user_context,
+            )
+            if not output_safe:
+                logger.warning(f"[SafeCerebras] Output blocked: {output_violation}")
+                content, metadata = self._format_intervention(
+                    f'[GUARDRAIL_INTERVENED] {{"code":"{output_violation}"}}'
+                )
+                return AIMessage(content=content, response_metadata=metadata)
+
+            return model_result
         else:
             # Model finished first; confirm validation before returning
             model_result = await model_task
@@ -132,6 +150,19 @@ class SafeChatCerebras(ChatCerebras):
                 logger.warning(f"[SafeCerebras] Input blocked (post-compute): {violation_msg}")
                 content, metadata = self._format_intervention(violation_msg)
                 return AIMessage(content=content, response_metadata=metadata)
+
+            output_text = self._message_content_to_text(model_result)
+            output_safe, output_violation = await self.output_guardrail.validate_text(
+                output_text,
+                self.user_context,
+            )
+            if not output_safe:
+                logger.warning(f"[SafeCerebras] Output blocked: {output_violation}")
+                content, metadata = self._format_intervention(
+                    f'[GUARDRAIL_INTERVENED] {{"code":"{output_violation}"}}'
+                )
+                return AIMessage(content=content, response_metadata=metadata)
+
             return model_result
 
     async def astream(
@@ -232,8 +263,8 @@ class SafeChatCerebras(ChatCerebras):
                 async for flushed in _yield_buffered():
                     yield flushed
 
-        # After input validation passes, yield validated chunks
-        async for chunk in _validated_stream():
+        guarded_stream = self.output_guardrail.validate_stream(_validated_stream(), self.user_context)
+        async for chunk in guarded_stream:
             yield chunk
 
     def update_user_context(self, user_context: dict):
@@ -299,6 +330,18 @@ class SafeChatCerebras(ChatCerebras):
             "guardrail_message": human_message,
         }
         return content, metadata
+
+    def _message_content_to_text(self, message: Any) -> str:
+        """Normalize model response content into plain text for output validation."""
+        content = getattr(message, "content", "")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            return "".join(
+                block.get("text", "") if isinstance(block, dict) else str(block)
+                for block in content
+            )
+        return str(content)
 
     def _build_user_context_suggestion(self) -> str:
         """Generate a redirection hint using available user context."""

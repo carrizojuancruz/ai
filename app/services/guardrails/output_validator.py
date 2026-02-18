@@ -100,6 +100,16 @@ class OutputGuardrailMiddleware:
             logger.error(f"[OutputGuardrail] Stream validation error: {e}")
             # Fail open: continue streaming
 
+    async def validate_text(
+        self,
+        text: str,
+        user_context: dict = None
+    ) -> tuple[bool, str | None]:
+        """Validate a complete non-streaming output text."""
+        if not text:
+            return True, None
+        return await self._validate_complete(text, user_context)
+
     def _extract_content(self, chunk: Any) -> str:
         """Extract text content from chunk."""
         if isinstance(chunk, str):

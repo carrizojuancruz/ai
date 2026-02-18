@@ -36,7 +36,9 @@ async def _generate_response(llm_messages: list[BaseMessage]) -> str:
                 "enabled_checks": ["injection", "blocked_topics", "internal_exposure"],
             },
             output_config={
-                "use_llm_classifier": False,
+                "use_llm_classifier": True,
+                "llm_confidence_threshold": 0.7,
+                "llm_fail_open": False,
                 "enabled_checks": ["pii_leakage", "context_exposure", "internal_exposure"],
             },
             user_context={"blocked_topics": []},
