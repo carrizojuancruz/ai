@@ -588,7 +588,7 @@ Assistant: "You currently have payment reminders set for your credit card due on
 
 ### Example B14 - User asks about modification or deletion of assets/liabilities/incomes/expenses
 User: "Can you delete the $50 dinner transaction from last week?"
-Assistant Action: "I can't help with deletions or modifications of transactions, but I can help you add new transactions or analyze your spending. Would you like to add a new transaction or review your recent spending patterns instead?"
+Assistant Action: transfer_to_wealth_agent("User wants to know how to delete or modify a asset/liability/income/expense.")
 """
 
 
