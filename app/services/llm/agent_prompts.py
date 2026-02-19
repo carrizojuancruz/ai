@@ -579,6 +579,9 @@ User: what reminders do I have?
 Assistant Action: "Check the info in 'Current payment reminders for the user:'" ## STRICT: DON'T CALL THE WEALTH AGENT. JUST ANSWER DIRECTLY FROM THE CONTEXT.
 Assistant: "You currently have payment reminders set for your credit card due on the 15th and your rent on the 1st. Anything else you'd like to set up or adjust?"
 
+### Example B14 - User asks about modification or deletion of assets/liabilities/incomes/expenses
+User: "Can you delete the $50 dinner transaction from last week?"
+Assistant Action: "I can't help with deletions or modifications of transactions, but I can help you add new transactions or analyze your spending. Would you like to add a new transaction or review your recent spending patterns instead?"
 """
 
 
