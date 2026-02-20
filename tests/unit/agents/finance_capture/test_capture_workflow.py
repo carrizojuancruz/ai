@@ -7,6 +7,8 @@ from app.agents.supervisor.finance_capture_agent.subgraph import (
     _coerce_single_decision,
     _extract_user_message_for_intent,
     _generate_item_id,
+    _missing_fields_prompt,
+    _required_missing_fields,
     _serialize_confirmation_items,
     _upsert_confirmation_item,
     _validate_draft_payload,
@@ -458,3 +460,29 @@ class TestBuildCompletionMessage:
             was_edited=False,
         )
         assert "cancelled" in message.lower()
+
+
+class TestRequiredFieldsGate:
+    def test_asset_missing_amount(self):
+        missing = _required_missing_fields(
+            {"entity_kind": "asset", "name": "Savings"},
+            {"kind": "asset"},
+        )
+        assert missing == ["amount"]
+
+    def test_manual_tx_placeholder_name_and_zero_amount(self):
+        missing = _required_missing_fields(
+            {
+                "entity_kind": "manual_tx",
+                "kind": "income",
+                "name": "Manual income",
+                "merchant_or_payee": "Manual income",
+                "amount": "0",
+            },
+            {"kind": "manual_tx"},
+        )
+        assert "name" in missing
+        assert "amount" in missing
+
+    def test_missing_fields_prompt_both(self):
+        assert _missing_fields_prompt(["name", "amount"]) == "Please share the name and amount to continue."
