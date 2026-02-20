@@ -116,6 +116,7 @@ class FinanceCaptureState(TypedDict, total=False):
     pending_confirmation_items: list[CaptureConfirmationItem] | None
     confirmation_decisions: dict[str, CaptureDecisionPayload] | None
     intent_queue: list[dict[str, Any]] | None
+    needs_required_fields: bool | None
 
 
 def _generate_item_id(state: FinanceCaptureState, *, force_new: bool = False) -> str:
@@ -273,6 +274,54 @@ def _validate_draft_payload(
         return payload, payload["entity_kind"]
 
     raise ValueError(f"Unsupported entity kind: {kind or 'unknown'}")
+
+
+def _is_missing_text(value: Any) -> bool:
+    return not isinstance(value, str) or not value.strip()
+
+
+def _is_missing_amount(value: Any) -> bool:
+    if value is None:
+        return True
+    try:
+        amount = float(str(value).strip())
+    except Exception:
+        return True
+    return amount == 0.0
+
+
+def _required_missing_fields(draft: dict[str, Any], intent_dict: dict[str, Any] | None = None) -> list[str]:
+    kind = str((intent_dict or {}).get("kind") or draft.get("entity_kind") or "").strip().lower()
+    missing: list[str] = []
+
+    if kind in ("asset", "liability"):
+        if _is_missing_text(draft.get("name")):
+            missing.append("name")
+        amount_key = "estimated_value" if kind == "asset" else "principal_balance"
+        if _is_missing_amount(draft.get(amount_key)):
+            missing.append("amount")
+        return missing
+
+    if kind in ("manual_tx", "income", "expense"):
+        merchant_or_name = draft.get("merchant_or_payee") or draft.get("name")
+        normalized_name = str(merchant_or_name or "").strip().lower()
+        if _is_missing_text(merchant_or_name) or normalized_name in {
+            "manual income",
+            "manual expense",
+            "manual transaction",
+        }:
+            missing.append("name")
+        if _is_missing_amount(draft.get("amount")):
+            missing.append("amount")
+    return missing
+
+
+def _missing_fields_prompt(missing_fields: list[str]) -> str:
+    if "name" in missing_fields and "amount" in missing_fields:
+        return "Please share the name and amount to continue."
+    if "name" in missing_fields:
+        return "Please share the name to continue."
+    return "Please share the amount to continue."
 
 
 def _build_completion_message(
@@ -666,6 +715,22 @@ def create_finance_capture_graph(
         intent_dict = state.get("intent") or {}
         was_edit = state.get("confirm_decision") == "edit"
 
+        missing_fields = _required_missing_fields(draft=draft, intent_dict=intent_dict)
+        if missing_fields:
+            return {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": _missing_fields_prompt(missing_fields),
+                        "name": "finance_capture_agent",
+                    }
+                ],
+                "needs_required_fields": True,
+                "pending_confirmation_items": None,
+                "confirmation_decisions": None,
+                "validated": None,
+            }
+
         try:
             payload, entity_kind = _validate_draft_payload(draft=draft, intent_dict=intent_dict)
         except Exception as exc:  # noqa: BLE001
@@ -691,6 +756,7 @@ def create_finance_capture_graph(
         }
         if was_edit:
             result["from_edit"] = True
+        result["needs_required_fields"] = None
         return result
 
     async def confirm_human(state: FinanceCaptureState, config: RunnableConfig) -> dict[str, Any]:
@@ -894,6 +960,53 @@ def create_finance_capture_graph(
         }
 
     def handoff_back(state: FinanceCaptureState) -> dict[str, Any]:
+        if state.get("needs_required_fields"):
+            messages = []
+            original_messages = state.get("messages", [])
+            delegator_message = None
+            for msg in original_messages:
+                role = getattr(msg, "role", None)
+                if role is None and isinstance(msg, dict):
+                    role = msg.get("role")
+                name = getattr(msg, "name", None)
+                if name is None and isinstance(msg, dict):
+                    name = msg.get("name")
+                if role == "human" and name == "supervisor_delegator":
+                    delegator_message = msg
+                    break
+
+            if delegator_message:
+                messages.append(delegator_message)
+
+            prompt_text = "Please share the missing required details to continue."
+            for msg in reversed(original_messages):
+                role = getattr(msg, "role", None)
+                if role is None and isinstance(msg, dict):
+                    role = msg.get("role")
+                name = getattr(msg, "name", None)
+                if name is None and isinstance(msg, dict):
+                    name = msg.get("name")
+                content = getattr(msg, "content", None)
+                if content is None and isinstance(msg, dict):
+                    content = msg.get("content")
+                if role == "assistant" and name == "finance_capture_agent" and isinstance(content, str) and content.strip():
+                    prompt_text = content.strip()
+                    break
+
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": prompt_text,
+                    "name": "finance_capture_agent",
+                    "response_metadata": {"is_handoff_back": True},
+                }
+            )
+            return {
+                "messages": messages,
+                "from_edit": None,
+                "needs_required_fields": None,
+            }
+
         completion_contexts = state.get("completion_contexts") or []
         if not completion_contexts:
             draft: dict[str, Any] = state.get("validated") or state.get("capture_draft") or {}
@@ -979,6 +1092,8 @@ def create_finance_capture_graph(
     workflow.add_edge("load_next_intent", "fetch_taxonomy_if_needed")
 
     def _after_validate(state: FinanceCaptureState) -> str:
+        if state.get("needs_required_fields"):
+            return "handoff_back"
         if state.get("from_edit"):
             return "persist"
         queue = state.get("intent_queue") or []
@@ -993,6 +1108,7 @@ def create_finance_capture_graph(
             "persist": "persist",
             "confirm_human": "confirm_human",
             "load_next_intent": "load_next_intent",
+            "handoff_back": "handoff_back",
         },
     )
 
