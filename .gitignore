@@ -202,3 +202,7 @@ app/knowledge/log.txt
 .cursor/commands/
 
 results.json
+
+
+#Ignore vscode AI rules
+.github\instructions\codacy.instructions.md

@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 class CrawlLogger:
-    """Logger for tracking crawling results for external sources."""
+    """Logger for tracking crawling results for external sourcess."""
 
     def __init__(self, log_file: Optional[str] = None):
         self.log_file = log_file or os.path.join(os.path.dirname(__file__), "log.txt")
